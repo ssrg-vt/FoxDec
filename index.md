@@ -6,11 +6,11 @@ The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigatin
 
 ## Formally verified decompilation
 
-Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include a) disassembly that lifts assembly code from binary, b) control flow graph (CFG) recovery that extracts program CFG from assembly, c) extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and d) type assignment. FoxDec is investigating techniques for the decompilation phases that are formally verified. 
+Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the decompilation phases that are formally verified. 
 
 FoxDec's decompilation phases include disassembly; CFG recovery; extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code of program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). The project leverages the [Chum project][chum]'s formal x86-64 machine model for this purpose. 
 
-Central to formally verified decompilation is the notion of sound decompilation. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in a different project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
+Central to formally verified decompilation is the notion of _sound decompilation_. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in a different project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
 
 ## Use cases
 
