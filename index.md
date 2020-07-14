@@ -16,7 +16,7 @@ Central to formally verified decompilation is the notion of sound decompilation.
 
 Sound, recompilable decompilation to C has a variety of use cases. For example, patching a binary to fix errors or potential security exploits is highly complex in settings where source code or third-party libraries are no longer available or build processes or tools have become outdated. Patching at the C-level is relatively easier and compelling when the decompiled C code is formally proven to be functionally equivalent to the binary. 
 
-Other use cases include binary analysis, binary porting as an alternative to [software emulation][qemu], and binary optimization, each of which can now be performed at the C level (e.g., using off-the-shelf, C-level analysis and optimization tools). 
+Other use cases include binary analysis, binary porting (as an alternative to [software emulation][qemu]), and binary optimization, each of which can now be performed at the C level (e.g., using off-the-shelf C code analysis and optimization tools). 
 
 
 # Papers
