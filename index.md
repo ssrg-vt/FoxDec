@@ -24,7 +24,7 @@ Other use cases include binary analysis, binary porting as an alternative to [so
 Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conference on Software Engineering and Formal Methods (SEFM 2020), September 14-18, 2020, Amsterdam, The Netherlands.
 
 # Code and proofs
-* Code and proofs of our [SEFM 2020 paper] will be available soon. 
+* Code and proofs of our SEFM 2020 paper will be available soon. 
 
 # Contacts
 * [Binoy Ravindran][binoy], Virginia Tech, <binoy@vt.edu>
