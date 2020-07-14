@@ -1,3 +1,2 @@
 # FoxDec
-The FoxDec Project
-Formally verified x86-64 decompilation
+The FoxDec Project: formally verified x86-64 decompilation
