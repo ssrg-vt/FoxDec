@@ -2,7 +2,7 @@
 * Our decompilation-to-C paper has been accepted at [SEFM 2020][sefm20]!
 
 # Overview
-The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is sound as well as fully recompilable. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary for x86-64 architectures. 
+The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is _sound_ as well as fully _recompilable_. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary for x86-64 architectures. 
 
 ## Formally verified decompilation
 
