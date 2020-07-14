@@ -20,7 +20,7 @@ Other use cases include binary analysis, binary porting as an alternative to [so
 
 
 # Papers
-* Sound C Code Decompilation for a Subset of x86-64 Binaries,
+* _[Sound C Code Decompilation for a Subset of x86-64 Binaries]_,
 Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conference on Software Engineering and Formal Methods (SEFM 2020), September 14-18, 2020, Amsterdam, The Netherlands.
 
 # Code and proofs
