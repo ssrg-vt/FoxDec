@@ -4,7 +4,7 @@
 # Overview
 The FoxDec (for Formal x86-64 Decompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is sound as well as fully recompilable. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary for x86-64 architectures. 
 
-##Formally verified decompilation
+## Formally verified decompilation
 
 Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include a) disassembly that lifts assembly code from binary, b) control flow graph (CFG) recovery that extracts program CFG from assembly, c) extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and d) type assignment. FoxDec is investigating techniques for the decompilation phases that are formally verified. 
 
@@ -12,7 +12,7 @@ FoxDec's decompilation phases include disassembly; CFG recovery; extraction of a
 
 Central to formally verified decompilation is the notion of sound decompilation. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in a different project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
 
-##Use cases
+## Use cases
 
 Sound, recompilable decompilation to C has a variety of use cases. For example, patching a binary to fix errors or potential security exploits is highly complex in settings where source code or third-party libraries are no longer available or build processes or tools have become outdated. Patching at the C-level is relatively easier and compelling when the decompiled C code is formally proven to be functionally equivalent to the binary. 
 
@@ -20,7 +20,7 @@ Other use cases include binary analysis, binary porting as an alternative to [so
 
 
 # Papers
-* [_Sound C Code Decompilation for a Subset of x86-64 Binaries_],
+* Sound C Code Decompilation for a Subset of x86-64 Binaries,
 Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conference on Software Engineering and Formal Methods (SEFM 2020), September 14-18, 2020, Amsterdam, The Netherlands.
 
 # Code and proofs
