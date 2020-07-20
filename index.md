@@ -1,5 +1,5 @@
 # News
-* Our decompilation-to-C paper has been accepted at [SEFM 2020][sefm20]!
+* Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
 # Overview
 The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is _sound_ as well as fully _recompilable_. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary for x86-64 architectures. 
@@ -20,11 +20,11 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 # Papers
-* _Sound C Code Decompilation for a Subset of x86-64 Binaries_,
+* [_Sound C Code Decompilation for a Subset of x86-64 Binaries_][sefm20-paper],
 Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conference on Software Engineering and Formal Methods (SEFM 2020), September 14-18, 2020, Amsterdam, The Netherlands.
 
 # Code and proofs
-* Code and proofs of our SEFM 2020 paper will be available soon. 
+* Code and proofs of our SEFM 2020 paper is available [here][sefm20-artifacts].
 
 # Contacts
 * [Binoy Ravindran][binoy], Virginia Tech, <binoy@vt.edu>
@@ -57,4 +57,9 @@ Research ([ONR][onr]) under grant N00014-17-1-2297.
 [chum]: https://ssrg-vt.github.io/Chum/
 [decompile]: https://en.wikipedia.org/wiki/Decompiler
 [qemu]: https://www.qemu.org/
+[sefm20-paper]: https://www.ssrg.ece.vt.edu/papers/sefm20.pdf
+[sefm20-artifacts]: https://doi.org/10.5281/zenodo.3952034
+
+
+
 
