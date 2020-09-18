@@ -1,4 +1,5 @@
 # News
+* Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
 * Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
 # Overview
