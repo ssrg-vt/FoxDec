@@ -1338,16 +1338,29 @@ instance Data.Serialize.Serialize Context.VerificationResult
 instance Data.Serialize.Serialize Context.CFG
 
 module Propagation
+
+-- | We assume a class where we can do predicate transformation through
+--   function <tt>tau</tt>, and we can merge two predicates through
+--   function <tt>join</tt>. Moreover, we assume an implementation of a
+--   function <tt>implies</tt> that implements symbolic implication.
 class (Show pred) => Propagator ctxt pred
+
+-- | Predicate transformation for an edge in in a CFG, over a basic blocks.
 tau :: Propagator ctxt pred => ctxt -> CFG -> Int -> Maybe Int -> pred -> pred
+
+-- | A lattice-join
 join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
+
+-- | Symbolic implication
 implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
-supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
-post :: CFG -> Key -> IntSet
-out_edges :: CFG -> Int -> Set (Int, Key)
-pick_edge_from_bag :: State (IntMap pred, Set (Int, Int)) (Maybe ((Int, Int), Set (Int, Int)))
-prop :: Propagator ctxt pred => ctxt -> CFG -> State (IntMap pred, Set (Int, Int)) ()
+
+-- | Start propagation at the given entry address with the given initial
+--   predicate. Returns a set of invariants, i.e., a mapping of instruction
+--   addresses to predicates.
 do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IntMap pred
+
+-- | The set of next blocks from the given block
+post :: CFG -> Key -> IntSet
 
 module CFG_Gen
 
@@ -1383,30 +1396,40 @@ show_invariants :: CFG -> Invariants -> String
 instance GHC.Show.Show CFG_Gen.ResolvedJumpTarget
 instance GHC.Classes.Eq CFG_Gen.ResolvedJumpTarget
 
+
+-- | Symbolic execution of sequential lists of instructions of type
+--   <tt><a>Instr</a></tt> on predicates of type <tt><a>Pred</a></tt>.
 module SymbolicExecution
 
 -- | Do predicate transformation over a basic block in a CFG. Given an edge
 --   in the CFG from blockId to blockId', perform predicate transformation.
---   blockId' is needed to set the flags properly. If none is supplied, the
---   flags are ignored. We provide the option to skip the last instruction,
---   as sometimes we need to symbolically execute a block up to but
---   excluding the last instruction.
+--   Parameter blockId' is needed to set the flags properly. If
+--   <tt>Nothing</tt> is supplied, the flags are overapproximatively set to
+--   <tt><a>None</a></tt>. We provide the option to skip the last
+--   instruction, as sometimes we need to symbolically execute a block up
+--   to but excluding the last instruction.
 tau_blockID :: Context -> CFG -> Int -> Maybe Int -> Bool -> Pred -> Pred
 
--- | Do predicate transformation over a block of instructions Does not take
---   into account flags, commonly function <tt><a>tau_blockID</a></tt>
+-- | Do predicate transformation over a block of instructions. Does not
+--   take into account flags, commonly function <tt><a>tau_blockID</a></tt>
 --   should be used.
 tau_b :: Context -> [Instr] -> State Pred ()
 
--- | The initial predicate Given the currently known invariants and
+-- | The initial predicate. Given the currently known invariants and
 --   postconditions, gather all stateparts occurring in the current
 --   function. The initial predicate assign a variable to each statepart,
---   e.g.: <tt>RSP == RSP0, RDI == RDI), ...</tt>.
+--   e.g.: <tt>RSP == RSP0, RDI == RDI, ...</tt>.
 init_pred :: Invariants -> Set (NodeInfo, Pred) -> Pred
 
 -- | Returns true iff the given statepart is preserved (unmodified) after a
---   function call.
+--   function call. This happens if the statepart is local, if the address
+--   belongs to an unwritable data section, or if the function call is
+--   external and the statepart belongs to a section that cannot be
+--   modified by external functions according to the <a>Conventions</a>.
 statepart_is_preserved_after_function_call :: Context -> Instr -> StatePart -> Bool
+
+-- | Given the currently known invariants and postconditions, gather all
+--   stateparts occurring in the current function.
 gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
 
 -- | Tries to guess if the symbolic expression is a pointer. Any immediate

@@ -110,6 +110,14 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 * [Freek Verbeek][freek], Virginia Tech, <freek@vt.edu>
 
 
+---
+
+FoxDec is an open-source project from the Systems Software Research Group
+([SSRG][ssrg]) at [Virginia Tech][vt]. It is supported by the Office of Naval
+Research ([ONR][onr]) under grant N00014-17-1-2297.
+
+
+
 
 [1]: https://www.ssrg.ece.vt.edu/papers/memocode19.pdf
 [2]: https://www.ssrg.ece.vt.edu/papers/cpp2019.pdf
