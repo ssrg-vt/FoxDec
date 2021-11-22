@@ -1,21 +1,20 @@
 .stack-work/
 *~
-examples/*/100*
-examples/*/ffff*
-examples/*/0/
-examples/*/*.calls
-examples/*/*.indirections
-examples/*/*.pdf
-examples/*/*.png
-examples/*/*.jpg
-examples/*/*.dot
-examples/*/*.thy
+foxdec/examples/*/100*
+foxdec/examples/*/ffff*
+foxdec/examples/*/0/
+foxdec/examples/*/*.calls
+foxdec/examples/*/*.indirections
+foxdec/examples/*/*.pdf
+foxdec/examples/*/*.png
+foxdec/examples/*/*.jpg
+foxdec/examples/*/*.dot
+foxdec/examples/*/*.thy
+foxdec/.stack-work
 
 *.report
 *.thy~
 
-project/old
-project/.stack-work
 .DS_Store
 *.swp
 *.log
