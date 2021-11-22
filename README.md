@@ -3,14 +3,15 @@
 FoxDec is a tool, currently actively being developped, that aims at formally verified decompilation. In its current stage, it does disassembly, control flow reconstruction and function boundary detection.
 
 ## Table of Contents
-1. [How to build](#build).
-2. [How to use](#usage).
+1. [How to build](#build)
+2. [How to use](#usage)
 
 
 ## How to build <a name="build"></a>
-1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by adding to the `PATH` environment variable.
+1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating to the `PATH` environment variable.
 1. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
-2. From `./foxdec`, run `stack build --haddock`. This builds the application and generates documentation using [Haddock](https://haskell-haddock.readthedocs.io/en/latest/index.html).
+2. From `./foxdec`, run `stack build --haddock --haddock-arguments --odir=docs/haddock`.
+This builds the application and generates documentation using [Haddock](https://haskell-haddock.readthedocs.io/en/latest/index.html).
 3. From `./foxdec`, run `stack exec foxdec-exe 1 ../examples/du du`. This runs FoxDec on the `du` example.
 
 ## How to use <a name="usage"></a>
@@ -46,6 +47,6 @@ Here, `DIRNAME` is the name of the directory that contains the files generated b
     stack exec foxdec-exe 1 ../examples/du du
 
 ###3. Access .report file
-
+See [here](./docs/haddock/index.html).
 
 
