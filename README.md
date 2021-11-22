@@ -47,6 +47,6 @@ Here, `DIRNAME` is the name of the directory that contains the files generated b
     stack exec foxdec-exe 1 ../examples/du du
 
 ###3. Access .report file
-See [here](./docs/haddock/index.html).
+See [here](./project/docs/haddock/index.html).
 
 

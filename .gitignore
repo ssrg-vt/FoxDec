@@ -4,28 +4,18 @@ examples/*/100*
 examples/*/ffff*
 examples/*/0/
 examples/*/*.calls
+examples/*/*.indirections
 examples/*/*.pdf
 examples/*/*.png
 examples/*/*.jpg
 examples/*/*.dot
+examples/*/*.thy
 
-examples/*/*/100*
-examples/*/*/ffff*
-examples/*/*/4*
-examples/*/*/7*
-examples/*/*/8*
-examples/*/*/a*
-examples/*/*/0/
-examples/*/*/*.calls
-examples/*/*/*.pdf
-examples/*/*/*.png
-examples/*/*/*.jpg
-examples/*/*/*.dot
-
+*.report
 *.thy~
 
-foxdec/old
-foxdec/.stack-work
+project/old
+project/.stack-work
 .DS_Store
 *.swp
 *.log

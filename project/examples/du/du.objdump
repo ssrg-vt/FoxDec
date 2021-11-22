@@ -1,0 +1,1007 @@
+/usr/bin/du:
+(__TEXT,__text) section
+100002a94:	push	rbp
+100002a95:	mov	rbp, rsp
+100002a98:	push	r15
+100002a9a:	push	r14
+100002a9c:	push	r13
+100002a9e:	push	r12
+100002aa0:	push	rbx
+100002aa1:	sub	rsp, 0xe8
+100002aa8:	mov	r14, rsi
+100002aab:	mov	ebx, edi
+100002aad:	lea	rsi, [rip + 0x1283] ## literal pool for: ""
+100002ab4:	xor	r13d, r13d
+100002ab7:	xor	edi, edi
+100002ab9:	call	0x100003a88 ## symbol stub for: _setlocale
+100002abe:	mov	qword ptr [rip + 0x1707], 0x0
+100002ac9:	mov	r12d, 0x4
+100002acf:	mov	dword ptr [rbp - 0x48], 0x7fffffff
+100002ad6:	mov	eax, 0x0
+100002adb:	mov	qword ptr [rbp - 0x40], rax
+100002adf:	mov	dword ptr [rbp - 0x38], 0x0
+100002ae6:	mov	dword ptr [rbp - 0x50], 0x0
+100002aed:	xor	r15d, r15d
+100002af0:	mov	dword ptr [rbp - 0x44], 0x0
+100002af7:	mov	dword ptr [rbp - 0x4c], 0x0
+100002afe:	mov	dword ptr [rbp - 0x2c], 0x0
+100002b05:	mov	edi, ebx
+100002b07:	mov	rsi, r14
+100002b0a:	lea	rdx, [rip + 0x1227] ## literal pool for: "HI:LPasd:cghkmrx"
+100002b11:	call	0x100003a64 ## symbol stub for: _getopt
+100002b16:	lea	ecx, [rax - 0x61]
+100002b19:	cmp	ecx, 0x17
+100002b1c:	ja	0x100002b37
+100002b1e:	lea	rdx, [rip + 0xb93]
+100002b25:	movsxd	rax, dword ptr [rdx + 4*rcx]
+100002b29:	add	rax, rdx
+100002b2c:	jmp	rax
+100002b2e:	mov	dword ptr [rbp - 0x50], 0x1
+100002b35:	jmp	0x100002b05
+100002b37:	lea	ecx, [rax - 0x48]
+100002b3a:	cmp	ecx, 0x8
+100002b3d:	ja	0x100002c71
+100002b43:	lea	rdx, [rip + 0xb4a]
+100002b4a:	movsxd	rax, dword ptr [rdx + 4*rcx]
+100002b4e:	add	rax, rdx
+100002b51:	jmp	rax
+100002b53:	mov	r13d, 0x1
+100002b59:	xor	eax, eax
+100002b5b:	mov	qword ptr [rbp - 0x40], rax
+100002b5f:	mov	dword ptr [rbp - 0x38], 0x0
+100002b66:	jmp	0x100002b05
+100002b68:	mov	dword ptr [rbp - 0x4c], 0x1
+100002b6f:	jmp	0x100002b05
+100002b71:	call	0x100003a04 ## symbol stub for: ___error
+100002b76:	mov	dword ptr [rax], 0x0
+100002b7c:	mov	rax, qword ptr [rip + 0x1495] ## literal pool symbol address: _optarg
+100002b83:	mov	rdi, qword ptr [rax]
+100002b86:	call	0x100003a10 ## symbol stub for: _atoi
+100002b8b:	mov	dword ptr [rbp - 0x64], ebx
+100002b8e:	mov	rbx, r14
+100002b91:	mov	r14, r13
+100002b94:	mov	r13d, r15d
+100002b97:	mov	r15d, r12d
+100002b9a:	mov	r12d, eax
+100002b9d:	call	0x100003a04 ## symbol stub for: ___error
+100002ba2:	mov	dword ptr [rbp - 0x48], r12d
+100002ba6:	test	r12d, r12d
+100002ba9:	mov	r12d, r15d
+100002bac:	mov	r15d, r13d
+100002baf:	mov	r13, r14
+100002bb2:	mov	r14, rbx
+100002bb5:	mov	ebx, dword ptr [rbp - 0x64]
+100002bb8:	js	0x1000035f6
+100002bbe:	mov	dword ptr [rbp - 0x44], 0x1
+100002bc5:	cmp	dword ptr [rax], 0x22
+100002bc8:	jne	0x100002b05
+100002bce:	jmp	0x1000035f6
+100002bd3:	mov	r15d, 0x1
+100002bd9:	jmp	0x100002b05
+100002bde:	lea	rdi, [rip + 0x1185] ## literal pool for: "BLOCKSIZE=512"
+100002be5:	call	0x100003a7c ## symbol stub for: _putenv
+100002bea:	lea	rax, [rip + 0x153f]
+100002bf1:	mov	qword ptr [rip + 0x15e0], rax
+100002bf8:	mov	dword ptr [rbp - 0x2c], 0x1
+100002bff:	jmp	0x100002b05
+100002c04:	or	r12d, 0x40
+100002c08:	jmp	0x100002b05
+100002c0d:	mov	rax, qword ptr [rip + 0x1404] ## literal pool symbol address: _optarg
+100002c14:	mov	rdi, qword ptr [rax]
+100002c17:	call	0x10000374c
+100002c1c:	jmp	0x100002b05
+100002c21:	mov	dword ptr [rbp - 0x38], 0x1
+100002c28:	xor	r13d, r13d
+100002c2b:	xor	eax, eax
+100002c2d:	mov	qword ptr [rbp - 0x40], rax
+100002c31:	jmp	0x100002b05
+100002c36:	mov	eax, 0x1
+100002c3b:	mov	qword ptr [rbp - 0x40], rax
+100002c3f:	xor	r13d, r13d
+100002c42:	mov	dword ptr [rbp - 0x38], 0x0
+100002c49:	jmp	0x100002b05
+100002c4e:	lea	rdi, [rip + 0x1123] ## literal pool for: "BLOCKSIZE=1024"
+100002c55:	jmp	0x100002c67
+100002c57:	lea	rdi, [rip + 0x1129] ## literal pool for: "BLOCKSIZE=1048576"
+100002c5e:	jmp	0x100002c67
+100002c60:	lea	rdi, [rip + 0x1132] ## literal pool for: "BLOCKSIZE=1g"
+100002c67:	call	0x100003a7c ## symbol stub for: _putenv
+100002c6c:	jmp	0x100002afe
+100002c71:	cmp	eax, -0x1
+100002c74:	jne	0x1000035f1
+100002c7a:	mov	rdx, qword ptr [rbp - 0x40]
+100002c7e:	lea	ecx, [rdx + r13]
+100002c82:	mov	esi, dword ptr [rbp - 0x38]
+100002c85:	add	ecx, esi
+100002c87:	cmp	ecx, 0x2
+100002c8a:	jae	0x1000035f1
+100002c90:	mov	rax, qword ptr [rip + 0x1389] ## literal pool symbol address: _optind
+100002c97:	movsxd	rax, dword ptr [rax]
+100002c9a:	or	r12d, r13d
+100002c9d:	mov	ebx, r12d
+100002ca0:	or	ebx, 0x2
+100002ca3:	test	edx, edx
+100002ca5:	cmove	ebx, r12d
+100002ca9:	mov	edx, ebx
+100002cab:	or	edx, 0x10
+100002cae:	test	ecx, ecx
+100002cb0:	cmove	ebx, edx
+100002cb3:	test	esi, esi
+100002cb5:	cmovne	ebx, edx
+100002cb8:	cmp	dword ptr [rbp - 0x50], 0x0
+100002cbc:	je	0x100002cd1
+100002cbe:	or	dword ptr [rbp - 0x44], r15d
+100002cc2:	jne	0x1000035f1
+100002cc8:	mov	dword ptr [rbp - 0x40], 0x0
+100002ccf:	jmp	0x100002cec
+100002cd1:	mov	cl, 0x1
+100002cd3:	mov	dword ptr [rbp - 0x40], ecx
+100002cd6:	test	r15d, r15d
+100002cd9:	je	0x100002cec
+100002cdb:	mov	dword ptr [rbp - 0x48], 0x0
+100002ce2:	cmp	dword ptr [rbp - 0x44], 0x0
+100002ce6:	jne	0x1000035f1
+100002cec:	lea	r15, [r14 + 8*rax]
+100002cf0:	cmp	qword ptr [r15], 0x0
+100002cf4:	jne	0x100002d0b
+100002cf6:	lea	rax, [rip + 0x147b]
+100002cfd:	mov	qword ptr [r14], rax
+100002d00:	mov	qword ptr [r14 + 0x8], 0x0
+100002d08:	mov	r15, r14
+100002d0b:	lea	rdi, [rbp - 0x74]
+100002d0f:	lea	r14, [rbp - 0x60]
+100002d13:	mov	rsi, r14
+100002d16:	call	0x100003a5e ## symbol stub for: _getbsize
+100002d1b:	mov	rax, qword ptr [r14]
+100002d1e:	lea	rcx, [rax + 0x1ff]
+100002d25:	test	rax, rax
+100002d28:	cmovns	rcx, rax
+100002d2c:	sar	rcx, 0x9
+100002d30:	mov	qword ptr [r14], rcx
+100002d33:	lea	r14, [rbp - 0x54]
+100002d37:	mov	dword ptr [r14], 0x1
+100002d3e:	lea	rdi, [rip + 0x1061] ## literal pool for: "vfs.nspace.prevent_materialization"
+100002d45:	mov	r8d, 0x4
+100002d4b:	xor	esi, esi
+100002d4d:	xor	edx, edx
+100002d4f:	mov	rcx, r14
+100002d52:	call	0x100003aac ## symbol stub for: _sysctlbyname
+100002d57:	mov	dword ptr [r14], 0x0
+100002d5e:	mov	rdi, r15
+100002d61:	mov	esi, ebx
+100002d63:	xor	edx, edx
+100002d65:	call	0x100003a40 ## symbol stub for: _fts_open$INODE64
+100002d6a:	test	rax, rax
+100002d6d:	je	0x100003613
+100002d73:	mov	r13, rax
+100002d76:	mov	rdi, rax
+100002d79:	call	0x100003a46 ## symbol stub for: _fts_read$INODE64
+100002d7e:	test	rax, rax
+100002d81:	je	0x10000361c
+100002d87:	mov	r12, rax
+100002d8a:	mov	qword ptr [rbp - 0x38], r13
+100002d8e:	mov	eax, dword ptr [r12 + 0x58]
+100002d93:	dec	eax
+100002d95:	cmp	ax, 0xc
+100002d99:	ja	0x100002e8e
+100002d9f:	movzx	eax, ax
+100002da2:	lea	rcx, [rip + 0x96f]
+100002da9:	movsxd	rax, dword ptr [rcx + 4*rax]
+100002dad:	add	rax, rcx
+100002db0:	jmp	rax
+100002db2:	mov	rdi, r12
+100002db5:	call	0x1000037cc
+100002dba:	test	eax, eax
+100002dbc:	je	0x100002eea
+100002dc2:	mov	rdi, r13
+100002dc5:	mov	rsi, r12
+100002dc8:	mov	edx, 0x4
+100002dcd:	call	0x100003a4c ## symbol stub for: _fts_set$INODE64
+100002dd2:	jmp	0x1000034ca
+100002dd7:	mov	rdi, r12
+100002dda:	call	0x1000037cc
+100002ddf:	test	eax, eax
+100002de1:	jne	0x1000034ca
+100002de7:	mov	rax, qword ptr [r12 + 0x60]
+100002dec:	mov	rcx, qword ptr [r12 + 0x8]
+100002df1:	mov	rdx, qword ptr [r12 + 0x18]
+100002df6:	add	rdx, qword ptr [rax + 0x68]
+100002dfa:	mov	qword ptr [r12 + 0x18], rdx
+100002dff:	add	qword ptr [rcx + 0x18], rdx
+100002e03:	movsx	eax, word ptr [r12 + 0x56]
+100002e09:	cmp	dword ptr [rbp - 0x48], eax
+100002e0c:	jl	0x1000034ca
+100002e12:	mov	rax, qword ptr [r12 + 0x18]
+100002e17:	cqo
+100002e19:	idiv	qword ptr [rbp - 0x60]
+100002e1d:	cmp	rdx, 0x1
+100002e21:	sbb	rax, -0x1
+100002e25:	cmp	dword ptr [rbp - 0x2c], 0x0
+100002e29:	je	0x1000030c7
+100002e2f:	xorps	xmm0, xmm0
+100002e32:	cvtsi2sd	xmm0, rax
+100002e37:	call	0x100003895
+100002e3c:	mov	rsi, qword ptr [r12 + 0x30]
+100002e41:	lea	rdi, [rip + 0xf8a] ## literal pool for: "\t%s\n"
+100002e48:	xor	eax, eax
+100002e4a:	call	0x100003a76 ## symbol stub for: _printf
+100002e4f:	jmp	0x1000034ca
+100002e54:	lea	rdi, [rip + 0xf84] ## literal pool for: "bin/du"
+100002e5b:	lea	rsi, [rip + 0xf84] ## literal pool for: "unix2003"
+100002e62:	call	0x100003a1c ## symbol stub for: _compat_mode
+100002e67:	test	al, al
+100002e69:	je	0x100002e8e
+100002e6b:	mov	rdi, qword ptr [r12 + 0x30]
+100002e70:	lea	rsi, [rbp - 0x110]
+100002e77:	call	0x100003a8e ## symbol stub for: _stat$INODE64
+100002e7c:	test	eax, eax
+100002e7e:	jns	0x100002e8e
+100002e80:	call	0x100003a04 ## symbol stub for: ___error
+100002e85:	cmp	dword ptr [rax], 0x3e
+100002e88:	je	0x1000035bd
+100002e8e:	mov	rdi, r12
+100002e91:	call	0x1000037cc
+100002e96:	test	eax, eax
+100002e98:	jne	0x1000034ca
+100002e9e:	mov	rbx, qword ptr [r12 + 0x60]
+100002ea3:	cmp	word ptr [rbx + 0x6], 0x2
+100002ea8:	jb	0x100003330
+100002eae:	mov	r14, qword ptr [rip + 0x12cb]
+100002eb5:	test	r14, r14
+100002eb8:	je	0x100002f94
+100002ebe:	mov	r15, qword ptr [rip + 0x12cb]
+100002ec5:	jmp	0x100002fcf
+100002eca:	lea	rdi, [rip + 0xf0e] ## literal pool for: "bin/du"
+100002ed1:	lea	rsi, [rip + 0xf0e] ## literal pool for: "unix2003"
+100002ed8:	call	0x100003a1c ## symbol stub for: _compat_mode
+100002edd:	test	al, al
+100002edf:	je	0x1000034ca
+100002ee5:	jmp	0x10000359d
+100002eea:	xorpd	xmm0, xmm0
+100002eee:	movapd	xmmword ptr [rbp - 0x110], xmm0
+100002ef6:	mov	qword ptr [rbp - 0x100], 0x0
+100002f01:	mov	word ptr [rbp - 0x110], 0x5
+100002f0a:	mov	dword ptr [rbp - 0x104], 0x1
+100002f14:	mov	rdi, qword ptr [r12 + 0x30]
+100002f19:	mov	ecx, 0x8
+100002f1e:	lea	rsi, [rbp - 0x110]
+100002f25:	lea	rdx, [rbp - 0x70]
+100002f29:	xor	r8d, r8d
+100002f2c:	call	0x100003a58 ## symbol stub for: _getattrlist
+100002f31:	cmp	eax, -0x1
+100002f34:	je	0x1000034c6
+100002f3a:	cmp	dword ptr [rbp - 0x6c], 0x1
+100002f3e:	je	0x1000034c6
+100002f44:	mov	rbx, qword ptr [r12 + 0x60]
+100002f49:	mov	r13, qword ptr [rip + 0x1258]
+100002f50:	test	r13, r13
+100002f53:	je	0x1000030e2
+100002f59:	mov	r14, qword ptr [rip + 0x1258]
+100002f60:	jmp	0x10000311d
+100002f65:	mov	rbx, qword ptr [r12 + 0x30]
+100002f6a:	mov	edi, dword ptr [r12 + 0x38]
+100002f6f:	call	0x100003aa6 ## symbol stub for: _strerror
+100002f74:	lea	rdi, [rip + 0xe9d] ## literal pool for: "%s: %s"
+100002f7b:	mov	rsi, rbx
+100002f7e:	mov	rdx, rax
+100002f81:	xor	eax, eax
+100002f83:	call	0x100003ab2 ## symbol stub for: _warnx
+100002f88:	mov	dword ptr [rbp - 0x54], 0x1
+100002f8f:	jmp	0x1000034ca
+100002f94:	mov	qword ptr [rip + 0x11f1], 0x2000
+100002f9f:	mov	edi, 0x10000
+100002fa4:	call	0x100003a70 ## symbol stub for: _malloc
+100002fa9:	mov	qword ptr [rip + 0x11d0], rax
+100002fb0:	test	rax, rax
+100002fb3:	je	0x1000035d5
+100002fb9:	mov	r14, rax
+100002fbc:	mov	esi, 0x10000
+100002fc1:	mov	rdi, rax
+100002fc4:	call	0x1000039fe ## symbol stub for: ___bzero
+100002fc9:	mov	r15d, 0x2000
+100002fcf:	cmp	byte ptr [rip + 0x11ca], 0x0
+100002fd6:	jne	0x1000030bf
+100002fdc:	lea	r13, [r15 + r15]
+100002fe0:	lea	rax, [r13 + 4*r13]
+100002fe5:	cmp	qword ptr [rip + 0x11ac], rax
+100002fec:	jbe	0x1000030bf
+100002ff2:	shl	r15, 0x4
+100002ff6:	mov	rdi, r15
+100002ff9:	call	0x100003a70 ## symbol stub for: _malloc
+100002ffe:	mov	r14, rax
+100003001:	test	rax, rax
+100003004:	jne	0x100003038
+100003006:	mov	rdi, qword ptr [rip + 0x117b]
+10000300d:	test	rdi, rdi
+100003010:	je	0x100003038
+100003012:	mov	rax, qword ptr [rdi]
+100003015:	mov	qword ptr [rip + 0x116c], rax
+10000301c:	call	0x100003a3a ## symbol stub for: _free
+100003021:	mov	rdi, qword ptr [rip + 0x1160]
+100003028:	test	rdi, rdi
+10000302b:	jne	0x100003012
+10000302d:	mov	rdi, r15
+100003030:	call	0x100003a70 ## symbol stub for: _malloc
+100003035:	mov	r14, rax
+100003038:	test	r14, r14
+10000303b:	je	0x1000034ff
+100003041:	mov	rdi, r14
+100003044:	mov	rsi, r15
+100003047:	call	0x1000039fe ## symbol stub for: ___bzero
+10000304c:	mov	r8, qword ptr [rip + 0x113d]
+100003053:	test	r8, r8
+100003056:	je	0x100003217
+10000305c:	mov	r9, rbx
+10000305f:	mov	rdi, qword ptr [rip + 0x111a]
+100003066:	xor	esi, esi
+100003068:	mov	rcx, qword ptr [rdi + 8*rsi]
+10000306c:	test	rcx, rcx
+10000306f:	je	0x1000030af
+100003071:	mov	rax, qword ptr [rcx]
+100003074:	mov	qword ptr [rdi + 8*rsi], rax
+100003078:	movsxd	rax, dword ptr [rcx + 0x14]
+10000307c:	xor	rax, qword ptr [rcx + 0x18]
+100003080:	xor	edx, edx
+100003082:	div	r13
+100003085:	movsxd	rax, edx
+100003088:	mov	rbx, qword ptr [r14 + 8*rax]
+10000308c:	mov	edx, 0x0
+100003091:	test	rbx, rbx
+100003094:	je	0x10000309e
+100003096:	mov	qword ptr [rbx + 0x8], rcx
+10000309a:	mov	rdx, qword ptr [r14 + 8*rax]
+10000309e:	mov	qword ptr [rcx], rdx
+1000030a1:	mov	qword ptr [rcx + 0x8], 0x0
+1000030a9:	mov	qword ptr [r14 + 8*rax], rcx
+1000030ad:	jmp	0x100003068
+1000030af:	inc	rsi
+1000030b2:	cmp	rsi, r8
+1000030b5:	jne	0x100003068
+1000030b7:	mov	rbx, r9
+1000030ba:	jmp	0x10000321e
+1000030bf:	mov	r13, r15
+1000030c2:	jmp	0x100003231
+1000030c7:	mov	rdx, qword ptr [r12 + 0x30]
+1000030cc:	lea	rdi, [rip + 0xd04] ## literal pool for: "%jd\t%s\n"
+1000030d3:	mov	rsi, rax
+1000030d6:	xor	eax, eax
+1000030d8:	call	0x100003a76 ## symbol stub for: _printf
+1000030dd:	jmp	0x1000034ca
+1000030e2:	mov	qword ptr [rip + 0x10cb], 0x2000
+1000030ed:	mov	edi, 0x10000
+1000030f2:	call	0x100003a70 ## symbol stub for: _malloc
+1000030f7:	mov	qword ptr [rip + 0x10aa], rax
+1000030fe:	test	rax, rax
+100003101:	je	0x1000035de
+100003107:	mov	r13, rax
+10000310a:	mov	esi, 0x10000
+10000310f:	mov	rdi, rax
+100003112:	call	0x1000039fe ## symbol stub for: ___bzero
+100003117:	mov	r14d, 0x2000
+10000311d:	cmp	byte ptr [rip + 0x10a4], 0x0
+100003124:	jne	0x10000320f
+10000312a:	lea	r15, [r14 + r14]
+10000312e:	lea	rax, [r15 + 4*r15]
+100003132:	cmp	qword ptr [rip + 0x1087], rax
+100003139:	jbe	0x10000320f
+10000313f:	shl	r14, 0x4
+100003143:	mov	rdi, r14
+100003146:	call	0x100003a70 ## symbol stub for: _malloc
+10000314b:	mov	r13, rax
+10000314e:	test	rax, rax
+100003151:	jne	0x100003185
+100003153:	mov	rdi, qword ptr [rip + 0x1056]
+10000315a:	test	rdi, rdi
+10000315d:	je	0x100003185
+10000315f:	mov	rax, qword ptr [rdi]
+100003162:	mov	qword ptr [rip + 0x1047], rax
+100003169:	call	0x100003a3a ## symbol stub for: _free
+10000316e:	mov	rdi, qword ptr [rip + 0x103b]
+100003175:	test	rdi, rdi
+100003178:	jne	0x10000315f
+10000317a:	mov	rdi, r14
+10000317d:	call	0x100003a70 ## symbol stub for: _malloc
+100003182:	mov	r13, rax
+100003185:	test	r13, r13
+100003188:	je	0x100003541
+10000318e:	mov	rdi, r13
+100003191:	mov	rsi, r14
+100003194:	call	0x1000039fe ## symbol stub for: ___bzero
+100003199:	mov	r8, qword ptr [rip + 0x1018]
+1000031a0:	test	r8, r8
+1000031a3:	je	0x1000033ab
+1000031a9:	mov	r9, rbx
+1000031ac:	mov	rdi, qword ptr [rip + 0xff5]
+1000031b3:	xor	esi, esi
+1000031b5:	mov	rcx, qword ptr [rdi + 8*rsi]
+1000031b9:	test	rcx, rcx
+1000031bc:	je	0x1000031ff
+1000031be:	mov	rax, qword ptr [rcx]
+1000031c1:	mov	qword ptr [rdi + 8*rsi], rax
+1000031c5:	movsxd	rax, dword ptr [rcx + 0x14]
+1000031c9:	xor	rax, qword ptr [rcx + 0x18]
+1000031cd:	xor	edx, edx
+1000031cf:	div	r15
+1000031d2:	movsxd	rax, edx
+1000031d5:	mov	rbx, qword ptr [r13 + 8*rax]
+1000031da:	mov	edx, 0x0
+1000031df:	test	rbx, rbx
+1000031e2:	je	0x1000031ed
+1000031e4:	mov	qword ptr [rbx + 0x8], rcx
+1000031e8:	mov	rdx, qword ptr [r13 + 8*rax]
+1000031ed:	mov	qword ptr [rcx], rdx
+1000031f0:	mov	qword ptr [rcx + 0x8], 0x0
+1000031f8:	mov	qword ptr [r13 + 8*rax], rcx
+1000031fd:	jmp	0x1000031b5
+1000031ff:	inc	rsi
+100003202:	cmp	rsi, r8
+100003205:	jne	0x1000031b5
+100003207:	mov	rbx, r9
+10000320a:	jmp	0x1000033b2
+10000320f:	mov	r15, r14
+100003212:	jmp	0x1000033c5
+100003217:	mov	rdi, qword ptr [rip + 0xf62]
+10000321e:	call	0x100003a3a ## symbol stub for: _free
+100003223:	mov	qword ptr [rip + 0xf56], r14
+10000322a:	mov	qword ptr [rip + 0xf5f], r13
+100003231:	movsxd	rcx, dword ptr [rbx]
+100003234:	mov	rsi, qword ptr [rbx + 0x8]
+100003238:	mov	rax, rcx
+10000323b:	xor	rax, rsi
+10000323e:	xor	edx, edx
+100003240:	div	r13
+100003243:	movsxd	r15, edx
+100003246:	mov	rdi, qword ptr [r14 + 8*r15]
+10000324a:	test	rdi, rdi
+10000324d:	mov	r13, qword ptr [rbp - 0x38]
+100003251:	je	0x100003266
+100003253:	cmp	dword ptr [rdi + 0x14], ecx
+100003256:	jne	0x10000325e
+100003258:	cmp	qword ptr [rdi + 0x18], rsi
+10000325c:	je	0x10000328b
+10000325e:	mov	rdi, qword ptr [rdi]
+100003261:	test	rdi, rdi
+100003264:	jne	0x100003253
+100003266:	cmp	byte ptr [rip + 0xf33], 0x0
+10000326d:	jne	0x100003330
+100003273:	mov	rax, qword ptr [rip + 0xf0e]
+10000327a:	test	rax, rax
+10000327d:	je	0x1000032e0
+10000327f:	mov	rdx, qword ptr [rax]
+100003282:	mov	qword ptr [rip + 0xeff], rdx
+100003289:	jmp	0x1000032f9
+10000328b:	mov	eax, dword ptr [rdi + 0x10]
+10000328e:	lea	ecx, [rax - 0x1]
+100003291:	mov	dword ptr [rdi + 0x10], ecx
+100003294:	cmp	eax, 0x1
+100003297:	jg	0x1000034ca
+10000329d:	mov	rax, qword ptr [rdi + 0x8]
+1000032a1:	test	rax, rax
+1000032a4:	je	0x1000032ac
+1000032a6:	mov	rcx, qword ptr [rdi]
+1000032a9:	mov	qword ptr [rax], rcx
+1000032ac:	mov	rcx, qword ptr [rdi]
+1000032af:	test	rcx, rcx
+1000032b2:	je	0x1000032b8
+1000032b4:	mov	qword ptr [rcx + 0x8], rax
+1000032b8:	cmp	qword ptr [r14 + 8*r15], rdi
+1000032bc:	jne	0x1000032c2
+1000032be:	mov	qword ptr [r14 + 8*r15], rcx
+1000032c2:	dec	qword ptr [rip + 0xecf]
+1000032c9:	cmp	byte ptr [rip + 0xed0], 0x1
+1000032d0:	jne	0x1000034ec
+1000032d6:	call	0x100003a3a ## symbol stub for: _free
+1000032db:	jmp	0x1000034ca
+1000032e0:	mov	edi, 0x20
+1000032e5:	call	0x100003a70 ## symbol stub for: _malloc
+1000032ea:	test	rax, rax
+1000032ed:	je	0x100003569
+1000032f3:	mov	ecx, dword ptr [rbx]
+1000032f5:	mov	rsi, qword ptr [rbx + 0x8]
+1000032f9:	mov	dword ptr [rax + 0x14], ecx
+1000032fc:	mov	qword ptr [rax + 0x18], rsi
+100003300:	movzx	ecx, word ptr [rbx + 0x6]
+100003304:	dec	ecx
+100003306:	mov	dword ptr [rax + 0x10], ecx
+100003309:	inc	qword ptr [rip + 0xe88]
+100003310:	mov	rcx, qword ptr [r14 + 8*r15]
+100003314:	mov	qword ptr [rax], rcx
+100003317:	mov	qword ptr [rax + 0x8], 0x0
+10000331f:	mov	rcx, qword ptr [r14 + 8*r15]
+100003323:	test	rcx, rcx
+100003326:	je	0x10000332c
+100003328:	mov	qword ptr [rcx + 0x8], rax
+10000332c:	mov	qword ptr [r14 + 8*r15], rax
+100003330:	cmp	byte ptr [rbp - 0x40], 0x0
+100003334:	je	0x10000333f
+100003336:	cmp	word ptr [r12 + 0x56], 0x0
+10000333d:	jne	0x100003394
+10000333f:	mov	rax, qword ptr [r12 + 0x60]
+100003344:	mov	rax, qword ptr [rax + 0x68]
+100003348:	cqo
+10000334a:	idiv	qword ptr [rbp - 0x60]
+10000334e:	cmp	rdx, 0x1
+100003352:	sbb	rax, -0x1
+100003356:	cmp	dword ptr [rbp - 0x2c], 0x0
+10000335a:	je	0x10000337e
+10000335c:	xorps	xmm0, xmm0
+10000335f:	cvtsi2sd	xmm0, rax
+100003364:	call	0x100003895
+100003369:	mov	rsi, qword ptr [r12 + 0x30]
+10000336e:	lea	rdi, [rip + 0xa5d] ## literal pool for: "\t%s\n"
+100003375:	xor	eax, eax
+100003377:	call	0x100003a76 ## symbol stub for: _printf
+10000337c:	jmp	0x100003394
+10000337e:	mov	rdx, qword ptr [r12 + 0x30]
+100003383:	lea	rdi, [rip + 0xa4d] ## literal pool for: "%jd\t%s\n"
+10000338a:	mov	rsi, rax
+10000338d:	xor	eax, eax
+10000338f:	call	0x100003a76 ## symbol stub for: _printf
+100003394:	mov	rax, qword ptr [r12 + 0x8]
+100003399:	mov	rcx, qword ptr [r12 + 0x60]
+10000339e:	mov	rcx, qword ptr [rcx + 0x68]
+1000033a2:	add	qword ptr [rax + 0x18], rcx
+1000033a6:	jmp	0x1000034ca
+1000033ab:	mov	rdi, qword ptr [rip + 0xdf6]
+1000033b2:	call	0x100003a3a ## symbol stub for: _free
+1000033b7:	mov	qword ptr [rip + 0xdea], r13
+1000033be:	mov	qword ptr [rip + 0xdf3], r15
+1000033c5:	movsxd	rcx, dword ptr [rbx]
+1000033c8:	mov	r14, rbx
+1000033cb:	mov	rsi, qword ptr [rbx + 0x8]
+1000033cf:	mov	rax, rcx
+1000033d2:	xor	rax, rsi
+1000033d5:	xor	edx, edx
+1000033d7:	div	r15
+1000033da:	movsxd	rbx, edx
+1000033dd:	mov	rdi, qword ptr [r13 + 8*rbx]
+1000033e2:	test	rdi, rdi
+1000033e5:	je	0x1000033f7
+1000033e7:	cmp	dword ptr [rdi + 0x14], ecx
+1000033ea:	jne	0x1000033f2
+1000033ec:	cmp	qword ptr [rdi + 0x18], rsi
+1000033f0:	je	0x10000341c
+1000033f2:	mov	rdi, qword ptr [rdi]
+1000033f5:	jmp	0x1000033e2
+1000033f7:	cmp	byte ptr [rip + 0xdca], 0x0
+1000033fe:	jne	0x1000034c6
+100003404:	mov	rax, qword ptr [rip + 0xda5]
+10000340b:	test	rax, rax
+10000340e:	je	0x100003473
+100003410:	mov	rdx, qword ptr [rax]
+100003413:	mov	qword ptr [rip + 0xd96], rdx
+10000341a:	jmp	0x10000348d
+10000341c:	mov	eax, dword ptr [rdi + 0x10]
+10000341f:	lea	ecx, [rax - 0x1]
+100003422:	mov	dword ptr [rdi + 0x10], ecx
+100003425:	cmp	eax, 0x1
+100003428:	jg	0x100003538
+10000342e:	mov	rax, qword ptr [rdi + 0x8]
+100003432:	test	rax, rax
+100003435:	je	0x10000343d
+100003437:	mov	rcx, qword ptr [rdi]
+10000343a:	mov	qword ptr [rax], rcx
+10000343d:	mov	rcx, qword ptr [rdi]
+100003440:	test	rcx, rcx
+100003443:	je	0x100003449
+100003445:	mov	qword ptr [rcx + 0x8], rax
+100003449:	cmp	qword ptr [r13 + 8*rbx], rdi
+10000344e:	jne	0x100003455
+100003450:	mov	qword ptr [r13 + 8*rbx], rcx
+100003455:	dec	qword ptr [rip + 0xd64]
+10000345c:	cmp	byte ptr [rip + 0xd65], 0x1
+100003463:	jne	0x100003527
+100003469:	call	0x100003a3a ## symbol stub for: _free
+10000346e:	jmp	0x100003538
+100003473:	mov	edi, 0x20
+100003478:	call	0x100003a70 ## symbol stub for: _malloc
+10000347d:	test	rax, rax
+100003480:	je	0x100003583
+100003486:	mov	ecx, dword ptr [r14]
+100003489:	mov	rsi, qword ptr [r14 + 0x8]
+10000348d:	mov	dword ptr [rax + 0x14], ecx
+100003490:	mov	qword ptr [rax + 0x18], rsi
+100003494:	mov	ecx, dword ptr [rbp - 0x6c]
+100003497:	dec	ecx
+100003499:	mov	dword ptr [rax + 0x10], ecx
+10000349c:	inc	qword ptr [rip + 0xd1d]
+1000034a3:	mov	rcx, qword ptr [r13 + 8*rbx]
+1000034a8:	mov	qword ptr [rax], rcx
+1000034ab:	mov	qword ptr [rax + 0x8], 0x0
+1000034b3:	mov	rcx, qword ptr [r13 + 8*rbx]
+1000034b8:	test	rcx, rcx
+1000034bb:	je	0x1000034c1
+1000034bd:	mov	qword ptr [rcx + 0x8], rax
+1000034c1:	mov	qword ptr [r13 + 8*rbx], rax
+1000034c6:	mov	r13, qword ptr [rbp - 0x38]
+1000034ca:	mov	rax, qword ptr [r12 + 0x8]
+1000034cf:	mov	rbx, qword ptr [rax + 0x18]
+1000034d3:	mov	rdi, r13
+1000034d6:	call	0x100003a46 ## symbol stub for: _fts_read$INODE64
+1000034db:	mov	r12, rax
+1000034de:	test	rax, rax
+1000034e1:	jne	0x100002d8e
+1000034e7:	jmp	0x10000361e
+1000034ec:	mov	rax, qword ptr [rip + 0xc95]
+1000034f3:	mov	qword ptr [rdi], rax
+1000034f6:	mov	qword ptr [rip + 0xc8b], rdi
+1000034fd:	jmp	0x1000034ca
+1000034ff:	mov	byte ptr [rip + 0xc9a], 0x1
+100003506:	lea	rdi, [rip + 0x996] ## literal pool for: "No more memory for tracking hard links"
+10000350d:	xor	eax, eax
+10000350f:	call	0x100003ab2 ## symbol stub for: _warnx
+100003514:	mov	r13, qword ptr [rip + 0xc75]
+10000351b:	mov	r14, qword ptr [rip + 0xc5e]
+100003522:	jmp	0x100003231
+100003527:	mov	rax, qword ptr [rip + 0xc82]
+10000352e:	mov	qword ptr [rdi], rax
+100003531:	mov	qword ptr [rip + 0xc78], rdi
+100003538:	mov	r13, qword ptr [rbp - 0x38]
+10000353c:	jmp	0x100002dc2
+100003541:	mov	byte ptr [rip + 0xc80], 0x1
+100003548:	lea	rdi, [rip + 0x9a6] ## literal pool for: "No more memory for tracking directory hard links"
+10000354f:	xor	eax, eax
+100003551:	call	0x100003ab2 ## symbol stub for: _warnx
+100003556:	mov	r15, qword ptr [rip + 0xc5b]
+10000355d:	mov	r13, qword ptr [rip + 0xc44]
+100003564:	jmp	0x1000033c5
+100003569:	mov	byte ptr [rip + 0xc30], 0x1
+100003570:	lea	rdi, [rip + 0x92c] ## literal pool for: "No more memory for tracking hard links"
+100003577:	xor	eax, eax
+100003579:	call	0x100003ab2 ## symbol stub for: _warnx
+10000357e:	jmp	0x100003330
+100003583:	mov	byte ptr [rip + 0xc3e], 0x1
+10000358a:	lea	rdi, [rip + 0x912] ## literal pool for: "No more memory for tracking hard links"
+100003591:	xor	eax, eax
+100003593:	call	0x100003ab2 ## symbol stub for: _warnx
+100003598:	jmp	0x1000034c6
+10000359d:	mov	rax, qword ptr [r12]
+1000035a1:	mov	rdx, qword ptr [r12 + 0x30]
+1000035a6:	mov	rcx, qword ptr [rax + 0x30]
+1000035aa:	lea	rsi, [rip + 0x83e] ## literal pool for: "Can't follow symlink cycle from %s to %s"
+1000035b1:	mov	edi, 0x1
+1000035b6:	xor	eax, eax
+1000035b8:	call	0x100003a28 ## symbol stub for: _errx
+1000035bd:	mov	rdx, qword ptr [r12 + 0x30]
+1000035c2:	lea	rsi, [rip + 0x856] ## literal pool for: "Too many symlinks at %s"
+1000035c9:	mov	edi, 0x1
+1000035ce:	xor	eax, eax
+1000035d0:	call	0x100003a28 ## symbol stub for: _errx
+1000035d5:	lea	rsi, [rip + 0x8a6] ## literal pool for: "No memory for hardlink detection"
+1000035dc:	jmp	0x1000035e5
+1000035de:	lea	rsi, [rip + 0x8e5] ## literal pool for: "No memory for directory hardlink detection"
+1000035e5:	mov	edi, 0x1
+1000035ea:	xor	eax, eax
+1000035ec:	call	0x100003a28 ## symbol stub for: _errx
+1000035f1:	call	0x10000379e
+1000035f6:	mov	rax, qword ptr [rip + 0xa1b] ## literal pool symbol address: _optarg
+1000035fd:	mov	rsi, qword ptr [rax]
+100003600:	lea	rdi, [rip + 0x742] ## literal pool for: "invalid argument to option d: %s"
+100003607:	xor	eax, eax
+100003609:	call	0x100003ab2 ## symbol stub for: _warnx
+10000360e:	call	0x10000379e
+100003613:	lea	rsi, [rip + 0x7af] ## literal pool for: "fts_open"
+10000361a:	jmp	0x10000365f
+10000361c:	xor	ebx, ebx
+10000361e:	call	0x100003a04 ## symbol stub for: ___error
+100003623:	cmp	dword ptr [rax], 0x0
+100003626:	jne	0x100003658
+100003628:	cmp	dword ptr [rbp - 0x4c], 0x0
+10000362c:	je	0x100003684
+10000362e:	mov	rax, rbx
+100003631:	cqo
+100003633:	idiv	qword ptr [rbp - 0x60]
+100003637:	cmp	rdx, 0x1
+10000363b:	sbb	rax, -0x1
+10000363f:	cmp	dword ptr [rbp - 0x2c], 0x0
+100003643:	jne	0x10000366b
+100003645:	lea	rdi, [rip + 0x7f4] ## literal pool for: "%jd\ttotal\n"
+10000364c:	mov	rsi, rax
+10000364f:	xor	eax, eax
+100003651:	call	0x100003a76 ## symbol stub for: _printf
+100003656:	jmp	0x100003684
+100003658:	lea	rsi, [rip + 0x7d8] ## literal pool for: "fts_read"
+10000365f:	mov	edi, 0x1
+100003664:	xor	eax, eax
+100003666:	call	0x100003a22 ## symbol stub for: _err
+10000366b:	xorps	xmm0, xmm0
+10000366e:	cvtsi2sd	xmm0, rax
+100003673:	call	0x100003895
+100003678:	lea	rdi, [rip + 0x909] ## literal pool for: "\ttotal"
+10000367f:	call	0x100003a82 ## symbol stub for: _puts
+100003684:	call	0x10000390b
+100003689:	mov	edi, dword ptr [rbp - 0x54]
+10000368c:	call	0x100003a2e ## symbol stub for: _exit
+100003691:	nop	dword ptr [rax]
+100003694:	mov	edi, 0x79fffff4
+100003699:	cmc
+	.byte 0xff #bad opcode
+10000369b:	call	[rbp - 0x1]
+	.byte 0xff #bad opcode
+10000369f:	call	[rbp - 0x1]
+	.byte 0xff #bad opcode
+1000036a3:	jmp	qword ptr [rdx + 0x5dfffff5]
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036ab:	call	[rbp - 0x1]
+	.byte 0xff #bad opcode
+1000036af:	call	[rbp - 0x1]
+	.byte 0xff #bad opcode
+1000036b3:	dec	dword ptr [rbp + 0x76fffff5]
+1000036b9:	hlt
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036bc:	cmp	edi, edi
+	.byte 0xff #bad opcode
+1000036bf:	push	qword ptr [rax - 0x4600000c]
+1000036c5:	hlt
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036c8:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036cc:	cmp	edi, edi
+	.byte 0xff #bad opcode
+1000036cf:	jmp	[rax + 0x26fffff5]
+1000036d5:	cmc
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036d8:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036dc:	cmp	edi, edi
+	.byte 0xff #bad opcode
+1000036df:	call	qword ptr [rsi + 0x39fffff5]
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036e7:	call	[rdi + 0x39fffff5]
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036f0:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036f4:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+1000036f8:	cmp	edi, edi
+	.byte 0xff #bad opcode
+1000036fb:	dec	dword ptr [rbp - 0xc]
+	.byte 0xff #bad opcode
+1000036ff:	call	[rbx]
+100003701:	cmc
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+100003704:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+100003708:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+10000370c:	cmp	edi, edi
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+100003710:	cmp	edi, edi
+	.byte 0xff #bad opcode
+100003713:	dec	dword ptr [rbp + 8*rsi - 0x1]
+100003717:	call	[rdx - 0x4d00000a]
+10000371d:	idiv	edi
+10000371f:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+100003723:	dec	dword ptr [rbp - 0x8]
+	.byte 0xff #bad opcode
+100003727:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+10000372c:	mov	edi, 0x4dfffff6
+100003731:	clc
+	.byte 0xff #bad opcode
+100003733:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+100003737:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+10000373b:	dec	dword ptr [rbp - 0x8]
+	.byte 0xff #bad opcode
+10000373f:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+100003743:	push	qword ptr [rsi - 0x9]
+	.byte 0xff #bad opcode
+	.byte 0xff #bad opcode
+100003748:	cmp	al, -0x9
+	.byte 0xff #bad opcode
+10000374b:	call	qword ptr [rbp + 0x48]
+10000374e:	mov	ebp, esp
+100003750:	push	r14
+100003752:	push	rbx
+100003753:	mov	r14, rdi
+100003756:	mov	edi, 0x1
+10000375b:	mov	esi, 0x10
+100003760:	call	0x100003a16 ## symbol stub for: _calloc
+100003765:	test	rax, rax
+100003768:	je	0x100003794
+10000376a:	mov	rbx, rax
+10000376d:	mov	rdi, r14
+100003770:	call	0x100003aa0 ## symbol stub for: _strdup
+100003775:	mov	qword ptr [rbx], rax
+100003778:	test	rax, rax
+10000377b:	je	0x100003799
+10000377d:	mov	rax, qword ptr [rip + 0xa4c]
+100003784:	mov	qword ptr [rbx + 0x8], rax
+100003788:	mov	qword ptr [rip + 0xa41], rbx
+10000378f:	pop	rbx
+100003790:	pop	r14
+100003792:	pop	rbp
+100003793:	ret
+100003794:	call	0x1000039d3
+100003799:	call	0x1000039e8
+10000379e:	push	rbp
+10000379f:	mov	rbp, rsp
+1000037a2:	mov	rax, qword ptr [rip + 0x867] ## literal pool symbol address: ___stderrp
+1000037a9:	mov	rcx, qword ptr [rax]
+1000037ac:	lea	rdi, [rip + 0x773] ## literal pool for: "usage: du [-H | -L | -P] [-a | -s | -d depth] [-c] [-h | -k | -m | -g] [-x] [-I mask] [file ...]\n"
+1000037b3:	mov	esi, 0x61
+1000037b8:	mov	edx, 0x1
+1000037bd:	call	0x100003a52 ## symbol stub for: _fwrite
+1000037c2:	mov	edi, 0x40
+1000037c7:	call	0x100003a2e ## symbol stub for: _exit
+1000037cc:	push	rbp
+1000037cd:	mov	rbp, rsp
+1000037d0:	push	r14
+1000037d2:	push	rbx
+1000037d3:	sub	rsp, 0x880
+1000037da:	mov	r14, rdi
+1000037dd:	mov	rax, qword ptr [rip + 0x824] ## literal pool symbol address: ___stack_chk_guard
+1000037e4:	mov	rax, qword ptr [rax]
+1000037e7:	mov	qword ptr [rbp - 0x18], rax
+1000037eb:	mov	rax, qword ptr [rdi + 0x60]
+1000037ef:	movzx	eax, word ptr [rax + 0x4]
+1000037f3:	and	eax, 0xf000
+1000037f8:	cmp	eax, 0x4000
+1000037fd:	jne	0x100003813
+1000037ff:	lea	rsi, [r14 + 0x68]
+100003803:	lea	rdi, [rip + 0x675] ## literal pool for: "fd"
+10000380a:	call	0x100003a9a ## symbol stub for: _strcmp
+10000380f:	test	eax, eax
+100003811:	je	0x100003842
+100003813:	mov	rbx, qword ptr [rip + 0x9b6]
+10000381a:	test	rbx, rbx
+10000381d:	je	0x10000383e
+10000381f:	add	r14, 0x68
+100003823:	mov	rdi, qword ptr [rbx]
+100003826:	mov	rsi, r14
+100003829:	xor	edx, edx
+10000382b:	call	0x100003a34 ## symbol stub for: _fnmatch
+100003830:	cmp	eax, 0x1
+100003833:	jne	0x10000386f
+100003835:	mov	rbx, qword ptr [rbx + 0x8]
+100003839:	test	rbx, rbx
+10000383c:	jne	0x100003823
+10000383e:	xor	eax, eax
+100003840:	jmp	0x100003874
+100003842:	mov	rdi, qword ptr [r14 + 0x28]
+100003846:	lea	rsi, [rbp - 0x890]
+10000384d:	call	0x100003a94 ## symbol stub for: _statfs$INODE64
+100003852:	test	eax, eax
+100003854:	js	0x100003813
+100003856:	mov	eax, 0x66766564
+10000385b:	xor	eax, dword ptr [rbp - 0x848]
+100003861:	movzx	ecx, word ptr [rbp - 0x844]
+100003868:	xor	ecx, 0x73
+10000386b:	or	ecx, eax
+10000386d:	jne	0x100003813
+10000386f:	mov	eax, 0x1
+100003874:	mov	rcx, qword ptr [rip + 0x78d] ## literal pool symbol address: ___stack_chk_guard
+10000387b:	mov	rcx, qword ptr [rcx]
+10000387e:	cmp	rcx, qword ptr [rbp - 0x18]
+100003882:	jne	0x100003890
+100003884:	add	rsp, 0x880
+10000388b:	pop	rbx
+10000388c:	pop	r14
+10000388e:	pop	rbp
+10000388f:	ret
+100003890:	call	0x100003a0a ## symbol stub for: ___stack_chk_fail
+100003895:	push	rbp
+100003896:	mov	rbp, rsp
+100003899:	push	rbx
+10000389a:	push	rax
+10000389b:	mulsd	xmm0, qword ptr [rip + 0x3cd]
+1000038a3:	lea	rbx, [rbp - 0x10]
+1000038a7:	movsd	qword ptr [rbx], xmm0
+1000038ab:	mov	rdi, rbx
+1000038ae:	call	0x100003941
+1000038b3:	movsd	xmm0, qword ptr [rbx]
+1000038b7:	xorpd	xmm1, xmm1
+1000038bb:	ucomisd	xmm0, xmm1
+1000038bf:	jne	0x1000038d7
+1000038c1:	jp	0x1000038d7
+1000038c3:	lea	rdi, [rip + 0x581] ## literal pool for: "  0B"
+1000038ca:	xor	eax, eax
+1000038cc:	add	rsp, 0x8
+1000038d0:	pop	rbx
+1000038d1:	pop	rbp
+1000038d2:	jmp	0x100003a76 ## symbol stub for: _printf
+1000038d7:	ucomisd	xmm0, qword ptr [rip + 0x399]
+1000038df:	mov	eax, eax
+1000038e1:	lea	rcx, [rip + 0x570] ## literal pool for: "BKMGTPE"
+1000038e8:	movsx	esi, byte ptr [rax + rcx]
+1000038ec:	jbe	0x1000038f7
+1000038ee:	lea	rdi, [rip + 0x55b] ## literal pool for: "%3.0f%c"
+1000038f5:	jmp	0x1000038fe
+1000038f7:	lea	rdi, [rip + 0x562] ## literal pool for: "%3.1f%c"
+1000038fe:	mov	al, 0x1
+100003900:	add	rsp, 0x8
+100003904:	pop	rbx
+100003905:	pop	rbp
+100003906:	jmp	0x100003a76 ## symbol stub for: _printf
+10000390b:	push	rbp
+10000390c:	mov	rbp, rsp
+10000390f:	push	rbx
+100003910:	push	rax
+100003911:	mov	rbx, qword ptr [rip + 0x8b8]
+100003918:	test	rbx, rbx
+10000391b:	je	0x10000393a
+10000391d:	mov	rax, qword ptr [rbx + 0x8]
+100003921:	mov	qword ptr [rip + 0x8a8], rax
+100003928:	mov	rdi, qword ptr [rbx]
+10000392b:	call	0x100003a3a ## symbol stub for: _free
+100003930:	mov	rdi, rbx
+100003933:	call	0x100003a3a ## symbol stub for: _free
+100003938:	jmp	0x100003911
+10000393a:	add	rsp, 0x8
+10000393e:	pop	rbx
+10000393f:	pop	rbp
+100003940:	ret
+100003941:	push	rbp
+100003942:	mov	rbp, rsp
+100003945:	push	rbx
+100003946:	sub	rsp, 0x18
+10000394a:	mov	rbx, rdi
+10000394d:	movsd	xmm1, qword ptr [rdi]
+100003951:	xorpd	xmm0, xmm0
+100003955:	ucomisd	xmm1, xmm0
+100003959:	jne	0x10000395d
+10000395b:	jnp	0x100003997
+10000395d:	movapd	xmm0, xmmword ptr [rip + 0x2db]
+100003965:	andpd	xmm0, xmm1
+100003969:	movapd	xmmword ptr [rbp - 0x20], xmm1
+10000396e:	call	0x100003a6a ## symbol stub for: _ilogb
+100003973:	movapd	xmm1, xmmword ptr [rbp - 0x20]
+100003978:	cdqe
+10000397a:	imul	rcx, rax, 0x66666667
+100003981:	mov	rax, rcx
+100003984:	shr	rax, 0x3f
+100003988:	sar	rcx, 0x22
+10000398c:	add	ecx, eax
+10000398e:	xor	eax, eax
+100003990:	cmp	ecx, 0x5
+100003993:	jbe	0x100003999
+100003995:	jmp	0x1000039cc
+100003997:	xor	ecx, ecx
+100003999:	mov	eax, ecx
+10000399b:	mov	rcx, qword ptr [rip + 0x836]
+1000039a2:	movsd	xmm0, qword ptr [rcx + 8*rax]
+1000039a7:	unpcklps	xmm0, xmmword ptr [rip + 0x2a2]
+1000039ae:	subpd	xmm0, xmmword ptr [rip + 0x2aa]
+1000039b6:	haddpd	xmm0, xmm0
+1000039ba:	lea	rcx, [rip + 0x79f]
+1000039c1:	mov	eax, dword ptr [rcx + 4*rax]
+1000039c4:	divsd	xmm1, xmm0
+1000039c8:	movsd	qword ptr [rbx], xmm1
+1000039cc:	add	rsp, 0x18
+1000039d0:	pop	rbx
+1000039d1:	pop	rbp
+1000039d2:	ret
+1000039d3:	push	rbp
+1000039d4:	mov	rbp, rsp
+1000039d7:	lea	rsi, [rip + 0x48a] ## literal pool for: "cannot allocate memory"
+1000039de:	push	0x1
+1000039e0:	pop	rdi
+1000039e1:	xor	eax, eax
+1000039e3:	call	0x100003a28 ## symbol stub for: _errx
+1000039e8:	push	rbp
+1000039e9:	mov	rbp, rsp
+1000039ec:	lea	rsi, [rip + 0x475] ## literal pool for: "cannot allocate memory"
+1000039f3:	push	0x1
+1000039f5:	pop	rdi
+1000039f6:	xor	eax, eax
+1000039f8:	call	0x100003a28 ## symbol stub for: _errx
