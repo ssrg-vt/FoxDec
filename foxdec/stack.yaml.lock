@@ -5,6 +5,13 @@
 
 packages:
 - completed:
+    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
+    pantry-tree:
+      size: 333
+      sha256: 9a52cc3eafbca3ab1b9f7e3de63f7311ae82ec1cdaa1202eead796011e47bc25
+  original:
+    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
+- completed:
     hackage: argparser-0.3.4@sha256:f277e6d568e88f0698a0ce1f2dc719d90717ffe99c8622302f65389f2a8ed01c,1952
     pantry-tree:
       size: 1449
@@ -18,24 +25,10 @@ packages:
       sha256: 187856d72181d64e9b48f44eeea19dafc627f71d7f279bcb2ab99dfa4f422170
   original:
     hackage: hapstone-0.2.0.1@sha256:56408898dece7c6360d6bd0ca943c428d811f1cbe7d1070ce69cd4382df5cc54,2824
-- completed:
-    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
-    pantry-tree:
-      size: 333
-      sha256: 9a52cc3eafbca3ab1b9f7e3de63f7311ae82ec1cdaa1202eead796011e47bc25
-  original:
-    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
-- completed:
-    hackage: macho-0.2@sha256:cde974e6201beca2105c679aa981fb026f9d991f5fab5cd7dafc1437e1e8ec4e,698
-    pantry-tree:
-      size: 261
-      sha256: a3d1be8f6b562ea528cd3e235ac5b7be185fc93421869bcdffc1104d8c7607ba
-  original:
-    hackage: macho-0.2@sha256:cde974e6201beca2105c679aa981fb026f9d991f5fab5cd7dafc1437e1e8ec4e,698
 snapshots:
 - completed:
-    size: 567669
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/12.yaml
-    sha256: facf6cac73b22a83ca955b580a98a7a09ed71f8f974c7a55d28e608c23e689a9
+    size: 586292
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/17.yaml
+    sha256: e66e70a7f998036025e8f40abc89b8eeb79c88f57727020cba1b54f375aa7ca0
   original:
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/12.yaml
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/17.yaml

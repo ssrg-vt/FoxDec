@@ -7,20 +7,15 @@ maintainer:          "example@example.com"
 copyright:           "2021 Author name here"
 
 
+
 # Metadata used when publishing your package
-synopsis:            Formal x86-64 Decompilation
+# synopsis:            Short description of your package
+# category:            Web
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         FoxDec provides decompilation of x86-64 binaries.
-
-
-
-category:            Decompilation, Disassembly
-build-type:          Simple
-extra-doc-files:     README.md
-
+description:         Please see the README on GitHub at <https://github.com/githubuser/foxdec#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -53,7 +48,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - foxdec
-
 
 tests:
   foxdec-test:

@@ -1,4 +1,4 @@
-cabal-version: 1.18
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
@@ -6,9 +6,7 @@ cabal-version: 1.18
 
 name:           foxdec
 version:        0.1.0.0
-synopsis:       Formal x86-64 Decompilation
-description:    FoxDec provides decompilation of x86-64 binaries.
-category:       Decompilation, Disassembly
+description:    Please see the README on GitHub at <https://github.com/githubuser/foxdec#readme>
 homepage:       https://github.com/githubuser/foxdec#readme
 bug-reports:    https://github.com/githubuser/foxdec/issues
 author:         Author name here
@@ -17,8 +15,6 @@ copyright:      2021 Author name here
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-extra-doc-files:
-    README.md
 
 source-repository head
   type: git

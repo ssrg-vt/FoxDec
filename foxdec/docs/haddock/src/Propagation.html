@@ -19,47 +19,47 @@
 </span><span id="line-19"></span><span class="hs-comment">-- and we can merge two predicates through function join.</span><span>
 </span><span id="line-20"></span><span class="hs-comment">-- The initial predicate is given by p0.</span><span>
 </span><span id="line-21"></span><span class="hs-comment">-- Moreover, we assume an implementation of a function &quot;implies&quot;.</span><span>
-</span><span id="line-22"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Propagator"><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-var">Propagator</span></a></span></span><span> </span><span id="local-6989586621679188724"><span class="annot"><a href="#local-6989586621679188724"><span class="hs-identifier hs-type">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188723"><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-23"></span><span>  </span><span id="tau"><span class="annot"><a href="Propagation.html#tau"><span class="hs-identifier hs-type">tau</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188724"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span>
-</span><span id="line-24"></span><span>  </span><span id="join"><span class="annot"><a href="Propagation.html#join"><span class="hs-identifier hs-type">join</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188724"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span>
-</span><span id="line-25"></span><span>  </span><span id="implies"><span class="annot"><a href="Propagation.html#implies"><span class="hs-identifier hs-type">implies</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188724"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188723"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Propagator"><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-var">Propagator</span></a></span></span><span> </span><span id="local-6989586621679188802"><span class="annot"><a href="#local-6989586621679188802"><span class="hs-identifier hs-type">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188801"><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>  </span><span id="tau"><span class="annot"><a href="Propagation.html#tau"><span class="hs-identifier hs-type">tau</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188802"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span id="join"><span class="annot"><a href="Propagation.html#join"><span class="hs-identifier hs-type">join</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188802"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span id="implies"><span class="annot"><a href="Propagation.html#implies"><span class="hs-identifier hs-type">implies</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188802"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188801"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-26"></span><span>
-</span><span id="line-27"></span><span id="local-6989586621679188668"><span id="local-6989586621679188669"><span class="annot"><a href="Propagation.html#supremum"><span class="hs-identifier hs-type">supremum</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188669"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188668"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188669"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679188668"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188668"><span class="hs-identifier hs-type">pred</span></a></span></span></span><span>
+</span><span id="line-27"></span><span id="local-6989586621679188746"><span id="local-6989586621679188747"><span class="annot"><a href="Propagation.html#supremum"><span class="hs-identifier hs-type">supremum</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188747"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188746"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188747"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679188746"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188746"><span class="hs-identifier hs-type">pred</span></a></span></span></span><span>
 </span><span id="line-28"></span><span id="supremum"><span class="annot"><span class="annottext">supremum :: ctxt -&gt; [pred] -&gt; pred
-</span><a href="Propagation.html#supremum"><span class="hs-identifier hs-var hs-var">supremum</span></a></span></span><span> </span><span id="local-6989586621679188666"><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188666"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(pred -&gt; pred -&gt; pred) -&gt; [pred] -&gt; pred
+</span><a href="Propagation.html#supremum"><span class="hs-identifier hs-var hs-var">supremum</span></a></span></span><span> </span><span id="local-6989586621679188744"><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679188744"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(pred -&gt; pred -&gt; pred) -&gt; [pred] -&gt; pred
 forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
 </span><span class="hs-identifier hs-var">foldr1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ctxt -&gt; pred -&gt; pred -&gt; pred
 forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; pred -&gt; pred -&gt; pred
 </span><a href="Propagation.html#join"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188666"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188744"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-29"></span><span>
 </span><span id="line-30"></span><span>
 </span><span id="line-31"></span><span class="hs-comment">-- the set of next blocks from the given block</span><span>
 </span><span id="line-32"></span><span id="post"><span class="annot"><span class="annottext">post :: CFG -&gt; Key -&gt; IntSet
-</span><a href="Propagation.html#post"><span class="hs-identifier hs-var hs-var">post</span></a></span></span><span> </span><span id="local-6989586621679188663"><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188663"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188662"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188662"><span class="hs-identifier hs-var">blockId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><a href="Propagation.html#post"><span class="hs-identifier hs-var hs-var">post</span></a></span></span><span> </span><span id="local-6989586621679188741"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188741"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188740"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188740"><span class="hs-identifier hs-var">blockId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-33"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntMap IntSet -&gt; Maybe IntSet
 forall a. Key -&gt; IntMap a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188662"><span class="hs-identifier hs-var">blockId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="#local-6989586621679188740"><span class="hs-identifier hs-var">blockId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
 </span><a href="Context.html#cfg_edges"><span class="hs-identifier hs-var hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188663"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679188741"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Maybe IntSet
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet
 </span><span class="hs-identifier hs-var">IS.empty</span></span><span>
-</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188658"><span class="annot"><span class="annottext">IntSet
-</span><a href="#local-6989586621679188658"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet
-</span><a href="#local-6989586621679188658"><span class="hs-identifier hs-var">ns</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188736"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679188736"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679188736"><span class="hs-identifier hs-var">ns</span></a></span><span>
 </span><span id="line-36"></span><span>
 </span><span id="line-37"></span><span class="hs-comment">-- the set of edges starting in v</span><span>
 </span><span id="line-38"></span><span id="out_edges"><span class="annot"><span class="annottext">out_edges :: CFG -&gt; Key -&gt; Set (Key, Key)
-</span><a href="Propagation.html#out_edges"><span class="hs-identifier hs-var hs-var">out_edges</span></a></span></span><span> </span><span id="local-6989586621679188656"><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188656"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188655"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188655"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Key, Key)] -&gt; Set (Key, Key)
+</span><a href="Propagation.html#out_edges"><span class="hs-identifier hs-var hs-var">out_edges</span></a></span></span><span> </span><span id="local-6989586621679188734"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188734"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188733"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188733"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Key, Key)] -&gt; Set (Key, Key)
 forall a. Ord a =&gt; [a] -&gt; Set a
 </span><span class="hs-identifier hs-var">S.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Key, Key)] -&gt; Set (Key, Key)) -&gt; [(Key, Key)] -&gt; Set (Key, Key)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
@@ -68,25 +68,25 @@ forall a b. [a] -&gt; [b] -&gt; [(a, b)]
 </span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; [Key]
 forall a. a -&gt; [a]
 </span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188655"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Key] -&gt; [(Key, Key)]) -&gt; [Key] -&gt; [(Key, Key)]
+</span><a href="#local-6989586621679188733"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Key] -&gt; [(Key, Key)]) -&gt; [Key] -&gt; [(Key, Key)]
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Key]
 </span><span class="hs-identifier hs-var">IS.toList</span></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; [Key]) -&gt; IntSet -&gt; [Key]
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Key -&gt; IntSet
 </span><a href="Propagation.html#post"><span class="hs-identifier hs-var">post</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188656"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188655"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><a href="#local-6989586621679188734"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188733"><span class="hs-identifier hs-var">v</span></a></span><span>
 </span><span id="line-39"></span><span>
 </span><span id="line-40"></span><span>
 </span><span id="line-41"></span><span class="hs-comment">-- pick edges from the bag, preferring edges to already visited nodes</span><span>
-</span><span id="line-42"></span><span id="local-6989586621679188691"><span class="annot"><a href="Propagation.html#pick_edge_from_bag"><span class="hs-identifier hs-type">pick_edge_from_bag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188691"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-42"></span><span id="local-6989586621679188769"><span class="annot"><a href="Propagation.html#pick_edge_from_bag"><span class="hs-identifier hs-type">pick_edge_from_bag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188769"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
 </span><span id="line-43"></span><span id="pick_edge_from_bag"><span class="annot"><span class="annottext">pick_edge_from_bag :: State
   (IntMap pred, Set (Key, Key)) (Maybe ((Key, Key), Set (Key, Key)))
 </span><a href="Propagation.html#pick_edge_from_bag"><span class="hs-identifier hs-var hs-var">pick_edge_from_bag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679188650"><span class="annot"><span class="annottext">IntMap pred
-</span><a href="#local-6989586621679188650"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188649"><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188649"><span class="hs-identifier hs-var">bag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT
+</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679188728"><span class="annot"><span class="annottext">IntMap pred
+</span><a href="#local-6989586621679188728"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188727"><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188727"><span class="hs-identifier hs-var">bag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT
   (IntMap pred, Set (Key, Key))
   Identity
   (IntMap pred, Set (Key, Key))
@@ -94,16 +94,16 @@ forall s (m :: * -&gt; *). MonadState s m =&gt; m s
 </span><span class="hs-identifier hs-var">get</span></span><span>
 </span><span id="line-45"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">((Key, Key) -&gt; Bool) -&gt; Set (Key, Key) -&gt; Maybe (Key, Key)
 forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Maybe a
-</span><span class="hs-identifier hs-var">find</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679188647"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188647"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188646"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188646"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntMap pred -&gt; Bool
+</span><span class="hs-identifier hs-var">find</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679188725"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188725"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188724"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188724"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntMap pred -&gt; Bool
 forall a. Key -&gt; IntMap a -&gt; Bool
 </span><span class="hs-identifier hs-var">IM.member</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188646"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap pred
-</span><a href="#local-6989586621679188650"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188649"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-46"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188644"><span class="annot"><span class="annottext">(Key, Key)
-</span><a href="#local-6989586621679188644"><span class="hs-identifier hs-var">edge</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
+</span><a href="#local-6989586621679188724"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap pred
+</span><a href="#local-6989586621679188728"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188727"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188722"><span class="annot"><span class="annottext">(Key, Key)
+</span><a href="#local-6989586621679188722"><span class="hs-identifier hs-var">edge</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
 -&gt; State
      (IntMap pred, Set (Key, Key)) (Maybe ((Key, Key), Set (Key, Key)))
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
@@ -117,11 +117,11 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((Key, Key), Set (Key, Key)) -&gt; Maybe ((Key, Key), Set (Key, Key))
 forall a. a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Key, Key)
-</span><a href="#local-6989586621679188644"><span class="hs-identifier hs-var">edge</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
+</span><a href="#local-6989586621679188722"><span class="hs-identifier hs-var">edge</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
 forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
 </span><span class="hs-identifier hs-var">S.delete</span></span><span> </span><span class="annot"><span class="annottext">(Key, Key)
-</span><a href="#local-6989586621679188644"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188649"><span class="hs-identifier hs-var">bag</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188722"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188727"><span class="hs-identifier hs-var">bag</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Key, Key)
 </span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
 -&gt; State
@@ -137,38 +137,38 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key) -&gt; Maybe ((Key, Key), Set (Key, Key))
 forall a. Set a -&gt; Maybe (a, Set a)
 </span><span class="hs-identifier hs-var">S.minView</span></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188649"><span class="hs-identifier hs-var">bag</span></a></span><span>
+</span><a href="#local-6989586621679188727"><span class="hs-identifier hs-var">bag</span></a></span><span>
 </span><span id="line-48"></span><span>  </span><span>
 </span><span id="line-49"></span><span>
 </span><span id="line-50"></span><span class="hs-comment">-- propagation</span><span>
 </span><span id="line-51"></span><span class="hs-comment">-- The state consists of </span><span>
 </span><span id="line-52"></span><span class="hs-comment">-- 		1.) the current mapping of addresses to predicates </span><span>
 </span><span id="line-53"></span><span class="hs-comment">-- 		2.) the current bag (a set of edges to be explored)</span><span>
-</span><span id="line-54"></span><span id="local-6989586621679188681"><span id="local-6989586621679188682"><span class="annot"><a href="Propagation.html#prop"><span class="hs-identifier hs-type">prop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188682"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188681"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188682"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188681"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-54"></span><span id="local-6989586621679188759"><span id="local-6989586621679188760"><span class="annot"><a href="Propagation.html#prop"><span class="hs-identifier hs-type">prop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188760"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188759"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188760"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188759"><span class="hs-identifier hs-type">pred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
 </span><span id="line-55"></span><span id="prop"><span class="annot"><span class="annottext">prop :: ctxt -&gt; CFG -&gt; State (IntMap pred, Set (Key, Key)) ()
-</span><a href="Propagation.html#prop"><span class="hs-identifier hs-var hs-var">prop</span></a></span></span><span> </span><span id="local-6989586621679188640"><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188640"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188639"><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188639"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-56"></span><span>  </span><span id="local-6989586621679188638"><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
-</span><a href="#local-6989586621679188638"><span class="hs-identifier hs-var">pick</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">State
+</span><a href="Propagation.html#prop"><span class="hs-identifier hs-var hs-var">prop</span></a></span></span><span> </span><span id="local-6989586621679188718"><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679188718"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188717"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188717"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679188716"><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
+</span><a href="#local-6989586621679188716"><span class="hs-identifier hs-var">pick</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">State
   (IntMap pred, Set (Key, Key)) (Maybe ((Key, Key), Set (Key, Key)))
 forall pred.
 State
   (IntMap pred, Set (Key, Key)) (Maybe ((Key, Key), Set (Key, Key)))
 </span><a href="Propagation.html#pick_edge_from_bag"><span class="hs-identifier hs-var">pick_edge_from_bag</span></a></span><span>
 </span><span id="line-57"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
-</span><a href="#local-6989586621679188638"><span class="hs-identifier hs-var">pick</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679188716"><span class="hs-identifier hs-var">pick</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">Maybe ((Key, Key), Set (Key, Key))
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
 </span><span id="line-59"></span><span>      </span><span class="annot"><span class="annottext">() -&gt; State (IntMap pred, Set (Key, Key)) ()
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
-</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679188637"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188637"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188636"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188636"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679188635"><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188635"><span class="hs-identifier hs-var">bag'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-61"></span><span>      </span><span id="local-6989586621679188634"><span class="annot"><span class="annottext">IntMap pred
-</span><a href="#local-6989586621679188634"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">((IntMap pred, Set (Key, Key)) -&gt; IntMap pred)
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679188715"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188715"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188714"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188714"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679188713"><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188713"><span class="hs-identifier hs-var">bag'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>      </span><span id="local-6989586621679188712"><span class="annot"><span class="annottext">IntMap pred
+</span><a href="#local-6989586621679188712"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">((IntMap pred, Set (Key, Key)) -&gt; IntMap pred)
 -&gt; StateT (IntMap pred, Set (Key, Key)) Identity (IntMap pred)
 forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; a) -&gt; m a
 </span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="annot"><span class="annottext">(IntMap pred, Set (Key, Key)) -&gt; IntMap pred
@@ -179,61 +179,61 @@ forall a b. (a, b) -&gt; a
 -&gt; State (IntMap pred, Set (Key, Key)) ()
 forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
 </span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap pred
-</span><a href="#local-6989586621679188634"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188635"><span class="hs-identifier hs-var">bag'</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188712"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188713"><span class="hs-identifier hs-var">bag'</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-64"></span><span>      </span><span class="hs-comment">-- do predicate transformation on the currently available precondition of v0</span><span>
-</span><span id="line-65"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188631"><span class="annot"><span class="annottext">p :: pred
-</span><a href="#local-6989586621679188631"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IntMap pred -&gt; Key -&gt; pred
+</span><span id="line-65"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188709"><span class="annot"><span class="annottext">p :: pred
+</span><a href="#local-6989586621679188709"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IntMap pred -&gt; Key -&gt; pred
 forall p. [Char] -&gt; IntMap p -&gt; Key -&gt; p
 </span><a href="Base.html#im_lookup"><span class="hs-identifier hs-var">im_lookup</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;v0 must have predicate&quot;</span></span><span> </span><span class="annot"><span class="annottext">IntMap pred
-</span><a href="#local-6989586621679188634"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188637"><span class="hs-identifier hs-var">v0</span></a></span><span>
+</span><a href="#local-6989586621679188712"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188715"><span class="hs-identifier hs-var">v0</span></a></span><span>
 </span><span id="line-66"></span><span>      </span><span class="hs-comment">-- this produces q: the precondition for v1</span><span>
-</span><span id="line-67"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188629"><span class="annot"><span class="annottext">q :: pred
-</span><a href="#local-6989586621679188629"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; CFG -&gt; Key -&gt; Maybe Key -&gt; pred -&gt; pred
+</span><span id="line-67"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188707"><span class="annot"><span class="annottext">q :: pred
+</span><a href="#local-6989586621679188707"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; CFG -&gt; Key -&gt; Maybe Key -&gt; pred -&gt; pred
 forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; CFG -&gt; Key -&gt; Maybe Key -&gt; pred -&gt; pred
 </span><a href="Propagation.html#tau"><span class="hs-identifier hs-var">tau</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188640"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188639"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188637"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Maybe Key
+</span><a href="#local-6989586621679188718"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188717"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188715"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Maybe Key
 forall a. a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188636"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">pred
-</span><a href="#local-6989586621679188631"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><a href="#local-6989586621679188714"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">pred
+</span><a href="#local-6989586621679188709"><span class="hs-identifier hs-var">p</span></a></span><span>
 </span><span id="line-68"></span><span>      </span><span class="hs-comment">-- store q</span><span>
 </span><span id="line-69"></span><span>      </span><span class="annot"><span class="annottext">pred -&gt; Key -&gt; State (IntMap pred, Set (Key, Key)) ()
 forall (m :: * -&gt; *) a.
 (MonadState (IntMap a, Set (Key, Key)) m, Propagator ctxt a) =&gt;
 a -&gt; Key -&gt; m ()
-</span><a href="#local-6989586621679188628"><span class="hs-identifier hs-var">add_predicate</span></a></span><span> </span><span class="annot"><span class="annottext">pred
-</span><a href="#local-6989586621679188629"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188636"><span class="hs-identifier hs-var">v1</span></a></span><span>
+</span><a href="#local-6989586621679188706"><span class="hs-identifier hs-var">add_predicate</span></a></span><span> </span><span class="annot"><span class="annottext">pred
+</span><a href="#local-6989586621679188707"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188714"><span class="hs-identifier hs-var">v1</span></a></span><span>
 </span><span id="line-70"></span><span>      </span><span class="hs-comment">-- continue</span><span>
 </span><span id="line-71"></span><span>      </span><span class="annot"><span class="annottext">ctxt -&gt; CFG -&gt; State (IntMap pred, Set (Key, Key)) ()
 forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; CFG -&gt; State (IntMap pred, Set (Key, Key)) ()
 </span><a href="Propagation.html#prop"><span class="hs-identifier hs-var">prop</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188640"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188639"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><a href="#local-6989586621679188718"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188717"><span class="hs-identifier hs-var">g</span></a></span><span>
 </span><span id="line-72"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-73"></span><span>  </span><span id="local-6989586621679188628"><span class="annot"><span class="annottext">add_predicate :: a -&gt; Key -&gt; m ()
-</span><a href="#local-6989586621679188628"><span class="hs-identifier hs-var hs-var">add_predicate</span></a></span></span><span> </span><span id="local-6989586621679188627"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188627"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span id="local-6989586621679188626"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-74"></span><span>   </span><span class="hs-special">(</span><span id="local-6989586621679188625"><span class="annot"><span class="annottext">IntMap a
-</span><a href="#local-6989586621679188625"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188624"><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188624"><span class="hs-identifier hs-var">bag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (IntMap a, Set (Key, Key))
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679188706"><span class="annot"><span class="annottext">add_predicate :: a -&gt; Key -&gt; m ()
+</span><a href="#local-6989586621679188706"><span class="hs-identifier hs-var hs-var">add_predicate</span></a></span></span><span> </span><span id="local-6989586621679188705"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188705"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span id="local-6989586621679188704"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-74"></span><span>   </span><span class="hs-special">(</span><span id="local-6989586621679188703"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679188703"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188702"><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188702"><span class="hs-identifier hs-var">bag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (IntMap a, Set (Key, Key))
 forall s (m :: * -&gt; *). MonadState s m =&gt; m s
 </span><span class="hs-identifier hs-var">get</span></span><span>
 </span><span id="line-75"></span><span>   </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntMap a -&gt; Maybe a
 forall a. Key -&gt; IntMap a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
-</span><a href="#local-6989586621679188625"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679188703"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-76"></span><span>     </span><span class="annot"><span class="annottext">Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
 </span><span id="line-77"></span><span>       </span><span class="hs-comment">-- first time visit, store q and explore all outgoing edges</span><span>
@@ -242,47 +242,47 @@ forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
 </span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 forall a. Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188627"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
-</span><a href="#local-6989586621679188625"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188705"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679188703"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
 forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
 </span><span class="hs-identifier hs-var">S.union</span></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188624"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">(Set (Key, Key) -&gt; Set (Key, Key))
+</span><a href="#local-6989586621679188702"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">(Set (Key, Key) -&gt; Set (Key, Key))
 -&gt; Set (Key, Key) -&gt; Set (Key, Key)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Key -&gt; Set (Key, Key)
 </span><a href="Propagation.html#out_edges"><span class="hs-identifier hs-var">out_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188639"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-79"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188621"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188621"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-80"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188620"><span class="annot"><span class="annottext">j :: a
-</span><a href="#local-6989586621679188620"><span class="hs-identifier hs-var hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; a -&gt; a -&gt; a
+</span><a href="#local-6989586621679188717"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188699"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188699"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-80"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188698"><span class="annot"><span class="annottext">j :: a
+</span><a href="#local-6989586621679188698"><span class="hs-identifier hs-var hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; a -&gt; a -&gt; a
 forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; pred -&gt; pred -&gt; pred
 </span><a href="Propagation.html#join"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188640"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188621"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188627"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><a href="#local-6989586621679188718"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188699"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188705"><span class="hs-identifier hs-var">q</span></a></span><span>
 </span><span id="line-81"></span><span>       </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; a -&gt; a -&gt; Bool
 forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; pred -&gt; pred -&gt; Bool
 </span><a href="Propagation.html#implies"><span class="hs-identifier hs-var">implies</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188640"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188627"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188621"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">then</span><span>
+</span><a href="#local-6989586621679188718"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188705"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188699"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">then</span><span>
 </span><span id="line-82"></span><span>         </span><span class="hs-comment">-- previously visited, no need for further exploration</span><span>
 </span><span id="line-83"></span><span>         </span><span class="annot"><span class="annottext">(IntMap a, Set (Key, Key)) -&gt; m ()
 forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
 </span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 forall a. Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188620"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
-</span><a href="#local-6989586621679188625"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188624"><span class="hs-identifier hs-var">bag</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188698"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679188703"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
+</span><a href="#local-6989586621679188702"><span class="hs-identifier hs-var">bag</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-84"></span><span>       </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
 </span><span id="line-85"></span><span>         </span><span class="hs-comment">-- previously visited, no need to weaken invariant by joining</span><span>
 </span><span id="line-86"></span><span>         </span><span class="annot"><span class="annottext">(IntMap a, Set (Key, Key)) -&gt; m ()
@@ -290,27 +290,27 @@ forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
 </span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 forall a. Key -&gt; a -&gt; IntMap a -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188620"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
-</span><a href="#local-6989586621679188625"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Set (Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188698"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679188703"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Set (Key, Key) -&gt; Set (Key, Key) -&gt; Set (Key, Key)
 forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
 </span><span class="hs-identifier hs-var">S.union</span></span><span> </span><span class="annot"><span class="annottext">Set (Key, Key)
-</span><a href="#local-6989586621679188624"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">(Set (Key, Key) -&gt; Set (Key, Key))
+</span><a href="#local-6989586621679188702"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">(Set (Key, Key) -&gt; Set (Key, Key))
 -&gt; Set (Key, Key) -&gt; Set (Key, Key)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Key -&gt; Set (Key, Key)
 </span><a href="Propagation.html#out_edges"><span class="hs-identifier hs-var">out_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188639"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188626"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188717"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188704"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-87"></span><span>
 </span><span id="line-88"></span><span class="hs-comment">-- start propagation at the given entry address</span><span>
-</span><span id="line-89"></span><span id="local-6989586621679188618"><span id="local-6989586621679188619"><span class="annot"><a href="Propagation.html#do_prop"><span class="hs-identifier hs-type">do_prop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188619"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188618"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188619"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188618"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188618"><span class="hs-identifier hs-type">pred</span></a></span></span></span><span>
+</span><span id="line-89"></span><span id="local-6989586621679188696"><span id="local-6989586621679188697"><span class="annot"><a href="Propagation.html#do_prop"><span class="hs-identifier hs-type">do_prop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Propagation.html#Propagator"><span class="hs-identifier hs-type">Propagator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188697"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188696"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188697"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679188696"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679188696"><span class="hs-identifier hs-type">pred</span></a></span></span></span><span>
 </span><span id="line-90"></span><span id="do_prop"><span class="annot"><span class="annottext">do_prop :: ctxt -&gt; CFG -&gt; Key -&gt; pred -&gt; IntMap pred
-</span><a href="Propagation.html#do_prop"><span class="hs-identifier hs-var hs-var">do_prop</span></a></span></span><span> </span><span id="local-6989586621679188616"><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188616"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188615"><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188615"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188614"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188614"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span id="local-6989586621679188613"><span class="annot"><span class="annottext">pred
-</span><a href="#local-6989586621679188613"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntMap pred, Set (Key, Key)) -&gt; IntMap pred
+</span><a href="Propagation.html#do_prop"><span class="hs-identifier hs-var hs-var">do_prop</span></a></span></span><span> </span><span id="local-6989586621679188694"><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679188694"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188693"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188693"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679188692"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188692"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span id="local-6989586621679188691"><span class="annot"><span class="annottext">pred
+</span><a href="#local-6989586621679188691"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntMap pred, Set (Key, Key)) -&gt; IntMap pred
 forall a b. (a, b) -&gt; a
 </span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((IntMap pred, Set (Key, Key)) -&gt; IntMap pred)
 -&gt; (IntMap pred, Set (Key, Key)) -&gt; IntMap pred
@@ -323,18 +323,18 @@ forall ctxt pred.
 Propagator ctxt pred =&gt;
 ctxt -&gt; CFG -&gt; State (IntMap pred, Set (Key, Key)) ()
 </span><a href="Propagation.html#prop"><span class="hs-identifier hs-var">prop</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
-</span><a href="#local-6989586621679188616"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188615"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((IntMap pred, Set (Key, Key)) -&gt; (IntMap pred, Set (Key, Key)))
+</span><a href="#local-6989586621679188694"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679188693"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((IntMap pred, Set (Key, Key)) -&gt; (IntMap pred, Set (Key, Key)))
 -&gt; (IntMap pred, Set (Key, Key)) -&gt; (IntMap pred, Set (Key, Key))
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; pred -&gt; IntMap pred
 forall a. Key -&gt; a -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.singleton</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188614"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">pred
-</span><a href="#local-6989586621679188613"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Key -&gt; Set (Key, Key)
+</span><a href="#local-6989586621679188692"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">pred
+</span><a href="#local-6989586621679188691"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Key -&gt; Set (Key, Key)
 </span><a href="Propagation.html#out_edges"><span class="hs-identifier hs-var">out_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
-</span><a href="#local-6989586621679188615"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679188614"><span class="hs-identifier hs-var">entry</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188693"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679188692"><span class="hs-identifier hs-var">entry</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-91"></span><span>
 </span><span id="line-92"></span><span>
 </span><span id="line-93"></span><span>

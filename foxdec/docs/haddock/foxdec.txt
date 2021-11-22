@@ -2,9 +2,8 @@
 -- See Hoogle, http://www.haskell.org/hoogle/
 
 
--- | Formal x86-64 Decompilation
---   
---   FoxDec provides decompilation of x86-64 binaries.
+-- | Please see the README on GitHub at
+--   <a>https://github.com/githubuser/foxdec#readme</a>
 @package foxdec
 @version 0.1.0.0
 
