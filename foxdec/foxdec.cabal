@@ -6,7 +6,9 @@ cabal-version: 1.12
 
 name:           foxdec
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/foxdec#readme>
+synopsis:       Formaly Verified x86-64 Decompilation
+description:    This package contains tools for decompilation based on formal methods.
+category:       Disassembly, Decompilation
 homepage:       https://github.com/githubuser/foxdec#readme
 bug-reports:    https://github.com/githubuser/foxdec/issues
 author:         Author name here

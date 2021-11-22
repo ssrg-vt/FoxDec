@@ -9,13 +9,13 @@ copyright:           "2021 Author name here"
 
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+synopsis:            Formaly Verified x86-64 Decompilation
+category:            Disassembly, Decompilation
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/foxdec#readme>
+description:         This package contains tools for decompilation based on formal methods.
 
 dependencies:
 - base >= 4.7 && < 5

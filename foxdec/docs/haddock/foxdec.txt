@@ -2,8 +2,9 @@
 -- See Hoogle, http://www.haskell.org/hoogle/
 
 
--- | Please see the README on GitHub at
---   <a>https://github.com/githubuser/foxdec#readme</a>
+-- | Formaly Verified x86-64 Decompilation
+--   
+--   This package contains tools for decompilation based on formal methods.
 @package foxdec
 @version 0.1.0.0
 
