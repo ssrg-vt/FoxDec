@@ -1,4 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_HADDOCK hide #-}
+
 
 module SCC where
 

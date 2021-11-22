@@ -95,7 +95,7 @@ The following files are generated:
 
 
 ## Documentation<a name="docs"></a>
-Source code documentation can be found [here](./foxdec/docs/haddock/index.html).
+Source code documentation can be found [here](https://ssrg-vt.github.io/FoxDec/project/docs/haddock/index.html).
 
 
 
@@ -134,5 +134,5 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 [qemu]: https://www.qemu.org/
 [sefm20-paper]: https://www.ssrg.ece.vt.edu/papers/sefm20.pdf
 [sefm20-artifacts]: https://doi.org/10.5281/zenodo.3952034
-[reportinterface]: ./foxdec/docs/haddock/VerificationReportInterface.html
+[reportinterface]: https://ssrg-vt.github.io/FoxDec/project/docs/haddock/VerificationReportInterface.html
 [git]: https://github.com/ssrg-vt/FoxDec

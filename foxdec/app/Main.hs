@@ -365,7 +365,7 @@ ctxt_collect_verification_conditions entry g invs = do
   -- precondition (not a postcondition) of the node,
   do_tau :: Context -> Int -> State Pred (S.Set VerificationCondition)
   do_tau ctxt b = do
-    modify $ tau_blockID ctxt g b Nothing
+    modify $ tau_blockID ctxt g b Nothing False
     Predicate _ _ vcs _ <- get
     return vcs
 
@@ -592,7 +592,7 @@ ctxt_generate_invs entry g curr_invs curr_posts = do
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
   do_tau :: Context -> Int -> State Pred ()
-  do_tau ctxt b = modify $ tau_blockID ctxt g b Nothing
+  do_tau ctxt b = modify $ tau_blockID ctxt g b Nothing False
 
 
 ctxt_add_entries :: Int -> IS.IntSet -> StateT Context IO ()
@@ -697,7 +697,7 @@ ctxt_analyze_unresolved_indirections g invs = do
     try' ctxt blockId trgt
 
   try' ctxt blockId trgt = do
-    modify $ tau_blockID' ctxt g blockId Nothing True
+    modify $ tau_blockID ctxt g blockId Nothing True
     val <- read_operand ctxt trgt
     case val of
       SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a

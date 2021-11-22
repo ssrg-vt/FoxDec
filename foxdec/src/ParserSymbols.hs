@@ -1,3 +1,6 @@
+{-# OPTIONS_HADDOCK hide #-}
+
+
 -- Parser that can be used to read the output of objdump applied to X86 binaries
 -- Run objdump on Ubuntu as follows:
 --

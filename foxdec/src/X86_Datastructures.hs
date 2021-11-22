@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
 
+
 module X86_Datastructures where
 
 import Data.List
@@ -13,26 +14,26 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 -- An instruction
 data Instr = Instr {
-  i_addr :: Int,                 -- address
-  i_prefix :: Maybe Prefix,      -- prefix, e.g., lock or repz
-  i_opcode :: Opcode,            -- opcode (see data Opcode)
-  i_op1 :: Maybe Operand,        -- optional: operand
-  i_op2 :: Maybe Operand,        -- optional: operand
-  i_op3 :: Maybe Operand,        -- optional: operand
-  i_annot :: Maybe String,       -- annotation, e.g., <malloc@plt + 10>
-  i_size :: Int                  -- size of instruction
+  i_addr :: Int,                 -- ^ address
+  i_prefix :: Maybe Prefix,      -- ^ prefix, e.g., lock or repz
+  i_opcode :: Opcode,            -- ^ opcode (see data Opcode)
+  i_op1 :: Maybe Operand,        -- ^ optional: operand
+  i_op2 :: Maybe Operand,        -- ^ optional: operand
+  i_op3 :: Maybe Operand,        -- ^ optional: operand
+  i_annot :: Maybe String,       -- ^ annotation, e.g., <malloc@plt + 10>
+  i_size :: Int                  -- ^ size of instruction
  }
  deriving (Eq,Ord, Generic)
 
 instance Cereal.Serialize Instr
 
--- Instruction prefixes
+-- | Instruction prefixes
 data Prefix = InvalidPrefix | REP | REPZ | LOCK | BND
   deriving (Show,Eq,Ord,Read,Generic)
 
 instance Cereal.Serialize Prefix
 
--- Registers
+-- | Registers
 data Register = InvalidRegister
   | RIP | EIP
   | RAX | EAX | AX | AH | AL 
@@ -60,32 +61,32 @@ data Register = InvalidRegister
 
 instance Cereal.Serialize Register
 
--- Flags
+-- | Flags
 data Flag = ZF | CF | SF | OF | PF | InvalidFlag
   deriving (Show,Eq,Ord)
 
--- An unresolved address.
+-- | An unresolved address, within the operand of an instruction.
 data Address =
-    FromReg Register 
-  | AddrImm Int
-  | AddrMinus Address Address
-  | AddrPlus Address Address
-  | AddrTimes Address Address
-  | SizeDir Int Address        -- size directive, e.g., qword ptr, in bytes
+    FromReg Register           -- ^ Reading a pointer from a register
+  | AddrImm Int                -- ^ Immediate address
+  | AddrMinus Address Address  -- ^ Minus
+  | AddrPlus Address Address   -- ^ Plus
+  | AddrTimes Address Address  -- ^ Times
+  | SizeDir Int Address        -- ^ Size directive, e.g., qword ptr, in bytes
   deriving (Eq,Ord,Generic)
 
 instance Cereal.Serialize Address
 
--- Operands are unresolved addresses, registers, or immediates
+-- | Operands of an instruction
 data Operand =
-    Address Address
-  | Reg Register
-  | Immediate Word64
+    Address Address          -- ^ Unresolved addresses
+  | Reg Register             -- ^ Registers
+  | Immediate Word64         -- ^ Immediates
   deriving (Eq,Ord,Generic)
 
 instance Cereal.Serialize Operand
 
--- Opcodes / mnemonics
+-- | Opcodes / mnemonics
 data Opcode = InvalidOpcode
   | AAA
   | AAD
@@ -631,7 +632,7 @@ data Opcode = InvalidOpcode
 instance Cereal.Serialize Opcode
 
 
--- Pretty printing
+-- | Showing unresolved address (inner part within a ptr[...])
 show_address' (FromReg r) = show r
 show_address' (AddrImm i) = show i
 show_address' (AddrMinus a0 a1) = show_address' a0 ++ " - " ++ show_address' a1
@@ -639,10 +640,11 @@ show_address' (AddrPlus a0 a1) = show_address' a0 ++ " + " ++ show_address' a1
 show_address' (AddrTimes a0 a1) = show_address' a0 ++ " * " ++ show_address' a1
 show_address' (SizeDir si a) = show_address' a
 
+-- | Showing unresolved address
 show_address (SizeDir si a) = show_size_directive si ++ " [" ++ show_address' a ++ "]"
 show_address a = "[" ++ show_address' a ++ "]"
 
-
+-- | Showing a size directive
 show_size_directive 1  = "BYTE PTR"
 show_size_directive 2  = "WORD PTR"
 show_size_directive 4  = "DWORD PTR"
@@ -650,22 +652,24 @@ show_size_directive 8  = "QWORD PTR"
 show_size_directive 16 = "XMMWORD PTR"
 show_size_directive si = show (si*8) ++ " PTR"
 
+-- | Showing an operand
 show_operand' (Address a) = show_address a
 show_operand' (Reg r) = show r
 show_operand' (Immediate i) = show i
 
+-- | Showing an optional operand
 show_operand Nothing = ""
 show_operand (Just op) = show op
 
-show_operand2 Nothing = ""
-show_operand2 (Just op) = ", " ++ show op
-
+-- | Showing an optional annotation
 show_annot Nothing = ""
 show_annot (Just s) = " <" ++ s ++ ">"
 
+-- | Showing an optional prefix
 show_prefix Nothing = ""
 show_prefix (Just p) = show p ++ " "
 
+-- | Showing an instruction
 show_instruction (Instr addr pre opcode op1 op2 op3 annot size) =
      showHex addr ++ ": "
   ++ show_prefix pre
@@ -676,7 +680,9 @@ show_instruction (Instr addr pre opcode op1 op2 op3 annot size) =
   ++ show_operand2 op3
   ++ show_annot annot
   ++ " " ++ show size
-
+ where
+  show_operand2 Nothing = ""
+  show_operand2 (Just op) = ", " ++ show op
 
 instance Show Address 
  where show = show_address'
@@ -689,33 +695,44 @@ instance Show Instr
 
 
 
-
+-- | The size of the operand, in bytes
 operand_size :: Operand -> Int
 operand_size (Reg r) = reg_size r
 operand_size (Address (SizeDir si _)) = si 
 operand_size (Immediate _) = 8
 
--- returns true iff m is the mnemonic of a conditional jump
+-- | Returns true iff m is the mnemonic of a conditional jump
 is_cond_jump m = m `elem` [JO, JNO, JS, JNS, JE, JZ, JNE, JNZ, JB, JNAE, JC, JNB, JAE, JNC, JBE, JNA, JA, JNBE, JL, JNGE, JGE, JNL, JLE, JNG, JG, JNLE, JP, JPE, JNP, JPO, JCXZ, JECXZ, JRCXZ] 
 
+-- | Returns true iff m is the mnemonic of a halting instruction
 is_halt m = m `elem` [HLT]
 
+-- | Returns true iff m is the mnemonic of a jump
 is_jump m = m `elem` [JMP, JMPF, JMPN ] 
 
+-- | Returns true iff m is the mnemonic of a call
 is_call m = m `elem` [CALL, CALLF ]
 
+-- | Returns true iff m is the mnemonic of a return
 is_ret m = m `elem` [RET, RETF, RET, RETN, IRET, IRETD, IRETQ]
 
 
+-- | List of 128 bit registers
 reg128 = [XMM0,XMM1,XMM2,XMM3,XMM4,XMM5,XMM6,XMM7,XMM8,XMM9,XMM10,XMM11,XMM12,XMM13,XMM14,XMM15]
+-- | List of 80 bit registers
 reg80  = [ST0,ST1,ST2,ST3,ST4,ST5,ST6,ST7]
+-- | List of 64 bit registers
 reg64  = [RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP, R8, R9, R10, R11, R12, R13, R14, R15, RIP,CS,DS,ES,FS,GS,
           XMM0_L,XMM1_L,XMM2_L,XMM3_L,XMM4_L,XMM5_L,XMM6_L,XMM7_L,XMM8_L,XMM9_L,XMM10_L,XMM11_L,XMM12_L,XMM13_L,XMM14_L,XMM15_L,
           CS, DS, ES, FS, GS, SS ]
+-- | List of 32 bit registers
 reg32  = [EAX, EBX, ECX, EDX, ESI, EDI, ESP, EBP, R8D, R9D, R10D, R11D, R12D, R13D, R14D, R15D]
+-- | List of 16 bit registers
 reg16  = [AX,BX,CX,DX,SI,DI,SP,BP,R8W,R9W,R10W,R11W,R12W,R13W,R14W,R15W]
+-- | List of 8 bit registers
 reg8   = [AL,BL,CL,DL,SIL,DIL,SPL,BPL,R8B,R9B,R10B,R11B,R12B,R13B,R14B,R15B]
 
+-- | The size of the given register, in bytes.
 reg_size r =
   if r `elem` reg128 then 16
   else if r `elem` reg80 then 10
@@ -726,7 +743,7 @@ reg_size r =
   else error $ "Size of " ++ show r ++ " unknown"
 
 
--- Matches register names to the real registers
+-- | Matches register names to the real registers
 -- E.g.: EAX is actually a part of RAX
 real_reg EAX = RAX
 real_reg EBX = RBX

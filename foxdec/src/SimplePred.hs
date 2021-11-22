@@ -3,7 +3,36 @@
 
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
-module SimplePred where
+
+
+module SimplePred ( 
+  Pred (..),
+  StatePart (..),
+  SimpleExpr (..),
+  FlagStatus (..),
+  VerificationCondition(..),
+  StateMuddleStatus (..),
+  BotTyp (..),
+  BotSrc (..),
+  Operator (..),
+  AddrType (..),
+  regs_of,
+  srcs_of_expr,
+  srcs_of_exprs,
+  contains_bot,
+  contains_bot_sp,
+  add_assertion,
+  add_precondition,
+  add_function_constraint,
+  is_precondition,
+  is_assertion,
+  is_func_constraint,
+  all_bot_satisfy,
+  simp,
+  trim_expr,
+  count_instructions_with_assertions
+ )
+ where
 
 import Base
 import qualified Data.Map as M
@@ -19,15 +48,44 @@ import GHC.Generics
 import Data.Bits (testBit, (.|.), (.&.))
 import qualified Data.Serialize as Cereal hiding (get,put)
 
-data BotTyp = FromAbstraction | FromBitMode | FromOverlap | FromCall | FromSemantics | FromUninitializedMemory | FromMemWrite | FromNonDeterminism (S.Set SimpleExpr)
+-- | Bot represents an unknown (bottom) value.
+-- We annotate each occurence of Bot with a BotTyp.
+-- This type indicates where the bottom value originates from.
+-- We don't use this, i.e., all bottoms are created equal.
+-- The only bottom that has semantics meaning is the last one, non-determinstically picking a value from a set.
+data BotTyp = 
+    FromAbstraction                         -- ^ Abstraction joined two terms to Bottom
+  | FromOverlap                             -- ^ A read from two possibly overlapping regions
+  | FromMemWrite                            -- ^ A write to two possibly overlapping regions 
+  | FromCall                                -- ^ A function call was executed, setting stateparts to bottom
+  | FromSemantics                           -- ^ An instruction with unknown semantics
+  | FromUninitializedMemory                 -- ^ Reading from memory not written to yet
+  | FromBitMode                             -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
+  | FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
  deriving (Eq, Ord, Generic)
 
-data AddrType = Heap | Global | Local
- deriving (Eq, Ord, Generic)
 
+-- | Bot represents an unknown (bottom) value.
+-- We annotate each occurence of Bot with a BotSrc.
+-- This indicates the sources that are used to compute the bottom value.
+-- For example, the symbolic expressions @RDI0@ and @RSI0@ are joined to a Bottom value with sources @{RDI0,RSI0}@.
+-- We don't use this, i.e., all bottoms are created equal.
+-- It is, however, very convenient for debugging.
 data BotSrc = Src_SP StatePart | Src_Function String
  deriving (Eq, Ord, Generic)
 
+
+-- | A symbolic expression that is used as a pointer, can be matched to one (or more) of the following types.
+-- This happens in over-approximative fashion, i.e., if we don't know we just guess all of these.
+-- However, an expression such as @RSP0 - 16@ is guessed to be @Local@, an immediate address within the data sections is guessed to be @Global@.
+-- The @Local@ and @Global@ address spaces are assumed to be separate.
+data AddrType = Heap | Global | Local
+ deriving (Eq, Ord, Generic)
+
+-- | An operator is a pure operation over bit-vectors, annotated with the bit-size of its operands.
+-- For example, @Plus 64@ denotes 64-bit addition.
+-- @Udiv@ and @Times@ are operators op type @w -> w -> w@ with all words same length.
+-- @Div@ and @Div_Rem@ are operators of type @w -> w -> w -> w@ performing concatenation of the first two words and then doing division/remainder.
 data Operator = 
     Plus Int | Minus Int | Times Int | And Int | Or Int | Xor Int | Not Int | SetXX | Bsr Int 
   | Div_Rem Int | Div Int | Shl Int | Shr Int | Sar Int | Udiv Int | Ror Int | Rol Int
@@ -35,10 +93,6 @@ data Operator =
  deriving (Eq, Ord, Generic)
 
 
-{- 
- - "udiv" and "times" are operators op type w -> w -> w with all words same length
- - "div" and "div_rem" are operators of type w -> w -> w -> w performing concatenation of the first two words and then doing division/remainder
- -}
 instance Show Operator where
   show (Plus    b) = "+"       ++ show b
   show (Minus   b) = "-"       ++ show b
@@ -59,20 +113,24 @@ instance Show Operator where
   show (Bswap   b) = "bswap"   ++ show b
   show (Pextr   b) = "pextr"   ++ show b
 
+-- | A symbolic expression with as leafs either immediates, variables, or stateparts.
+-- A variable is a constant represneting some initial value, e.g., RDI0.
+-- A statepart evaluates to its current value, e.g., RDI.
 data SimpleExpr =
-    Bottom       BotTyp (S.Set BotSrc)
-  | SE_Var       StatePart
-  | SE_Immediate Word64 
-  | SE_StatePart StatePart
-  | SE_Op        Operator [SimpleExpr]
-  | SE_Bit       Int SimpleExpr
-  | SE_SExtend   Int Int SimpleExpr
-  | SE_Overwrite Int SimpleExpr SimpleExpr
+    Bottom       BotTyp (S.Set BotSrc)      -- ^ Bottom (unknown value)
+  | SE_Var       StatePart                  -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
+  | SE_Immediate Word64                     -- ^ An immediate word
+  | SE_StatePart StatePart                  -- ^ The value stored currently in the statepart
+  | SE_Op        Operator [SimpleExpr]      -- ^ Application of an @`Operator`@ to the list of arguments
+  | SE_Bit       Int SimpleExpr             -- ^ Taking the lower bits of a value
+  | SE_SExtend   Int Int SimpleExpr         -- ^ Sign extension
+  | SE_Overwrite Int SimpleExpr SimpleExpr  -- ^ Overwriting certain bits of a value with bits from another value
  deriving (Eq, Ord, Generic)
 
+-- | A statepart is either a register or a region in memory
 data StatePart =
-    SP_Reg Register
-  | SP_Mem SimpleExpr Int
+    SP_Reg Register          -- ^ A register
+  | SP_Mem SimpleExpr Int    -- ^ A region with a symbolic address and an immediate size.
  deriving (Eq, Ord, Generic)
 
 instance Show BotTyp where
@@ -134,7 +192,7 @@ expr_size_src (Src_Function f) = 1
 
 
 
-
+-- | Returns true iff the expression contains Bot
 contains_bot (Bottom typ _)       = True
 contains_bot (SE_Var sp)          = contains_bot_sp sp
 contains_bot (SE_Immediate _)     = False
@@ -144,12 +202,13 @@ contains_bot (SE_Bit i e)         = contains_bot e
 contains_bot (SE_SExtend _ _ e)   = contains_bot e
 contains_bot (SE_Overwrite _ a b) = contains_bot a || contains_bot b
 
+-- | Returns true iff the statepart contains Bot
 contains_bot_sp (SP_Reg r)     = False
 contains_bot_sp (SP_Mem a si)  = contains_bot a
 
 
 
-
+-- | Returns the set of registers occuring in the symbolic expression.
 regs_of (Bottom typ _)       = S.empty
 regs_of (SE_Var sp)          = regs_of_sp sp
 regs_of (SE_Immediate _)     = S.empty
@@ -188,7 +247,7 @@ all_bot_satisfy_sp p (SP_Reg r)      = True
 all_bot_satisfy_sp p (SP_Mem a si)   = all_bot_satisfy p a
 
 
--- return the set of sources (state parts used to compute the expression)
+-- | Returns the set of sources (state parts used to compute the expression) of an expression.
 srcs_of_expr (Bottom _ srcs)      = srcs
 srcs_of_expr (SE_Var sp)          = srcs_of_sp sp
 srcs_of_expr (SE_Immediate i)     = S.empty
@@ -198,9 +257,11 @@ srcs_of_expr (SE_Bit i e)         = srcs_of_expr e
 srcs_of_expr (SE_SExtend _ _ e)   = srcs_of_expr e
 srcs_of_expr (SE_Overwrite _ a b) = srcs_of_exprs a b
 
+-- | Returns the set of sources (state parts used to compute the expression) of a statepart.
 srcs_of_sp sp@(SP_Reg r) = S.singleton $ Src_SP sp
 srcs_of_sp sp@(SP_Mem a si) = S.singleton  $ Src_SP sp -- S.insert sp $ srcs_of_expr a
 
+-- | Returns the set of sources (state parts used to compute the expression) of two expressions.
 srcs_of_exprs e0 e1 =
   let srcs = S.union (srcs_of_expr e0) (srcs_of_expr e1) in
     if sum (S.map expr_size_src srcs) > 20 then srcs_of_expr e0 else srcs --TODO
@@ -286,14 +347,27 @@ instance Show StatePart where
   show (SP_Reg r) = show r
   show (SP_Mem a si) = "[" ++ show a ++ ", " ++ show si ++ "]"
 
-data FlagStatus = None | FS_CMP (Maybe Bool) Operand Operand
+-- | Symbolically represent the status of all flags in the current state
+data FlagStatus = 
+    None                                 -- ^ No information known, flags could have any value
+  | FS_CMP (Maybe Bool) Operand Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
   deriving (Generic,Eq,Ord)
 
 
+-- |  A verification condition is either:
+-- * A precondition of the form:
+-- >    Precondition (a0,si0) (a1,si1)
+-- This formulates that at the initial state the two regions must be separate.
+-- * An assertion of the form:
+-- >    Assertion a (a0,si0) (a1,si1)
+-- This formulates that dynamically, whenever address a is executed, the two regions are asserted to be separate.
+-- * A function constraint of the form:
+-- >    FunctionConstraint foo [(RDI, v0), (RSI, v1), ...]
+-- This formulates that a function call to function foo with values v0, v1, ... stored in the registers should not overwrite any part of the local stack frame of the caller.
 data VerificationCondition =
-    Precondition       SimpleExpr Int SimpleExpr Int            -- lhs SEP rhs
-  | Assertion          SimpleExpr SimpleExpr Int SimpleExpr Int -- address, lhs SEP rhs
-  | FunctionConstraint String     [(Register,SimpleExpr)]       -- Function name, with param registers
+    Precondition       SimpleExpr Int SimpleExpr Int            -- ^ Precondition:           lhs SEP rhs
+  | Assertion          SimpleExpr SimpleExpr Int SimpleExpr Int -- ^ Assertion:    @address, lhs SEP rhs
+  | FunctionConstraint String     [(Register,SimpleExpr)]       -- ^ Function name, with param registers
   deriving (Generic,Eq,Ord)
 
 instance Show VerificationCondition where
@@ -316,12 +390,22 @@ is_func_constraint _                        = False
 count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion
 
 
+-- | Have functions been called by the current function?
 data StateMuddleStatus = 
-   Clean        -- no function calls have been executed
- | ExternalOnly -- all function calls were to external functions
- | Muddled      -- at least one internal function has been called
+   Clean        -- ^ No function calls have been executed
+ | ExternalOnly -- ^ All function calls were to external functions
+ | Muddled      -- ^ At least one internal function has been called
   deriving (Generic,Eq,Show,Ord)
 
+-- | A symbolic predicate consists of:
+--
+--   * A mapping from stateparts to symbolic expressions.
+--
+--   * The status of the flags.
+--   
+--   * A set of verification conditions.
+--
+--   * The @`StateMuddleStatus`@
 data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus (S.Set VerificationCondition) StateMuddleStatus
   deriving (Generic,Eq,Ord)
 

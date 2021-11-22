@@ -1,6 +1,15 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleContexts, Strict #-}
 
-module SymbolicExecution where
+
+
+module SymbolicExecution (
+  tau_blockID,
+  tau_b,
+  init_pred,
+  statepart_is_preserved_after_function_call,
+  gather_stateparts,
+  expr_highly_likely_pointer
+  ) where
 
 import Base
 import SimplePred
@@ -92,8 +101,15 @@ call ctxt i = do
   new_muddle_status Muddled = Muddled
   new_muddle_status _       = if instruction_jumps_to_external ctxt i then ExternalOnly else Muddled
 
+
 statepart_after_function_call ctxt i sp v  = if statepart_is_preserved_after_function_call ctxt i sp then v else mk_bottom_after_function_call ctxt i $ srcs_of_expr v
 
+-- | Returns true iff the given statepart is preserved (unmodified) after a function call.
+statepart_is_preserved_after_function_call ::
+  Context      -- ^ The context
+  -> Instr     -- ^ The instruction currently symbolically executed (a @call@)
+  -> StatePart -- ^ A state part 
+  -> Bool
 statepart_is_preserved_after_function_call ctxt i (SP_Reg r)   = r `elem` callee_saved_registers 
 statepart_is_preserved_after_function_call ctxt i (SP_Mem a _) =
       S.toList (expr_to_addr_type ctxt a) == [Local]
@@ -1083,6 +1099,8 @@ tau_i ctxt i =
   else
     error $ "Unsupported instruction: " ++ show i
 
+-- | Do predicate transformation over a block of instructions
+-- Does not take into account flags, commonly function @`tau_blockID`@ should be used.
 tau_b :: Context -> [Instr] -> State Pred ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
@@ -1101,13 +1119,19 @@ add_jump_to_pred i0@(Instr _ _ JA (Just (Immediate trgt)) _ _ _ _) i1 flg =
 add_jump_to_pred i0 i1 flg = flg
 
 
+-- | Do predicate transformation over a basic block in a CFG.
 -- Given an edge in the CFG from blockId to blockId', perform predicate transformation.
 -- blockId' is needed to set the flags properly. If none is supplied, the flags are ignored.
-tau_blockID :: Context -> CFG -> Int -> Maybe Int -> Pred -> Pred
-tau_blockID ctxt g blockId blockId' p = tau_blockID' ctxt g blockId blockId' False p
-
-tau_blockID' :: Context -> CFG -> Int -> Maybe Int -> Bool -> Pred -> Pred
-tau_blockID' ctxt g blockId blockId' remove_last_instruction p@(Predicate eqs flg vcs muddle_status) = 
+-- We provide the option to skip the last instruction, as sometimes we need to symbolically execute a block up to but excluding the last instruction.
+tau_blockID ::
+  Context       -- ^ The context
+  -> CFG        -- ^ The CFG
+  -> Int        -- ^ The block ID of the basic block
+  -> Maybe Int  -- ^ Optionally, the block ID of the next block if symbolically executing an edge in a CFG.
+  -> Bool       -- ^ Must the last instruction of the block be ignored?
+  -> Pred       -- ^ The predicate to be transformed
+  -> Pred
+tau_blockID ctxt g blockId blockId' remove_last_instruction p@(Predicate eqs flg vcs muddle_status) = 
   let insts0                            = fetch_block g blockId
       insts                             = if remove_last_instruction then init insts0 else insts0 in
     if insts == [] then
@@ -1129,7 +1153,9 @@ tau_blockID' ctxt g blockId blockId' remove_last_instruction p@(Predicate eqs fl
  where
   write_rip addr eqs = M.insert (SP_Reg RIP) (SE_Immediate $ fromIntegral addr) eqs
 
-
+-- | Tries to guess if the symbolic expression is a pointer.
+-- Any immediate that falls in the address range of the binary is highly likely a pointer.
+-- A value stored in a memory location belonging to an external function symbol is also highly likely a pointer.
 expr_highly_likely_pointer ctxt (SE_Immediate a)                     = read_from_datasection ctxt a 1 /= Nothing
 expr_highly_likely_pointer ctxt (SE_Var (SP_Mem (SE_Immediate a) 8)) = IM.lookup (fromIntegral a) (ctxt_syms ctxt) /= Nothing
 expr_highly_likely_pointer ctxt _                                    = False
@@ -1210,8 +1236,13 @@ implies_preds ctxt (Predicate eqs0 flg0 vcs0 muddle_status0) (Predicate eqs1 flg
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
 
 
-
-init_pred :: Invariants -> S.Set (NodeInfo,Pred) -> Pred
+-- | The initial predicate
+-- Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
+-- The initial predicate assign a variable to each statepart, e.g.: @RSP == RSP0, RDI == RDI), ...@.
+init_pred :: 
+  Invariants               -- The currently available invariants
+  -> S.Set (NodeInfo,Pred) -- The currently known postconditions
+  -> Pred
 init_pred curr_invs curr_posts = 
   let sps = S.delete (SP_Reg RIP) $ S.insert (SP_Mem (SE_Var (SP_Reg RSP)) 8) $ gather_stateparts curr_invs curr_posts
       eqs = M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
@@ -1225,7 +1256,11 @@ get_stateparts_of_pred (Predicate eqs _ _ _) = S.filter (not . contains_bot_sp) 
 
 
 
-
+-- Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
+gather_stateparts ::
+  Invariants               -- The currently available invariants
+  -> S.Set (NodeInfo,Pred) -- The currently known postconditions
+  -> S.Set StatePart
 gather_stateparts invs posts = S.union (IM.foldrWithKey accumulate_stateparts S.empty invs) (get_stateparts_of_preds (S.map snd posts))
  where
   accumulate_stateparts a p sps = S.union sps (get_stateparts_of_pred p)
@@ -1233,6 +1268,6 @@ gather_stateparts invs posts = S.union (IM.foldrWithKey accumulate_stateparts S.
 
 
 instance Propagator Context Pred where
-  tau     = tau_blockID
+  tau     = \ctxt g blockId blockId' -> tau_blockID ctxt g blockId blockId' False
   join    = join_preds 
   implies = implies_preds

@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module Isabelle where
 

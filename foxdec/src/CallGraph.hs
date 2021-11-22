@@ -1,3 +1,6 @@
+{-# OPTIONS_HADDOCK hide #-}
+
+
 module CallGraph where
 
 import Base

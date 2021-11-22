@@ -1,3 +1,6 @@
+{-# OPTIONS_HADDOCK hide #-}
+
+
 -- Parser that can be used to read .indirections file.
 --
 -- Example input line:

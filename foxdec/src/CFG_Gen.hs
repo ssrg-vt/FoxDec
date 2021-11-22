@@ -1,6 +1,25 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
 
-module CFG_Gen where
+module CFG_Gen (
+   ResolvedJumpTarget(..),
+   address_has_instruction,
+   address_has_symbol,
+   address_is_external,
+   stepA,
+   fetch_block,
+   cfg_gen,
+   cfg_to_dot,
+   resolve_jump_target,
+   operand_static_resolve,
+   get_internal_addresses,
+   function_name_of_entry,
+   function_name_of_instruction,
+   instruction_jumps_to_external,
+   is_end_node,
+   node_info_of,
+   show_invariants
+ )
+ where
 
 import Base
 import Context
@@ -157,11 +176,11 @@ address_has_symbol ctxt a =
 address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instruction ctxt a)
 
 
--- resolving the operand of a jump call can either produce 
---   Unresolved:  an indirect branch that has not been resolved yet
---   External f:  a call to external function f
---   Immediate a: an internal call to the given address
-data ResolvedJumpTarget = Unresolved | External String | ImmediateAddress Word64
+-- | Resolving the operand of a jump/call can produce one of the following.
+data ResolvedJumpTarget = 
+   Unresolved               -- ^ An indirect branch that has not been resolved yet
+ | External String          -- ^ A call to external function f
+ | ImmediateAddress Word64  -- ^ An internal call to the given address
  deriving (Eq,Show)
 
 -- many operands can statically be resolved, even though technically they are indirect (relative to RIP)
@@ -382,7 +401,7 @@ node_info_of ctxt g blockId =
 
 
 
--- Fetching an instruction list given a block ID
+-- | Fetching an instruction list given a block ID
 fetch_block :: CFG -> Int -> [Instr]
 fetch_block g blockId =
   case IM.lookup blockId $ cfg_instrs $ g of

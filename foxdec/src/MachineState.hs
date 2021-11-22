@@ -1,5 +1,8 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
 
+{-# OPTIONS_HADDOCK hide #-}
+
+
 module MachineState where
 
 import Base

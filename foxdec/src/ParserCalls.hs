@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK hide #-}
+
 -- Parser that can be used to read .calls file.
 --
 -- Example input lines:
