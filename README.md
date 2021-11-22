@@ -35,6 +35,8 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
+The GitHub page is [here][git].
+
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
 3. From `./foxdec/`, run `stack build --haddock --haddock-arguments --odir=docs/haddock`.
@@ -133,3 +135,4 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 [sefm20-paper]: https://www.ssrg.ece.vt.edu/papers/sefm20.pdf
 [sefm20-artifacts]: https://doi.org/10.5281/zenodo.3952034
 [reportinterface]: ./foxdec/docs/haddock/VerificationReportInterface.html
+[git]: https://github.com/ssrg-vt/FoxDec
