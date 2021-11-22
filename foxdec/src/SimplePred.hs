@@ -1,8 +1,11 @@
-
-
-
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
+
+-------------------------------------------------------------------------
+-- | A datatype for symbolic predicates, tailored to storing information
+-- on equalities between the current values stored in state parts (lhs) 
+-- and constant expressions (rhs).
+-------------------------------------------------------------------------
 
 
 module SimplePred ( 
@@ -233,7 +236,7 @@ is_imm_expr (SE_Bit i e)             = is_imm_expr e
 is_imm_expr (SE_SExtend _ _ e)       = is_imm_expr e
 is_imm_expr (SE_Overwrite _ e0 e1)   = is_imm_expr e0 && is_imm_expr e1
 
-
+-- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy p (Bottom typ srcs)    = p typ srcs
 all_bot_satisfy p (SE_Var sp)          = all_bot_satisfy_sp p sp
 all_bot_satisfy p (SE_Immediate _)     = True
@@ -270,6 +273,7 @@ srcs_of_expr_bounded e =
   let srcs = srcs_of_expr e in
     if sum (S.map expr_size_src srcs) > 20 then S.fromList (take 10 $ S.toList srcs)  else srcs --TODO
 
+-- | If the size of an expression becomes too large, we simply turn it into Bottom.
 trim_expr e =
   if expr_size e > 1000 then 
     Bottom FromAbstraction $ srcs_of_expr_bounded e
@@ -279,12 +283,14 @@ trim_expr e =
 
 
 
--- simplification of symbolic expressions
 sextend_32_64 w = if testBit w 31 then w .|. 0xFFFFFFFF00000000 else w
 sextend_16_64 w = if testBit w 15 then w .|. 0xFFFFFFFFFFFF0000 else w
 sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 
 
+-- | Simplification of symbolic expressions. 
+--
+-- Must always produce an expression logically equivalent to the original.
 simp :: SimpleExpr -> SimpleExpr
 simp (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp e
 simp (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp e1) else SE_Bit i $ SE_Overwrite i' (simp e0) (simp e1)
@@ -377,16 +383,19 @@ instance Show VerificationCondition where
    where
     show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show e)
 
-
+-- | Is the given verification condition an assertion?
 is_assertion (Assertion _ _ _ _ _) = True
 is_assertion _                 = False
 
+-- | Is the given verification condition a precondition?
 is_precondition (Precondition _ _ _ _) = True
 is_precondition _                      = False
 
+-- | Is the given verification condition a function constraint?
 is_func_constraint (FunctionConstraint _ _) = True
 is_func_constraint _                        = False
 
+-- | Count the number of assertions in the set of verification conditions.
 count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion
 
 
@@ -409,8 +418,11 @@ data StateMuddleStatus =
 data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus (S.Set VerificationCondition) StateMuddleStatus
   deriving (Generic,Eq,Ord)
 
+-- | Add a precondition to the given symbolic predicate
 add_precondition       a0 si0 a1 si1 (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (Precondition a0 si0 a1 si1) vcs)  muddle_status
+-- | Add an assertion to the given symbolic predicate
 add_assertion      rip a0 si0 a1 si1 (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (Assertion rip a0 si0 a1 si1) vcs) muddle_status
+-- | Add a function constraint to the given symbolic predicate
 add_function_constraint f ps         (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (FunctionConstraint f ps) vcs) muddle_status
 
 

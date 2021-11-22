@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict #-}
 
+-- | Some base functions, imported by any other module.
+
 module Base where
 
 import SCC 
@@ -22,35 +24,42 @@ import Data.Word (Word8)
 import Data.Ord (comparing)
 import Data.Bits (shift,testBit,clearBit)
 
+-- | Show the integer in hex.
 showHex i = if i < 0 then Numeric.showHex (fromIntegral i :: Word64) "" else Numeric.showHex i ""
-
+-- | Show an integer list as hex-list.
 showHex_list is = "[" ++ intercalate "," (map (\i -> showHex i) is) ++ "]"
+-- | Show an integer set as hex-list.
 showHex_set     = showHex_list . IS.toList
+-- | Show an optional integer as an optional hex.
 showHex_option Nothing = "Nothing"
 showHex_option (Just v) = showHex v
-
+-- | Read an int from a string storing a hex.
 readHex' :: (Eq a, Num a) => String -> a
 readHex' = fst . head . Numeric.readHex
 
+-- | Lookup and produce error message if key does not exists in map.
 im_lookup s m k =
   case IM.lookup k m of
     Nothing -> error s
     Just v  -> v
 
 
-
+-- | Find the index of one string in another.
 findString :: (Eq a) => [a] -> [a] -> Maybe Int
 findString search str = findIndex (isPrefixOf search) (tails str)
 
-
+-- | Strip outer parentheses from a string, if it has them.
 strip_parentheses s = if length s > 0 && head s == '(' && last s == ')' then init $ tail s else s
 
 
--- little endian
+-- | In little endian, convert a byte-list to a 64 bit word.
+-- Assume the list is at most length 8.
 bytes_to_word :: [Word8] -> Word64
 bytes_to_word [] = 0
 bytes_to_word (w:ws) = (fromIntegral w::Word64) + shift (bytes_to_word ws) 8
 
+-- | Convert first @n@ bytes of a word to an integer.
+-- Assume @n<8@.
 word_to_sint :: Int -> Word64 -> Int
 word_to_sint si w =
   let neg = testBit w (si*8-1)
@@ -60,16 +69,16 @@ word_to_sint si w =
 
 
 
-------------------------------------------
--- Generic graph with ints as vertices. --
-------------------------------------------
+--------------------------------------------
+-- | Generic graph with ints as vertices. --
+--------------------------------------------
 data Graph = Edges (IM.IntMap IS.IntSet)
   deriving Generic
 
 instance Cereal.Serialize Graph
 
 
--- add edges from v to all vertices vs
+-- | add edges from v to all vertices vs
 graph_add_edges (Edges es) v vs = Edges $ IM.unionWith IS.union (IM.alter alter v es) empty_edges
  where
   alter Nothing    = Just $ vs
@@ -77,16 +86,13 @@ graph_add_edges (Edges es) v vs = Edges $ IM.unionWith IS.union (IM.alter alter 
 
   empty_edges = IM.fromList $ zip (IS.toList vs) (repeat IS.empty)
 
--- delete all edges with v as parent
--- graph_delete_parent (Edges es) v = Edges $ IM.delete v es
-
--- delete all edges with v as parent or child
+-- | delete all edges with v as parent or child
 graph_delete (Edges es) v = Edges $ IM.delete v $ IM.map (IS.delete v) es
 
--- is v parent of an edge?
+-- | is v parent of an edge?
 graph_is_parent (Edges es) v = IM.member v es
 
--- is (v0,v1) an edge?
+-- | is (v0,v1) an edge?
 graph_is_edge (Edges es) v0 v1  =
   case IM.lookup v0 es of
     Nothing -> False
@@ -101,7 +107,7 @@ instance IntGraph Graph where
   intgraph_V (Edges es) = IS.unions $ IM.keysSet es : (IM.elems es)
 
 
--- retrieve a non-trivial SCC, if any exists
+-- | retrieve a non-trivial SCC, if any exists
 graph_nontrivial_scc g@(Edges es) = 
   let sccs             = all_sccs g IS.empty
       nontrivial_sccs  = filter is_non_trivial sccs
@@ -113,7 +119,7 @@ graph_nontrivial_scc g@(Edges es) =
 
 
 
--- find next vertex to consider: either a terminal vertex (if any) or the head of an SCC
+-- | find next vertex to consider: either a terminal vertex (if any) or the head of an SCC
 graph_find_next :: Graph -> Maybe Int
 graph_find_next g@(Edges es) =
   if IM.null es then
@@ -129,7 +135,7 @@ graph_find_next g@(Edges es) =
 ------------------------------------------
 
 
--- decide whether text if white or black based on background color
+-- | decide whether text should be white or black based on background color
 hex_color_of_text :: String -> String
 hex_color_of_text bgcolor =
   let red   = (fromIntegral (readHex' [bgcolor!!1,bgcolor!!2] :: Int) :: Double)
@@ -140,7 +146,7 @@ hex_color_of_text bgcolor =
     else
       "#ffffff"
 
-
+-- | A list of RGB colors
 hex_colors = [
   "#000000", 
   "#FF0000", 

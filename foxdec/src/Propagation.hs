@@ -1,6 +1,16 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
+-----------------------------------------------------------------------------------------
+-- | We assume a class where we can do predicate transformation through function @tau@,
+-- and we can merge two predicates through function @join@.
+-- Moreover, we assume an implementation of a function @implies@ that implements symbolic implication.
+-----------------------------------------------------------------------------------------
 
-module Propagation where
+
+module Propagation (
+  Propagator(..),
+  do_prop,
+  post
+ ) where
 
 import Base
 import Context
@@ -14,27 +24,27 @@ import Data.Foldable (find)
 import Control.Monad.State.Strict hiding (join)
 import Debug.Trace
 
-
--- Assume a class where we can do predicate transformation through function tau
--- and we can merge two predicates through function join.
--- The initial predicate is given by p0.
--- Moreover, we assume an implementation of a function "implies".
+-- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
+  -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
   tau     :: ctxt -> CFG -> Int -> Maybe Int -> pred -> pred
+  -- | A lattice-join
   join    :: ctxt -> pred -> pred -> pred
+  -- | Symbolic implication
   implies :: ctxt -> pred -> pred -> Bool
 
+-- | The supremum of a list of predicates
 supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
 supremum ctxt = foldr1 (join ctxt)
 
 
--- the set of next blocks from the given block
+-- | The set of next blocks from the given block
 post g blockId =
   case IM.lookup blockId (cfg_edges g) of
     Nothing -> IS.empty
     Just ns -> ns
 
--- the set of edges starting in v
+-- The set of edges starting in $v$
 out_edges g v = S.fromList $ zip (repeat v) $ IS.toList $ post g v
 
 
@@ -85,8 +95,14 @@ prop ctxt g = do
          -- previously visited, no need to weaken invariant by joining
          put (IM.insert v1 j m,S.union bag $ out_edges g v1)
 
--- start propagation at the given entry address
-do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IM.IntMap pred
+-- | Start propagation at the given entry address with the given initial predicate.
+-- Returns a set of invariants, i.e., a mapping of instruction addresses to predicates.
+do_prop :: Propagator ctxt pred => 
+  ctxt     -- ^ The context
+  -> CFG   -- ^ The CFG
+  -> Int   -- ^ The entry address
+  -> pred  -- ^ The initial predicate
+  -> IM.IntMap pred
 do_prop ctxt g entry p = fst $ execState (prop ctxt g) $ (IM.singleton entry p, out_edges g entry)
 
 

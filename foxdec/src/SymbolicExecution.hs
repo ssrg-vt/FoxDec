@@ -1,6 +1,9 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleContexts, Strict #-}
 
-
+-----------------------------------------------------------------------------
+-- |
+-- Symbolic execution of sequential lists of instructions of type @`Instr'@ on predicates of type @`Pred`@.
+-----------------------------------------------------------------------------
 
 module SymbolicExecution (
   tau_blockID,
@@ -105,6 +108,7 @@ call ctxt i = do
 statepart_after_function_call ctxt i sp v  = if statepart_is_preserved_after_function_call ctxt i sp then v else mk_bottom_after_function_call ctxt i $ srcs_of_expr v
 
 -- | Returns true iff the given statepart is preserved (unmodified) after a function call.
+-- This happens if the statepart is local, if the address belongs to an unwritable data section, or if the function call is external and the statepart belongs to a section that cannot be modified by external functions according to the "Conventions".
 statepart_is_preserved_after_function_call ::
   Context      -- ^ The context
   -> Instr     -- ^ The instruction currently symbolically executed (a @call@)
@@ -1099,7 +1103,7 @@ tau_i ctxt i =
   else
     error $ "Unsupported instruction: " ++ show i
 
--- | Do predicate transformation over a block of instructions
+-- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_blockID`@ should be used.
 tau_b :: Context -> [Instr] -> State Pred ()
 tau_b ctxt []  = return ()
@@ -1121,7 +1125,7 @@ add_jump_to_pred i0 i1 flg = flg
 
 -- | Do predicate transformation over a basic block in a CFG.
 -- Given an edge in the CFG from blockId to blockId', perform predicate transformation.
--- blockId' is needed to set the flags properly. If none is supplied, the flags are ignored.
+-- Parameter blockId' is needed to set the flags properly. If @Nothing@ is supplied, the flags are overapproximatively set to @`None`@.
 -- We provide the option to skip the last instruction, as sometimes we need to symbolically execute a block up to but excluding the last instruction.
 tau_blockID ::
   Context       -- ^ The context
@@ -1236,9 +1240,9 @@ implies_preds ctxt (Predicate eqs0 flg0 vcs0 muddle_status0) (Predicate eqs1 flg
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
 
 
--- | The initial predicate
+-- | The initial predicate.
 -- Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
--- The initial predicate assign a variable to each statepart, e.g.: @RSP == RSP0, RDI == RDI), ...@.
+-- The initial predicate assign a variable to each statepart, e.g.: @RSP == RSP0, RDI == RDI, ...@.
 init_pred :: 
   Invariants               -- The currently available invariants
   -> S.Set (NodeInfo,Pred) -- The currently known postconditions
@@ -1256,10 +1260,10 @@ get_stateparts_of_pred (Predicate eqs _ _ _) = S.filter (not . contains_bot_sp) 
 
 
 
--- Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
+-- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
 gather_stateparts ::
-  Invariants               -- The currently available invariants
-  -> S.Set (NodeInfo,Pred) -- The currently known postconditions
+  Invariants               -- ^ The currently available invariants
+  -> S.Set (NodeInfo,Pred) -- ^ The currently known postconditions
   -> S.Set StatePart
 gather_stateparts invs posts = S.union (IM.foldrWithKey accumulate_stateparts S.empty invs) (get_stateparts_of_preds (S.map snd posts))
  where

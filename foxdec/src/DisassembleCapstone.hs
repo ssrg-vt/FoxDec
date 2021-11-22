@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module DisassembleCapstone where
 

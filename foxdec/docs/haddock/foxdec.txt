@@ -8,32 +8,79 @@
 @package foxdec
 @version 0.1.0.0
 
+
+-- | Some base functions, imported by any other module.
 module Base
+
+-- | Show the integer in hex.
 showHex :: (Integral a, Show a) => a -> String
+
+-- | Show an integer list as hex-list.
 showHex_list :: (Integral a, Show a) => [a] -> [Char]
+
+-- | Show an integer set as hex-list.
 showHex_set :: IntSet -> [Char]
+
+-- | Show an optional integer as an optional hex.
 showHex_option :: (Integral a, Show a) => Maybe a -> [Char]
+
+-- | Read an int from a string storing a hex.
 readHex' :: (Eq a, Num a) => String -> a
+
+-- | Lookup and produce error message if key does not exists in map.
 im_lookup :: [Char] -> IntMap p -> Key -> p
+
+-- | Find the index of one string in another.
 findString :: Eq a => [a] -> [a] -> Maybe Int
+
+-- | Strip outer parentheses from a string, if it has them.
 strip_parentheses :: [Char] -> [Char]
+
+-- | In little endian, convert a byte-list to a 64 bit word. Assume the
+--   list is at most length 8.
 bytes_to_word :: [Word8] -> Word64
+
+-- | Convert first <tt>n</tt> bytes of a word to an integer. Assume
+--   <tt>n&lt;8</tt>.
 word_to_sint :: Int -> Word64 -> Int
+
+-- | Generic graph with ints as vertices. --
 data Graph
 Edges :: IntMap IntSet -> Graph
+
+-- | add edges from v to all vertices vs
 graph_add_edges :: Graph -> Key -> IntSet -> Graph
+
+-- | delete all edges with v as parent or child
 graph_delete :: Graph -> Key -> Graph
+
+-- | is v parent of an edge?
 graph_is_parent :: Graph -> Key -> Bool
+
+-- | is (v0,v1) an edge?
 graph_is_edge :: Graph -> Key -> Key -> Bool
+
+-- | retrieve a non-trivial SCC, if any exists
 graph_nontrivial_scc :: Graph -> IntSet
+
+-- | find next vertex to consider: either a terminal vertex (if any) or the
+--   head of an SCC
 graph_find_next :: Graph -> Maybe Int
+
+-- | decide whether text should be white or black based on background color
 hex_color_of_text :: String -> String
+
+-- | A list of RGB colors
 hex_colors :: [[Char]]
 instance GHC.Generics.Generic Base.Graph
 instance Data.Serialize.Serialize Base.Graph
 instance SCC.IntGraph Base.Graph
 
+
+-- | Datastructures for storing x86-64 instructions.
 module X86_Datastructures
+
+-- | An instruction
 data Instr
 Instr :: Int -> Maybe Prefix -> Opcode -> Maybe Operand -> Maybe Operand -> Maybe Operand -> Maybe String -> Int -> Instr
 
@@ -879,6 +926,10 @@ instance GHC.Show.Show X86_Datastructures.Address
 instance Data.Serialize.Serialize X86_Datastructures.Register
 instance Data.Serialize.Serialize X86_Datastructures.Prefix
 
+
+-- | A datatype for symbolic predicates, tailored to storing information on
+--   equalities between the current values stored in state parts (lhs) and
+--   constant expressions (rhs).
 module SimplePred
 
 -- | A symbolic predicate consists of:
@@ -1071,15 +1122,39 @@ contains_bot :: SimpleExpr -> Bool
 
 -- | Returns true iff the statepart contains Bot
 contains_bot_sp :: StatePart -> Bool
+
+-- | Add an assertion to the given symbolic predicate
 add_assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> Pred -> Pred
+
+-- | Add a precondition to the given symbolic predicate
 add_precondition :: SimpleExpr -> Int -> SimpleExpr -> Int -> Pred -> Pred
+
+-- | Add a function constraint to the given symbolic predicate
 add_function_constraint :: String -> [(Register, SimpleExpr)] -> Pred -> Pred
+
+-- | Is the given verification condition a precondition?
 is_precondition :: VerificationCondition -> Bool
+
+-- | Is the given verification condition an assertion?
 is_assertion :: VerificationCondition -> Bool
+
+-- | Is the given verification condition a function constraint?
 is_func_constraint :: VerificationCondition -> Bool
+
+-- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy :: (BotTyp -> Set BotSrc -> Bool) -> SimpleExpr -> Bool
+
+-- | Simplification of symbolic expressions.
+--   
+--   Must always produce an expression logically equivalent to the
+--   original.
 simp :: SimpleExpr -> SimpleExpr
+
+-- | If the size of an expression becomes too large, we simply turn it into
+--   Bottom.
 trim_expr :: SimpleExpr -> SimpleExpr
+
+-- | Count the number of assertions in the set of verification conditions.
 count_instructions_with_assertions :: Set VerificationCondition -> Int
 instance GHC.Generics.Generic SimplePred.AddrType
 instance GHC.Classes.Ord SimplePred.AddrType
@@ -1132,19 +1207,12 @@ instance Data.Serialize.Serialize SimplePred.Operator
 instance GHC.Show.Show SimplePred.AddrType
 instance Data.Serialize.Serialize SimplePred.AddrType
 
-module DisassembleCapstone
-disasm_config :: Integral a => [Word8] -> a -> Disassembler ()
-mk_operands :: Show a => a -> [Char] -> [Maybe Operand]
-trim :: [Char] -> [Char]
-mk_instr :: CsInsn -> Instr
-disassemble :: IntMap Word8 -> Int -> IO (Maybe Instr)
-
-module Conventions
 
 -- | In this file, we eumerate assumptions made on calling conventions and
 --   over external functions.
---   
---   A list of function names of functions that never return.
+module Conventions
+
+-- | A list of function names of functions that never return.
 exiting_functon_calls :: [[Char]]
 
 -- | An overview of which sections can be modified by external functions.
@@ -1337,12 +1405,14 @@ instance Data.Serialize.Serialize Context.NodeInfo
 instance Data.Serialize.Serialize Context.VerificationResult
 instance Data.Serialize.Serialize Context.CFG
 
-module Propagation
 
 -- | We assume a class where we can do predicate transformation through
 --   function <tt>tau</tt>, and we can merge two predicates through
 --   function <tt>join</tt>. Moreover, we assume an implementation of a
 --   function <tt>implies</tt> that implements symbolic implication.
+module Propagation
+
+-- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred
 
 -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
@@ -1362,7 +1432,25 @@ do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IntMap pred
 -- | The set of next blocks from the given block
 post :: CFG -> Key -> IntSet
 
+
+-- | Contains function relating to control flow, including functions for
+--   generating a control flow graph (CFG), and for resolving the targets
+--   of jumps and calls.
 module CFG_Gen
+
+-- | Produce a CFG
+--   
+--   Given the entry point of the function, generate either a CFG, or a set
+--   of new entry points to be analyzed first. The set of new entry points
+--   are function entries called by the current function, but for which we
+--   do not know yet whether they terminate or not. If a CFG is returned,
+--   then all function calls in that CFG have already been analzyed.
+cfg_gen :: Context -> Int -> IO (Either IntSet CFG)
+
+-- | Export a CFG to .dot file
+--   
+--   Strongly connected components get the same color.
+cfg_to_dot :: Context -> CFG -> String
 
 -- | Resolving the operand of a jump/call can produce one of the following.
 data ResolvedJumpTarget
@@ -1375,23 +1463,75 @@ External :: String -> ResolvedJumpTarget
 
 -- | An internal call to the given address
 ImmediateAddress :: Word64 -> ResolvedJumpTarget
+
+-- | Returns true iff an instruction can be fetched from the address.
 address_has_instruction :: Integral a => Context -> a -> Bool
+
+-- | Returns true iff a symbol is associated with the address.
 address_has_symbol :: Integral a => Context -> a -> Bool
+
+-- | Returns truee if the adress is external, i.e., has no instruction or
+--   has a symbol.
 address_is_external :: Integral a => Context -> a -> Bool
-stepA :: Context -> Int -> Int -> IO (Either IntSet [Int])
 
 -- | Fetching an instruction list given a block ID
 fetch_block :: CFG -> Int -> [Instr]
-cfg_gen :: Context -> Int -> IO (Either IntSet CFG)
-cfg_to_dot :: Context -> CFG -> String
-resolve_jump_target :: Context -> Instr -> [ResolvedJumpTarget]
+
+-- | many operands can statically be resolved, even though technically they
+--   are indirect (relative to RIP). Examples:
+--   
+--   <tt>10005464e: call RIP + 1751660</tt> resolves to an immediate jump
+--   target by resolving the RIP-relative addressing.
+--   
+--   <tt>10005464e: call qword ptr [RIP + 1751660]</tt> read from address
+--   1002000c0, but address has a symbol associated to it. This function
+--   call will resolve to an external function.
 operand_static_resolve :: Context -> Instr -> Maybe Operand -> ResolvedJumpTarget
-get_internal_addresses :: Num a => ResolvedJumpTarget -> [a]
+
+-- | Resolves the first operand of a call or jump instruction. First tries
+--   to see if the instruciton is an indirection, that has already been
+--   resolved. If not, try to statically resolve the first operand using
+--   <tt><a>operand_static_resolve</a></tt>. If that resolves to an
+--   external symbol <tt>libc_start_main</tt>, then this call is actually
+--   an indirection (and thus currently unresolved). If that resolves to an
+--   immediate value, see if that immediate value corresponds to an
+--   external function or an internal function.
+--   
+--   Returns a list of <tt><a>ResolvedJumpTarget</a></tt>, since an
+--   indirection may be resolved to multiple targets.
+resolve_jump_target :: Context -> Instr -> [ResolvedJumpTarget]
+
+-- | Given a resolved jump target, get a possibly empty list of internal
+--   addresses to which the jump target can jump.
+get_internal_addresses :: ResolvedJumpTarget -> [Int]
+
+-- | Tries to retrieve a function name with an entry address. If the entry
+--   matches a known symbol, return that. Otherwise, simply return the
+--   entry address itself in hexadecimal notation. However, there is one
+--   exception: if the first instruction at the entry address immediately
+--   jumps to an external function, return the name of that external
+--   function instead. This happens in a <tt>.got</tt> section.
 function_name_of_entry :: Context -> Int -> String
+
+-- | Tries to retrieve a function name for a <tt>call</tt>-instruction (see
+--   <tt><a>function_name_of_entry</a></tt>).
+--   
+--   Returns the empty string if the given instruction is not a call or a
+--   jump.
 function_name_of_instruction :: Context -> Instr -> String
+
+-- | Returns true iff the instruction resolves to external targets only.
 instruction_jumps_to_external :: Context -> Instr -> Bool
-is_end_node :: CFG -> Key -> Bool
-node_info_of :: Context -> CFG -> Key -> NodeInfo
+
+-- | Returns true if the given blockID is a leaf-node in the given CFG.
+is_end_node :: CFG -> Int -> Bool
+
+-- | Returns the <tt><a>NodeInfo</a></tt> of a given blockID.
+--   
+--   Assumes the given blockID corresponds to a leaf-node.
+node_info_of :: Context -> CFG -> Int -> NodeInfo
+
+-- | Shows invariants.
 show_invariants :: CFG -> Invariants -> String
 instance GHC.Show.Show CFG_Gen.ResolvedJumpTarget
 instance GHC.Classes.Eq CFG_Gen.ResolvedJumpTarget

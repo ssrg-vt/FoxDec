@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
 
-
+------------------------------------------------------
+-- | Datastructures for storing x86-64 instructions.
+------------------------------------------------------
 module X86_Datastructures where
 
 import Data.List
@@ -12,7 +14,7 @@ import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 
 
--- An instruction
+-- | An instruction
 data Instr = Instr {
   i_addr :: Int,                 -- ^ address
   i_prefix :: Maybe Prefix,      -- ^ prefix, e.g., lock or repz

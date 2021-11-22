@@ -36,7 +36,7 @@
 </span><span id="line-36"></span><span class="hs-comment">-- | A control flow graph with blocks and edges.</span><span>
 </span><span id="line-37"></span><span class="hs-comment">-- A blockID (represented as an @Int@) is a unique identifier of a basic block.</span><span>
 </span><span id="line-38"></span><span class="hs-comment">-- We store basic blocks twice: once as addresses, and once as instructions.</span><span>
-</span><span id="line-39"></span><span id="local-6989586621679188581"><span id="local-6989586621679188582"></span></span><span class="hs-keyword">data</span><span> </span><span id="CFG"><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CFG"><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-39"></span><span id="local-6989586621679188529"><span id="local-6989586621679188530"></span></span><span class="hs-keyword">data</span><span> </span><span id="CFG"><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CFG"><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span></span><span> </span><span class="hs-special">{</span><span>
 </span><span id="line-40"></span><span>  </span><span id="cfg_blocks"><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
 </span><a href="Context.html#cfg_blocks"><span class="hs-identifier hs-var hs-var">cfg_blocks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span>        </span><span class="hs-comment">-- ^ A mapping of blockIDs to instruction addresses</span><span>
 </span><span id="line-41"></span><span>  </span><span id="cfg_edges"><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
@@ -48,7 +48,7 @@
 </span><span id="line-44"></span><span>  </span><span id="cfg_instrs"><span class="annot"><span class="annottext">CFG -&gt; IntMap [Instr]
 </span><a href="Context.html#cfg_instrs"><span class="hs-identifier hs-var hs-var">cfg_instrs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span class="hs-special">]</span><span>       </span><span class="hs-comment">-- ^ A mapping of blockIDs to lists of disassembled instructions.</span><span>
 </span><span id="line-45"></span><span> </span><span class="hs-special">}</span><span>
-</span><span id="line-46"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188569"><span id="local-6989586621679188571"><span id="local-6989586621679188573"><span class="annot"><span class="annottext">Int -&gt; CFG -&gt; ShowS
+</span><span id="line-46"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188517"><span id="local-6989586621679188519"><span id="local-6989586621679188521"><span class="annot"><span class="annottext">Int -&gt; CFG -&gt; ShowS
 [CFG] -&gt; ShowS
 CFG -&gt; String
 (Int -&gt; CFG -&gt; ShowS)
@@ -78,13 +78,13 @@ $cfrom :: forall x. CFG -&gt; Rep CFG x
 </span><span id="line-52"></span><span class="hs-keyword">type</span><span> </span><span id="SectionsInfo"><span class="annot"><a href="Context.html#SectionsInfo"><span class="hs-identifier hs-var">SectionsInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
 </span><span id="line-53"></span><span>
 </span><span id="line-54"></span><span class="hs-comment">-- | An enumeration indicating the result of verification over a function</span><span>
-</span><span id="line-55"></span><span id="local-6989586621679188562"><span id="local-6989586621679188563"></span></span><span class="hs-keyword">data</span><span> </span><span id="VerificationResult"><span class="annot"><a href="Context.html#VerificationResult"><span class="hs-identifier hs-var">VerificationResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-55"></span><span id="local-6989586621679188510"><span id="local-6989586621679188511"></span></span><span class="hs-keyword">data</span><span> </span><span id="VerificationResult"><span class="annot"><a href="Context.html#VerificationResult"><span class="hs-identifier hs-var">VerificationResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
 </span><span id="line-56"></span><span>     </span><span id="VerificationSuccess"><span class="annot"><a href="Context.html#VerificationSuccess"><span class="hs-identifier hs-var">VerificationSuccess</span></a></span></span><span>              </span><span class="hs-comment">-- ^ Function was succesfully verified</span><span>
 </span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VerificationSuccesWithAssertions"><span class="annot"><a href="Context.html#VerificationSuccesWithAssertions"><span class="hs-identifier hs-var">VerificationSuccesWithAssertions</span></a></span></span><span>  </span><span class="hs-comment">-- ^ Function was succesfully verified, but required assertions</span><span>
 </span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VerificationUnresolvedIndirection"><span class="annot"><a href="Context.html#VerificationUnresolvedIndirection"><span class="hs-identifier hs-var">VerificationUnresolvedIndirection</span></a></span></span><span> </span><span class="hs-comment">-- ^ Function contains an unresolved indirection</span><span>
 </span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VerificationError"><span class="annot"><a href="Context.html#VerificationError"><span class="hs-identifier hs-var">VerificationError</span></a></span></span><span>                 </span><span class="hs-comment">-- ^ There was some verification error, e.g., return adresss overwrite</span><span>
 </span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unverified"><span class="annot"><a href="Context.html#Unverified"><span class="hs-identifier hs-var">Unverified</span></a></span></span><span>                        </span><span class="hs-comment">-- ^ The function has not been verified.</span><span>
-</span><span id="line-61"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188551"><span id="local-6989586621679188553"><span id="local-6989586621679188555"><span class="annot"><span class="annottext">Int -&gt; VerificationResult -&gt; ShowS
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188499"><span id="local-6989586621679188501"><span id="local-6989586621679188503"><span class="annot"><span class="annottext">Int -&gt; VerificationResult -&gt; ShowS
 [VerificationResult] -&gt; ShowS
 VerificationResult -&gt; String
 (Int -&gt; VerificationResult -&gt; ShowS)
@@ -99,7 +99,7 @@ show :: VerificationResult -&gt; String
 $cshow :: VerificationResult -&gt; String
 showsPrec :: Int -&gt; VerificationResult -&gt; ShowS
 $cshowsPrec :: Int -&gt; VerificationResult -&gt; ShowS
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679188547"><span id="local-6989586621679188549"><span class="annot"><span class="annottext">VerificationResult -&gt; VerificationResult -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679188495"><span id="local-6989586621679188497"><span class="annot"><span class="annottext">VerificationResult -&gt; VerificationResult -&gt; Bool
 (VerificationResult -&gt; VerificationResult -&gt; Bool)
 -&gt; (VerificationResult -&gt; VerificationResult -&gt; Bool)
 -&gt; Eq VerificationResult
@@ -126,11 +126,11 @@ $cfrom :: forall x. VerificationResult -&gt; Rep VerificationResult x
 </span><span id="line-67"></span><span>
 </span><span id="line-68"></span><span>
 </span><span id="line-69"></span><span class="hs-comment">-- | For each leaf-node in a CFG we store the following info.</span><span>
-</span><span id="line-70"></span><span id="local-6989586621679188542"><span id="local-6989586621679188543"></span></span><span class="hs-keyword">data</span><span> </span><span id="NodeInfo"><span class="annot"><a href="Context.html#NodeInfo"><span class="hs-identifier hs-var">NodeInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-70"></span><span id="local-6989586621679188490"><span id="local-6989586621679188491"></span></span><span class="hs-keyword">data</span><span> </span><span id="NodeInfo"><span class="annot"><a href="Context.html#NodeInfo"><span class="hs-identifier hs-var">NodeInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
 </span><span id="line-71"></span><span>    </span><span id="Normal"><span class="annot"><a href="Context.html#Normal"><span class="hs-identifier hs-var">Normal</span></a></span></span><span>                </span><span class="hs-comment">-- ^ The basic block behaves normally, e.g., a ret</span><span>
 </span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UnresolvedIndirection"><span class="annot"><a href="Context.html#UnresolvedIndirection"><span class="hs-identifier hs-var">UnresolvedIndirection</span></a></span></span><span> </span><span class="hs-comment">-- ^ The basic block ends in an unresolved indirection</span><span>
 </span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Terminal"><span class="annot"><a href="Context.html#Terminal"><span class="hs-identifier hs-var">Terminal</span></a></span></span><span>              </span><span class="hs-comment">-- ^ The basic blocks ends with, e.g., a call to exit()</span><span>
-</span><span id="line-74"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188533"><span id="local-6989586621679188535"><span id="local-6989586621679188537"><span class="annot"><span class="annottext">Int -&gt; NodeInfo -&gt; ShowS
+</span><span id="line-74"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188481"><span id="local-6989586621679188483"><span id="local-6989586621679188485"><span class="annot"><span class="annottext">Int -&gt; NodeInfo -&gt; ShowS
 [NodeInfo] -&gt; ShowS
 NodeInfo -&gt; String
 (Int -&gt; NodeInfo -&gt; ShowS)
@@ -151,7 +151,7 @@ forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
 $cto :: forall x. Rep NodeInfo x -&gt; NodeInfo
 $cfrom :: forall x. NodeInfo -&gt; Rep NodeInfo x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679188527"><span id="local-6989586621679188529"><span class="annot"><span class="annottext">NodeInfo -&gt; NodeInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679188475"><span id="local-6989586621679188477"><span class="annot"><span class="annottext">NodeInfo -&gt; NodeInfo -&gt; Bool
 (NodeInfo -&gt; NodeInfo -&gt; Bool)
 -&gt; (NodeInfo -&gt; NodeInfo -&gt; Bool) -&gt; Eq NodeInfo
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
@@ -159,7 +159,7 @@ forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
 $c/= :: NodeInfo -&gt; NodeInfo -&gt; Bool
 == :: NodeInfo -&gt; NodeInfo -&gt; Bool
 $c== :: NodeInfo -&gt; NodeInfo -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679188512"><span id="local-6989586621679188514"><span id="local-6989586621679188516"><span id="local-6989586621679188518"><span id="local-6989586621679188520"><span id="local-6989586621679188522"><span id="local-6989586621679188524"><span class="annot"><span class="annottext">Eq NodeInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679188460"><span id="local-6989586621679188462"><span id="local-6989586621679188464"><span id="local-6989586621679188466"><span id="local-6989586621679188468"><span id="local-6989586621679188470"><span id="local-6989586621679188472"><span class="annot"><span class="annottext">Eq NodeInfo
 Eq NodeInfo
 -&gt; (NodeInfo -&gt; NodeInfo -&gt; Ordering)
 -&gt; (NodeInfo -&gt; NodeInfo -&gt; Bool)
@@ -201,7 +201,7 @@ $cp1Ord :: Eq NodeInfo
 </span><span id="line-75"></span><span>
 </span><span id="line-76"></span><span>
 </span><span id="line-77"></span><span class="hs-comment">-- | Per function, we report on:</span><span>
-</span><span id="line-78"></span><span id="local-6989586621679188509"><span id="local-6989586621679188510"></span></span><span class="hs-keyword">data</span><span> </span><span id="Report"><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-var">Report</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Report"><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-var">Report</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-78"></span><span id="local-6989586621679188457"><span id="local-6989586621679188458"></span></span><span class="hs-keyword">data</span><span> </span><span id="Report"><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-var">Report</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Report"><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-var">Report</span></a></span></span><span> </span><span class="hs-special">{</span><span>
 </span><span id="line-79"></span><span>   </span><span id="report_cfg"><span class="annot"><span class="annottext">Report -&gt; CFG
 </span><a href="Context.html#report_cfg"><span class="hs-identifier hs-var hs-var">report_cfg</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span class="hs-special">,</span><span>                        </span><span class="hs-comment">-- ^ The control flow graph</span><span>
 </span><span id="line-80"></span><span>   </span><span id="report_invs"><span class="annot"><span class="annottext">Report -&gt; Invariants
@@ -231,7 +231,7 @@ $cfrom :: forall x. Report -&gt; Rep Report x
 </span><span id="line-92"></span><span class="hs-comment">--</span><span>
 </span><span id="line-93"></span><span class="hs-comment">-- __D__: Information __D__ynamically updated during verification</span><span>
 </span><span id="line-94"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
-</span><span id="line-95"></span><span id="local-6989586621679188499"><span id="local-6989586621679188500"></span></span><span class="hs-keyword">data</span><span> </span><span id="Context"><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-var">Context</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Context"><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-var">Context</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-95"></span><span id="local-6989586621679188447"><span id="local-6989586621679188448"></span></span><span class="hs-keyword">data</span><span> </span><span id="Context"><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-var">Context</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Context"><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-var">Context</span></a></span></span><span> </span><span class="hs-special">{</span><span>
 </span><span id="line-96"></span><span>   </span><span id="ctxt_dump"><span class="annot"><span class="annottext">Context -&gt; IntMap Word8
 </span><a href="Context.html#ctxt_dump"><span class="hs-identifier hs-var hs-var">ctxt_dump</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">,</span><span>   </span><span class="hs-comment">-- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)</span><span>
 </span><span id="line-97"></span><span>   </span><span id="ctxt_syms"><span class="annot"><span class="annottext">Context -&gt; IntMap String
@@ -264,11 +264,11 @@ $cfrom :: forall x. Context -&gt; Rep Context x
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span>
 </span><span id="line-108"></span><span>
 </span><span id="line-109"></span><span>
-</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188482"><span id="local-6989586621679188484"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#NodeInfo"><span class="hs-identifier hs-type">NodeInfo</span></a></span></span></span><span>
-</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188477"><span id="local-6989586621679188479"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#VerificationResult"><span class="hs-identifier hs-type">VerificationResult</span></a></span></span></span><span>
-</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188473"><span id="local-6989586621679188475"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span></span></span><span>
-</span><span id="line-113"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188469"><span id="local-6989586621679188471"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-type">Report</span></a></span></span></span><span>
-</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188465"><span id="local-6989586621679188467"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span></span></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188430"><span id="local-6989586621679188432"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#NodeInfo"><span class="hs-identifier hs-type">NodeInfo</span></a></span></span></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188425"><span id="local-6989586621679188427"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#VerificationResult"><span class="hs-identifier hs-type">VerificationResult</span></a></span></span></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188421"><span id="local-6989586621679188423"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span></span></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188417"><span id="local-6989586621679188419"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#Report"><span class="hs-identifier hs-type">Report</span></a></span></span></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679188413"><span id="local-6989586621679188415"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span></span></span><span>
 </span><span id="line-115"></span><span>
 </span><span id="line-116"></span><span>
 </span><span id="line-117"></span><span>
@@ -285,37 +285,37 @@ $cfrom :: forall x. Context -&gt; Rep Context x
 </span><span id="line-128"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>           </span><span class="hs-comment">-- ^ Size, i.e., the number of bytes to read</span><span>
 </span><span id="line-129"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
 </span><span id="line-130"></span><span id="read_from_datasection"><span class="annot"><span class="annottext">read_from_datasection :: Context -&gt; Word64 -&gt; Int -&gt; Maybe Word64
-</span><a href="Context.html#read_from_datasection"><span class="hs-identifier hs-var hs-var">read_from_datasection</span></a></span></span><span> </span><span id="local-6989586621679188463"><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188463"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188462"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188462"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679188461"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188461"><span class="hs-identifier hs-var">si</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
-</span><span id="line-131"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188460"><span class="annot"><span class="annottext">ds :: IntMap Word8
-</span><a href="#local-6989586621679188460"><span class="hs-identifier hs-var hs-var">ds</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; IntMap Word8
+</span><a href="Context.html#read_from_datasection"><span class="hs-identifier hs-var hs-var">read_from_datasection</span></a></span></span><span> </span><span id="local-6989586621679188411"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679188411"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188410"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679188410"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679188409"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188409"><span class="hs-identifier hs-var">si</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188408"><span class="annot"><span class="annottext">ds :: IntMap Word8
+</span><a href="#local-6989586621679188408"><span class="hs-identifier hs-var hs-var">ds</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; IntMap Word8
 </span><a href="Context.html#ctxt_dump"><span class="hs-identifier hs-var hs-var">ctxt_dump</span></a></span><span> </span><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188463"><span class="hs-identifier hs-var">ctxt</span></a></span><span>
-</span><span id="line-132"></span><span>      </span><span id="local-6989586621679188459"><span class="annot"><span class="annottext">bytes :: [Maybe Word8]
-</span><a href="#local-6989586621679188459"><span class="hs-identifier hs-var hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Word8) -&gt; [Int] -&gt; [Maybe Word8]
+</span><a href="#local-6989586621679188411"><span class="hs-identifier hs-var">ctxt</span></a></span><span>
+</span><span id="line-132"></span><span>      </span><span id="local-6989586621679188407"><span class="annot"><span class="annottext">bytes :: [Maybe Word8]
+</span><a href="#local-6989586621679188407"><span class="hs-identifier hs-var hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Word8) -&gt; [Int] -&gt; [Maybe Word8]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
-</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679188458"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188458"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="annot"><span class="annottext">Int -&gt; IntMap Word8 -&gt; Maybe Word8
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679188406"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188406"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="annot"><span class="annottext">Int -&gt; IntMap Word8 -&gt; Maybe Word8
 forall a. Int -&gt; IntMap a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188458"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Word8
-</span><a href="#local-6989586621679188460"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+</span><a href="#local-6989586621679188406"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Word8
+</span><a href="#local-6989586621679188408"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64 -&gt; Int
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188462"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-glyph">..</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+</span><a href="#local-6989586621679188410"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-glyph">..</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188462"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+</span><a href="#local-6989586621679188410"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188461"><span class="hs-identifier hs-var">si</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+</span><a href="#local-6989586621679188409"><span class="hs-identifier hs-var">si</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">in</span><span>
 </span><span id="line-133"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188461"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679188409"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
 forall a. Ord a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
@@ -325,7 +325,7 @@ forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8 -&gt; [Maybe Word8] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679188459"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-comment">-- TODO 256 bits</span><span>
+</span><a href="#local-6989586621679188407"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-comment">-- TODO 256 bits</span><span>
 </span><span id="line-134"></span><span>      </span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
 forall a. a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Maybe Word64) -&gt; Word64 -&gt; Maybe Word64
@@ -338,7 +338,7 @@ forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8 -&gt; Word8
 forall a. HasCallStack =&gt; Maybe a -&gt; a
 </span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679188459"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><a href="#local-6989586621679188407"><span class="hs-identifier hs-var">bytes</span></a></span><span>
 </span><span id="line-135"></span><span>    </span><span class="hs-keyword">else</span><span>
 </span><span id="line-136"></span><span>      </span><span class="annot"><span class="annottext">Maybe Word64
 forall a. Maybe a
@@ -351,37 +351,37 @@ forall a. Maybe a
 </span><span id="line-142"></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                               </span><span class="hs-comment">-- ^ An address</span><span>
 </span><span id="line-143"></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
 </span><span id="line-144"></span><span id="find_section_for_address"><span class="annot"><span class="annottext">find_section_for_address :: Context -&gt; Int -&gt; Maybe (String, String, Int, Int)
-</span><a href="Context.html#find_section_for_address"><span class="hs-identifier hs-var hs-var">find_section_for_address</span></a></span></span><span> </span><span id="local-6989586621679188449"><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188449"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188448"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188448"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((String, String, Int, Int) -&gt; Bool)
+</span><a href="Context.html#find_section_for_address"><span class="hs-identifier hs-var hs-var">find_section_for_address</span></a></span></span><span> </span><span id="local-6989586621679188397"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679188397"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188396"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188396"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((String, String, Int, Int) -&gt; Bool)
 -&gt; SectionsInfo -&gt; Maybe (String, String, Int, Int)
 forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">find</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; (String, String, Int, Int) -&gt; Bool
 forall a a b. (Ord a, Num a) =&gt; a -&gt; (a, b, a, a) -&gt; Bool
-</span><a href="#local-6989586621679188446"><span class="hs-identifier hs-var">address_in_section</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188448"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; SectionsInfo
+</span><a href="#local-6989586621679188394"><span class="hs-identifier hs-var">address_in_section</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188396"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; SectionsInfo
 </span><a href="Context.html#ctxt_sections"><span class="hs-identifier hs-var hs-var">ctxt_sections</span></a></span><span> </span><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188449"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679188397"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-145"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-146"></span><span>  </span><span id="local-6989586621679188446"><span class="annot"><span class="annottext">address_in_section :: a -&gt; (a, b, a, a) -&gt; Bool
-</span><a href="#local-6989586621679188446"><span class="hs-identifier hs-var hs-var">address_in_section</span></a></span></span><span> </span><span id="local-6989586621679188445"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188445"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621679188394"><span class="annot"><span class="annottext">address_in_section :: a -&gt; (a, b, a, a) -&gt; Bool
+</span><a href="#local-6989586621679188394"><span class="hs-identifier hs-var hs-var">address_in_section</span></a></span></span><span> </span><span id="local-6989586621679188393"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188393"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
 </span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
-</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679188444"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188444"><span class="hs-identifier hs-var">a0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188443"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188443"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188444"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679188392"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188392"><span class="hs-identifier hs-var">a0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679188391"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188391"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679188392"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
 forall a. Ord a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188445"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="#local-6989586621679188393"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
 </span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188445"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679188393"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
 forall a. Ord a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188444"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679188392"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679188443"><span class="hs-identifier hs-var">si</span></a></span><span>
+</span><a href="#local-6989586621679188391"><span class="hs-identifier hs-var">si</span></a></span><span>
 </span><span id="line-147"></span><span>
 </span><span id="line-148"></span><span>
 </span><span id="line-149"></span><span>
@@ -393,17 +393,17 @@ forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span id="line-155"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>               </span><span class="hs-comment">-- ^ An address</span><span>
 </span><span id="line-156"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-157"></span><span id="fetch_instruction"><span class="annot"><span class="annottext">fetch_instruction :: Context -&gt; Int -&gt; IO (Maybe Instr)
-</span><a href="Context.html#fetch_instruction"><span class="hs-identifier hs-var hs-var">fetch_instruction</span></a></span></span><span> </span><span id="local-6989586621679188440"><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188440"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188439"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188439"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-158"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188438"><span class="annot"><span class="annottext">dump :: IntMap Word8
-</span><a href="#local-6989586621679188438"><span class="hs-identifier hs-var hs-var">dump</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; IntMap Word8
+</span><a href="Context.html#fetch_instruction"><span class="hs-identifier hs-var hs-var">fetch_instruction</span></a></span></span><span> </span><span id="local-6989586621679188388"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679188388"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188387"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188387"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679188386"><span class="annot"><span class="annottext">dump :: IntMap Word8
+</span><a href="#local-6989586621679188386"><span class="hs-identifier hs-var hs-var">dump</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; IntMap Word8
 </span><a href="Context.html#ctxt_dump"><span class="hs-identifier hs-var hs-var">ctxt_dump</span></a></span><span> </span><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188440"><span class="hs-identifier hs-var">ctxt</span></a></span><span>
+</span><a href="#local-6989586621679188388"><span class="hs-identifier hs-var">ctxt</span></a></span><span>
 </span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">IntMap Word8 -&gt; Int -&gt; IO (Maybe Instr)
 </span><a href="DisassembleCapstone.html#disassemble"><span class="hs-identifier hs-var">disassemble</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Word8
-</span><a href="#local-6989586621679188438"><span class="hs-identifier hs-var">dump</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679188439"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679188386"><span class="hs-identifier hs-var">dump</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679188387"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-160"></span><span>
 </span><span id="line-161"></span><span>
 </span><span id="line-162"></span><span class="hs-comment">-- | Pretty printing an instruction</span><span>
@@ -412,34 +412,34 @@ forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span id="line-165"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span>  </span><span class="hs-comment">-- ^ An instruction</span><span>
 </span><span id="line-166"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
 </span><span id="line-167"></span><span id="pp_instruction"><span class="annot"><span class="annottext">pp_instruction :: Context -&gt; Instr -&gt; String
-</span><a href="Context.html#pp_instruction"><span class="hs-identifier hs-var hs-var">pp_instruction</span></a></span></span><span> </span><span id="local-6989586621679188435"><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188435"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188434"><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679188434"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><a href="Context.html#pp_instruction"><span class="hs-identifier hs-var hs-var">pp_instruction</span></a></span></span><span> </span><span id="local-6989586621679188383"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679188383"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679188382"><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621679188382"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-168"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; Bool
 </span><a href="X86_Datastructures.html#is_call"><span class="hs-identifier hs-var">is_call</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Instr -&gt; Opcode
 </span><a href="X86_Datastructures.html#i_opcode"><span class="hs-identifier hs-var hs-var">i_opcode</span></a></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679188434"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span>
+</span><a href="#local-6989586621679188382"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span>
 </span><span id="line-169"></span><span>    </span><span class="annot"><span class="annottext">Instr -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679188434"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679188382"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span>
 </span><span id="line-170"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Maybe Operand
 </span><a href="X86_Datastructures.html#i_op1"><span class="hs-identifier hs-var hs-var">i_op1</span></a></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679188434"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-171"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86_Datastructures.html#Immediate"><span class="hs-identifier hs-type">Immediate</span></a></span><span> </span><span id="local-6989586621679188428"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188428"><span class="hs-identifier hs-var">imm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span>
+</span><a href="#local-6989586621679188382"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-171"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86_Datastructures.html#Immediate"><span class="hs-identifier hs-type">Immediate</span></a></span><span> </span><span id="local-6989586621679188376"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679188376"><span class="hs-identifier hs-var">imm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span>
 </span><span id="line-172"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap String -&gt; Maybe String
 forall a. Int -&gt; IntMap a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188428"><span class="hs-identifier hs-var">imm</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntMap String -&gt; Maybe String) -&gt; IntMap String -&gt; Maybe String
+</span><a href="#local-6989586621679188376"><span class="hs-identifier hs-var">imm</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntMap String -&gt; Maybe String) -&gt; IntMap String -&gt; Maybe String
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; IntMap String
 </span><a href="Context.html#ctxt_syms"><span class="hs-identifier hs-var hs-var">ctxt_syms</span></a></span><span> </span><span class="annot"><span class="annottext">Context
-</span><a href="#local-6989586621679188435"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679188383"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-173"></span><span>            </span><span class="annot"><span class="annottext">Maybe String
 </span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot; (0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
@@ -447,18 +447,18 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
 forall a. (Integral a, Show a) =&gt; a -&gt; String
 </span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679188428"><span class="hs-identifier hs-var">imm</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679188376"><span class="hs-identifier hs-var">imm</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;)&quot;</span></span><span>
-</span><span id="line-174"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188426"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679188426"><span class="hs-identifier hs-var">sym</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span id="line-174"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679188374"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679188374"><span class="hs-identifier hs-var">sym</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot; (&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShowS
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679188426"><span class="hs-identifier hs-var">sym</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679188374"><span class="hs-identifier hs-var">sym</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;)&quot;</span></span><span>
@@ -469,7 +469,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span id="line-177"></span><span>    </span><span class="annot"><span class="annottext">Instr -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679188434"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><a href="#local-6989586621679188382"><span class="hs-identifier hs-var">i</span></a></span><span>
 </span><span id="line-178"></span><span>
 </span><span id="line-179"></span><span>
 </span><span id="line-180"></span><span>
