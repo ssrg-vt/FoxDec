@@ -1,3 +1,4 @@
+*.aux
 .stack-work/
 *~
 foxdec/examples/*/100*

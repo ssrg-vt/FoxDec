@@ -22,7 +22,6 @@ import ACode_Gen
 import Propagation
 import CallGraph
 import Conventions
-import Isabelle
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -64,7 +63,6 @@ run_with_ctxt = do
   ctxt_generate_end_report
   ctxt_generate_call_graph
 
-  ctxt_create_hoare_triples
   ctxt_serialize_ctxt
  where
   -- 2.)
@@ -161,25 +159,7 @@ ctxt_get_curr_posts a = do
     Just (Report _ invs posts _ _) -> return (invs,posts)
 
 
-ctxt_create_hoare_triples :: StateT Context IO ()
-ctxt_create_hoare_triples = do
-  ctxt    <- get
-  report  <- gets ctxt_report
-  imports <- mapM (report_entry_to_hoare_triples ctxt) $ IM.toList report
 
-  
-  dirname  <- gets ctxt_dirname
-  name     <- gets ctxt_name
-  let fname   = dirname ++ name ++ ".thy" 
-  generate_isa_main_thy name fname imports
-  to_out $ "Generated Isabelle thy file file: " ++ fname 
- where
-  report_entry_to_hoare_triples ctxt (entry,(Report g invs posts _ vcs)) = do
-
-    name        <- gets ctxt_name
-    base        <- ctxt_base_name entry
-    let fname    = base ++ "_" ++ showHex entry ++ ".thy"
-    generate_isa_thy name entry fname g invs posts vcs
 
 -- Assuming a CFG and invariants are generated, verify for each block $b$ that is an end-node in the CFG whether:
 -- if the end-node "returns normally", i.e., ends in a RET, then it returns correctly, i.e., the return address is 

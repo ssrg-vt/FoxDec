@@ -11,6 +11,7 @@ import X86_Datastructures
 import SymbolicExecution
 import MachineState
 import CFG_Gen
+import VerificationReportInterface
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -22,29 +23,72 @@ import Data.Foldable
 
 import Control.Monad.State.Strict
 import Data.Functor.Identity
+import System.Directory (doesFileExist,createDirectoryIfMissing)
+import System.Environment (getArgs)
+
+main = do
+  args <- getArgs
+  if args == [] then
+    putStrLn $ "Usage:\n\n  foxdec-isabelle-exe NAME.report\n\nHere NAME refers to the NAME used when running foxdec-exe.\nRun this program from the same directory foxdec-exe was run."
+  else do
+    exists <- doesFileExist $ head args
+    if exists then do
+      ctxt <- ctxt_read_report $ head args
+      ctxt_create_hoare_triples ctxt
+    else
+      putStrLn $ "File: " ++ show (head args) ++ " does not exist."
+
+-- Produce a base file name (without .extension) based on the current entry under consideration
+-- If necessary, make the directory
+ctxt_base_name :: Context -> Int -> IO String
+ctxt_base_name ctxt entry = do
+  let dirname  = ctxt_dirname ctxt
+  let name     = ctxt_name ctxt
+  let entry_dirname = dirname ++ showHex entry ++ "/"
+  createDirectoryIfMissing False entry_dirname      
+  return $ entry_dirname ++ name
+
+
+ctxt_create_hoare_triples :: Context -> IO ()
+ctxt_create_hoare_triples ctxt = do
+  let report = ctxt_report ctxt
+  imports <- mapM (report_entry_to_hoare_triples ctxt) $ IM.toList report
+
+  
+  let dirname = ctxt_dirname ctxt
+  let name    = ctxt_name ctxt
+  let fname   = dirname ++ name ++ ".thy" 
+  generate_isa_main_thy name fname imports
+  putStrLn $ "Generated Isabelle thy file file: " ++ fname 
+ where
+  report_entry_to_hoare_triples ctxt (entry,(Report g invs posts _ vcs)) = do
+    let name     = ctxt_name ctxt
+    base        <- ctxt_base_name ctxt entry
+    let fname    = base ++ "_" ++ showHex entry ++ ".thy"
+    generate_isa_thy ctxt name entry fname g invs posts vcs
+
 
 
 
 generate_isa_main_thy name fname imports = do
   let thy_contents = concat $ ["theory ", name, "\n  imports\n"] ++ map (\s -> "  \"" ++ s ++ "\"\n") imports ++ ["\n\nbegin\n\nend\n"]
-  liftIO $ writeFile fname thy_contents
+  writeFile fname thy_contents
 
-generate_isa_thy name entry fname g invs posts vcs = do
-  ctxt <- get
+generate_isa_thy ctxt name entry fname g invs posts vcs = do
   let thy_name = name ++ "_" ++ showHex entry
   -- generate header
   let header   = isa_file_header thy_name
-  liftIO $ writeFile fname header
+  writeFile fname header
   -- per block, generate sets of Hoare triples
   let all_precs   = all_preconditions ctxt invs posts vcs
   let all_asserts = S.filter is_assertion vcs 
   mapM_ (block_to_hoare_triples ctxt fname entry all_precs all_asserts invs) (IM.toList $ cfg_instrs g)
   -- generate end of file
-  liftIO $ appendFile fname $ isa_file_end
+  appendFile fname $ isa_file_end
   return $ showHex entry ++ "/" ++ thy_name
 
 -- header
-isa_file_header thy_name = concat ["theory ", thy_name, "\nimports \"../../../isabelle/X86_Semantics/X86_Parse_Hoare_Triples\"\n\n\nbegin\n\n\ncontext semantics\nbegin\n\n"] -- TODO dir to isa files
+isa_file_header thy_name = concat ["theory ", thy_name, "\nimports \"../../isabelle/X86_Semantics/X86_Parse_Hoare_Triples\"\n\n\nbegin\n\n\ncontext semantics\nbegin\n\n"] -- TODO dir to isa files
 
 -- end 
 isa_file_end = "end\nend\n"
@@ -53,22 +97,21 @@ isa_file_end = "end\nend\n"
 -- Generate Hoare triples for a block of instructions
 block_to_hoare_triples ctxt fname entry all_precs all_asserts invs (blockId,instrs) = do
   let p = im_lookup ("Block " ++ show blockId ++ " in invs") invs blockId
-  liftIO $ appendFile fname $ mk_isa_comment $ mk_block $ "Entry = " ++ showHex entry ++ ", blockId == " ++ show blockId
-  liftIO $ appendFile fname $ "\n"
+  appendFile fname $ mk_isa_comment $ mk_block $ "Entry = " ++ showHex entry ++ ", blockId == " ++ show blockId
+  appendFile fname $ "\n"
   foldlM (instr_to_hoare_triple ctxt fname all_precs all_asserts) p instrs
-  liftIO $ appendFile fname $ "\n\n"
+  appendFile fname $ "\n\n"
   return ()
 
 -- Generate a single Hoare triple for an instruction with precondition p
 instr_to_hoare_triple ctxt fname all_precs all_asserts p i = do
-  ctxt <- get
   -- obtain postcondition q
   let q = runIdentity (execStateT (tau_b ctxt [i]) p)
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for p i) $ S.toList all_precs
 
   let htriple_name = "ht_" ++ (showHex $ i_addr i)
-  liftIO $ appendFile fname $ 
+  appendFile fname $ 
       "htriple "        ++ mk_quote htriple_name ++ "\n" ++
       " Separations \"" ++ isa_precs ++ "\"\n" ++
       " Assertions  \"" ++ mk_isa_asserts i all_asserts ++ "\"\n" ++
