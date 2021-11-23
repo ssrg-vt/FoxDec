@@ -98,6 +98,13 @@ The following files are generated:
 - **`NAME.indirections`**: A plain-text overview of all resolved indirections.
 - **`ENTRY/NAME.dot`**: For each function entry `ENTRY` a control flow graph (CFG).
 
+We provide two examples that use the `.report` file and its [interface][reportinterface]. 
+From the same directory as where `foxdec-exe` was ran, one can run:
+
+    foxdec-disassembler-exe examples/du/du.report
+    foxdec-isabelle-exe examples/du/du.report
+
+The first reads in the report and provides an overview of disassembled instructions. The second is more involved: it generates Isabelle/HOL `.thy` files containing all invariants. The disassembler provides a good example of how to use the `.report` file and its [interface][reportinterface]. 
 
 
 ## Documentation<a name="docs"></a>
