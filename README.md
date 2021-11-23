@@ -50,7 +50,7 @@ For Mac, these are `otool` and `nm`.
 
 ## How to use <a name="usage"></a>
 <p style="text-align: center;">
-  <img src="./foxdec/docs/overview/overview.png?raw=true" alt="FoxDec Overview" width="90%"/>
+  <img src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
 </p>
 
 1. Extract information from a binary.
