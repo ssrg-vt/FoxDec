@@ -23,9 +23,9 @@ import Data.Maybe (fromJust)
 
 -- This file provides a function 
 --      disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe Instr)
--- Given a dump (mapping of addresses to bytes) and an address, it tries to retrievd a single instruction.
+-- Given a dump (mapping of addresses to bytes) and an address, it tries to retrieve a single instruction.
 --
--- The disassmebly is based on Hapstone, see:
+-- The disassembly is based on Hapstone, see:
 --    https://github.com/ibabushkin/hapstone
 --
 --
@@ -94,11 +94,7 @@ mk_instr cs_instr =
 
 disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe Instr)
 disassemble dump a = do
-  --let offset = fromIntegral (fromIntegral a - fromIntegral low_address :: Word64)
-  --let buffer = take 20 $ drop offset dump_bytes
-
   let buffer = readBuffer
-
   if head buffer == Nothing then 
     return Nothing
   else do
