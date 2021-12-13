@@ -8,7 +8,8 @@ import Context
 import SimplePred
 import X86_Datastructures
 import MachineState
-import CFG_Gen
+import ControlFlow
+import Pointers
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -17,6 +18,7 @@ import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import Data.List
 import Data.List.Split (chunksOf)
+import Data.Maybe (fromJust)
 
 calls_of_cfg ctxt cfg = IS.unions $ map (get_call_target ctxt) $ concat $ IM.elems $ cfg_instrs cfg
  where
@@ -27,13 +29,17 @@ calls_of_cfg ctxt cfg = IS.unions $ map (get_call_target ctxt) $ concat $ IM.ele
       IS.empty
 
 
-summarize_verification_conditions ctxt vcs =
-  let precs   = S.filter is_precondition    vcs
-      asserts = S.filter is_assertion       vcs
-      fcs     = S.filter is_func_constraint vcs
+summarize_verification_conditions ctxt entry =
+  let report     = ctxt_report ctxt IM.! entry
+      vcs        = report_vcs report
+      finit      = IM.lookup entry $ ctxt_finits ctxt
+      precs      = S.filter is_precondition    vcs
+      asserts    = S.filter is_assertion       vcs
+      fcs        = S.filter is_func_constraint vcs
       stack_size = S.lookupMax $ S.unions $ S.map get_stack_offsets vcs in
 
     "Stacksize == " ++ print_stack_size stack_size
+    ++ (if no_finit finit then "" else "\nINITIAL:\n" ++ intercalate "\n" (map (intercalate ",") $ chunksOf 1 $ map show_finit_eq $ M.toList $ fromJust $ finit)) 
     ++ (if S.null precs   then "" else "\nPRECONDITIONS:\n" ++ intercalate "\n" (map (intercalate ",") $ chunksOf 1 $ S.toList $ S.map (pick_one_to_show . get_lhs_and_rhs) $ precs))
     ++ (if S.null asserts then "" else "\nASSERTIONS:\n" ++ show_assertions asserts)
     ++ (if S.null fcs     then "" else "\nFUNCTION CONSTRAINTS:\n" ++ show_function_constraints fcs)
@@ -53,9 +59,9 @@ summarize_verification_conditions ctxt vcs =
   get_lhs_and_rhs (Assertion _  lhs _ rhs _) = (lhs,rhs)
 
   pick_one_to_show (a0,a1) =
-    if expr_to_addr_type ctxt a0 == S.singleton Local && not (expr_to_addr_type ctxt a1 == S.singleton Local) then
+    if get_pointer_bases ctxt a0 == [StackPointer] && not (get_pointer_bases ctxt a1 == [StackPointer]) then
       strip_parentheses $ show a1
-    else if expr_to_addr_type ctxt a1 == S.singleton Local && not (expr_to_addr_type ctxt a0 == S.singleton Local) then
+    else if get_pointer_bases ctxt a1 == [StackPointer] && not (get_pointer_bases ctxt a0 == [StackPointer]) then
       strip_parentheses $ show a0
     else if contains_bot a0 && all_bot_satisfy (\typ bot -> typ == FromCall) a0 then
       strip_parentheses $ show a0
@@ -64,12 +70,18 @@ summarize_verification_conditions ctxt vcs =
     else
       show a0 ++ " SEP " ++ show a1
 
+  no_finit finit =
+    case finit of
+      Nothing  -> True
+      Just eqs -> M.null eqs
 
+  show_finit_eq (sp,e) = show sp ++ " == " ++ show e
 
   show_assertions ps = intercalate "\n" $ map (show_assertions_of_address ps) $ S.toList $ S.map (\(Assertion rip _ _ _ _) -> rip) ps
   show_assertions_of_address ps rip =
-    let assertions = S.filter (\(Assertion rip' _ _ _ _) -> rip' == rip) ps in
-      "@" ++ show rip ++ ": " ++ intercalate "," (S.toList $ S.map (pick_one_to_show . get_lhs_and_rhs) $ assertions)
+    let assertions        = S.filter (\(Assertion rip' _ _ _ _) -> rip' == rip) ps
+        showed_assertions = S.toList $ S.map (pick_one_to_show . get_lhs_and_rhs) $ assertions in
+      "@" ++ show rip ++ ": " ++ intercalate "," (if length showed_assertions > 3 then take 3 showed_assertions ++ ["..."] else showed_assertions)
  
   show_function_constraints fcs = intercalate "\n" $ map show $ S.toList fcs
 
@@ -103,28 +115,29 @@ callgraph_to_dot ctxt (Edges es) =
 
   node_shape v =
     case IM.lookup v $ ctxt_report ctxt of
-      Just (Report _ _ _ VerificationSuccess _) -> "Mrecord"
-      Just (Report _ _ _ VerificationSuccesWithAssertions _) -> "Mrecord"
+      Just (Report VerificationSuccess _) -> "Mrecord"
+      Just (Report VerificationSuccesWithAssertions _) -> "Mrecord"
       _ -> "record"
 
   node_label v = 
-    case IM.lookup v $ ctxt_report ctxt of
-      Nothing -> function_name_of_entry ctxt v
-      Just (Report _ _ _ _ vcs) -> 
-        if S.null vcs then
-          function_name_of_entry ctxt v
-        else
-          "{" ++ function_name_of_entry ctxt v ++ "|" ++ markup (summarize_verification_conditions ctxt vcs) ++ "}"
+    let finit = IM.lookup v $ ctxt_finits ctxt in
+      case IM.lookup v $ ctxt_report ctxt of
+        Nothing -> function_name_of_entry ctxt v
+        Just (Report _ vcs) -> 
+          if S.null vcs then
+            function_name_of_entry ctxt v
+          else
+            "{" ++ function_name_of_entry ctxt v ++ "|" ++ markup (summarize_verification_conditions ctxt v) ++ "}"
 
   node_color v =
     let verified = case IM.lookup v (ctxt_report ctxt) of
-                     Nothing -> VerificationError
-                     Just (Report _ _ _ v _) -> v
+                     Nothing -> VerificationError "Verification error"
+                     Just (Report v _) -> v
      in
       case verified of
         VerificationSuccess               -> "#90EE90" -- light green
         VerificationSuccesWithAssertions  -> "#89CFF0" -- light blue
-        VerificationError                 -> "#FF7F7F" -- light red
+        VerificationError _               -> "#FF7F7F" -- light red
         VerificationUnresolvedIndirection -> "#CBC3E3" -- light purple
 
         

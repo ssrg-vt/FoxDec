@@ -13,7 +13,7 @@ import qualified Data.Map as M
 
 
 -- | A list of function names of functions that never return.
-exiting_functon_calls = [
+exiting_function_calls = [
   "exit", "_exit", "__exit", "___exit",
   "error", "_error","__error", 
   "__stack_chk_fail", "___stack_chk_fail",
@@ -30,7 +30,21 @@ exiting_functon_calls = [
 -- | An overview of which sections can be modified by external functions.
 -- Other sections are assumed NOT to be modified by external functions.
 sections_modifiable_by_external_functions = [
-   ("__DATA", "__common")
+ ]
+
+-- | Overview of sections with instructions.
+sections_with_instructions = [
+   ("__TEXT","__text"), -- TODO ELF
+   ("__TEXT","__stubs"),
+   ("__TEXT","__stub_helper"),
+   ("__DATA_CONST","__got"),
+   ("__DATA","__la_symbol_ptr"),
+   ("__DATA","__nl_symbol_ptr"),
+
+   ("",".text"),
+   ("",".init"),
+   ("",".plt"),
+   ("",".fini")
  ]
 
 -- | Sections in the following list are assumed not to be modifiable during execution, i.e., constant.

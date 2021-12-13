@@ -1,0 +1,39 @@
+diGraph libnss3{
+	libnss3_0  [style=filled fillcolor="#20FF20" fontcolor="#ffffff" shape=oval label="0 [2c0a0,2c0b2]"]
+	libnss3_1  [style=filled fillcolor="#FF0040" fontcolor="#ffffff" shape=oval label="1 [2c0b4,2c0be]"]
+	libnss3_2  [style=filled fillcolor="#C04080" fontcolor="#ffffff" shape=oval label="2 [2c0d7,2c0e8]"]
+	libnss3_3  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="3 [2c0c0,2c0c4]"]
+	libnss3_4  [style=filled fillcolor="#808080" fontcolor="#ffffff" shape=oval label="4 [2c0cc,2c0d6]"]
+	libnss3_5  [style=filled fillcolor="#80FFFF" fontcolor="#000000" shape=oval label="5 [2c0c6,2c0c6]"]
+	libnss3_6  [style=filled fillcolor="#000080" fontcolor="#ffffff" shape=oval label="6 [2c12b,2c130]"]
+	libnss3_7  [style=filled fillcolor="#FF4000" fontcolor="#ffffff" shape=invhouse label="7 [2c0ea,2c0ea]"]
+	libnss3_8  [style=filled fillcolor="#40C080" fontcolor="#ffffff" shape=oval label="8 [2c0ec,2c0f6]"]
+	libnss3_9  [style=filled fillcolor="#FF00C0" fontcolor="#ffffff" shape=oval label="9 [2c0f8,2c112]"]
+	libnss3_a  [style=filled fillcolor="#8000C0" fontcolor="#ffffff" shape=oval label="10 [2c132,2c142]"]
+	libnss3_b  [style=filled fillcolor="#4080FF" fontcolor="#ffffff" shape=box3d label="11 [2c123,2c123]"]
+	libnss3_c  [style=filled fillcolor="#C0C0C0" fontcolor="#000000" shape=oval label="12 [2c125,2c129]"]
+	libnss3_d  [style=filled fillcolor="#40C0FF" fontcolor="#ffffff" shape=oval label="13 [2c144,2c16e]"]
+	libnss3_e  [style=filled fillcolor="#C00080" fontcolor="#ffffff" shape=oval label="14 [2c170,2c17b]"]
+	libnss3_f  [style=filled fillcolor="#C080C0" fontcolor="#ffffff" shape=oval label="15 [2c117,2c121]"]
+
+	libnss3_0 -> libnss3_1
+	libnss3_0 -> libnss3_2
+	libnss3_1 -> libnss3_3
+	libnss3_1 -> libnss3_4
+	libnss3_2 -> libnss3_7
+	libnss3_2 -> libnss3_8
+	libnss3_3 -> libnss3_5
+	libnss3_3 -> libnss3_6
+	libnss3_5 -> libnss3_4
+	libnss3_6 -> libnss3_4
+	libnss3_8 -> libnss3_9
+	libnss3_8 -> libnss3_a
+	libnss3_9 -> libnss3_f
+	libnss3_a -> libnss3_d
+	libnss3_a -> libnss3_e
+	libnss3_c -> libnss3_4
+	libnss3_d -> libnss3_9
+	libnss3_e -> libnss3_f
+	libnss3_f -> libnss3_b
+	libnss3_f -> libnss3_c
+}

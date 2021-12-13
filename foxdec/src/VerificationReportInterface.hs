@@ -42,6 +42,7 @@ import Context
 import SimplePred
 import X86_Datastructures
 import CallGraph
+import CFG_Gen
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM
@@ -91,9 +92,9 @@ ctxt_get_function_entries = Right . S.fromList . IM.keys . ctxt_report
 -- Returns a set of instruction addresses.
 ctxt_get_instruction_addresses :: Retrieve (S.Set InstructionAddress)
 ctxt_get_instruction_addresses ctxt =
-  Right $ S.unions $ map entry_to_addresses $ IM.elems $ ctxt_report ctxt
+  Right $ S.unions $ map cfg_to_addresses $ IM.elems $ ctxt_cfgs ctxt
  where
-  entry_to_addresses (Report g _ _ _ _) = S.fromList $ concat $ IM.elems $ cfg_blocks g
+  cfg_to_addresses g = S.fromList $ concat $ IM.elems $ cfg_blocks g
 
 -- | Retrieve all indirections
 --
@@ -114,27 +115,27 @@ ctxt_get_instruction a ctxt =
 -- An invariant is a predicate provding information over registers, memory, flags, and verification conditions.
 ctxt_get_invariant :: FunctionEntry -> InstructionAddress -> Retrieve Pred
 ctxt_get_invariant entry a ctxt =
-  ctxt_get_report ctxt entry >>> report_get_invariant a
-
+  case get_invariant ctxt entry a of
+    Nothing -> Left $ "Cannot retrieve invariant for function entry " ++ showHex entry ++ " and instruction address " ++ showHex a ++ " in verification report."
+    Just p  -> Right p
 
 -- | Retrieve all internal function calls for a given function entry
 --
 -- Returns a set of function entries.
 ctxt_get_internal_function_calls :: FunctionEntry -> Retrieve (S.Set FunctionEntry)
 ctxt_get_internal_function_calls entry ctxt = 
-  ctxt_get_report ctxt entry >>> report_get_cfg >>> (Right . toSet . calls_of_cfg ctxt)
+  ctxt_get_cfg entry ctxt >>> (Right . toSet . calls_of_cfg ctxt)
 
 
 -- | Retrieve a CFG for a given function entry
 ctxt_get_cfg :: FunctionEntry -> Retrieve CFG
-ctxt_get_cfg entry ctxt =
-  ctxt_get_report ctxt entry >>> report_get_cfg
+ctxt_get_cfg = ctxt_get ctxt_cfgs
 
 
 -- | Retrieve verification conditions for a given function entry, both as a datastructure and pretty-printed
 ctxt_get_vcs :: FunctionEntry -> Retrieve (S.Set VerificationCondition, String)
 ctxt_get_vcs entry ctxt = 
-  ctxt_get_report ctxt entry >>> (\r -> Right (report_vcs r, summarize_verification_conditions ctxt $ report_vcs r))
+  ctxt_get ctxt_report entry ctxt >>> (\r -> Right (report_vcs r, summarize_verification_conditions ctxt entry))
 
 
 
@@ -148,20 +149,12 @@ ctxt_get_vcs entry ctxt =
 (>>>) (Left a) _  = Left a
 (>>>) (Right b) e = e b
 
-ctxt_get_report :: Context -> FunctionEntry -> Either String Report 
-ctxt_get_report ctxt entry =
-  case IM.lookup entry $ ctxt_report ctxt of
+ctxt_get :: (Context -> IM.IntMap a) -> FunctionEntry -> Retrieve a
+ctxt_get lens entry ctxt =
+  case IM.lookup entry $ lens ctxt of
     Nothing -> Left $ "Cannot find function entry " ++ showHex entry ++ " in verification report."
     Just r  -> Right r
 
-report_get_invariant :: InstructionAddress -> Report -> Either String Pred
-report_get_invariant a r =
-  case IM.lookup a $ report_invs r of
-    Nothing -> Left $ "Cannot find instruction address " ++ showHex a ++ " in verification report."
-    Just p  -> Right p
-
-report_get_cfg :: Report -> Either String CFG
-report_get_cfg = Right . report_cfg
 
 
 toSet :: IS.IntSet -> S.Set Int

@@ -1,6 +1,6 @@
 The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is _sound_ as well as fully _recompilable_. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary. 
 
-FoxDec is currently actively being developped. In its current stage, it does disassembly, control flow reconstruction and function boundary detection.
+FoxDec is currently actively being developed. In its current stage, it does disassembly, control flow reconstruction and function boundary detection.
 Work-in-progress is variable analysis, decompilation to C, data flow analysis, and much more.
 
 

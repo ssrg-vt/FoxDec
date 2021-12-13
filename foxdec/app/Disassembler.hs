@@ -7,9 +7,6 @@ import Base
 import SimplePred
 import Context
 import X86_Datastructures
-import SymbolicExecution
-import MachineState
-import CFG_Gen
 import VerificationReportInterface
 
 import qualified Data.Map as M

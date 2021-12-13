@@ -22,6 +22,8 @@ import ACode_Gen
 import Propagation
 import CallGraph
 import Conventions
+import ControlFlow
+import Pointers
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -30,7 +32,7 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import Data.Maybe (fromJust,catMaybes,mapMaybe)
-import Data.List (intercalate,delete,isInfixOf)
+import Data.List (intercalate,delete,isInfixOf,partition)
 import Data.Foldable
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.ByteString as BS (readFile,writeFile) 
@@ -56,20 +58,20 @@ run_with_ctxt = do
   ctxt_read_sections
   ctxt_read_and_set_entries
   ctxt_init_indirections
-  ctxt_init_calls
+  --ctxt_init_calls
+
   -- 2.) repeatedly, do 2.1 -> 2.3
   repeat
+
   -- 3.) generate report and call graph
   ctxt_generate_end_report
   ctxt_generate_call_graph
-
   ctxt_serialize_ctxt
  where
   -- 2.)
   repeat = do
     -- 2.1) consider the current entry address $a$
     entries <- gets ctxt_entries
-    to_out $ "\n\n"
     case graph_find_next entries of
       Nothing -> to_out $ "Done!"
       Just a  -> ctxt_run_entry a
@@ -78,66 +80,96 @@ run_with_ctxt = do
 
   ctxt_run_entry a = do
     -- 2.2) Start analysis at entry-address $a$
-    to_out $ "Entry " ++ showHex a
-    calls <- ctxt_read_calls
-    ctxt  <- get
-    instr <- liftIO $ fetch_instruction ctxt a
-    case (IM.lookup a calls, instr) of
-      (Just _,_) -> do
+    calls <- gets ctxt_calls
+    case IM.lookup a $ calls of
+      Just _  -> do
         -- 2.2.1) Entry is already done, delete it and continue
-        to_out $ "Entry " ++ showHex a ++ ": already analyzed."
-        ctxt_del_entry a
-        repeat
-      (Nothing, Nothing) -> do
-        -- 2.2.2) Entry address does not exist, treat as an external function
-        to_out $ "Entry " ++ showHex a ++ ": DOES NOT EXIST (IS TREATED AS EXTERNAL)."
-        ctxt_add_call_external a
         ctxt_del_entry a
         repeat
       _ -> do
+        to_out $ "\n\nEntry " ++ showHex a
         -- 2.2.3) Entry is new, generate a CFG
+        curr_g                 <- gets (IM.lookup a . ctxt_cfgs)
+        (curr_invs,curr_posts) <- ctxt_get_curr_posts a
+
+
         to_out $ "Entry " ++ showHex a ++ ": starting CFG generation."
-        cfg_result <- ctxt_generate_cfg a
-        case cfg_result of
-          Right g -> 
-            -- succesfull CFG generation
-            ctxt_run_cfg a g
-          Left new_entries -> do
-            -- no CFG, but found new internal function(s), stop current analysis, add new entries to entry-graph
-            ctxt_add_entries a new_entries
-            to_out $ "Entry " ++ showHex a ++ ": Adding new internal functions at " ++ showHex_set new_entries ++ " to graph of entries."
-            repeat
+        ctxt_generate_cfg a
+        ctxt_generate_invs a curr_invs curr_posts   
+
+        g            <- gets (IM.lookup a . ctxt_cfgs)
+        (invs,posts) <- ctxt_get_curr_posts a
+        let do_repeat = curr_g /= g || invs /= curr_invs || posts /= curr_posts
+        new_calls <- ctxt_get_new_calls a
+
+
+        if new_calls == [] then do
+          to_out $ "Entry " ++ showHex a ++ ": no new entries."
+          ctxt_after_invgen a do_repeat 
+        else do
+          mapM_ (ctxt_add_entry_edge a) new_calls
+          to_out $ "Entry " ++ showHex a ++ ": Adding new internal functions at " ++ showHex_list (map fst new_calls) ++ " to graph of entries."
+          repeat
 
   -- 2.3) Analyze a CFG, either needing a new round (in case of newly resolved indirections) are not.
-  ctxt_run_cfg a g = do
-    -- generate invariants
-    (curr_invs,curr_posts) <- ctxt_get_curr_posts a
-    (invs,posts) <- ctxt_generate_invs a g curr_invs curr_posts
-    ctxt_add_to_report a Unverified S.empty g invs posts
+  ctxt_after_invgen entry do_repeat = do
     -- analyze unresolved jumps
-    continue <- ctxt_analyze_unresolved_indirections g invs
+    continue <- ctxt_analyze_unresolved_indirections entry
+    (invs,posts) <- ctxt_get_curr_posts entry
     if continue then do
       -- if new jumps where resolved, repeat with current function
-      to_out $ "Entry " ++ showHex a ++ ": Continuing to next round as there are newly resolved indirections."
+      to_out $ "Entry " ++ showHex entry ++ ": Continuing to next round as there are newly resolved indirections."
       repeat
-    else if invs /= curr_invs || posts /= curr_posts then do
+    else if do_repeat then do
       -- if new invariants were found, repeat with current function
-      to_out $ "Entry " ++ showHex a ++ ": Continuing to next round as invariants where refined."
+      to_out $ "Entry " ++ showHex entry ++ ": Continuing to next round as CFG or invariants where refined."
       repeat
     else do
       -- if no new jumps where resolved, this function is done: store entry address as an analyzed call and pop the entry-stack
-      to_out $ "Entry " ++ showHex a ++ ": Terminating as no new indirections are resolved."
-      verified     <- ctxt_verify_proper_return a g invs
-      vcs          <- ctxt_collect_verification_conditions a g invs
+      to_out $ "Entry " ++ showHex entry ++ ": Terminating as no new indirections are resolved."
+      verified     <- ctxt_verify_proper_return entry
+      vcs          <- ctxt_collect_verification_conditions entry
       let verified' = if verified == VerificationSuccess && any (not . is_precondition) vcs then VerificationSuccesWithAssertions else verified
-      to_out $ "Entry " ++ showHex a ++ ": Verified == " ++ show verified'
+      to_out $ "Entry " ++ showHex entry ++ ": Verified == " ++ show verified'
 
-      ctxt_add_to_report a verified' vcs g invs posts
-      ctxt_add_call a g
-      ctxt_del_entry a
+      ctxt_add_call entry
+      ctxt_del_entry entry
+      ctxt_add_to_report entry verified' vcs 
       repeat
 
 
+
+ctxt_get_new_calls entry = do
+  ctxt      <- get
+  let g      = ctxt_cfgs ctxt IM.! entry
+  return $ gather ctxt $ catMaybes $ concat $ concatMap (get_new_calls ctxt) $ IM.elems $ cfg_instrs g
+ where
+  get_new_calls ctxt is = map (get_new_call ctxt) is
+  get_new_call  ctxt i =
+    if is_call (i_opcode i) then
+       map (trgt_to_finit ctxt i) $ resolve_jump_target ctxt i
+    else
+      []
+
+  trgt_to_finit ctxt i (ImmediateAddress trgt) =
+    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant ctxt entry $ i_addr i) of
+      (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit ctxt inv)
+      (Just _, Nothing,Just inv) -> Nothing
+      (_,Just finit,Just inv)    -> do
+        let finit' = weaken_finit ctxt (invariant_to_finit ctxt inv) finit
+        if finit /= finit' || (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt) && not (graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt)))  then
+          return (fromIntegral trgt,finit')
+        else
+          Nothing
+        -- if finit == finit' && (not (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt)) || graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt)) then Nothing else return (fromIntegral trgt,finit')
+  trgt_to_finit ctxt i _ = Nothing
+
+  gather ctxt []         = []
+  gather ctxt [new_call] = [new_call]
+  gather ctxt ((entry',finit):new_calls) =
+    let (same,others) = partition ((==) entry' . fst) new_calls in
+      (entry', foldr1 (weaken_finit ctxt) (finit:map snd same)) : gather ctxt others
+    
 
 
 ctxt_serialize_ctxt :: StateT Context IO ()
@@ -151,12 +183,22 @@ ctxt_serialize_ctxt = do
 
 
 
+
+
+ctxt_add_entry_edge :: Int -> (Int,FInit) -> StateT Context IO ()
+ctxt_add_entry_edge a (trgt,finit) = do
+  modify (\ctxt -> ctxt { ctxt_entries = graph_add_edges (ctxt_entries ctxt) a (IS.singleton trgt) })
+  modify (\ctxt -> ctxt { ctxt_finits  = IM.insert trgt finit $ ctxt_finits ctxt })
+  modify (\ctxt -> ctxt { ctxt_calls   = IM.delete trgt $ ctxt_calls ctxt })
+
+
 ctxt_get_curr_posts :: Int -> StateT Context IO (Invariants,S.Set (NodeInfo,Pred))
-ctxt_get_curr_posts a = do
-  report <- gets ctxt_report
-  case IM.lookup a report of
-    Nothing -> return $ (IM.empty,S.empty)
-    Just (Report _ invs posts _ _) -> return (invs,posts)
+ctxt_get_curr_posts entry = do
+  invs  <- gets ctxt_invs
+  posts <- gets ctxt_posts
+  case (IM.lookup entry invs, IM.lookup entry posts) of
+    (Just invs, Just posts) -> return (invs,posts)
+    _                       -> return (IM.empty,S.empty)
 
 
 
@@ -164,23 +206,17 @@ ctxt_get_curr_posts a = do
 -- Assuming a CFG and invariants are generated, verify for each block $b$ that is an end-node in the CFG whether:
 -- if the end-node "returns normally", i.e., ends in a RET, then it returns correctly, i.e., the return address is 
 -- not overwritten and callee-saved registers are preserved and RSP is set to RSP0+8
-ctxt_verify_proper_return :: Int -> CFG -> Invariants -> StateT Context IO VerificationResult
-ctxt_verify_proper_return entry g invs = do
+ctxt_verify_proper_return :: Int -> StateT Context IO VerificationResult
+ctxt_verify_proper_return entry = do
   ctxt       <- get
-  base       <- ctxt_base_name entry
-  let log     = base ++ ".log"
 
   (_,posts) <- ctxt_get_curr_posts entry
   all_checks <- mapM (correct ctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
   if any (\(ni,q) -> ni == UnresolvedIndirection) posts then do
-    to_log log $ "Function has unresolved indirections."
     return VerificationUnresolvedIndirection
   else if any ((/=) Nothing) $ concat all_checks then do
-    to_log log $ "\n\n\n---------------------\nVerification error!!!\n---------------------\n"
-    to_log log $ intercalate "\n\n" $ catMaybes $ concat all_checks 
-    return VerificationError
+    return (VerificationError $ intercalate "\n\n" $ catMaybes $ concat all_checks)
   else do
-    to_log log $ "Function verified."
     return VerificationSuccess
  where
   -- is the postcondition "correct"? 
@@ -196,7 +232,7 @@ ctxt_verify_proper_return entry g invs = do
   do_post_check ctxt = do
     rsp    <- read_reg RSP
     rip    <- read_reg RIP
-    checks <- forM (delete RSP callee_saved_registers) (\r -> read_reg r >>= return . reg_check r) 
+    checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg r >>= return . reg_check r) 
     return $ [rsp_check rsp, rip_check rip] ++ checks
 
   -- check: are all caller-saved-registers restored to their initial values?
@@ -225,16 +261,53 @@ ctxt_verify_proper_return entry g invs = do
 
 
 -- After a succesfull effort, store the current CFG, the invariants,...,  in the "report"-field of the context
-ctxt_add_to_report a verified vcs g invs posts = do
+ctxt_add_to_report entry verified vcs = do
   report <- gets ctxt_report
-  modify (\ctxt -> ctxt { ctxt_report = IM.insert a (Report g invs posts verified vcs) $ report } )
+  modify (\ctxt -> ctxt { ctxt_report = IM.insert entry (Report verified vcs) $ report } )
+
+  ctxt     <- get
+  base     <- ctxt_base_name entry
+  let invs  = ctxt_invs ctxt IM.! entry
+  let g     = ctxt_cfgs ctxt IM.! entry
+  let ret   = ctxt_calls ctxt IM.! entry
+  let finit = IM.lookup entry $ ctxt_finits ctxt
+  let log  = base ++ ".log"
+
+  liftIO $ writeFile log ""
+
+  to_log log $ "Function entry:           " ++ showHex entry
+  to_log log $ "Verification result:      " ++ show_verification_result verified
+  to_log log $ "#instructions:            " ++ show (num_of_instructions g)
+  to_log log $ "#assertions:              " ++ show (count_instructions_with_assertions vcs)
+  to_log log $ "#blocks:                  " ++ show (num_of_blocks       g)
+  to_log log $ "#edges:                   " ++ show (num_of_edges        g)
+  to_log log $ ""
+
+  case finit of
+    Nothing -> return ()
+    Just finit -> when (not $ M.null finit) $ do
+                    to_log log $ "Initialization:\n" ++ show_finit finit
+                    to_log log $ ""
+  to_log log $ "Return behavior: " ++ show_return_behavior ret  
+  to_log log $ "Generated invariants:"
+  to_log log $ show_invariants g invs
+ where
+  show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
+  show_return_behavior Terminating        = "terminating"
+  show_return_behavior UnknownRetBehavior = "unknown"
+
+  show_verification_result (VerificationError msg)           = "\n\n\n---------------------\nVerification error!!!\n---------------------\n" ++ msg
+  show_verification_result VerificationSuccesWithAssertions  = "Verified (with assertions)"
+  show_verification_result VerificationSuccess               = "Verified"
+  show_verification_result VerificationUnresolvedIndirection = "Unresolved indirections"
+  show_verification_result Unverified                        = "UNVERIFIED"
 
 
 
 -- Generate the call graph
 ctxt_generate_call_graph :: StateT Context IO ()
 ctxt_generate_call_graph = do
-  report   <- gets ctxt_report
+  cfgs     <- gets ctxt_cfgs
   dirname  <- gets ctxt_dirname
   name     <- gets ctxt_name
   do_pdfs  <- gets ctxt_generate_pdfs
@@ -243,7 +316,7 @@ ctxt_generate_call_graph = do
   ctxt     <- get
 
 
-  let g = Edges $ IM.map (\(Report cfg _ _ _ _) -> calls_of_cfg ctxt cfg) report
+  let g = Edges $ IM.map (calls_of_cfg ctxt) cfgs
   liftIO $ writeFile fname $ callgraph_to_dot ctxt g
 
   if do_pdfs then do
@@ -251,6 +324,8 @@ ctxt_generate_call_graph = do
     to_out $ "Generated call graph, exported to files: " ++ fname ++ " and " ++ pdfname
   else do
     to_out $ "Generated call graph, exported to file: " ++ fname 
+
+  
 
 
 
@@ -268,7 +343,7 @@ ctxt_generate_end_report = do
   to_out $ "Writing log to file: " ++ log
 
   report_total ctxt log report 
-  mapM_ (report_per_entry ctxt log) $ IM.toList report
+  mapM_ (report_per_entry ctxt log) $ IM.keys report
  where
   report_total ctxt log report = do
     to_log log $ "Total"
@@ -277,75 +352,72 @@ ctxt_generate_end_report = do
     to_log log $ "    of which verified with assertions " ++ show (num_of_verifiedw                report)
     to_log log $ "    of which unres_inds               " ++ show (num_of_unres_inds               report)
     to_log log $ "    of which verif_error              " ++ show (num_of_verif_error              report)
-    to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions   report)
-    to_log log $ "#assertions:                          " ++ show (sum_total num_of_assertions     report)
-    to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks         report)
-    to_log log $ "#edges:                               " ++ show (sum_total num_of_edges          report)
+    to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions   $ ctxt_cfgs ctxt)
+    to_log log $ "#assertions:                          " ++ show (sum_total num_of_assertions     $ ctxt_report ctxt)
+    to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks         $ ctxt_cfgs ctxt)
+    to_log log $ "#edges:                               " ++ show (sum_total num_of_edges          $ ctxt_cfgs ctxt)
     to_log log $ "#resolved indirections:               " ++ show (num_of_resolved_indirections    ctxt)
     to_log log $ "\n\n"
 
   sum_total num_of = sum . map num_of . IM.elems
 
-  report_per_entry ctxt log (a,e@(Report g invs posts verified preconditions)) = do
-    instr <- liftIO $ fetch_instruction ctxt a
-    case instr of
-      Nothing -> to_log log $ "Function entry:           " ++ showHex a ++ " DOES NOT EXIST (IS TREATED AS EXTERNAL)."
-      Just _ -> do
-        to_log log $ "Function entry:           " ++ showHex a
-        to_log log $ "Verification result:      " ++ show (verified)
-        to_log log $ "#instructions:            " ++ show (num_of_instructions                 e)
-        to_log log $ "#assertions:              " ++ show (num_of_assertions                   e)
-        to_log log $ "#blocks:                  " ++ show (num_of_blocks                       e)
-        to_log log $ "#edges:                   " ++ show (num_of_edges                        e)
-        to_log log $ "\n\n"
+  report_per_entry ctxt log entry = do -- (a,e@(Report g invs posts verified preconditions)) = do
+    let g      = ctxt_cfgs   ctxt IM.! entry
+    let report = ctxt_report ctxt IM.! entry
+    let ret    = ctxt_calls  ctxt IM.! entry
 
-  num_of_instructions  (Report g _ _ _ _)   = sum (map length $ IM.elems $ cfg_blocks g)
-  num_of_assertions    (Report _ _ _ _ vcs) = count_instructions_with_assertions vcs
-  num_of_blocks        (Report g _ _ _ _)   = IM.size $ cfg_blocks g
-  num_of_edges         (Report g _ _ _ _)   = sum (map IS.size $ IM.elems $ cfg_edges g)
+    to_log log $ "Function entry:           " ++ showHex entry
+    to_log log $ "Verification result:      " ++ show (report_result report)
+    to_log log $ "#instructions:            " ++ show (num_of_instructions g)
+    to_log log $ "#assertions:              " ++ show (num_of_assertions   report)
+    to_log log $ "#blocks:                  " ++ show (num_of_blocks       g)
+    to_log log $ "#edges:                   " ++ show (num_of_edges        g)
+    to_log log $ "return behavior:          " ++ show_return_behavior ret
+    to_log log $ "\n\n"
+
+
 
   num_of_resolved_indirections ctxt         = IM.size $ ctxt_inds ctxt
 
-  num_of_verified    = IM.size . IM.filter (\(Report _ _ _ verified _) -> verified == VerificationSuccess)
-  num_of_verifiedw   = IM.size . IM.filter (\(Report _ _ _ verified _) -> verified == VerificationSuccesWithAssertions)
-  num_of_unres_inds  = IM.size . IM.filter (\(Report _ _ _ verified _) -> verified == VerificationUnresolvedIndirection)
-  num_of_verif_error = IM.size . IM.filter (\(Report _ _ _ verified _) -> verified == VerificationError)
+  num_of_verified    = IM.size . IM.filter (\(Report verified _) -> verified == VerificationSuccess)
+  num_of_verifiedw   = IM.size . IM.filter (\(Report verified _) -> verified == VerificationSuccesWithAssertions)
+  num_of_unres_inds  = IM.size . IM.filter (\(Report verified _) -> verified == VerificationUnresolvedIndirection)
+  num_of_verif_error = IM.size . IM.filter (\(Report verified _) -> isVerificationError verified)
 
+  isVerificationError (VerificationError _) = True
+  isVerificationError _                     = False
+
+  show_return_behavior (ReturningWith p)  = "Returning normally"
+  show_return_behavior Terminating        = "Terminating"
+  show_return_behavior UnknownRetBehavior = "Unknown"
+
+  
+
+num_of_instructions  g              = sum (map length $ IM.elems $ cfg_blocks g)
+num_of_blocks        g              = IM.size $ cfg_blocks g
+num_of_edges         g              = sum (map IS.size $ IM.elems $ cfg_edges g)
+num_of_assertions    (Report _ vcs) = count_instructions_with_assertions vcs
 
 
 
 -- Collect all verification conditions
-ctxt_collect_verification_conditions :: Int -> CFG -> Invariants -> StateT Context IO (S.Set VerificationCondition)
-ctxt_collect_verification_conditions entry g invs = do
-  base       <- ctxt_base_name entry
+ctxt_collect_verification_conditions :: Int -> StateT Context IO (S.Set VerificationCondition)
+ctxt_collect_verification_conditions entry = do
   ctxt       <- get
-  let log     = base ++ ".log"
+  let g       = ctxt_cfgs ctxt IM.! entry
+  let invs    = ctxt_invs ctxt IM.! entry
   let blocks  = IM.keys $ cfg_blocks g
-  vcss       <- mapM collect_verification_conditions blocks
+  vcss       <- mapM (collect_verification_conditions g invs) blocks
 
-  let all_verification_conditions = foldr S.union S.empty vcss
-  let summary = summarize_verification_conditions ctxt all_verification_conditions
-
-  if S.null all_verification_conditions then do
-    to_log log $ "No verification conditions."
-  else do
-    to_log log $ "\n\nVerification conditions:\n\n" ++ summary -- ++ show all_verification_conditions ++ "\n"
-  return all_verification_conditions
-
-
+  return $ foldr S.union S.empty vcss
  where
-  collect_verification_conditions :: Int -> StateT Context IO (S.Set VerificationCondition)
-  collect_verification_conditions b = do
+  collect_verification_conditions g invs b = do
     ctxt <- get
-   -- if is_end_node g b then
-    return $ runIdentity $ evalStateT (do_tau ctxt b) $ im_lookup ("C.) Block " ++ show b ++ " in invs") invs b
-   -- else
-    --  return $ S.empty 
+    return $ runIdentity $ evalStateT (do_tau ctxt $ fetch_block g b) $ im_lookup ("C.) Block " ++ show b ++ " in invs") invs b
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node,
-  do_tau :: Context -> Int -> State Pred (S.Set VerificationCondition)
   do_tau ctxt b = do
-    modify $ tau_blockID ctxt g b Nothing False
+    modify $ tau_block ctxt b Nothing
     Predicate _ _ vcs _ <- get
     return vcs
 
@@ -357,7 +429,7 @@ ctxt_collect_verification_conditions entry g invs = do
 -- intialize an empty context based on the command-line parameters
 init_context dirname name generate_pdfs = 
   let dirname' = if last dirname  == '/' then dirname else dirname ++ "/" in
-    Context IM.empty IM.empty IM.empty (Edges IM.empty) [] dirname' name generate_pdfs IM.empty IM.empty
+    Context IM.empty IM.empty [] dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 
@@ -438,12 +510,19 @@ ctxt_read_entries = do
     return $ map read_line $ lines ls
   read_line = readHex' . tail . tail
 
+
+
+
+
 -- Read entry from file producing entry :: Int
 ctxt_read_and_set_entries :: StateT Context IO ()
 ctxt_read_and_set_entries = do
   entries <- ctxt_read_entries
   ctxt <- get
   put $ ctxt { ctxt_entries = Edges $ IM.fromList (zip entries $ repeat IS.empty) }
+
+
+
 
 
 -- Produce a base file name (without .extension) based on the current entry under consideration
@@ -480,6 +559,7 @@ ctxt_init_indirections = do
       Left err   -> error $ show err
       Right inds -> return inds
 
+{--
 -- Delete .calls file
 ctxt_init_calls :: StateT Context IO ()
 ctxt_init_calls = do
@@ -488,6 +568,7 @@ ctxt_init_calls = do
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".calls"
   liftIO $ writeFile fname ""
+
 
 -- Read calls from file producing calls :: IM.IntMap Bool
 -- Per address a Bool indicating whether the function terminates (True) or returns normally (False)
@@ -513,99 +594,123 @@ ctxt_read_calls = do
     case ret0 of
       Left err -> error $ show err
       Right calls -> return calls
-
+--}
 
 
 
 -- TODO generate dot only once
-ctxt_generate_cfg :: Int -> StateT Context IO (Either IS.IntSet CFG)
+ctxt_generate_cfg :: Int -> StateT Context IO (S.Set (Instr,Int))
 ctxt_generate_cfg entry = do
-  -- Generate a CFG, and color it according to strongly connected components
-  ctxt <- get
-  base <- ctxt_base_name entry
-  let log     = base ++ ".log"
-  let fname   = base ++ ".dot"
-  let pdf     = base ++ ".pdf"
-  let do_pdfs = ctxt_generate_pdfs ctxt
-  g          <- liftIO $ cfg_gen ctxt entry
-  case g of
-    Right g -> do
-      ctxt <- get
+  -- Generate a CFG, write dot file if no new calls discovered
+  ctxt          <- get
+  base          <- ctxt_base_name entry
+  let log        = base ++ ".log"
+  let fname      = base ++ ".dot"
+  let pdf        = base ++ ".pdf"
+  let do_pdfs    = ctxt_generate_pdfs ctxt
+  (new_calls,g) <- liftIO $ cfg_gen ctxt entry
 
+  cfgs <- gets ctxt_cfgs
+  modify (\ctxt -> ctxt { ctxt_cfgs = IM.insert entry g cfgs })
 
-      liftIO $ writeFile fname $ cfg_to_dot ctxt g
-      if do_pdfs then do
-        liftIO $ callCommand $ "dot -Tpdf " ++ fname ++ " -o " ++ pdf
-        to_out $ "Generated CFG, exported to files: " ++ fname ++ " and " ++ pdf
-      else do
-        to_out $ "Generated CFG, exported to file: " ++ fname 
-      return $ Right g
-    Left as -> do
-      return $ Left as
+  if S.null new_calls then do
+    liftIO $ writeFile fname $ cfg_to_dot ctxt g
+    if do_pdfs then do
+      liftIO $ callCommand $ "dot -Tpdf " ++ fname ++ " -o " ++ pdf
+      to_out $ "Generated CFG, exported to files: " ++ fname ++ " and " ++ pdf
+    else do
+      to_out $ "Generated CFG, exported to file: " ++ fname 
+    return new_calls
+  else
+    return new_calls
+
      
 
+-- TODO remove logs initiaillt
 
-ctxt_generate_invs :: Int -> CFG -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Context IO (Invariants,S.Set (NodeInfo,Pred))
-ctxt_generate_invs entry g curr_invs curr_posts = do
+ctxt_add_invariants entry invs posts = do
+  all_invs  <- gets ctxt_invs
+  all_posts <- gets ctxt_posts
+  modify (\ctxt -> ctxt { ctxt_invs = IM.insert entry invs all_invs, ctxt_posts = IM.insert entry posts all_posts } )
+
+
+
+ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Context IO ()
+ctxt_generate_invs entry curr_invs curr_posts = do
   -- Generate invariants
   ctxt <- get
-  base       <- ctxt_base_name entry
-  let log     = base ++ ".log"
+  let finit   = case IM.lookup entry $ ctxt_finits ctxt of
+                  Nothing    -> M.empty
+                  Just finit -> finit
+  when (not $ M.null finit) $ to_out $ "Function initalisation: " ++ show_finit finit
+
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
-  let p       = init_pred curr_invs curr_posts
-  let m       = do_prop ctxt g 0 p -- TODO always 0?
-  to_log log $ "Generated invariants:"
-  to_log log $ show_invariants g m
+  g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
+  let p       = init_pred curr_invs curr_posts finit
+
+  entries <- ctxt_read_entries
+  let p'      = if entries == [entry] then runIdentity $ execStateT (write_rreg RSI $ SE_Malloc (Just 0) (Just "initial")) p else p
+  let invs    = do_prop ctxt g 0 p' -- TODO always 0?
+
+
 
   let blocks  = IM.keys $ cfg_blocks g
-  posts <- mapM (get_post ctxt m) blocks
+  postss     <- mapM (get_post ctxt g invs) blocks
+  let posts   = S.fromList $ catMaybes $ postss
 
-  return (m, S.fromList $ catMaybes $ posts)
+  ctxt_add_invariants entry invs posts 
  where
-  get_post :: Context -> Invariants -> Int -> StateT Context IO (Maybe (NodeInfo,Pred))
-  get_post ctxt invs b = do
+  get_post :: Context -> CFG -> Invariants -> Int -> StateT Context IO (Maybe (NodeInfo,Pred))
+  get_post ctxt g invs b = do
     if is_end_node g b then do
-      return $ Just  $ (node_info_of ctxt g b, runIdentity $ execStateT (do_tau ctxt b) $ im_lookup ("B.) Block " ++ show b ++ " in invs") invs b)
+      return $ Just  $ (node_info_of ctxt g b, runIdentity $ execStateT (do_tau ctxt g b) $ im_lookup ("B.) Block " ++ show b ++ " in invs") invs b)
     else
       return $ Nothing
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_tau :: Context -> Int -> State Pred ()
-  do_tau ctxt b = modify $ tau_blockID ctxt g b Nothing False
+  do_tau :: Context -> CFG -> Int -> State Pred ()
+  do_tau ctxt g b = modify $ tau_block ctxt (fetch_block g b) Nothing
 
 
-ctxt_add_entries :: Int -> IS.IntSet -> StateT Context IO ()
-ctxt_add_entries entry new_entries = modify (\ctxt -> ctxt { ctxt_entries = graph_add_edges (ctxt_entries ctxt) entry new_entries })
 
 ctxt_del_entry :: Int -> StateT Context IO ()
 ctxt_del_entry entry = modify (\ctxt -> ctxt { ctxt_entries = graph_delete (ctxt_entries ctxt) entry })
 
-ctxt_add_call a g = do
+ctxt_add_call entry = do
   ctxt <- get
   let calls       = ctxt_calls ctxt
   let dirname     = ctxt_dirname ctxt
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".calls"
 
-  let terminating = all (end_nodes_are_terminal ctxt) $ IM.keys $ cfg_blocks g
-  put $ ctxt { ctxt_calls = IM.insert a terminating $ calls }
-  to_out $ "Function at entry: " ++ showHex a ++ " analyzed: all nodes are non-returning == " ++ show terminating 
-  liftIO $ appendFile fname $ showHex a ++ " " ++ (if terminating then "terminating" else "returning") ++ "\n"
+  (invs,posts) <- ctxt_get_curr_posts entry
+  
+  (ret,msg) <-
+    if any ((==) UnresolvedIndirection) $ S.map fst posts then
+      return (UnknownRetBehavior, "unknown.")
+    else if all ((==) Terminal) $ S.map fst posts then
+      return (Terminating, "always terminating.")
+    else let q = supremum ctxt $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
+      return (ReturningWith q, "normally returning.")
+
+  case (IM.lookup entry $ ctxt_calls ctxt) of
+    Just ret' -> to_out $ (show ("hallo", ret, ret'))
+    Nothing   -> return ()
+
+  put $ ctxt { ctxt_calls = IM.insert entry ret $ calls }
+  to_out $ "Function at entry: " ++ showHex entry ++ " analyzed, return behavior is " ++ msg
+
+
+pp_pred :: Pred -> String
+pp_pred (Predicate eqs _ _ _) = intercalate "\n" $ mapMaybe pp_pred_entry $ M.toList eqs
  where
-  end_nodes_are_terminal ctxt b = not (IS.null (post g b)) || node_info_of ctxt g b == Terminal
-
-ctxt_add_call_external a = do
-  ctxt <- get
-  let calls       = ctxt_calls ctxt
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  let fname       = dirname ++ name ++ ".calls"
-
-  put $ ctxt { ctxt_calls = IM.insert a False $ calls }
-  to_out $ "Function at entry: " ++ showHex a ++ " considered external and normally returning.\n"
-  liftIO $ appendFile fname $ showHex a ++ " " ++ "returning" ++ "\n"
-
+  pp_pred_entry (sp,v) =
+    if sp == SP_Reg RIP || contains_bot_sp sp then
+      Nothing
+    else
+      Just $ show sp ++ " := " ++ pp_expr v
+  pp_expr v = if contains_bot v then "Bot" else show v
 
 
 
@@ -621,18 +726,22 @@ operand_that_provides_jump_target ctxt i =
       _            -> False
    )
 
-ctxt_analyze_unresolved_indirections :: CFG -> Invariants -> StateT Context IO Bool
-ctxt_analyze_unresolved_indirections g invs = do
+ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool
+ctxt_analyze_unresolved_indirections entry = do
   ctxt <- get
+
+  (invs,posts) <- ctxt_get_curr_posts entry
+  let g        =  ctxt_cfgs ctxt IM.! entry
+
   let bs = filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) $ IM.keys $ cfg_blocks g
   if bs == [] then do
     to_out $ "No unresolved indirections."
     return False
   else do
-    results <- forM bs try_to_resolve_indirection
+    results <- forM bs $ try_to_resolve_indirection g invs
     return $ not $ all not results -- prevent lazy execution
  where
-  try_to_resolve_indirection b = do
+  try_to_resolve_indirection g invs b = do
     ctxt <- get
     dirname   <- gets ctxt_dirname
     name      <- gets ctxt_name
@@ -643,10 +752,10 @@ ctxt_analyze_unresolved_indirections g invs = do
     let p                      = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg _ _  = p
 
-    let values0 = evalState (try' ctxt b trgt) p
+    let values0 = evalState (try' ctxt g b trgt) p
     let values1 = case flagstatus_to_tries flg of
                    Nothing      -> S.empty
-                   Just (op1,n) -> S.unions $ map (\n -> evalState (try ctxt b op1 trgt n) p) [0..n-1]
+                   Just (op1,n) -> S.unions $ map (\n -> evalState (try ctxt g b op1 trgt n) p) [0..n-1]
     let values  = S.union values0 values1
 
     -- TODO instead of once and for all, widen it
@@ -672,17 +781,17 @@ ctxt_analyze_unresolved_indirections g invs = do
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
-  try ctxt blockId op1 trgt n = do
+  try ctxt g blockId op1 trgt n = do
     write_operand ctxt op1 (SE_Immediate n)
-    try' ctxt blockId trgt
+    try' ctxt g blockId trgt
 
-  try' ctxt blockId trgt = do
-    modify $ tau_blockID ctxt g blockId Nothing True
+  try' ctxt g blockId trgt = do
+    modify $ tau_block ctxt (init $ fetch_block g blockId) Nothing
     val <- read_operand ctxt trgt
     case val of
       SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a
       Bottom (FromNonDeterminism es) _   -> return $ if all (expr_highly_likely_pointer ctxt) es then S.map take_immediates es else S.singleton Nothing
-      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton $ Just 0 
+      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton $ Just 0  --TODO
       e                                  -> return $ S.singleton Nothing
 
   take_immediates (SE_Immediate a) = Just $ fromIntegral a

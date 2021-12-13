@@ -5,7 +5,7 @@ module ACode_Gen where
 
 import Context
 import SCC 
-import Propagation
+import ControlFlow
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -124,9 +124,7 @@ show_acode indent (ACode_While body resumes) =
 instance Show ACode where
   show = show_acode ""
   
-instance IntGraph CFG where
-  intgraph_post = post
-  intgraph_V    = IM.keysSet . cfg_blocks
+
 
 cfg_to_acode g v frontier =
   let scc_v = get_scc_without g v frontier

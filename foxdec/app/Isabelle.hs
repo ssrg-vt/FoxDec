@@ -10,7 +10,8 @@ import Context
 import X86_Datastructures
 import SymbolicExecution
 import MachineState
-import CFG_Gen
+import ControlFlow
+import Pointers
 import VerificationReportInterface
 
 import qualified Data.Map as M
@@ -22,7 +23,6 @@ import Data.List
 import Data.Foldable
 
 import Control.Monad.State.Strict
-import Data.Functor.Identity
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 
@@ -52,7 +52,7 @@ ctxt_base_name ctxt entry = do
 ctxt_create_hoare_triples :: Context -> IO ()
 ctxt_create_hoare_triples ctxt = do
   let report = ctxt_report ctxt
-  imports <- mapM (report_entry_to_hoare_triples ctxt) $ IM.toList report
+  imports <- mapM entry_to_hoare_triples $ IM.keys report
 
   
   let dirname = ctxt_dirname ctxt
@@ -61,10 +61,16 @@ ctxt_create_hoare_triples ctxt = do
   generate_isa_main_thy name fname imports
   putStrLn $ "Generated Isabelle thy file file: " ++ fname 
  where
-  report_entry_to_hoare_triples ctxt (entry,(Report g invs posts _ vcs)) = do
+  entry_to_hoare_triples entry = do
     let name     = ctxt_name ctxt
     base        <- ctxt_base_name ctxt entry
     let fname    = base ++ "_" ++ showHex entry ++ ".thy"
+
+    let g        = ctxt_cfgs  ctxt IM.! entry
+    let invs     = ctxt_invs  ctxt IM.! entry
+    let posts    = ctxt_posts ctxt IM.! entry
+    let (Report _ vcs) = ctxt_report ctxt IM.! entry
+
     generate_isa_thy ctxt name entry fname g invs posts vcs
 
 
@@ -106,7 +112,7 @@ block_to_hoare_triples ctxt fname entry all_precs all_asserts invs (blockId,inst
 -- Generate a single Hoare triple for an instruction with precondition p
 instr_to_hoare_triple ctxt fname all_precs all_asserts p i = do
   -- obtain postcondition q
-  let q = runIdentity (execStateT (tau_b ctxt [i]) p)
+  let q = tau_block ctxt [i] Nothing p
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for p i) $ S.toList all_precs
 
@@ -143,7 +149,7 @@ mk_pred_for_hoare_triple (Predicate eqs _ _ _) =
   intercalate " ; " $ mapMaybe mk_eq_for_hoare_triple $ M.toList eqs
  where
   mk_eq_for_hoare_triple (sp,e) =
-    if contains_bot_sp sp || (contains_bot e && not (is_return_value_of_call e)) || sp == SP_Reg RIP then
+    if contains_bot_sp sp|| sp == SP_Reg RIP then --  || (contains_bot e && not (is_return_value_of_call e)) 
       Nothing
     else
       Just $ sp_to_isa sp ++ " = " ++ expr_to_isa e
@@ -166,13 +172,13 @@ mk_fcs ctxt i p =
       ""
  where
   preserved_stateparts ctxt i (Predicate eqs _ _ _) =
-    map fst $ filter (\(sp,v) -> not (contains_bot_sp sp) && statepart_is_preserved_after_function_call ctxt i sp) $ M.toList eqs
+     [] -- TODO map fst $ filter (\(sp,v) -> not (contains_bot_sp sp) && statepart_is_preserved_after_function_call ctxt i sp v) $ M.toList eqs
 
 
 -- gather all preconditions:
 --   any precondition occuring in the verification conditions without bot or a return-value of a call
 -- and
---   any relation between any stateparts sp0 and sp1 that are assumed to be separate (see function compare_srcs)
+--   any relation between any stateparts sp0 and sp1 that are assumed to be separate (see function pointers_have_separate_bases)
 all_preconditions ctxt invs posts vcs =
   let precs0 = S.filter is_precondition_without_bot $ S.filter is_precondition vcs
       precs1 = gather_precs_from_stateparts ctxt $ S.toList $ gather_stateparts invs posts in
@@ -181,10 +187,10 @@ all_preconditions ctxt invs posts vcs =
   gather_precs_from_stateparts ctxt [] = S.empty
   gather_precs_from_stateparts ctxt (sp0:sps) = S.union (S.fromList $ mapMaybe (mk_prec_from_stateparts ctxt sp0) sps) (gather_precs_from_stateparts ctxt sps)
   
-  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if compare_srcs ctxt a0 a1 && not (contains_bot a0) && not (contains_bot a1) then Just (Precondition a0 si0 a1 si1) else Nothing
+  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if pointers_have_separate_bases ctxt a0 a1 && not (contains_bot a0) && not (contains_bot a1) then Just (Precondition a0 si0 a1 si1) else Nothing
   mk_prec_from_stateparts ctxt _ _ = Nothing
 
-  is_precondition_without_bot (Precondition a0 _ a1 _) = is_return_value_of_call a0 || is_return_value_of_call a1 || (not (contains_bot a0) && not (contains_bot a1))
+  is_precondition_without_bot (Precondition a0 _ a1 _) = (not (contains_bot a0) && not (contains_bot a1)) -- is_return_value_of_call a0 || is_return_value_of_call a1 || 
 
 
 -- produces the precondition, if any, relevant to predicate p and instruction i

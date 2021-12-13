@@ -19,11 +19,14 @@ module SimplePred (
   BotSrc (..),
   Operator (..),
   AddrType (..),
+  PointerBase(..),
   regs_of,
   srcs_of_expr,
   srcs_of_exprs,
   contains_bot,
   contains_bot_sp,
+  contains_var,
+  contains_var_sp,
   add_assertion,
   add_precondition,
   add_function_constraint,
@@ -51,13 +54,17 @@ import GHC.Generics
 import Data.Bits (testBit, (.|.), (.&.))
 import qualified Data.Serialize as Cereal hiding (get,put)
 
+
+data PointerBase = StackPointer | Malloc (Maybe Int) (Maybe String) | GlobalAddress Word64 | PointerToSymbol String | Unknown SimpleExpr
+  deriving (Generic,Eq,Ord,Show)
+
 -- | Bot represents an unknown (bottom) value.
 -- We annotate each occurence of Bot with a BotTyp.
 -- This type indicates where the bottom value originates from.
 -- We don't use this, i.e., all bottoms are created equal.
 -- The only bottom that has semantics meaning is the last one, non-determinstically picking a value from a set.
 data BotTyp = 
-    FromAbstraction                         -- ^ Abstraction joined two terms to Bottom
+    FromAbstraction (S.Set PointerBase)     -- ^ Abstraction joined two terms to Bottom
   | FromOverlap                             -- ^ A read from two possibly overlapping regions
   | FromMemWrite                            -- ^ A write to two possibly overlapping regions 
   | FromCall                                -- ^ A function call was executed, setting stateparts to bottom
@@ -121,6 +128,7 @@ instance Show Operator where
 -- A statepart evaluates to its current value, e.g., RDI.
 data SimpleExpr =
     Bottom       BotTyp (S.Set BotSrc)      -- ^ Bottom (unknown value)
+  | SE_Malloc    (Maybe Int) (Maybe String) -- ^ A malloc return value with possibly an ID
   | SE_Var       StatePart                  -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
   | SE_Immediate Word64                     -- ^ An immediate word
   | SE_StatePart StatePart                  -- ^ The value stored currently in the statepart
@@ -137,7 +145,7 @@ data StatePart =
  deriving (Eq, Ord, Generic)
 
 instance Show BotTyp where
- show FromAbstraction         = "a"
+ show (FromAbstraction bs)    = "a|" ++ intercalate "," (map show $ S.toList bs) ++ "|"
  show FromBitMode             = "b"
  show FromOverlap             = "o"
  show FromCall                = "c"
@@ -156,7 +164,11 @@ instance Show BotSrc where
   show (Src_Function f) = f
 
 instance Show SimpleExpr where
+  show (Bottom (typ@(FromAbstraction _)) _) = "Bot[" ++ show typ ++ "]"
+  show (Bottom (typ@(FromNonDeterminism _)) _) = "Bot[" ++ show typ ++ "]"
   show (Bottom typ srcs)         = "Bot[" ++ show typ ++ ";" ++ intercalate "," (map show $ S.toList srcs) ++ "]"
+  show (SE_Malloc Nothing _)     = "malloc()" 
+  show (SE_Malloc (Just id) _)   = "malloc@" ++ show id ++ "()" 
   show (SE_Var sp)               = show sp ++ "_0"
   show (SE_Immediate i)          = if i > 2000 then "0x" ++ showHex i else show i
   show (SE_StatePart sp)         = show sp
@@ -177,6 +189,7 @@ instance Show SimpleExpr where
 
 
 expr_size (Bottom typ srcs)    = 1 + (sum $ S.map expr_size_src srcs)
+expr_size (SE_Malloc id _)     = 1
 expr_size (SE_Var sp)          = expr_size_sp sp
 expr_size (SE_Immediate _)     = 1
 expr_size (SE_StatePart sp)    = expr_size_sp sp
@@ -197,6 +210,7 @@ expr_size_src (Src_Function f) = 1
 
 -- | Returns true iff the expression contains Bot
 contains_bot (Bottom typ _)       = True
+contains_bot (SE_Malloc _ _)      = False
 contains_bot (SE_Var sp)          = contains_bot_sp sp
 contains_bot (SE_Immediate _)     = False
 contains_bot (SE_StatePart sp)    = contains_bot_sp sp
@@ -211,8 +225,28 @@ contains_bot_sp (SP_Mem a si)  = contains_bot a
 
 
 
+-- | Returns true iff the expression contains Var
+contains_var (Bottom typ _)       = False
+contains_var (SE_Malloc _ _)      = False
+contains_var (SE_Var sp)          = True
+contains_var (SE_Immediate _)     = False
+contains_var (SE_StatePart sp)    = contains_var_sp sp
+contains_var (SE_Op _ es)         = any contains_var es
+contains_var (SE_Bit i e)         = contains_var e
+contains_var (SE_SExtend _ _ e)   = contains_var e
+contains_var (SE_Overwrite _ a b) = contains_var a || contains_var b
+
+-- | Returns true iff the statepart contains Bot
+contains_var_sp (SP_Reg r)     = False
+contains_var_sp (SP_Mem a si)  = contains_var a
+
+
+
+
+
 -- | Returns the set of registers occuring in the symbolic expression.
 regs_of (Bottom typ _)       = S.empty
+regs_of (SE_Malloc _ _)      = S.empty
 regs_of (SE_Var sp)          = regs_of_sp sp
 regs_of (SE_Immediate _)     = S.empty
 regs_of (SE_StatePart sp)    = regs_of_sp sp
@@ -226,18 +260,9 @@ regs_of_sp (SP_Mem a si)  = regs_of a
 
 
 
-
-is_imm_expr (Bottom _ _)             = False
-is_imm_expr (SE_Var sp)              = False
-is_imm_expr (SE_Immediate _)         = True
-is_imm_expr (SE_StatePart sp)        = False
-is_imm_expr (SE_Op _ es)             = all is_imm_expr es
-is_imm_expr (SE_Bit i e)             = is_imm_expr e
-is_imm_expr (SE_SExtend _ _ e)       = is_imm_expr e
-is_imm_expr (SE_Overwrite _ e0 e1)   = is_imm_expr e0 && is_imm_expr e1
-
 -- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy p (Bottom typ srcs)    = p typ srcs
+all_bot_satisfy p (SE_Malloc _ _)      = True
 all_bot_satisfy p (SE_Var sp)          = all_bot_satisfy_sp p sp
 all_bot_satisfy p (SE_Immediate _)     = True
 all_bot_satisfy p (SE_StatePart sp)    = all_bot_satisfy_sp p sp
@@ -252,6 +277,7 @@ all_bot_satisfy_sp p (SP_Mem a si)   = all_bot_satisfy p a
 
 -- | Returns the set of sources (state parts used to compute the expression) of an expression.
 srcs_of_expr (Bottom _ srcs)      = srcs
+srcs_of_expr (SE_Malloc _ _)      = S.empty
 srcs_of_expr (SE_Var sp)          = srcs_of_sp sp
 srcs_of_expr (SE_Immediate i)     = S.empty
 srcs_of_expr (SE_StatePart sp)    = srcs_of_sp sp
@@ -276,7 +302,7 @@ srcs_of_expr_bounded e =
 -- | If the size of an expression becomes too large, we simply turn it into Bottom.
 trim_expr e =
   if expr_size e > 1000 then 
-    Bottom FromAbstraction $ srcs_of_expr_bounded e
+    Bottom (FromAbstraction S.empty) $ srcs_of_expr_bounded e -- TODO get bases
   else
     e
 
@@ -307,6 +333,8 @@ simp (SE_Op (Plus b0)  [SE_Op (Plus b1)  [a0,a1], a2]) = simp $ SE_Op (Plus b0) 
 simp (SE_Op (Plus b0)  [SE_Immediate 0, e1]) = simp e1 -- 0 + e1 = e1
 simp (SE_Op (Plus b0)  [e0, SE_Immediate 0]) = simp e0 -- e0 + 0 = e0
 simp (SE_Op (Minus b0) [e0, SE_Immediate 0]) = simp e0 -- e0 - 0 = e0
+simp (SE_Op (Times b0) [e0, SE_Immediate 0]) = SE_Immediate 0
+simp (SE_Op (Times b0) [SE_Immediate 0, e1]) = SE_Immediate 0
 
 simp (SE_Overwrite i (SE_Immediate 0) e) = simp e
 
@@ -326,6 +354,7 @@ simp (SE_SExtend 8  64 (SE_Immediate i)) = SE_Immediate (sextend_8_64 i)
 simp (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp $ SE_Op (Minus b0) [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
 simp (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [e1, SE_Immediate i1]]) = simp $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
 simp (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp $ SE_Op (Plus b0)  [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
+-- simp (SE_Op (Plus b0)  [SE_Op (Plus b1) [e0, SE_Immediate i0], SE_Immediate i1])  = simp $ SE_Op (Plus b0)  [e0, SE_Immediate (i0+i1)] -- (e0+i0)+i1 ==> e0+(i0+i1)
 
 simp (SE_Bit i (SE_Op (Plus  b0) [e0, e1])) = simp $ SE_Op (Plus i)  [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)
 simp (SE_Bit i (SE_Op (Minus b0) [e0, e1])) = simp $ SE_Op (Minus i) [SE_Bit i e0, SE_Bit i e1] -- b(e0-e1) = b(e0) - b(e1)
@@ -341,6 +370,7 @@ simp (SE_StatePart sp)      = SE_StatePart $ simp_sp sp
 simp (SE_Bit i e)           = SE_Bit i $ simp e
 simp (SE_SExtend l h e)     = SE_SExtend l h $ simp e
 simp (SE_Overwrite i e0 e1) = SE_Overwrite i (simp e0) (simp e1)
+simp (SE_Var sp)            = SE_Var $ simp_sp sp
 simp e                      = e
 
 simp_sp (SP_Mem e si)    = SP_Mem (simp e) si
@@ -426,6 +456,7 @@ add_assertion      rip a0 si0 a1 si1 (Predicate eqs fs vcs muddle_status) = Pred
 add_function_constraint f ps         (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (FunctionConstraint f ps) vcs) muddle_status
 
 
+instance Cereal.Serialize PointerBase
 instance Cereal.Serialize BotTyp
 instance Cereal.Serialize BotSrc
 instance Cereal.Serialize AddrType
@@ -450,7 +481,6 @@ instance Show Pred where
     ++ (if show flg == "" then "" else "\n" ++ show flg)
     ++ (if S.size vcs  == 0 then "" else "\n" ++ show (S.toList vcs))
     ++ (if muddle_status == Clean then "" else "\n" ++ "(" ++ show muddle_status ++ ")")
-
 
 
 

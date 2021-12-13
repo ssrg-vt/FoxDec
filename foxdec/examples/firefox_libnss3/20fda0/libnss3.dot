@@ -1,0 +1,53 @@
+diGraph libnss3{
+	libnss3_0  [style=filled fillcolor="#20FF20" fontcolor="#ffffff" shape=oval label="0 [20fda0,20fde9]"]
+	libnss3_1  [style=filled fillcolor="#C04080" fontcolor="#ffffff" shape=oval label="1 [20fdf2,20fdf6]"]
+	libnss3_2  [style=filled fillcolor="#FF8040" fontcolor="#ffffff" shape=oval label="2 [20fe6a,20fe82]"]
+	libnss3_3  [style=filled fillcolor="#C04080" fontcolor="#ffffff" shape=oval label="3 [20fdf8,20fdfb]"]
+	libnss3_4  [style=filled fillcolor="#40FFC0" fontcolor="#000000" shape=oval label="4 [20fdfd,20fe02]"]
+	libnss3_5  [style=filled fillcolor="#C04080" fontcolor="#ffffff" shape=oval label="5 [20fded,20fdf0]"]
+	libnss3_6  [style=filled fillcolor="#00C080" fontcolor="#ffffff" shape=oval label="6 [20fe04,20fe1b]"]
+	libnss3_7  [style=filled fillcolor="#C00040" fontcolor="#ffffff" shape=oval label="7 [20fe1d,20fe2e]"]
+	libnss3_8  [style=filled fillcolor="#80C0C0" fontcolor="#ffffff" shape=oval label="8 [20fe4c,20fe4f]"]
+	libnss3_9  [style=filled fillcolor="#0000C0" fontcolor="#ffffff" shape=oval label="9 [20fe30,20fe3e]"]
+	libnss3_a  [style=filled fillcolor="#C0FFFF" fontcolor="#000000" shape=oval label="10 [20fe44,20fe47]"]
+	libnss3_b  [style=filled fillcolor="#80C0FF" fontcolor="#ffffff" shape=oval label="11 [20fecc,20fed9]"]
+	libnss3_c  [style=filled fillcolor="#FF4080" fontcolor="#ffffff" shape=oval label="12 [20fe51,20fe5d]"]
+	libnss3_d  [style=filled fillcolor="#C0C0C0" fontcolor="#000000" shape=oval label="13 [20feb6,20febb]"]
+	libnss3_e  [style=filled fillcolor="#400000" fontcolor="#ffffff" shape=oval label="14 [20fe5f,20fe68]"]
+	libnss3_f  [style=filled fillcolor="#808080" fontcolor="#ffffff" shape=oval label="15 [20feaf,20feb5]"]
+	libnss3_10  [style=filled fillcolor="#404080" fontcolor="#ffffff" shape=oval label="16 [20fe84,20fe95]"]
+	libnss3_11  [style=filled fillcolor="#40FF40" fontcolor="#ffffff" shape=oval label="17 [20fe97,20fea5]"]
+	libnss3_12  [style=filled fillcolor="#FFFF80" fontcolor="#000000" shape=oval label="18 [20fea7,20feaa]"]
+	libnss3_13  [style=filled fillcolor="#8000FF" fontcolor="#ffffff" shape=oval label="19 [20febd,20feca]"]
+
+	libnss3_0 -> libnss3_5
+	libnss3_1 -> libnss3_3
+	libnss3_1 -> libnss3_4
+	libnss3_2 -> libnss3_f
+	libnss3_2 -> libnss3_10
+	libnss3_3 -> libnss3_5
+	libnss3_4 -> libnss3_2
+	libnss3_4 -> libnss3_6
+	libnss3_5 -> libnss3_1
+	libnss3_5 -> libnss3_2
+	libnss3_6 -> libnss3_7
+	libnss3_6 -> libnss3_8
+	libnss3_7 -> libnss3_8
+	libnss3_7 -> libnss3_9
+	libnss3_8 -> libnss3_c
+	libnss3_8 -> libnss3_d
+	libnss3_9 -> libnss3_a
+	libnss3_9 -> libnss3_b
+	libnss3_a -> libnss3_8
+	libnss3_b -> libnss3_8
+	libnss3_c -> libnss3_e
+	libnss3_c -> libnss3_f
+	libnss3_d -> libnss3_f
+	libnss3_e -> libnss3_f
+	libnss3_10 -> libnss3_f
+	libnss3_10 -> libnss3_11
+	libnss3_11 -> libnss3_12
+	libnss3_11 -> libnss3_13
+	libnss3_12 -> libnss3_f
+	libnss3_13 -> libnss3_f
+}

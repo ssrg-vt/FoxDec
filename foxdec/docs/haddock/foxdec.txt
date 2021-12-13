@@ -57,6 +57,9 @@ graph_delete :: Graph -> Key -> Graph
 -- | is v parent of an edge?
 graph_is_parent :: Graph -> Key -> Bool
 
+-- | is v a vertex in the graph?
+graph_is_vertex :: Graph -> Key -> Bool
+
 -- | is (v0,v1) an edge?
 graph_is_edge :: Graph -> Key -> Key -> Bool
 
@@ -72,6 +75,7 @@ hex_color_of_text :: String -> String
 
 -- | A list of RGB colors
 hex_colors :: [[Char]]
+instance GHC.Show.Show Base.Graph
 instance GHC.Generics.Generic Base.Graph
 instance Data.Serialize.Serialize Base.Graph
 instance SCC.IntGraph Base.Graph
@@ -960,6 +964,9 @@ data SimpleExpr
 -- | Bottom (unknown value)
 Bottom :: BotTyp -> Set BotSrc -> SimpleExpr
 
+-- | A malloc return value with possibly an ID
+SE_Malloc :: Maybe Int -> Maybe String -> SimpleExpr
+
 -- | A variable representing the initial value stored in the statepart
 --   (e.g., RSP0)
 SE_Var :: StatePart -> SimpleExpr
@@ -1032,7 +1039,7 @@ Muddled :: StateMuddleStatus
 data BotTyp
 
 -- | Abstraction joined two terms to Bottom
-FromAbstraction :: BotTyp
+FromAbstraction :: Set PointerBase -> BotTyp
 
 -- | A read from two possibly overlapping regions
 FromOverlap :: BotTyp
@@ -1105,6 +1112,12 @@ data AddrType
 Heap :: AddrType
 Global :: AddrType
 Local :: AddrType
+data PointerBase
+StackPointer :: PointerBase
+Malloc :: Maybe Int -> Maybe String -> PointerBase
+GlobalAddress :: Word64 -> PointerBase
+PointerToSymbol :: String -> PointerBase
+Unknown :: SimpleExpr -> PointerBase
 
 -- | Returns the set of registers occuring in the symbolic expression.
 regs_of :: SimpleExpr -> Set Register
@@ -1122,6 +1135,12 @@ contains_bot :: SimpleExpr -> Bool
 
 -- | Returns true iff the statepart contains Bot
 contains_bot_sp :: StatePart -> Bool
+
+-- | Returns true iff the expression contains Var
+contains_var :: SimpleExpr -> Bool
+
+-- | Returns true iff the statepart contains Bot
+contains_var_sp :: StatePart -> Bool
 
 -- | Add an assertion to the given symbolic predicate
 add_assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> Pred -> Pred
@@ -1162,6 +1181,10 @@ instance GHC.Classes.Eq SimplePred.AddrType
 instance GHC.Generics.Generic SimplePred.Operator
 instance GHC.Classes.Ord SimplePred.Operator
 instance GHC.Classes.Eq SimplePred.Operator
+instance GHC.Show.Show SimplePred.PointerBase
+instance GHC.Classes.Ord SimplePred.PointerBase
+instance GHC.Classes.Eq SimplePred.PointerBase
+instance GHC.Generics.Generic SimplePred.PointerBase
 instance GHC.Generics.Generic SimplePred.BotTyp
 instance GHC.Classes.Ord SimplePred.BotTyp
 instance GHC.Classes.Eq SimplePred.BotTyp
@@ -1198,6 +1221,7 @@ instance GHC.Show.Show SimplePred.BotTyp
 instance GHC.Show.Show SimplePred.BotSrc
 instance GHC.Show.Show SimplePred.SimpleExpr
 instance GHC.Show.Show SimplePred.StatePart
+instance Data.Serialize.Serialize SimplePred.PointerBase
 instance Data.Serialize.Serialize SimplePred.BotTyp
 instance Data.Serialize.Serialize SimplePred.BotSrc
 instance Data.Serialize.Serialize SimplePred.StatePart
@@ -1217,7 +1241,10 @@ exiting_functon_calls :: [[Char]]
 
 -- | An overview of which sections can be modified by external functions.
 --   Other sections are assumed NOT to be modified by external functions.
-sections_modifiable_by_external_functions :: [([Char], [Char])]
+sections_modifiable_by_external_functions :: [a]
+
+-- | Overview of sections with instructions.
+sections_with_instructions :: [([Char], [Char])]
 
 -- | Sections in the following list are assumed not to be modifiable during
 --   execution, i.e., constant.
@@ -1288,7 +1315,7 @@ VerificationSuccesWithAssertions :: VerificationResult
 VerificationUnresolvedIndirection :: VerificationResult
 
 -- | There was some verification error, e.g., return adresss overwrite
-VerificationError :: VerificationResult
+VerificationError :: String -> VerificationResult
 
 -- | The function has not been verified.
 Unverified :: VerificationResult
@@ -1308,24 +1335,36 @@ UnresolvedIndirection :: NodeInfo
 -- | The basic blocks ends with, e.g., a call to exit()
 Terminal :: NodeInfo
 
+-- | Postconditions: for each final block the <tt>NodeInfo</tt> and the
+--   final predicate after execution of the block
+type Postconditions = Set (NodeInfo, Pred)
+
 -- | Per function, we report on:
 data Report
-Report :: CFG -> Invariants -> Set (NodeInfo, Pred) -> VerificationResult -> Set VerificationCondition -> Report
-
--- | The control flow graph
-[report_cfg] :: Report -> CFG
-
--- | The invariants
-[report_invs] :: Report -> Invariants
-
--- | The postcondition(s)
-[report_posts] :: Report -> Set (NodeInfo, Pred)
+Report :: VerificationResult -> Set VerificationCondition -> Report
 
 -- | The verification result
 [report_result] :: Report -> VerificationResult
 
 -- | The verification conditions
 [report_vcs] :: Report -> Set VerificationCondition
+
+-- | A function initialisation consists of a mapping of stateparts to
+--   expressions.
+type FInit = Map StatePart SimpleExpr
+
+-- | A function call
+data FReturnBehavior
+
+-- | The function does never return
+Terminating :: FReturnBehavior
+
+-- | The function returns withg the symbolic changes stored in the
+--   predicate
+ReturningWith :: Pred -> FReturnBehavior
+
+-- | It is unknown whether the function returns or not
+UnknownRetBehavior :: FReturnBehavior
 
 -- | The context datastructure.
 --   
@@ -1334,7 +1373,7 @@ Report :: CFG -> Invariants -> Set (NodeInfo, Pred) -> VerificationResult -> Set
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context
-Context :: IntMap Word8 -> IntMap String -> IntMap Bool -> Graph -> SectionsInfo -> String -> String -> Bool -> Indirections -> IntMap Report -> Context
+Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap Report -> Context
 
 -- | <b>S</b>: mapping from addresses to bytes (data and instructions from
 --   the binary/executable)
@@ -1343,14 +1382,6 @@ Context :: IntMap Word8 -> IntMap String -> IntMap Bool -> Graph -> SectionsInfo
 -- | <b>S</b>: the symbol table: a mapping of addresses to function names
 --   for external functions
 [ctxt_syms] :: Context -> IntMap String
-
--- | <b>D</b>: the currently known and verified entry addresses of
---   functions (true iff always terminating, i.e., non-returning)
-[ctxt_calls] :: Context -> IntMap Bool
-
--- | <b>D</b>: a graph with an edge (e0,e1) if entry address e0 calls entry
---   address e1, and e0 and e1 have not been verified yet
-[ctxt_entries] :: Context -> Graph
 
 -- | <b>S</b>: information on segments/section
 [ctxt_sections] :: Context -> SectionsInfo
@@ -1365,8 +1396,28 @@ Context :: IntMap Word8 -> IntMap String -> IntMap Bool -> Graph -> SectionsInfo
 -- | <b>S</b>: do we call graphviz to generate PDFs from .dot files?
 [ctxt_generate_pdfs] :: Context -> Bool
 
+-- | <b>D</b>: a graph with an edge (e0,e1) if entry address e0 calls entry
+--   address e1, and e0 and e1 have not been verified yet
+[ctxt_entries] :: Context -> Graph
+
+-- | <b>D</b>: the currently known control flow graphs per function entry
+[ctxt_cfgs] :: Context -> IntMap CFG
+
+-- | <b>D</b>: the currently known and verified entry addresses of
+--   functions mapped to return-information
+[ctxt_calls] :: Context -> IntMap FReturnBehavior
+
+-- | <b>D</b>: the currently known invariants
+[ctxt_invs] :: Context -> IntMap Invariants
+
+-- | <b>D</b>: the currently known postconditions
+[ctxt_posts] :: Context -> IntMap Postconditions
+
 -- | <b>D</b>: the currently known indirections
 [ctxt_inds] :: Context -> Indirections
+
+-- | <b>D</b>: the currently known function initialisations
+[ctxt_finits] :: Context -> IntMap FInit
 
 -- | <b>D</b>: a mapping from function entries to reports storing
 --   verification results
@@ -1388,6 +1439,10 @@ fetch_instruction :: Context -> Int -> IO (Maybe Instr)
 
 -- | Pretty printing an instruction
 pp_instruction :: Context -> Instr -> String
+
+-- | Show function initialisation
+show_finit :: (Show a1, Show a2) => Map a1 a2 -> [Char]
+instance GHC.Classes.Eq Context.CFG
 instance GHC.Generics.Generic Context.CFG
 instance GHC.Show.Show Context.CFG
 instance GHC.Generics.Generic Context.VerificationResult
@@ -1398,59 +1453,22 @@ instance GHC.Classes.Eq Context.NodeInfo
 instance GHC.Generics.Generic Context.NodeInfo
 instance GHC.Show.Show Context.NodeInfo
 instance GHC.Generics.Generic Context.Report
+instance GHC.Classes.Ord Context.FReturnBehavior
+instance GHC.Classes.Eq Context.FReturnBehavior
+instance GHC.Generics.Generic Context.FReturnBehavior
+instance GHC.Show.Show Context.FReturnBehavior
 instance GHC.Generics.Generic Context.Context
 instance Data.Serialize.Serialize Context.Context
+instance Data.Serialize.Serialize Context.FReturnBehavior
 instance Data.Serialize.Serialize Context.Report
 instance Data.Serialize.Serialize Context.NodeInfo
 instance Data.Serialize.Serialize Context.VerificationResult
 instance Data.Serialize.Serialize Context.CFG
 
 
--- | We assume a class where we can do predicate transformation through
---   function <tt>tau</tt>, and we can merge two predicates through
---   function <tt>join</tt>. Moreover, we assume an implementation of a
---   function <tt>implies</tt> that implements symbolic implication.
-module Propagation
-
--- | A class that allows propagation of predicates over a CFG.
-class (Show pred) => Propagator ctxt pred
-
--- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-tau :: Propagator ctxt pred => ctxt -> CFG -> Int -> Maybe Int -> pred -> pred
-
--- | A lattice-join
-join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
-
--- | Symbolic implication
-implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
-
--- | Start propagation at the given entry address with the given initial
---   predicate. Returns a set of invariants, i.e., a mapping of instruction
---   addresses to predicates.
-do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IntMap pred
-
--- | The set of next blocks from the given block
-post :: CFG -> Key -> IntSet
-
-
 -- | Contains function relating to control flow, including functions for
---   generating a control flow graph (CFG), and for resolving the targets
---   of jumps and calls.
-module CFG_Gen
-
--- | Produce a CFG
---   
---   Given the entry point of the function, generate either a CFG, or a set
---   of new entry points to be analyzed first. The set of new entry points
---   are function entries called by the current function, but for which we
---   do not know yet whether they terminate or not. If a CFG is returned,
---   then all function calls in that CFG have already been analzyed.
-cfg_gen :: Context -> Int -> IO (Either IntSet CFG)
-
--- | Export a CFG to .dot file
---   
---   Strongly connected components get the same color.
-cfg_to_dot :: Context -> CFG -> String
+--   resolving the targets of jumps and calls.
+module ControlFlow
 
 -- | Resolving the operand of a jump/call can produce one of the following.
 data ResolvedJumpTarget
@@ -1464,6 +1482,12 @@ External :: String -> ResolvedJumpTarget
 -- | An internal call to the given address
 ImmediateAddress :: Word64 -> ResolvedJumpTarget
 
+-- | The set of next blocks from the given block
+post :: CFG -> Key -> IntSet
+
+-- | Fetching an instruction list given a block ID
+fetch_block :: CFG -> Int -> [Instr]
+
 -- | Returns true iff an instruction can be fetched from the address.
 address_has_instruction :: Integral a => Context -> a -> Bool
 
@@ -1473,9 +1497,6 @@ address_has_symbol :: Integral a => Context -> a -> Bool
 -- | Returns truee if the adress is external, i.e., has no instruction or
 --   has a symbol.
 address_is_external :: Integral a => Context -> a -> Bool
-
--- | Fetching an instruction list given a block ID
-fetch_block :: CFG -> Int -> [Instr]
 
 -- | many operands can statically be resolved, even though technically they
 --   are indirect (relative to RIP). Examples:
@@ -1489,7 +1510,7 @@ fetch_block :: CFG -> Int -> [Instr]
 operand_static_resolve :: Context -> Instr -> Maybe Operand -> ResolvedJumpTarget
 
 -- | Resolves the first operand of a call or jump instruction. First tries
---   to see if the instruciton is an indirection, that has already been
+--   to see if the instruction is an indirection, that has already been
 --   resolved. If not, try to statically resolve the first operand using
 --   <tt><a>operand_static_resolve</a></tt>. If that resolves to an
 --   external symbol <tt>libc_start_main</tt>, then this call is actually
@@ -1505,6 +1526,15 @@ resolve_jump_target :: Context -> Instr -> [ResolvedJumpTarget]
 --   addresses to which the jump target can jump.
 get_internal_addresses :: ResolvedJumpTarget -> [Int]
 
+-- | Returns true iff the instruction resolves to external targets only.
+instruction_jumps_to_external :: Context -> Instr -> Bool
+
+-- | Shows the block associated to the givern blockID.
+show_block :: CFG -> Int -> String
+
+-- | Shows invariants.
+show_invariants :: CFG -> Invariants -> String
+
 -- | Tries to retrieve a function name with an entry address. If the entry
 --   matches a known symbol, return that. Otherwise, simply return the
 --   entry address itself in hexadecimal notation. However, there is one
@@ -1519,9 +1549,81 @@ function_name_of_entry :: Context -> Int -> String
 --   Returns the empty string if the given instruction is not a call or a
 --   jump.
 function_name_of_instruction :: Context -> Instr -> String
+instance GHC.Show.Show ControlFlow.ResolvedJumpTarget
+instance GHC.Classes.Eq ControlFlow.ResolvedJumpTarget
+instance SCC.IntGraph Context.CFG
 
--- | Returns true iff the instruction resolves to external targets only.
-instruction_jumps_to_external :: Context -> Instr -> Bool
+
+-- | We assume a class where we can do predicate transformation through
+--   function <tt>tau</tt>, and we can merge two predicates through
+--   function <tt>join</tt>. Moreover, we assume an implementation of a
+--   function <tt>implies</tt> that implements symbolic implication.
+module Propagation
+
+-- | A class that allows propagation of predicates over a CFG.
+class (Show pred) => Propagator ctxt pred
+
+-- | Predicate transformation for an edge in in a CFG, over a basic blocks.
+tau :: Propagator ctxt pred => ctxt -> [Instr] -> Maybe [Instr] -> pred -> pred
+
+-- | A lattice-join
+join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
+
+-- | Symbolic implication
+implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
+
+-- | Start propagation at the given entry address with the given initial
+--   predicate. Returns a set of invariants, i.e., a mapping of instruction
+--   addresses to predicates.
+do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IntMap pred
+
+-- | The supremum of a list of predicates
+supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
+
+
+-- | Symbolic execution of sequential lists of instructions of type
+--   <tt><a>Instr</a></tt> on predicates of type <tt><a>Pred</a></tt>.
+module SymbolicExecution
+
+-- | Do predicate transformation over a basic block in a CFG. Given an edge
+--   in the CFG from none block to another, perform predicate
+--   transformation. Parameter insts' is needed to set the flags properly.
+--   If <tt>Nothing</tt> is supplied, the flags are overapproximatively set
+--   to <tt><a>None</a></tt>.
+tau_block :: Context -> [Instr] -> Maybe [Instr] -> Pred -> Pred
+
+-- | The initial predicate. Given the currently known invariants and
+--   postconditions, gather all stateparts occurring in the current
+--   function. The initial predicate assign a variable to each statepart,
+--   e.g.: <tt>RSP == RSP0, RDI == RDI, ...</tt>.
+init_pred :: Invariants -> Set (NodeInfo, Pred) -> FInit -> Pred
+
+-- | Given the currently known invariants and postconditions, gather all
+--   stateparts occurring in the current function.
+gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
+is_initial :: StatePart -> SimpleExpr -> Bool
+invariant_to_finit :: Context -> Pred -> FInit
+weaken_finit :: Context -> FInit -> FInit -> FInit
+instance Propagation.Propagator Context.Context SimplePred.Pred
+
+
+-- | Contains function control flow graph generation.
+module CFG_Gen
+
+-- | Produce a CFG
+--   
+--   Given the entry point of the function, generate either a CFG, and a
+--   possibly empty set of new entry points to be analyzed first. The set
+--   of new entry points are function entries called by the current
+--   function, but for which we do not know yet whether they terminate or
+--   not. If a CFG is returned with empty set, then all function calls in
+--   that CFG have already been analyzed.
+cfg_gen :: Context -> Int -> IO (Set (Instr, Int), CFG)
+
+-- | Export a CFG to .dot file
+--   
+--   Strongly connected components get the same color.
+cfg_to_dot :: Context -> CFG -> String
 
 -- | Returns true if the given blockID is a leaf-node in the given CFG.
 is_end_node :: CFG -> Int -> Bool
@@ -1531,53 +1633,9 @@ is_end_node :: CFG -> Int -> Bool
 --   Assumes the given blockID corresponds to a leaf-node.
 node_info_of :: Context -> CFG -> Int -> NodeInfo
 
--- | Shows invariants.
-show_invariants :: CFG -> Invariants -> String
-instance GHC.Show.Show CFG_Gen.ResolvedJumpTarget
-instance GHC.Classes.Eq CFG_Gen.ResolvedJumpTarget
-
-
--- | Symbolic execution of sequential lists of instructions of type
---   <tt><a>Instr</a></tt> on predicates of type <tt><a>Pred</a></tt>.
-module SymbolicExecution
-
--- | Do predicate transformation over a basic block in a CFG. Given an edge
---   in the CFG from blockId to blockId', perform predicate transformation.
---   Parameter blockId' is needed to set the flags properly. If
---   <tt>Nothing</tt> is supplied, the flags are overapproximatively set to
---   <tt><a>None</a></tt>. We provide the option to skip the last
---   instruction, as sometimes we need to symbolically execute a block up
---   to but excluding the last instruction.
-tau_blockID :: Context -> CFG -> Int -> Maybe Int -> Bool -> Pred -> Pred
-
--- | Do predicate transformation over a block of instructions. Does not
---   take into account flags, commonly function <tt><a>tau_blockID</a></tt>
---   should be used.
-tau_b :: Context -> [Instr] -> State Pred ()
-
--- | The initial predicate. Given the currently known invariants and
---   postconditions, gather all stateparts occurring in the current
---   function. The initial predicate assign a variable to each statepart,
---   e.g.: <tt>RSP == RSP0, RDI == RDI, ...</tt>.
-init_pred :: Invariants -> Set (NodeInfo, Pred) -> Pred
-
--- | Returns true iff the given statepart is preserved (unmodified) after a
---   function call. This happens if the statepart is local, if the address
---   belongs to an unwritable data section, or if the function call is
---   external and the statepart belongs to a section that cannot be
---   modified by external functions according to the <a>Conventions</a>.
-statepart_is_preserved_after_function_call :: Context -> Instr -> StatePart -> Bool
-
--- | Given the currently known invariants and postconditions, gather all
---   stateparts occurring in the current function.
-gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
-
--- | Tries to guess if the symbolic expression is a pointer. Any immediate
---   that falls in the address range of the binary is highly likely a
---   pointer. A value stored in a memory location belonging to an external
---   function symbol is also highly likely a pointer.
-expr_highly_likely_pointer :: Context -> SimpleExpr -> Bool
-instance Propagation.Propagator Context.Context SimplePred.Pred
+-- | Get the invariant for a given instruction address for a given function
+--   entry
+get_invariant :: Context -> Int -> Int -> Maybe Pred
 
 
 -- | After running FoxDec, a "verification report" (an object of type

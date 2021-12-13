@@ -9,11 +9,13 @@
 module Propagation (
   Propagator(..),
   do_prop,
-  post
+  supremum
  ) where
 
 import Base
 import Context
+import X86_Datastructures
+import ControlFlow
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -27,7 +29,7 @@ import Debug.Trace
 -- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
   -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-  tau     :: ctxt -> CFG -> Int -> Maybe Int -> pred -> pred
+  tau     :: ctxt -> [Instr] -> Maybe [Instr] -> pred -> pred
   -- | A lattice-join
   join    :: ctxt -> pred -> pred -> pred
   -- | Symbolic implication
@@ -37,12 +39,6 @@ class (Show pred) => Propagator ctxt pred where
 supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
 supremum ctxt = foldr1 (join ctxt)
 
-
--- | The set of next blocks from the given block
-post g blockId =
-  case IM.lookup blockId (cfg_edges g) of
-    Nothing -> IS.empty
-    Just ns -> ns
 
 -- The set of edges starting in $v$
 out_edges g v = S.fromList $ zip (repeat v) $ IS.toList $ post g v
@@ -74,7 +70,7 @@ prop ctxt g = do
       -- do predicate transformation on the currently available precondition of v0
       let p = im_lookup "v0 must have predicate" m v0
       -- this produces q: the precondition for v1
-      let q = tau ctxt g v0 (Just v1) p
+      let q = tau ctxt (fetch_block g v0) (Just $ fetch_block g v1) p
       -- store q
       add_predicate q v1
       -- continue

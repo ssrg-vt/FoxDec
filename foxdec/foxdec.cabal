@@ -29,6 +29,7 @@ library
       CallGraph
       CFG_Gen
       Context
+      ControlFlow
       Conventions
       DisassembleCapstone
       MachineState
@@ -38,6 +39,7 @@ library
       ParserSections
       ParserSymbols
       ParserX86Instruction
+      Pointers
       Propagation
       SCC
       SimplePred

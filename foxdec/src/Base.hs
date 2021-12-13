@@ -73,7 +73,7 @@ word_to_sint si w =
 -- | Generic graph with ints as vertices. --
 --------------------------------------------
 data Graph = Edges (IM.IntMap IS.IntSet)
-  deriving Generic
+  deriving (Generic,Show)
 
 instance Cereal.Serialize Graph
 
@@ -91,6 +91,9 @@ graph_delete (Edges es) v = Edges $ IM.delete v $ IM.map (IS.delete v) es
 
 -- | is v parent of an edge?
 graph_is_parent (Edges es) v = IM.member v es
+
+-- | is v a vertex in the graph?
+graph_is_vertex (Edges es) v = IM.member v es || any (IS.member v) es
 
 -- | is (v0,v1) an edge?
 graph_is_edge (Edges es) v0 v1  =

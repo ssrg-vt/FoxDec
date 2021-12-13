@@ -1,0 +1,28 @@
+diGraph libnss3{
+	libnss3_0  [style=filled fillcolor="#20FF20" fontcolor="#ffffff" shape=oval label="0 [14c760,14c76e]"]
+	libnss3_1  [style=filled fillcolor="#FFC040" fontcolor="#000000" shape=oval label="1 [14c770,14c77d]"]
+	libnss3_2  [style=filled fillcolor="#C080FF" fontcolor="#ffffff" shape=oval label="2 [14c77f,14c792]"]
+	libnss3_3  [style=filled fillcolor="#00FFC0" fontcolor="#ffffff" shape=oval label="3 [14c794,14c7a2]"]
+	libnss3_4  [style=filled fillcolor="#800080" fontcolor="#ffffff" shape=oval label="4 [14c808,14c80e]"]
+	libnss3_5  [style=filled fillcolor="#FFFFC0" fontcolor="#000000" shape=oval label="5 [14c7a4,14c7ae]"]
+	libnss3_6  [style=filled fillcolor="#004000" fontcolor="#ffffff" shape=oval label="6 [14c7c6,14c7ca]"]
+	libnss3_7  [style=filled fillcolor="#C0C0C0" fontcolor="#000000" shape=oval label="7 [14c7b0,14c7c4]"]
+	libnss3_8  [style=filled fillcolor="#FF40FF" fontcolor="#ffffff" shape=oval label="8 [14c7cc,14c7cc]"]
+	libnss3_9  [style=filled fillcolor="#008000" fontcolor="#ffffff" shape=oval label="9 [14c7d0,14c806]"]
+
+	libnss3_0 -> libnss3_1
+	libnss3_1 -> libnss3_1
+	libnss3_1 -> libnss3_2
+	libnss3_2 -> libnss3_3
+	libnss3_2 -> libnss3_4
+	libnss3_3 -> libnss3_5
+	libnss3_3 -> libnss3_6
+	libnss3_5 -> libnss3_7
+	libnss3_6 -> libnss3_4
+	libnss3_6 -> libnss3_8
+	libnss3_7 -> libnss3_6
+	libnss3_7 -> libnss3_7
+	libnss3_8 -> libnss3_9
+	libnss3_9 -> libnss3_4
+	libnss3_9 -> libnss3_9
+}

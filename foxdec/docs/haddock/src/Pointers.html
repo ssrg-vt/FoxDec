@@ -1,0 +1,391 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, StrictData #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK hide #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Pointers</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="SimplePred.html"><span class="hs-identifier">SimplePred</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Context.html"><span class="hs-identifier">Context</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="X86_Datastructures.html"><span class="hs-identifier">X86_Datastructures</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="ControlFlow.html"><span class="hs-identifier">ControlFlow</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-type">get_pointer_bases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="SimplePred.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="SimplePred.html#PointerBase"><span class="hs-identifier hs-type">PointerBase</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-26"></span><span id="get_pointer_bases"><span class="annot"><span class="annottext">get_pointer_bases :: Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var hs-var">get_pointer_bases</span></a></span></span><span> </span><span id="local-6989586621679191161"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191161"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Bottom"><span class="hs-identifier hs-type">Bottom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#FromNonDeterminism"><span class="hs-identifier hs-type">FromNonDeterminism</span></a></span><span> </span><span id="local-6989586621679191158"><span class="annot"><span class="annottext">Set SimpleExpr
+</span><a href="#local-6989586621679191158"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set BotSrc
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; [PointerBase]) -&gt; [SimpleExpr] -&gt; [PointerBase]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191161"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([SimpleExpr] -&gt; [PointerBase]) -&gt; [SimpleExpr] -&gt; [PointerBase]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Set SimpleExpr -&gt; [SimpleExpr]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">S.toList</span></span><span> </span><span class="annot"><span class="annottext">Set SimpleExpr
+</span><a href="#local-6989586621679191158"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span id="local-6989586621679191155"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191155"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Op"><span class="hs-identifier hs-type">SE_Op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Plus"><span class="hs-identifier hs-type">Plus</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679191152"><span class="annot"><span class="annottext">[SimpleExpr]
+</span><a href="#local-6989586621679191152"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; [PointerBase]) -&gt; [SimpleExpr] -&gt; [PointerBase]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191155"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[SimpleExpr]
+</span><a href="#local-6989586621679191152"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span id="local-6989586621679191151"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191151"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Op"><span class="hs-identifier hs-type">SE_Op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Minus"><span class="hs-identifier hs-type">Minus</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679191149"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191149"><span class="hs-identifier hs-var">e</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679191148"><span class="annot"><span class="annottext">[SimpleExpr]
+</span><a href="#local-6989586621679191148"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191151"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191149"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span id="local-6989586621679191147"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191147"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191146"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191146"><span class="hs-identifier hs-var">e</span></a></span></span><span>                                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; [PointerBase]
+</span><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191146"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-30"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679191145"><span class="annot"><span class="annottext">get_pointer_base :: SimpleExpr -&gt; [PointerBase]
+</span><a href="#local-6989586621679191145"><span class="hs-identifier hs-var hs-var">get_pointer_base</span></a></span></span><span> </span><span id="local-6989586621679191144"><span class="annot"><span class="annottext">e :: SimpleExpr
+</span><a href="#local-6989586621679191144"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Immediate"><span class="hs-identifier hs-type">SE_Immediate</span></a></span><span> </span><span id="local-6989586621679191142"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191142"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>                      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Context -&gt; Word64 -&gt; Bool
+forall a. Integral a =&gt; Context -&gt; a -&gt; Bool
+</span><a href="ControlFlow.html#address_has_symbol"><span class="hs-identifier hs-var">address_has_symbol</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191147"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191142"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; Int -&gt; Maybe (String, String, Int, Int)
+</span><a href="Context.html#find_section_for_address"><span class="hs-identifier hs-var">find_section_for_address</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191147"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191142"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (String, String, Int, Int)
+-&gt; Maybe (String, String, Int, Int) -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Maybe (String, String, Int, Int)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64 -&gt; PointerBase
+</span><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-var">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191142"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SimpleExpr -&gt; PointerBase
+</span><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191144"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span> </span><span id="local-6989586621679191135"><span class="annot"><span class="annottext">e :: SimpleExpr
+</span><a href="#local-6989586621679191135"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Var"><span class="hs-identifier hs-type">SE_Var</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SP_Mem"><span class="hs-identifier hs-type">SP_Mem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Immediate"><span class="hs-identifier hs-type">SE_Immediate</span></a></span><span> </span><span id="local-6989586621679191132"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191132"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap String -&gt; Maybe String
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679191132"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; IntMap String
+</span><a href="Context.html#ctxt_syms"><span class="hs-identifier hs-var hs-var">ctxt_syms</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191147"><span class="hs-identifier hs-var">ctxt</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-33"></span><span>                                                               </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SimpleExpr -&gt; PointerBase
+</span><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191135"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>                                                               </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679191129"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191129"><span class="hs-identifier hs-var">sym</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; PointerBase
+</span><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-var">PointerToSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191129"><span class="hs-identifier hs-var">sym</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Var"><span class="hs-identifier hs-type">SE_Var</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SP_Reg"><span class="hs-identifier hs-type">SP_Reg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#SE_Malloc"><span class="hs-identifier hs-type">SE_Malloc</span></a></span><span> </span><span id="local-6989586621679191123"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191123"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621679191122"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191122"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">)</span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe Int -&gt; Maybe String -&gt; PointerBase
+</span><a href="SimplePred.html#Malloc"><span class="hs-identifier hs-var">Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191123"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191122"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Bottom"><span class="hs-identifier hs-type">Bottom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#FromAbstraction"><span class="hs-identifier hs-type">FromAbstraction</span></a></span><span> </span><span id="local-6989586621679191119"><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191119"><span class="hs-identifier hs-var">bases</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set BotSrc
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set PointerBase -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">S.null</span></span><span> </span><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191119"><span class="hs-identifier hs-var">bases</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SimpleExpr -&gt; PointerBase
+</span><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191146"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Set PointerBase -&gt; [PointerBase]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">S.toList</span></span><span> </span><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191119"><span class="hs-identifier hs-var">bases</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="#local-6989586621679191145"><span class="hs-identifier hs-var">get_pointer_base</span></a></span><span>   </span><span id="local-6989586621679191117"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191117"><span class="hs-identifier hs-var">e</span></a></span></span><span>                                     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SimpleExpr -&gt; PointerBase
+</span><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191117"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="is_unknown_ptr_base"><span class="annot"><span class="annottext">is_unknown_ptr_base :: PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_unknown_ptr_base"><span class="hs-identifier hs-var hs-var">is_unknown_ptr_base</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Pointers.html#is_unknown_ptr_base"><span class="hs-identifier hs-var">is_unknown_ptr_base</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span id="is_global_ptr_base"><span class="annot"><span class="annottext">is_global_ptr_base :: PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_global_ptr_base"><span class="hs-identifier hs-var hs-var">is_global_ptr_base</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Pointers.html#is_global_ptr_base"><span class="hs-identifier hs-var">is_global_ptr_base</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><span class="hs-identifier">_</span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="get_known_pointer_bases"><span class="annot"><span class="annottext">get_known_pointer_bases :: Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_known_pointer_bases"><span class="hs-identifier hs-var hs-var">get_known_pointer_bases</span></a></span></span><span> </span><span id="local-6989586621679191113"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191113"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191112"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191112"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PointerBase -&gt; Bool) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (PointerBase -&gt; Bool) -&gt; PointerBase -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_unknown_ptr_base"><span class="hs-identifier hs-var">is_unknown_ptr_base</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([PointerBase] -&gt; [PointerBase]) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191113"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191112"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span id="expr_highly_likely_pointer"><span class="annot"><span class="annottext">expr_highly_likely_pointer :: Context -&gt; SimpleExpr -&gt; Bool
+</span><a href="Pointers.html#expr_highly_likely_pointer"><span class="hs-identifier hs-var hs-var">expr_highly_likely_pointer</span></a></span></span><span> </span><span id="local-6989586621679191108"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191108"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191107"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191107"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_known_pointer_bases"><span class="hs-identifier hs-var">get_known_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191108"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191107"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase] -&gt; [PointerBase] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span id="get_global_pointer_bases"><span class="annot"><span class="annottext">get_global_pointer_bases :: Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_global_pointer_bases"><span class="hs-identifier hs-var hs-var">get_global_pointer_bases</span></a></span></span><span> </span><span id="local-6989586621679191105"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191105"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191104"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191104"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PointerBase -&gt; Bool) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_global_ptr_base"><span class="hs-identifier hs-var">is_global_ptr_base</span></a></span><span> </span><span class="annot"><span class="annottext">([PointerBase] -&gt; [PointerBase]) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191105"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191104"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="expr_is_global_pointer"><span class="annot"><span class="annottext">expr_is_global_pointer :: Context -&gt; SimpleExpr -&gt; Bool
+</span><a href="Pointers.html#expr_is_global_pointer"><span class="hs-identifier hs-var hs-var">expr_is_global_pointer</span></a></span></span><span> </span><span id="local-6989586621679191102"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191102"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191101"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191101"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_global_pointer_bases"><span class="hs-identifier hs-var">get_global_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191102"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191101"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase] -&gt; [PointerBase] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span id="expr_is_local_pointer"><span class="annot"><span class="annottext">expr_is_local_pointer :: Context -&gt; SimpleExpr -&gt; Bool
+</span><a href="Pointers.html#expr_is_local_pointer"><span class="hs-identifier hs-var hs-var">expr_is_local_pointer</span></a></span></span><span> </span><span id="local-6989586621679191099"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191099"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191098"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191098"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191099"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191098"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase] -&gt; [PointerBase] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span id="pointer_bases_separate"><span class="annot"><span class="annottext">pointer_bases_separate :: PointerBase -&gt; PointerBase -&gt; Bool
+</span><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var hs-var">pointer_bases_separate</span></a></span></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>           </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>           </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>           </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="annot"><span class="annottext">PointerBase
+</span><a href="SimplePred.html#StackPointer"><span class="hs-identifier hs-var">StackPointer</span></a></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#GlobalAddress"><span class="hs-identifier hs-type">GlobalAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span id="local-6989586621679191096"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191096"><span class="hs-identifier hs-var">sym0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#PointerToSymbol"><span class="hs-identifier hs-type">PointerToSymbol</span></a></span><span> </span><span id="local-6989586621679191095"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191095"><span class="hs-identifier hs-var">sym1</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191096"><span class="hs-identifier hs-var">sym0</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679191095"><span class="hs-identifier hs-var">sym1</span></a></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Malloc"><span class="hs-identifier hs-type">Malloc</span></a></span><span> </span><span id="local-6989586621679191094"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191094"><span class="hs-identifier hs-var">id0</span></a></span></span><span> </span><span id="local-6989586621679191093"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191093"><span class="hs-identifier hs-var">hash0</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Malloc"><span class="hs-identifier hs-type">Malloc</span></a></span><span> </span><span id="local-6989586621679191092"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191092"><span class="hs-identifier hs-var">id1</span></a></span></span><span> </span><span id="local-6989586621679191091"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191091"><span class="hs-identifier hs-var">hash1</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; [Maybe Int] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`notElem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191094"><span class="hs-identifier hs-var">id0</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191092"><span class="hs-identifier hs-var">id1</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Maybe String
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe String -&gt; [Maybe String] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`notElem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191093"><span class="hs-identifier hs-var">hash0</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191091"><span class="hs-identifier hs-var">hash1</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191094"><span class="hs-identifier hs-var">id0</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191093"><span class="hs-identifier hs-var">hash0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Int, Maybe String) -&gt; (Maybe Int, Maybe String) -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679191092"><span class="hs-identifier hs-var">id1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679191091"><span class="hs-identifier hs-var">hash1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Malloc"><span class="hs-identifier hs-type">Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>           </span><span class="annot"><span class="annottext">PointerBase
+</span><span class="hs-identifier">_</span></span><span>                       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><span class="hs-identifier">_</span></span><span>                      </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Malloc"><span class="hs-identifier hs-type">Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span id="pointers_have_separate_bases"><span class="annot"><span class="annottext">pointers_have_separate_bases :: Context -&gt; SimpleExpr -&gt; SimpleExpr -&gt; Bool
+</span><a href="Pointers.html#pointers_have_separate_bases"><span class="hs-identifier hs-var hs-var">pointers_have_separate_bases</span></a></span></span><span> </span><span id="local-6989586621679191087"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191087"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191086"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191086"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679191085"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191085"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679191084"><span class="annot"><span class="annottext">bs0 :: [PointerBase]
+</span><a href="#local-6989586621679191084"><span class="hs-identifier hs-var hs-var">bs0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PointerBase -&gt; Bool) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (PointerBase -&gt; Bool) -&gt; PointerBase -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_unknown_ptr_base"><span class="hs-identifier hs-var">is_unknown_ptr_base</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([PointerBase] -&gt; [PointerBase]) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191087"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191086"><span class="hs-identifier hs-var">a0</span></a></span><span>
+</span><span id="line-74"></span><span>      </span><span id="local-6989586621679191083"><span class="annot"><span class="annottext">bs1 :: [PointerBase]
+</span><a href="#local-6989586621679191083"><span class="hs-identifier hs-var hs-var">bs1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PointerBase -&gt; Bool) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (PointerBase -&gt; Bool) -&gt; PointerBase -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; Bool
+</span><a href="Pointers.html#is_unknown_ptr_base"><span class="hs-identifier hs-var">is_unknown_ptr_base</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([PointerBase] -&gt; [PointerBase]) -&gt; [PointerBase] -&gt; [PointerBase]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191087"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191085"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="annottext">[PointerBase]
+</span><a href="#local-6989586621679191084"><span class="hs-identifier hs-var">bs0</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase] -&gt; [PointerBase] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[PointerBase]
+</span><a href="#local-6989586621679191083"><span class="hs-identifier hs-var">bs1</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase] -&gt; [PointerBase] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">((PointerBase, PointerBase) -&gt; Bool)
+-&gt; [(PointerBase, PointerBase)] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(PointerBase -&gt; PointerBase -&gt; Bool)
+-&gt; (PointerBase, PointerBase) -&gt; Bool
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; PointerBase -&gt; Bool
+</span><a href="Pointers.html#pointer_bases_separate"><span class="hs-identifier hs-var">pointer_bases_separate</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">PointerBase
+</span><a href="#local-6989586621679191080"><span class="hs-identifier hs-var">b0</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">PointerBase
+</span><a href="#local-6989586621679191079"><span class="hs-identifier hs-var">b1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679191080"><span class="annot"><span class="annottext">PointerBase
+</span><a href="#local-6989586621679191080"><span class="hs-identifier hs-var">b0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[PointerBase]
+</span><a href="#local-6989586621679191084"><span class="hs-identifier hs-var">bs0</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679191079"><span class="annot"><span class="annottext">PointerBase
+</span><a href="#local-6989586621679191079"><span class="hs-identifier hs-var">b1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[PointerBase]
+</span><a href="#local-6989586621679191083"><span class="hs-identifier hs-var">bs1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span id="invalid_bottom_pointer"><span class="annot"><span class="annottext">invalid_bottom_pointer :: Context -&gt; SimpleExpr -&gt; Bool
+</span><a href="Pointers.html#invalid_bottom_pointer"><span class="hs-identifier hs-var hs-var">invalid_bottom_pointer</span></a></span></span><span> </span><span id="local-6989586621679191077"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191077"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679191076"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191076"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679191075"><span class="annot"><span class="annottext">bases :: [PointerBase]
+</span><a href="#local-6989586621679191075"><span class="hs-identifier hs-var hs-var">bases</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; SimpleExpr -&gt; [PointerBase]
+</span><a href="Pointers.html#get_pointer_bases"><span class="hs-identifier hs-var">get_pointer_bases</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679191077"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191076"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">(PointerBase -&gt; Bool) -&gt; [PointerBase] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">PointerBase -&gt; Bool
+</span><a href="#local-6989586621679191074"><span class="hs-identifier hs-var">is_invalid_ptr_base</span></a></span><span> </span><span class="annot"><span class="annottext">[PointerBase]
+</span><a href="#local-6989586621679191075"><span class="hs-identifier hs-var">bases</span></a></span><span>
+</span><span id="line-81"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>  </span><span id="local-6989586621679191074"><span class="annot"><span class="annottext">is_invalid_ptr_base :: PointerBase -&gt; Bool
+</span><a href="#local-6989586621679191074"><span class="hs-identifier hs-var hs-var">is_invalid_ptr_base</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span> </span><span id="local-6989586621679191073"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191073"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; Bool
+</span><a href="SimplePred.html#contains_bot"><span class="hs-identifier hs-var">contains_bot</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191073"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(BotTyp -&gt; Set BotSrc -&gt; Bool) -&gt; SimpleExpr -&gt; Bool
+</span><a href="SimplePred.html#all_bot_satisfy"><span class="hs-identifier hs-var">all_bot_satisfy</span></a></span><span> </span><span class="annot"><span class="annottext">BotTyp -&gt; Set BotSrc -&gt; Bool
+forall p. BotTyp -&gt; p -&gt; Bool
+</span><a href="#local-6989586621679191070"><span class="hs-identifier hs-var">invalid_bottom_base_for_pointer</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679191073"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="#local-6989586621679191074"><span class="hs-identifier hs-var">is_invalid_ptr_base</span></a></span><span> </span><span class="annot"><span class="annottext">PointerBase
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621679191070"><span class="annot"><span class="annottext">invalid_bottom_base_for_pointer :: BotTyp -&gt; p -&gt; Bool
+</span><a href="#local-6989586621679191070"><span class="hs-identifier hs-var hs-var">invalid_bottom_base_for_pointer</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#FromAbstraction"><span class="hs-identifier hs-type">FromAbstraction</span></a></span><span> </span><span id="local-6989586621679191069"><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191069"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679191068"><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679191068"><span class="hs-identifier hs-var">srcs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set PointerBase -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">S.null</span></span><span> </span><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191069"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-comment">--  typ `elem` [FromOverlap,FromSemantics,FromUninitializedMemory] || is_empty_FromAbstraction typ</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="#local-6989586621679191070"><span class="hs-identifier hs-var">invalid_bottom_base_for_pointer</span></a></span><span> </span><span class="annot"><span class="annottext">BotTyp
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span>                       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span id="is_empty_FromAbstraction"><span class="annot"><span class="annottext">is_empty_FromAbstraction :: BotTyp -&gt; Bool
+</span><a href="Pointers.html#is_empty_FromAbstraction"><span class="hs-identifier hs-var hs-var">is_empty_FromAbstraction</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="SimplePred.html#FromAbstraction"><span class="hs-identifier hs-type">FromAbstraction</span></a></span><span> </span><span id="local-6989586621679191066"><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191066"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set PointerBase -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">S.null</span></span><span> </span><span class="annot"><span class="annottext">Set PointerBase
+</span><a href="#local-6989586621679191066"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="Pointers.html#is_empty_FromAbstraction"><span class="hs-identifier hs-var">is_empty_FromAbstraction</span></a></span><span> </span><span class="annot"><span class="annottext">BotTyp
+</span><span class="hs-identifier">_</span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span></pre></body></html>

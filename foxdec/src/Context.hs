@@ -43,7 +43,8 @@ data CFG = CFG {
   cfg_fresh :: Int,                     -- ^ A fresh blockID
   cfg_instrs :: IM.IntMap [Instr]       -- ^ A mapping of blockIDs to lists of disassembled instructions.
  }
- deriving (Show,Generic)
+ deriving (Show,Generic,Eq)
+
 
 -- | Per instruction address, a set of jump targets.
 type Indirections = IM.IntMap IS.IntSet
@@ -56,15 +57,12 @@ data VerificationResult =
      VerificationSuccess              -- ^ Function was succesfully verified
   | VerificationSuccesWithAssertions  -- ^ Function was succesfully verified, but required assertions
   | VerificationUnresolvedIndirection -- ^ Function contains an unresolved indirection
-  | VerificationError                 -- ^ There was some verification error, e.g., return adresss overwrite
+  | VerificationError String          -- ^ There was some verification error, e.g., return adresss overwrite
   | Unverified                        -- ^ The function has not been verified.
   deriving (Show, Eq, Generic)
 
 -- | Invariants: a mapping of blockIDs to predicates
 type Invariants = IM.IntMap Pred
-
-
-
 
 -- | For each leaf-node in a CFG we store the following info.
 data NodeInfo = 
@@ -73,16 +71,29 @@ data NodeInfo =
   | Terminal              -- ^ The basic blocks ends with, e.g., a call to exit()
  deriving (Show,Generic,Eq,Ord)
 
+-- | Postconditions: for each final block the @NodeInfo@ and the final predicate after execution of the block
+type Postconditions = S.Set (NodeInfo,Pred)
+
+
+
 
 -- | Per function, we report on:
 data Report = Report {
-   report_cfg     :: CFG,                        -- ^ The control flow graph
-   report_invs    :: Invariants,                 -- ^ The invariants
-   report_posts   :: S.Set (NodeInfo,Pred),      -- ^ The postcondition(s)
    report_result  :: VerificationResult,         -- ^ The verification result
    report_vcs     :: S.Set VerificationCondition -- ^ The verification conditions
  }
  deriving Generic
+
+-- | A function initialisation consists of a mapping of stateparts to expressions.
+type FInit = M.Map StatePart SimpleExpr
+
+-- | A function call 
+data FReturnBehavior = 
+    Terminating              -- ^ The function does never return
+  | ReturningWith Pred       -- ^ The function returns withg the symbolic changes stored in the predicate
+  | UnknownRetBehavior       -- ^  It is unknown whether the function returns or not
+ deriving (Show,Generic,Eq,Ord)
+
 
 -----------------------------------------------------------------------------
 -- |
@@ -93,16 +104,21 @@ data Report = Report {
 -- __D__: Information __D__ynamically updated during verification
 -------------------------------------------------------------------------------
 data Context = Context {
-   ctxt_dump          :: IM.IntMap Word8,   -- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)
-   ctxt_syms          :: IM.IntMap String,  -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
-   ctxt_calls         :: IM.IntMap Bool,    -- ^ __D__: the currently known and verified entry addresses of functions (true iff always terminating, i.e., non-returning)
-   ctxt_entries       :: Graph,             -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
-   ctxt_sections      :: SectionsInfo,      -- ^ __S__: information on segments/section
-   ctxt_dirname       :: String,            -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
-   ctxt_name          :: String,            -- ^ __S__: the name of the binary
-   ctxt_generate_pdfs :: Bool,              -- ^ __S__: do we call graphviz to generate PDFs from .dot files?
-   ctxt_inds          :: Indirections,      -- ^ __D__: the currently known indirections
-   ctxt_report        :: IM.IntMap Report   -- ^ __D__: a mapping from function entries to reports storing verification results
+   ctxt_dump          :: IM.IntMap Word8,              -- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)
+   ctxt_syms          :: IM.IntMap String,             -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
+   ctxt_sections      :: SectionsInfo,                 -- ^ __S__: information on segments/section
+   ctxt_dirname       :: String,                       -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
+   ctxt_name          :: String,                       -- ^ __S__: the name of the binary
+   ctxt_generate_pdfs :: Bool,                         -- ^ __S__: do we call graphviz to generate PDFs from .dot files?
+
+   ctxt_entries       :: Graph,                        -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
+   ctxt_cfgs          :: IM.IntMap CFG,                -- ^ __D__: the currently known control flow graphs per function entry
+   ctxt_calls         :: IM.IntMap FReturnBehavior,    -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
+   ctxt_invs          :: IM.IntMap Invariants,         -- ^ __D__: the currently known invariants
+   ctxt_posts         :: IM.IntMap Postconditions,     -- ^ __D__: the currently known postconditions
+   ctxt_inds          :: Indirections,                 -- ^ __D__: the currently known indirections
+   ctxt_finits        :: IM.IntMap FInit,              -- ^ __D__: the currently known function initialisations
+   ctxt_report        :: IM.IntMap Report              -- ^ __D__: a mapping from function entries to reports storing verification results
  }
  deriving Generic
 
@@ -111,6 +127,7 @@ instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize CFG
 instance Cereal.Serialize Report
+instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize Context
 
 
@@ -147,6 +164,9 @@ find_section_for_address ctxt a = find (address_in_section a) (ctxt_sections ctx
 
 
 
+
+
+
 -- | Fetching an instruction
 --
 -- Returns @Nothing@ if the given address is out-of-range.
@@ -177,4 +197,6 @@ pp_instruction ctxt i =
     show i
 
 
+-- | Show function initialisation
+show_finit finit = intercalate ", " $ map (\(sp,e) -> show sp ++ " == " ++ show e) $ M.toList finit
 

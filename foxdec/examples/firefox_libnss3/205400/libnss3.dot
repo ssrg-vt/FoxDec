@@ -1,0 +1,38 @@
+diGraph libnss3{
+	libnss3_0  [style=filled fillcolor="#20FF20" fontcolor="#ffffff" shape=oval label="0 [205400,205411]"]
+	libnss3_1  [style=filled fillcolor="#C00080" fontcolor="#ffffff" shape=oval label="1 [205413,205416]"]
+	libnss3_2  [style=filled fillcolor="#40C080" fontcolor="#ffffff" shape=oval label="2 [205488,2054a1]"]
+	libnss3_3  [style=filled fillcolor="#FF00C0" fontcolor="#ffffff" shape=oval label="3 [20541c,205426]"]
+	libnss3_4  [style=filled fillcolor="#80FFFF" fontcolor="#000000" shape=oval label="4 [205529,205536]"]
+	libnss3_5  [style=filled fillcolor="#C0C0C0" fontcolor="#000000" shape=oval label="5 [20542c,20545b]"]
+	libnss3_6  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="6 [2054b2,2054b9]"]
+	libnss3_7  [style=filled fillcolor="#FF4000" fontcolor="#ffffff" shape=oval label="7 [20545d,205486]"]
+	libnss3_8  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="8 [2054a6,2054ad]"]
+	libnss3_9  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="9 [2054bb,2054bd]"]
+	libnss3_a  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="10 [20550e,205527]"]
+	libnss3_b  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="11 [2054bf,2054c5]"]
+	libnss3_c  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="12 [2054c7,2054f2]"]
+	libnss3_d  [style=filled fillcolor="#400040" fontcolor="#ffffff" shape=oval label="13 [2054f4,20550c]"]
+
+	libnss3_0 -> libnss3_1
+	libnss3_0 -> libnss3_2
+	libnss3_1 -> libnss3_3
+	libnss3_1 -> libnss3_4
+	libnss3_2 -> libnss3_1
+	libnss3_3 -> libnss3_5
+	libnss3_3 -> libnss3_6
+	libnss3_5 -> libnss3_7
+	libnss3_5 -> libnss3_8
+	libnss3_6 -> libnss3_9
+	libnss3_6 -> libnss3_a
+	libnss3_7 -> libnss3_8
+	libnss3_8 -> libnss3_6
+	libnss3_9 -> libnss3_4
+	libnss3_9 -> libnss3_b
+	libnss3_a -> libnss3_9
+	libnss3_b -> libnss3_6
+	libnss3_b -> libnss3_c
+	libnss3_c -> libnss3_8
+	libnss3_c -> libnss3_d
+	libnss3_d -> libnss3_8
+}
