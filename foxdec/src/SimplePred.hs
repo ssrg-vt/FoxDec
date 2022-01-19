@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
 
 
 -------------------------------------------------------------------------
@@ -13,30 +13,25 @@ module SimplePred (
   StatePart (..),
   SimpleExpr (..),
   FlagStatus (..),
-  VerificationCondition(..),
   StateMuddleStatus (..),
   BotTyp (..),
   BotSrc (..),
   Operator (..),
-  AddrType (..),
   PointerBase(..),
-  regs_of,
-  srcs_of_expr,
-  srcs_of_exprs,
+  is_immediate,
+  is_mem_sp,
+  is_reg_sp,
   contains_bot,
   contains_bot_sp,
-  contains_var,
-  contains_var_sp,
-  add_assertion,
-  add_precondition,
-  add_function_constraint,
-  is_precondition,
-  is_assertion,
-  is_func_constraint,
   all_bot_satisfy,
   simp,
+  rock_bottom,
   trim_expr,
-  count_instructions_with_assertions
+  pp_expr,
+  pp_pred,
+  unfold_non_determinism,
+  expr_size,
+  max_expr_size
  )
  where
 
@@ -55,49 +50,52 @@ import Data.Bits (testBit, (.|.), (.&.))
 import qualified Data.Serialize as Cereal hiding (get,put)
 
 
-data PointerBase = StackPointer | Malloc (Maybe Int) (Maybe String) | GlobalAddress Word64 | PointerToSymbol String | Unknown SimpleExpr
-  deriving (Generic,Eq,Ord,Show)
+-- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
+data PointerBase = 
+    StackPointer                      -- ^ The stackpointer, for /local/ variables
+  | Malloc (Maybe Int) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
+  | GlobalAddress Word64              -- ^ A /global/ address in the range of the sections of the binary.
+  | PointerToSymbol Word64 String     -- ^ An address with an associated symbol.
+  | Unknown SimpleExpr                -- ^ n expresion without identifiable pointerbase,
+  deriving (Generic,Eq,Ord)
+
+
 
 -- | Bot represents an unknown (bottom) value.
 -- We annotate each occurence of Bot with a BotTyp.
 -- This type indicates where the bottom value originates from.
--- We don't use this, i.e., all bottoms are created equal.
--- The only bottom that has semantics meaning is the last one, non-determinstically picking a value from a set.
+-- The latter  six are all equal, we just use them for debugging and information.
+-- They indicate that the  value is unknown, but was computed using the set of sources.
 data BotTyp = 
-    FromAbstraction (S.Set PointerBase)     -- ^ Abstraction joined two terms to Bottom
-  | FromOverlap                             -- ^ A read from two possibly overlapping regions
-  | FromMemWrite                            -- ^ A write to two possibly overlapping regions 
-  | FromCall                                -- ^ A function call was executed, setting stateparts to bottom
-  | FromSemantics                           -- ^ An instruction with unknown semantics
-  | FromUninitializedMemory                 -- ^ Reading from memory not written to yet
-  | FromBitMode                             -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
-  | FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
+    FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
+  | FromPointerBases (S.Set PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
+  | FromCall String                         -- ^ Return value of a function call
+
+  | FromSources (S.Set BotSrc)              -- ^ The expression is some computation based on sources.
+  | FromOverlap (S.Set BotSrc)              -- ^ A read from two possibly overlapping regions
+  | FromMemWrite (S.Set BotSrc)             -- ^ A write to two possibly overlapping regions 
+  | FromSemantics (S.Set BotSrc)            -- ^ An instruction with unknown semantics
+  | FromBitMode (S.Set BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
+  | FromUninitializedMemory (S.Set BotSrc)  -- ^ Reading from memory not written to yet
  deriving (Eq, Ord, Generic)
 
 
--- | Bot represents an unknown (bottom) value.
--- We annotate each occurence of Bot with a BotSrc.
--- This indicates the sources that are used to compute the bottom value.
--- For example, the symbolic expressions @RDI0@ and @RSI0@ are joined to a Bottom value with sources @{RDI0,RSI0}@.
--- We don't use this, i.e., all bottoms are created equal.
--- It is, however, very convenient for debugging.
-data BotSrc = Src_SP StatePart | Src_Function String
+-- | Sources that may be used to compute an expression. That is, the inputs to an expression.
+data BotSrc = 
+    Src_Var StatePart                       -- An initial variable, i.e., a constant
+  | Src_Malloc (Maybe Int) (Maybe String)   -- A malloced address
+  | Src_Function String                     -- A function return value
  deriving (Eq, Ord, Generic)
 
 
--- | A symbolic expression that is used as a pointer, can be matched to one (or more) of the following types.
--- This happens in over-approximative fashion, i.e., if we don't know we just guess all of these.
--- However, an expression such as @RSP0 - 16@ is guessed to be @Local@, an immediate address within the data sections is guessed to be @Global@.
--- The @Local@ and @Global@ address spaces are assumed to be separate.
-data AddrType = Heap | Global | Local
- deriving (Eq, Ord, Generic)
+
 
 -- | An operator is a pure operation over bit-vectors, annotated with the bit-size of its operands.
 -- For example, @Plus 64@ denotes 64-bit addition.
 -- @Udiv@ and @Times@ are operators op type @w -> w -> w@ with all words same length.
 -- @Div@ and @Div_Rem@ are operators of type @w -> w -> w -> w@ performing concatenation of the first two words and then doing division/remainder.
 data Operator = 
-    Plus Int | Minus Int | Times Int | And Int | Or Int | Xor Int | Not Int | SetXX | Bsr Int 
+    Minus Int | Plus Int | Times Int | And Int | Or Int | Xor Int | Not Int | SetXX | Bsr Int 
   | Div_Rem Int | Div Int | Shl Int | Shr Int | Sar Int | Udiv Int | Ror Int | Rol Int
   | Bswap Int | Pextr Int
  deriving (Eq, Ord, Generic)
@@ -123,19 +121,19 @@ instance Show Operator where
   show (Bswap   b) = "bswap"   ++ show b
   show (Pextr   b) = "pextr"   ++ show b
 
--- | A symbolic expression with as leafs either immediates, variables, or stateparts.
--- A variable is a constant represneting some initial value, e.g., RDI0.
--- A statepart evaluates to its current value, e.g., RDI.
+-- | A symbolic expression with as leafs either immediates, variables, live values of stateparts, or malloced addresses.
+-- A variable is a constant representing some initial value, e.g., RDI_0, or [RSP_0,8]_0.
+-- A statepart evaluates to its current value, e.g., RDI or [RSP,8].
 data SimpleExpr =
-    Bottom       BotTyp (S.Set BotSrc)      -- ^ Bottom (unknown value)
-  | SE_Malloc    (Maybe Int) (Maybe String) -- ^ A malloc return value with possibly an ID
+    SE_Immediate Word64                     -- ^ An immediate word
   | SE_Var       StatePart                  -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
-  | SE_Immediate Word64                     -- ^ An immediate word
   | SE_StatePart StatePart                  -- ^ The value stored currently in the statepart
+  | SE_Malloc    (Maybe Int) (Maybe String) -- ^ A malloc return value with possibly an ID
   | SE_Op        Operator [SimpleExpr]      -- ^ Application of an @`Operator`@ to the list of arguments
   | SE_Bit       Int SimpleExpr             -- ^ Taking the lower bits of a value
   | SE_SExtend   Int Int SimpleExpr         -- ^ Sign extension
   | SE_Overwrite Int SimpleExpr SimpleExpr  -- ^ Overwriting certain bits of a value with bits from another value
+  | Bottom       BotTyp                     -- ^ Bottom (unknown value)
  deriving (Eq, Ord, Generic)
 
 -- | A statepart is either a register or a region in memory
@@ -144,72 +142,68 @@ data StatePart =
   | SP_Mem SimpleExpr Int    -- ^ A region with a symbolic address and an immediate size.
  deriving (Eq, Ord, Generic)
 
-instance Show BotTyp where
- show (FromAbstraction bs)    = "a|" ++ intercalate "," (map show $ S.toList bs) ++ "|"
- show FromBitMode             = "b"
- show FromOverlap             = "o"
- show FromCall                = "c"
- show FromSemantics           = "s"
- show FromUninitializedMemory = "m"
- show FromMemWrite            = "w"
- show (FromNonDeterminism es) = "nd|" ++ intercalate "," (map show $ S.toList es) ++ "|"
-
-instance Show AddrType where
- show Heap   = "h"
- show Global = "g"
- show Local  = "l"
 
 instance Show BotSrc where
-  show (Src_SP sp) = show sp
-  show (Src_Function f) = f
+  show (Src_Var sp)      = show $ SE_Var sp
+  show (Src_Malloc id h) = show $ SE_Malloc id h
+  show (Src_Function f)  = f
+
+show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList srcs) ++ "|"
+
+show_bottyp show_srcs (FromNonDeterminism es)        = "nd|" ++ intercalate "," (map show $ S.toList es) ++ "|"
+show_bottyp show_srcs (FromPointerBases bs)          = "pbs|" ++ intercalate "," (map show $ S.toList bs) ++ "|"
+show_bottyp show_srcs (FromSources srcs)             = "src" ++ show_srcs srcs
+show_bottyp show_srcs (FromBitMode srcs)             = "b" ++ show_srcs srcs
+show_bottyp show_srcs (FromOverlap srcs)             = "o" ++ show_srcs srcs
+show_bottyp show_srcs (FromSemantics srcs)           = "s" ++ show_srcs srcs
+show_bottyp show_srcs (FromMemWrite srcs)            = "w" ++ show_srcs srcs
+show_bottyp show_srcs (FromUninitializedMemory srcs) = "m" ++ show_srcs srcs
+show_bottyp show_srcs (FromCall f)                   = "c|" ++ f ++ "|"
+
+instance Show BotTyp where
+  show = show_bottyp show_srcs
+
+show_expr show_srcs (Bottom typ)              = "Bot[" ++ show_bottyp show_srcs typ ++ "]"
+show_expr show_srcs (SE_Malloc Nothing _)     = "malloc()" 
+show_expr show_srcs (SE_Malloc (Just id) _)   = "malloc@" ++ showHex id ++ "()" 
+show_expr show_srcs (SE_Var sp)               = show sp ++ "_0"
+show_expr show_srcs (SE_Immediate i)          = if i > 2000 then "0x" ++ showHex i else show i
+show_expr show_srcs (SE_StatePart sp)         = show sp
+show_expr show_srcs (SE_Op (Plus  _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " + "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Minus _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " - "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Times _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " * "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (And   _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " & "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Or    _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " | "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Xor   _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " xor " ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op op es)             = show op ++ "(" ++ intercalate "," (map (show_expr show_srcs) es) ++ ")"
+show_expr show_srcs (SE_Bit i a)              = "b" ++ show i ++ "(" ++ show_expr show_srcs a ++ ")"
+show_expr show_srcs (SE_SExtend l h a)        = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ show_expr show_srcs a ++ ")"
+show_expr show_srcs (SE_Overwrite i a b)      = "overwrite(" ++ show i ++ "," ++ show_expr show_srcs a ++ "," ++ show_expr show_srcs b ++ ")"
+
 
 instance Show SimpleExpr where
-  show (Bottom (typ@(FromAbstraction _)) _) = "Bot[" ++ show typ ++ "]"
-  show (Bottom (typ@(FromNonDeterminism _)) _) = "Bot[" ++ show typ ++ "]"
-  show (Bottom typ srcs)         = "Bot[" ++ show typ ++ ";" ++ intercalate "," (map show $ S.toList srcs) ++ "]"
-  show (SE_Malloc Nothing _)     = "malloc()" 
-  show (SE_Malloc (Just id) _)   = "malloc@" ++ show id ++ "()" 
-  show (SE_Var sp)               = show sp ++ "_0"
-  show (SE_Immediate i)          = if i > 2000 then "0x" ++ showHex i else show i
-  show (SE_StatePart sp)         = show sp
-  show (SE_Op (Plus  _) [e0,e1]) = "(" ++ show e0 ++ " + "   ++ show e1 ++ ")"
-  show (SE_Op (Minus _) [e0,e1]) = "(" ++ show e0 ++ " - "   ++ show e1 ++ ")"
-  show (SE_Op (Times _) [e0,e1]) = "(" ++ show e0 ++ " * "   ++ show e1 ++ ")"
-  show (SE_Op (And   _) [e0,e1]) = "(" ++ show e0 ++ " & "   ++ show e1 ++ ")"
-  show (SE_Op (Or    _) [e0,e1]) = "(" ++ show e0 ++ " | "   ++ show e1 ++ ")"
-  show (SE_Op (Xor   _) [e0,e1]) = "(" ++ show e0 ++ " xor " ++ show e1 ++ ")"
-  show (SE_Op op es)             = show op ++ "(" ++ intercalate "," (map show es) ++ ")"
-  show (SE_Bit i a)              = "b" ++ show i ++ "(" ++ show a ++ ")"
-  show (SE_SExtend l h a)        = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ show a ++ ")"
-  show (SE_Overwrite i a b)      = "overwrite(" ++ show i ++ "," ++ show a ++ "," ++ show b ++ ")"
+  show = show_expr show_srcs
 
 
 
 
 
-
-expr_size (Bottom typ srcs)    = 1 + (sum $ S.map expr_size_src srcs)
-expr_size (SE_Malloc id _)     = 1
-expr_size (SE_Var sp)          = expr_size_sp sp
-expr_size (SE_Immediate _)     = 1
-expr_size (SE_StatePart sp)    = expr_size_sp sp
-expr_size (SE_Op _ es)         = 1 + (sum $ map expr_size es)
-expr_size (SE_Bit i e)         = 1 + expr_size e
-expr_size (SE_SExtend l h e)   = 1 + expr_size e
-expr_size (SE_Overwrite _ _ e) = 1 + expr_size e
-
-expr_size_sp (SP_Reg r)     = 1
-expr_size_sp (SP_Mem a si)  = 1 + expr_size a 
-
-expr_size_src (Src_SP sp)      = expr_size_sp sp
-expr_size_src (Src_Function f) = 1
+-- | Returns true iff the expression is an immediate value
+is_immediate (SE_Immediate _) = True
+is_immediate _                = False
 
 
+-- | Is the statepart memory?
+is_mem_sp (SP_Reg _)    = False
+is_mem_sp (SP_Mem a si) = True
 
+-- | Is the statepart a register?
+is_reg_sp (SP_Reg _)    = True
+is_reg_sp (SP_Mem a si) = False
 
 
 -- | Returns true iff the expression contains Bot
-contains_bot (Bottom typ _)       = True
+contains_bot (Bottom typ)         = True
 contains_bot (SE_Malloc _ _)      = False
 contains_bot (SE_Var sp)          = contains_bot_sp sp
 contains_bot (SE_Immediate _)     = False
@@ -225,87 +219,68 @@ contains_bot_sp (SP_Mem a si)  = contains_bot a
 
 
 
--- | Returns true iff the expression contains Var
-contains_var (Bottom typ _)       = False
-contains_var (SE_Malloc _ _)      = False
-contains_var (SE_Var sp)          = True
-contains_var (SE_Immediate _)     = False
-contains_var (SE_StatePart sp)    = contains_var_sp sp
-contains_var (SE_Op _ es)         = any contains_var es
-contains_var (SE_Bit i e)         = contains_var e
-contains_var (SE_SExtend _ _ e)   = contains_var e
-contains_var (SE_Overwrite _ a b) = contains_var a || contains_var b
-
--- | Returns true iff the statepart contains Bot
-contains_var_sp (SP_Reg r)     = False
-contains_var_sp (SP_Mem a si)  = contains_var a
-
-
-
-
-
--- | Returns the set of registers occuring in the symbolic expression.
-regs_of (Bottom typ _)       = S.empty
-regs_of (SE_Malloc _ _)      = S.empty
-regs_of (SE_Var sp)          = regs_of_sp sp
-regs_of (SE_Immediate _)     = S.empty
-regs_of (SE_StatePart sp)    = regs_of_sp sp
-regs_of (SE_Op _ es)         = S.unions $ map regs_of es
-regs_of (SE_Bit i e)         = regs_of e
-regs_of (SE_SExtend _ _ e)   = regs_of e
-regs_of (SE_Overwrite _ a b) = S.union (regs_of a) (regs_of b)
-
-regs_of_sp (SP_Reg r)     = S.singleton r
-regs_of_sp (SP_Mem a si)  = regs_of a 
 
 
 
 -- | Do all occurences of Bottom satisfy the given predicate?
-all_bot_satisfy p (Bottom typ srcs)    = p typ srcs
-all_bot_satisfy p (SE_Malloc _ _)      = True
-all_bot_satisfy p (SE_Var sp)          = all_bot_satisfy_sp p sp
-all_bot_satisfy p (SE_Immediate _)     = True
-all_bot_satisfy p (SE_StatePart sp)    = all_bot_satisfy_sp p sp
-all_bot_satisfy p (SE_Op _ es)         = all (all_bot_satisfy p) es
-all_bot_satisfy p (SE_Bit i e)         = all_bot_satisfy p e
-all_bot_satisfy p (SE_SExtend _ _ e)   = all_bot_satisfy p e
-all_bot_satisfy p (SE_Overwrite _ a b) = all_bot_satisfy p a && all_bot_satisfy p b
+map_all_bot :: Ord a => (BotTyp -> S.Set a) -> SimpleExpr -> S.Set a
+map_all_bot p (Bottom typ)         = p typ
+map_all_bot p (SE_Malloc _ _)      = S.empty
+map_all_bot p (SE_Var sp)          = map_all_bot_sp p sp
+map_all_bot p (SE_Immediate _)     = S.empty
+map_all_bot p (SE_StatePart sp)    = map_all_bot_sp p sp
+map_all_bot p (SE_Op _ es)         = S.unions $ map (map_all_bot p) es
+map_all_bot p (SE_Bit i e)         = map_all_bot p e
+map_all_bot p (SE_SExtend _ _ e)   = map_all_bot p e
+map_all_bot p (SE_Overwrite _ a b) = S.unions [map_all_bot p a, map_all_bot p b]
 
-all_bot_satisfy_sp p (SP_Reg r)      = True
-all_bot_satisfy_sp p (SP_Mem a si)   = all_bot_satisfy p a
+map_all_bot_sp p (SP_Reg r)      = S.empty
+map_all_bot_sp p (SP_Mem a si)   = map_all_bot p a
 
 
--- | Returns the set of sources (state parts used to compute the expression) of an expression.
-srcs_of_expr (Bottom _ srcs)      = srcs
-srcs_of_expr (SE_Malloc _ _)      = S.empty
-srcs_of_expr (SE_Var sp)          = srcs_of_sp sp
-srcs_of_expr (SE_Immediate i)     = S.empty
-srcs_of_expr (SE_StatePart sp)    = srcs_of_sp sp
-srcs_of_expr (SE_Op _ es)         = S.unions $ map srcs_of_expr es
-srcs_of_expr (SE_Bit i e)         = srcs_of_expr e
-srcs_of_expr (SE_SExtend _ _ e)   = srcs_of_expr e
-srcs_of_expr (SE_Overwrite _ a b) = srcs_of_exprs a b
+all_bot_satisfy p = and . map_all_bot (S.singleton . p)
 
--- | Returns the set of sources (state parts used to compute the expression) of a statepart.
-srcs_of_sp sp@(SP_Reg r) = S.singleton $ Src_SP sp
-srcs_of_sp sp@(SP_Mem a si) = S.singleton  $ Src_SP sp -- S.insert sp $ srcs_of_expr a
 
--- | Returns the set of sources (state parts used to compute the expression) of two expressions.
-srcs_of_exprs e0 e1 =
-  let srcs = S.union (srcs_of_expr e0) (srcs_of_expr e1) in
-    if sum (S.map expr_size_src srcs) > 20 then srcs_of_expr e0 else srcs --TODO
 
-srcs_of_expr_bounded e =
-  let srcs = srcs_of_expr e in
-    if sum (S.map expr_size_src srcs) > 20 then S.fromList (take 10 $ S.toList srcs)  else srcs --TODO
+
+
+expr_size (Bottom typ)         = 1 + expr_size_bottyp typ
+expr_size (SE_Malloc id _)     = 1
+expr_size (SE_Var sp)          = expr_size_sp sp
+expr_size (SE_Immediate _)     = 1
+expr_size (SE_StatePart sp)    = expr_size_sp sp
+expr_size (SE_Op _ es)         = 1 + (sum $ map expr_size es)
+expr_size (SE_Bit i e)         = 1 + expr_size e
+expr_size (SE_SExtend l h e)   = 1 + expr_size e
+expr_size (SE_Overwrite _ _ e) = 1 + expr_size e
+
+expr_size_sp (SP_Reg r)     = 1
+expr_size_sp (SP_Mem a si)  = 1 + expr_size a 
+
+expr_size_bottyp (FromNonDeterminism es)        = sum $ S.map expr_size es
+expr_size_bottyp (FromPointerBases bs)          = S.size bs
+expr_size_bottyp (FromSources srcs)             = S.size srcs
+expr_size_bottyp (FromBitMode srcs)             = S.size srcs
+expr_size_bottyp (FromOverlap srcs)             = S.size srcs
+expr_size_bottyp (FromSemantics srcs)           = S.size srcs
+expr_size_bottyp (FromMemWrite srcs)            = S.size srcs
+expr_size_bottyp (FromUninitializedMemory srcs) = S.size srcs
+expr_size_bottyp (FromCall _)                   = 1
+
 
 -- | If the size of an expression becomes too large, we simply turn it into Bottom.
 trim_expr e =
-  if expr_size e > 1000 then 
-    Bottom (FromAbstraction S.empty) $ srcs_of_expr_bounded e -- TODO get bases
+  if expr_size e > max_expr_size then 
+    traceShow ("Hitting expr_size limit of " ++ show max_expr_size ++ ".") rock_bottom -- Bottom (FromSources $ srcs_of_expr e)
   else
     e
 
+max_expr_size = 3000
+
+
+
+-- | The lowest botom element
+rock_bottom = Bottom (FromSources S.empty)
 
 
 
@@ -318,63 +293,77 @@ sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 --
 -- Must always produce an expression logically equivalent to the original.
 simp :: SimpleExpr -> SimpleExpr
-simp (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp e
-simp (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp e1) else SE_Bit i $ SE_Overwrite i' (simp e0) (simp e1)
+simp e = 
+  let e' = simp' e in
+    if e == e' then e' else simp e'
 
-simp (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp e0) (simp e2) else SE_Overwrite i (SE_Overwrite i' (simp e0) (simp e1)) (simp e2)
--- simp (SE_Overwrite i (SE_Bit i' e0) e1) = if i' <= i then SE_Bit i (simp e1) else SE_Overwrite i (SE_Bit i' $ simp e0) (simp e1) TODO
-simp (SE_SExtend l h (SE_Bit i e))  = if i == l then SE_SExtend l h (simp e) else SE_SExtend l h (SE_Bit i $ simp e)
+simp' (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp' e
+simp' (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp' e1) else SE_Bit i $ SE_Overwrite i' (simp' e0) (simp' e1)
 
-simp (SE_Op (Minus b0) [SE_Op (Minus b1) [a0,a1], a2]) = simp $ SE_Op (Minus b0) [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0-a1)-a2 ==> a0 - (a1 + a2)
-simp (SE_Op (Plus b0)  [SE_Op (Minus b1) [a0,a1], a2]) = simp $ SE_Op (Minus b0) [a0, SE_Op (Minus b0) [a1, a2]] -- (a0-a1)+a2 ==> a0 - (a1 - a2)
-simp (SE_Op (Minus b0) [SE_Op (Plus b1)  [a0,a1], a2]) = simp $ SE_Op (Plus b0)  [a0, SE_Op (Minus b0) [a1, a2]] -- (a0+a1)-a2 ==> a0 + (a1 - a2)
-simp (SE_Op (Plus b0)  [SE_Op (Plus b1)  [a0,a1], a2]) = simp $ SE_Op (Plus b0)  [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0+a1)+a2 ==> a0 + (a1 + a2)
+simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
+simp' (SE_SExtend l h (SE_Bit i e))  = if i == l then SE_SExtend l h (simp' e) else SE_SExtend l h (SE_Bit i $ simp' e)
 
-simp (SE_Op (Plus b0)  [SE_Immediate 0, e1]) = simp e1 -- 0 + e1 = e1
-simp (SE_Op (Plus b0)  [e0, SE_Immediate 0]) = simp e0 -- e0 + 0 = e0
-simp (SE_Op (Minus b0) [e0, SE_Immediate 0]) = simp e0 -- e0 - 0 = e0
-simp (SE_Op (Times b0) [e0, SE_Immediate 0]) = SE_Immediate 0
-simp (SE_Op (Times b0) [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op (Minus b0) [SE_Op (Minus b1) [a0,a1], a2]) = simp' $ SE_Op (Minus b0) [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0-a1)-a2 ==> a0 - (a1 + a2)
+simp' (SE_Op (Plus b0)  [SE_Op (Minus b1) [a0,a1], a2]) = simp' $ SE_Op (Minus b0) [a0, SE_Op (Minus b0) [a1, a2]] -- (a0-a1)+a2 ==> a0 - (a1 - a2)
+simp' (SE_Op (Minus b0) [SE_Op (Plus b1)  [a0,a1], a2]) = simp' $ SE_Op (Plus b0)  [a0, SE_Op (Minus b0) [a1, a2]] -- (a0+a1)-a2 ==> a0 + (a1 - a2)
+simp' (SE_Op (Plus b0)  [SE_Op (Plus b1)  [a0,a1], a2]) = simp' $ SE_Op (Plus b0)  [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0+a1)+a2 ==> a0 + (a1 + a2)
 
-simp (SE_Overwrite i (SE_Immediate 0) e) = simp e
+simp' (SE_Op (Plus b0)  [SE_Immediate 0, e1]) = simp' e1 -- 0 + e1 = e1
+simp' (SE_Op (Plus b0)  [e0, SE_Immediate 0]) = simp' e0 -- e0 + 0 = e0
+simp' (SE_Op (Minus b0) [e0, SE_Immediate 0]) = simp' e0 -- e0 - 0 = e0
+simp' (SE_Op (Times b0) [e0, SE_Immediate 0]) = SE_Immediate 0
+simp' (SE_Op (Times b0) [SE_Immediate 0, e1]) = SE_Immediate 0
 
-simp (SE_Op (Minus b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 - i1) -- Immediate: i0 - i1
-simp (SE_Op (Plus  b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 + i1) -- Immediate: i0 + i1
-simp (SE_Op (Times b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 * i1) -- Immediate: i0 * i1
+simp' (SE_Overwrite i (SE_Immediate 0) e) = simp' e
 
-
-simp (SE_Bit 32 (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
-simp (SE_Bit 16 (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
-simp (SE_Bit 8  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)
-
-simp (SE_SExtend 32 64 (SE_Immediate i)) = SE_Immediate (sextend_32_64 i)
-simp (SE_SExtend 16 64 (SE_Immediate i)) = SE_Immediate (sextend_16_64 i)
-simp (SE_SExtend 8  64 (SE_Immediate i)) = SE_Immediate (sextend_8_64 i)
-
-simp (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp $ SE_Op (Minus b0) [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
-simp (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [e1, SE_Immediate i1]]) = simp $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
-simp (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp $ SE_Op (Plus b0)  [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
--- simp (SE_Op (Plus b0)  [SE_Op (Plus b1) [e0, SE_Immediate i0], SE_Immediate i1])  = simp $ SE_Op (Plus b0)  [e0, SE_Immediate (i0+i1)] -- (e0+i0)+i1 ==> e0+(i0+i1)
-
-simp (SE_Bit i (SE_Op (Plus  b0) [e0, e1])) = simp $ SE_Op (Plus i)  [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)
-simp (SE_Bit i (SE_Op (Minus b0) [e0, e1])) = simp $ SE_Op (Minus i) [SE_Bit i e0, SE_Bit i e1] -- b(e0-e1) = b(e0) - b(e1)
-simp (SE_Bit i (SE_Op (Times b0) [e0, e1])) = simp $ SE_Op (Times i) [SE_Bit i e0, SE_Bit i e1] -- b(e0*e1) = b(e0) * b(e1)
-simp (SE_Bit i (SE_Op (And   b0) [e0, e1])) = simp $ SE_Op (And i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0&e1) = b(e0) & b(e1)
-simp (SE_Bit i (SE_Op (Or    b0) [e0, e1])) = simp $ SE_Op (Or i)    [SE_Bit i e0, SE_Bit i e1] -- b(e0|e1) = b(e0) | b(e1)
-simp (SE_Bit i (SE_Op (Xor   b0) [e0, e1])) = simp $ SE_Op (Xor i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0 xor e1) = b(e0) xor b(e1)
-simp (SE_Bit i (SE_Op (Not   b0) [e0]))     = simp $ SE_Op (Not i)   [SE_Bit i e0]              -- b(not e0) = b(not e0)
+simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 - i1)   -- Immediate: i0 - i1
+simp' (SE_Op (Plus  b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 + i1)   -- Immediate: i0 + i1
+simp' (SE_Op (Times b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 * i1)   -- Immediate: i0 * i1
+simp' (SE_Op (Or    b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .|. i1) -- Immediate: i0 | i1
+simp' (SE_Op (And   b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .&. i1) -- Immediate: i0 & i1
 
 
-simp (SE_Op op es)          = SE_Op op $ map simp es
-simp (SE_StatePart sp)      = SE_StatePart $ simp_sp sp
-simp (SE_Bit i e)           = SE_Bit i $ simp e
-simp (SE_SExtend l h e)     = SE_SExtend l h $ simp e
-simp (SE_Overwrite i e0 e1) = SE_Overwrite i (simp e0) (simp e1)
-simp (SE_Var sp)            = SE_Var $ simp_sp sp
-simp e                      = e
 
-simp_sp (SP_Mem e si)    = SP_Mem (simp e) si
-simp_sp sp               = sp
+simp' (SE_Bit 32 (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
+simp' (SE_Bit 16 (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
+simp' (SE_Bit 8  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)
+
+simp' (SE_SExtend 32 64 (SE_Immediate i)) = SE_Immediate (sextend_32_64 i)
+simp' (SE_SExtend 16 64 (SE_Immediate i)) = SE_Immediate (sextend_16_64 i)
+simp' (SE_SExtend 8  64 (SE_Immediate i)) = SE_Immediate (sextend_8_64 i)
+
+simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
+simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [e1, SE_Immediate i1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
+simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [SE_Immediate i1, e1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(i1+e1) ==> (i0-i1)-e1
+simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
+simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Plus  b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
+
+
+
+simp' (SE_Op (Minus b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Plus b)  [simp' e,SE_Immediate (-i)] else SE_Op (Minus b) [simp' e,SE_Immediate i]
+simp' (SE_Op (Plus  b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Minus b) [simp' e,SE_Immediate (-i)] else SE_Op (Plus  b) [simp' e,SE_Immediate i]
+
+
+simp' (SE_Bit i (SE_Op (Plus  b0) [e0, e1])) = simp' $ SE_Op (Plus i)  [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)
+simp' (SE_Bit i (SE_Op (Minus b0) [e0, e1])) = simp' $ SE_Op (Minus i) [SE_Bit i e0, SE_Bit i e1] -- b(e0-e1) = b(e0) - b(e1)
+simp' (SE_Bit i (SE_Op (Times b0) [e0, e1])) = simp' $ SE_Op (Times i) [SE_Bit i e0, SE_Bit i e1] -- b(e0*e1) = b(e0) * b(e1)
+simp' (SE_Bit i (SE_Op (And   b0) [e0, e1])) = simp' $ SE_Op (And i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0&e1) = b(e0) & b(e1)
+simp' (SE_Bit i (SE_Op (Or    b0) [e0, e1])) = simp' $ SE_Op (Or i)    [SE_Bit i e0, SE_Bit i e1] -- b(e0|e1) = b(e0) | b(e1)
+simp' (SE_Bit i (SE_Op (Xor   b0) [e0, e1])) = simp' $ SE_Op (Xor i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0 xor e1) = b(e0) xor b(e1)
+simp' (SE_Bit i (SE_Op (Not   b0) [e0]))     = simp' $ SE_Op (Not i)   [SE_Bit i e0]              -- b(not e0) = b(not e0)
+
+
+simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ S.map simp' es
+simp' (SE_Op op es)          = SE_Op op $ map simp' es
+simp' (SE_StatePart sp)      = SE_StatePart $ simp'_sp sp
+simp' (SE_Bit i e)           = SE_Bit i $ simp' e
+simp' (SE_SExtend l h e)     = SE_SExtend l h $ simp' e
+simp' (SE_Overwrite i e0 e1) = SE_Overwrite i (simp' e0) (simp' e1)
+simp' (SE_Var sp)            = SE_Var $ simp'_sp sp
+simp' e                      = e
+
+simp'_sp (SP_Mem e si)    = SP_Mem (simp' e) si
+simp'_sp sp               = sp
 
 
 
@@ -390,43 +379,13 @@ data FlagStatus =
   deriving (Generic,Eq,Ord)
 
 
--- |  A verification condition is either:
--- * A precondition of the form:
--- >    Precondition (a0,si0) (a1,si1)
--- This formulates that at the initial state the two regions must be separate.
--- * An assertion of the form:
--- >    Assertion a (a0,si0) (a1,si1)
--- This formulates that dynamically, whenever address a is executed, the two regions are asserted to be separate.
--- * A function constraint of the form:
--- >    FunctionConstraint foo [(RDI, v0), (RSI, v1), ...]
--- This formulates that a function call to function foo with values v0, v1, ... stored in the registers should not overwrite any part of the local stack frame of the caller.
-data VerificationCondition =
-    Precondition       SimpleExpr Int SimpleExpr Int            -- ^ Precondition:           lhs SEP rhs
-  | Assertion          SimpleExpr SimpleExpr Int SimpleExpr Int -- ^ Assertion:    @address, lhs SEP rhs
-  | FunctionConstraint String     [(Register,SimpleExpr)]       -- ^ Function name, with param registers
-  deriving (Generic,Eq,Ord)
-
-instance Show VerificationCondition where
-  show (Precondition lhs _ rhs _) = show lhs ++ " SEP " ++ show rhs
-  show (Assertion a  lhs _ rhs _) = "@" ++ show a ++ ": " ++ show lhs ++ " SEP " ++ show rhs
-  show (FunctionConstraint f ps)  = f ++ "(" ++ intercalate "," (map show_param ps) ++ ")"
-   where
-    show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show e)
-
--- | Is the given verification condition an assertion?
-is_assertion (Assertion _ _ _ _ _) = True
-is_assertion _                 = False
-
--- | Is the given verification condition a precondition?
-is_precondition (Precondition _ _ _ _) = True
-is_precondition _                      = False
-
--- | Is the given verification condition a function constraint?
-is_func_constraint (FunctionConstraint _ _) = True
-is_func_constraint _                        = False
-
--- | Count the number of assertions in the set of verification conditions.
-count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion
+instance Show PointerBase where
+  show StackPointer            = "StackPointer"
+  show (Malloc Nothing  _)     = "malloc()"
+  show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
+  show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a
+  show (PointerToSymbol a sym) = "PointerToSymbol_" ++ sym
+  show (Unknown e)             = "Unknown_" ++ show e
 
 
 -- | Have functions been called by the current function?
@@ -435,6 +394,8 @@ data StateMuddleStatus =
  | ExternalOnly -- ^ All function calls were to external functions
  | Muddled      -- ^ At least one internal function has been called
   deriving (Generic,Eq,Show,Ord)
+
+
 
 -- | A symbolic predicate consists of:
 --
@@ -445,26 +406,16 @@ data StateMuddleStatus =
 --   * A set of verification conditions.
 --
 --   * The @`StateMuddleStatus`@
-data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus (S.Set VerificationCondition) StateMuddleStatus
+data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus StateMuddleStatus
   deriving (Generic,Eq,Ord)
-
--- | Add a precondition to the given symbolic predicate
-add_precondition       a0 si0 a1 si1 (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (Precondition a0 si0 a1 si1) vcs)  muddle_status
--- | Add an assertion to the given symbolic predicate
-add_assertion      rip a0 si0 a1 si1 (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (Assertion rip a0 si0 a1 si1) vcs) muddle_status
--- | Add a function constraint to the given symbolic predicate
-add_function_constraint f ps         (Predicate eqs fs vcs muddle_status) = Predicate eqs fs (S.insert (FunctionConstraint f ps) vcs) muddle_status
-
 
 instance Cereal.Serialize PointerBase
 instance Cereal.Serialize BotTyp
 instance Cereal.Serialize BotSrc
-instance Cereal.Serialize AddrType
 instance Cereal.Serialize StatePart
 instance Cereal.Serialize Operator
 instance Cereal.Serialize SimpleExpr
 instance Cereal.Serialize FlagStatus
-instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize StateMuddleStatus
 instance Cereal.Serialize Pred
 
@@ -476,11 +427,44 @@ instance Show FlagStatus where
 
 
 instance Show Pred where
-  show (Predicate eqs flg vcs muddle_status) =
+  show (Predicate eqs flg muddle_status) =
        (intercalate "\n" $ (map (\(sp,e) -> show sp ++ " := " ++ show e) $ M.toList eqs))
     ++ (if show flg == "" then "" else "\n" ++ show flg)
-    ++ (if S.size vcs  == 0 then "" else "\n" ++ show (S.toList vcs))
     ++ (if muddle_status == Clean then "" else "\n" ++ "(" ++ show muddle_status ++ ")")
 
 
 
+-- | Pretty print expression, showing Bottom expressions only as Bot
+pp_expr = show_expr (\_ -> "")
+
+-- | Pretty print predicate, showing Bottom expressions only as Bot
+pp_pred :: Pred -> String
+pp_pred (Predicate eqs _ muddlestatus) = (intercalate "\n" $ mapMaybe pp_pred_entry $ M.toList eqs) ++ "\n" ++ show muddlestatus
+ where
+  pp_pred_entry (sp,v) =
+    --if sp == SP_Reg RIP || contains_bot_sp sp then
+    --  Nothing
+    --else
+      Just $ show sp ++ " := " ++ pp_expr v
+
+
+
+-- crossProduct [[1], [2,3,4], [5]] == [[1,2,5],[1,3,5],[1,4,5]]
+-- The size of a crossProduct [x_0,x_1,x_i] is the number of produced lists |x_0|*|x_1|*...*|x_i| times the size of each list i.
+crossProduct :: [[a]] -> [[a]]
+crossProduct []       = [[]]
+crossProduct (as:ass) = [ b:bs | b <- as, bs <- crossProduct ass ]
+
+crossProduct_size x = product (length x : map length x) 
+
+-- | Unfold an expression with non-determinisism to a list of expressions.
+-- Keep an eye on the produced size, as this may cause blow-up.
+unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
+unfold_non_determinism (Bottom (FromNonDeterminism es)) = S.toList es
+unfold_non_determinism (SE_Op op es)                    = 
+  let es' = map unfold_non_determinism es in
+    if crossProduct_size es' > max_expr_size then [rock_bottom] else map (SE_Op op) $ crossProduct es'
+unfold_non_determinism (SE_Bit b e)                     = map (SE_Bit b) $ unfold_non_determinism e
+unfold_non_determinism (SE_SExtend l h e)               = map (SE_SExtend l h) $ unfold_non_determinism e
+unfold_non_determinism (SE_Overwrite l a b)             = [ SE_Overwrite l a' b' | a' <-  unfold_non_determinism a, b' <- unfold_non_determinism b ]
+unfold_non_determinism e                                = [e]

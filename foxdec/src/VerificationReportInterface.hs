@@ -43,6 +43,7 @@ import SimplePred
 import X86_Datastructures
 import CallGraph
 import CFG_Gen
+import SymbolicExecution
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM
@@ -84,7 +85,7 @@ ctxt_read_report fname = do
 --
 -- Returns a set of funtion entries.
 ctxt_get_function_entries :: Retrieve (S.Set FunctionEntry) 
-ctxt_get_function_entries = Right . S.fromList . IM.keys . ctxt_report
+ctxt_get_function_entries = Right . S.fromList . IM.keys . ctxt_calls
 
 
 -- | Retrieve all instruction addresses.
@@ -135,7 +136,7 @@ ctxt_get_cfg = ctxt_get ctxt_cfgs
 -- | Retrieve verification conditions for a given function entry, both as a datastructure and pretty-printed
 ctxt_get_vcs :: FunctionEntry -> Retrieve (S.Set VerificationCondition, String)
 ctxt_get_vcs entry ctxt = 
-  ctxt_get ctxt_report entry ctxt >>> (\r -> Right (report_vcs r, summarize_verification_conditions ctxt entry))
+  ctxt_get ctxt_vcs entry ctxt >>> (\vcs -> Right (vcs, summarize_verification_conditions ctxt entry))
 
 
 

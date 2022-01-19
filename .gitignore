@@ -28,7 +28,7 @@ foxdec/.stack-work
 
 *.report
 *.thy~
-
+*.prof
 .DS_Store
 *.swp
 *.log

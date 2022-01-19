@@ -43,6 +43,10 @@ im_lookup s m k =
     Nothing -> error s
     Just v  -> v
 
+-- | use a feault value in case of @Nothing@
+orElse Nothing a  = a
+orElse (Just a) _ = a
+
 
 -- | Find the index of one string in another.
 findString :: (Eq a) => [a] -> [a] -> Maybe Int

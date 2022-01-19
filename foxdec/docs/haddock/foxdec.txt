@@ -9,6 +9,20 @@
 @version 0.1.0.0
 
 
+-- | Some customizable constants
+module Config
+
+-- | The maximum number of separate concrete cases considered
+--   non-deterministically
+max_num_of_cases :: Int
+
+-- | The maximum number of pointer bases a bottom-expression may have
+max_num_of_bases :: Int
+
+-- | The maximum number of sources a bottom-expression may have
+max_num_of_sources :: Int
+
+
 -- | Some base functions, imported by any other module.
 module Base
 
@@ -29,6 +43,9 @@ readHex' :: (Eq a, Num a) => String -> a
 
 -- | Lookup and produce error message if key does not exists in map.
 im_lookup :: [Char] -> IntMap p -> Key -> p
+
+-- | use a feault value in case of <tt>Nothing</tt>
+orElse :: Maybe p -> p -> p
 
 -- | Find the index of one string in another.
 findString :: Eq a => [a] -> [a] -> Maybe Int
@@ -945,7 +962,7 @@ module SimplePred
 --   <li>The <tt><a>StateMuddleStatus</a></tt></li>
 --   </ul>
 data Pred
-Predicate :: Map StatePart SimpleExpr -> FlagStatus -> Set VerificationCondition -> StateMuddleStatus -> Pred
+Predicate :: Map StatePart SimpleExpr -> FlagStatus -> StateMuddleStatus -> Pred
 
 -- | A statepart is either a register or a region in memory
 data StatePart
@@ -956,26 +973,24 @@ SP_Reg :: Register -> StatePart
 -- | A region with a symbolic address and an immediate size.
 SP_Mem :: SimpleExpr -> Int -> StatePart
 
--- | A symbolic expression with as leafs either immediates, variables, or
---   stateparts. A variable is a constant represneting some initial value,
---   e.g., RDI0. A statepart evaluates to its current value, e.g., RDI.
+-- | A symbolic expression with as leafs either immediates, variables, live
+--   values of stateparts, or malloced addresses. A variable is a constant
+--   representing some initial value, e.g., RDI_0, or [RSP_0,8]_0. A
+--   statepart evaluates to its current value, e.g., RDI or [RSP,8].
 data SimpleExpr
 
--- | Bottom (unknown value)
-Bottom :: BotTyp -> Set BotSrc -> SimpleExpr
-
--- | A malloc return value with possibly an ID
-SE_Malloc :: Maybe Int -> Maybe String -> SimpleExpr
+-- | An immediate word
+SE_Immediate :: Word64 -> SimpleExpr
 
 -- | A variable representing the initial value stored in the statepart
 --   (e.g., RSP0)
 SE_Var :: StatePart -> SimpleExpr
 
--- | An immediate word
-SE_Immediate :: Word64 -> SimpleExpr
-
 -- | The value stored currently in the statepart
 SE_StatePart :: StatePart -> SimpleExpr
+
+-- | A malloc return value with possibly an ID
+SE_Malloc :: Maybe Int -> Maybe String -> SimpleExpr
 
 -- | Application of an <tt><a>Operator</a></tt> to the list of arguments
 SE_Op :: Operator -> [SimpleExpr] -> SimpleExpr
@@ -989,6 +1004,9 @@ SE_SExtend :: Int -> Int -> SimpleExpr -> SimpleExpr
 -- | Overwriting certain bits of a value with bits from another value
 SE_Overwrite :: Int -> SimpleExpr -> SimpleExpr -> SimpleExpr
 
+-- | Bottom (unknown value)
+Bottom :: BotTyp -> SimpleExpr
+
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus
 
@@ -998,26 +1016,6 @@ None :: FlagStatus
 -- | The flags are set by the x86 CMP instruction applied to the given
 --   operands.
 FS_CMP :: Maybe Bool -> Operand -> Operand -> FlagStatus
-
--- | A verification condition is either: * A precondition of the form: &gt;
---   Precondition (a0,si0) (a1,si1) This formulates that at the initial
---   state the two regions must be separate. * An assertion of the form:
---   &gt; Assertion a (a0,si0) (a1,si1) This formulates that dynamically,
---   whenever address a is executed, the two regions are asserted to be
---   separate. * A function constraint of the form: &gt; FunctionConstraint
---   foo [(RDI, v0), (RSI, v1), ...] This formulates that a function call
---   to function foo with values v0, v1, ... stored in the registers should
---   not overwrite any part of the local stack frame of the caller.
-data VerificationCondition
-
--- | Precondition: lhs SEP rhs
-Precondition :: SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
-
--- | Assertion: @address, lhs SEP rhs
-Assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
-
--- | Function name, with param registers
-FunctionConstraint :: String -> [(Register, SimpleExpr)] -> VerificationCondition
 
 -- | Have functions been called by the current function?
 data StateMuddleStatus
@@ -1033,44 +1031,44 @@ Muddled :: StateMuddleStatus
 
 -- | Bot represents an unknown (bottom) value. We annotate each occurence
 --   of Bot with a BotTyp. This type indicates where the bottom value
---   originates from. We don't use this, i.e., all bottoms are created
---   equal. The only bottom that has semantics meaning is the last one,
---   non-determinstically picking a value from a set.
+--   originates from. The latter six are all equal, we just use them for
+--   debugging and information. They indicate that the value is unknown,
+--   but was computed using the set of sources.
 data BotTyp
-
--- | Abstraction joined two terms to Bottom
-FromAbstraction :: Set PointerBase -> BotTyp
-
--- | A read from two possibly overlapping regions
-FromOverlap :: BotTyp
-
--- | A write to two possibly overlapping regions
-FromMemWrite :: BotTyp
-
--- | A function call was executed, setting stateparts to bottom
-FromCall :: BotTyp
-
--- | An instruction with unknown semantics
-FromSemantics :: BotTyp
-
--- | Reading from memory not written to yet
-FromUninitializedMemory :: BotTyp
-
--- | Should not happen, but if a register writes to a registeralias with
---   unknown bit size
-FromBitMode :: BotTyp
 
 -- | The expression evaluates to one of the expressions in the set
 FromNonDeterminism :: Set SimpleExpr -> BotTyp
 
--- | Bot represents an unknown (bottom) value. We annotate each occurence
---   of Bot with a BotSrc. This indicates the sources that are used to
---   compute the bottom value. For example, the symbolic expressions
---   <tt>RDI0</tt> and <tt>RSI0</tt> are joined to a Bottom value with
---   sources <tt>{RDI0,RSI0}</tt>. We don't use this, i.e., all bottoms are
---   created equal. It is, however, very convenient for debugging.
+-- | The expression is a pointer-computation with known base(s)
+FromPointerBases :: Set PointerBase -> BotTyp
+
+-- | Return value of a function call
+FromCall :: String -> BotTyp
+
+-- | The expression is some computation based on sources.
+FromSources :: Set BotSrc -> BotTyp
+
+-- | A read from two possibly overlapping regions
+FromOverlap :: Set BotSrc -> BotTyp
+
+-- | A write to two possibly overlapping regions
+FromMemWrite :: Set BotSrc -> BotTyp
+
+-- | An instruction with unknown semantics
+FromSemantics :: Set BotSrc -> BotTyp
+
+-- | Should not happen, but if a register writes to a registeralias with
+--   unknown bit size
+FromBitMode :: Set BotSrc -> BotTyp
+
+-- | Reading from memory not written to yet
+FromUninitializedMemory :: Set BotSrc -> BotTyp
+
+-- | Sources that may be used to compute an expression. That is, the inputs
+--   to an expression.
 data BotSrc
-Src_SP :: StatePart -> BotSrc
+Src_Var :: StatePart -> BotSrc
+Src_Malloc :: Maybe Int -> Maybe String -> BotSrc
 Src_Function :: String -> BotSrc
 
 -- | An operator is a pure operation over bit-vectors, annotated with the
@@ -1081,8 +1079,8 @@ Src_Function :: String -> BotSrc
 --   w</tt> performing concatenation of the first two words and then doing
 --   division/remainder.
 data Operator
-Plus :: Int -> Operator
 Minus :: Int -> Operator
+Plus :: Int -> Operator
 Times :: Int -> Operator
 And :: Int -> Operator
 Or :: Int -> Operator
@@ -1101,67 +1099,41 @@ Rol :: Int -> Operator
 Bswap :: Int -> Operator
 Pextr :: Int -> Operator
 
--- | A symbolic expression that is used as a pointer, can be matched to one
---   (or more) of the following types. This happens in over-approximative
---   fashion, i.e., if we don't know we just guess all of these. However,
---   an expression such as <tt>RSP0 - 16</tt> is guessed to be
---   <tt>Local</tt>, an immediate address within the data sections is
---   guessed to be <tt>Global</tt>. The <tt>Local</tt> and <tt>Global</tt>
---   address spaces are assumed to be separate.
-data AddrType
-Heap :: AddrType
-Global :: AddrType
-Local :: AddrType
+-- | A pointerbase is a positive addend of a symbolic expression that may
+--   represent a pointer.
 data PointerBase
+
+-- | The stackpointer, for <i>local</i> variables
 StackPointer :: PointerBase
+
+-- | A malloc (at the <i>heap</i>) at a given address (hash is unused for
+--   now)
 Malloc :: Maybe Int -> Maybe String -> PointerBase
+
+-- | A <i>global</i> address in the range of the sections of the binary.
 GlobalAddress :: Word64 -> PointerBase
-PointerToSymbol :: String -> PointerBase
+
+-- | An address with an associated symbol.
+PointerToSymbol :: Word64 -> String -> PointerBase
+
+-- | n expresion without identifiable pointerbase,
 Unknown :: SimpleExpr -> PointerBase
 
--- | Returns the set of registers occuring in the symbolic expression.
-regs_of :: SimpleExpr -> Set Register
+-- | Returns true iff the expression is an immediate value
+is_immediate :: SimpleExpr -> Bool
 
--- | Returns the set of sources (state parts used to compute the
---   expression) of an expression.
-srcs_of_expr :: SimpleExpr -> Set BotSrc
+-- | Is the statepart memory?
+is_mem_sp :: StatePart -> Bool
 
--- | Returns the set of sources (state parts used to compute the
---   expression) of two expressions.
-srcs_of_exprs :: SimpleExpr -> SimpleExpr -> Set BotSrc
+-- | Is the statepart a register?
+is_reg_sp :: StatePart -> Bool
 
 -- | Returns true iff the expression contains Bot
 contains_bot :: SimpleExpr -> Bool
 
 -- | Returns true iff the statepart contains Bot
 contains_bot_sp :: StatePart -> Bool
-
--- | Returns true iff the expression contains Var
-contains_var :: SimpleExpr -> Bool
-
--- | Returns true iff the statepart contains Bot
-contains_var_sp :: StatePart -> Bool
-
--- | Add an assertion to the given symbolic predicate
-add_assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> Pred -> Pred
-
--- | Add a precondition to the given symbolic predicate
-add_precondition :: SimpleExpr -> Int -> SimpleExpr -> Int -> Pred -> Pred
-
--- | Add a function constraint to the given symbolic predicate
-add_function_constraint :: String -> [(Register, SimpleExpr)] -> Pred -> Pred
-
--- | Is the given verification condition a precondition?
-is_precondition :: VerificationCondition -> Bool
-
--- | Is the given verification condition an assertion?
-is_assertion :: VerificationCondition -> Bool
-
--- | Is the given verification condition a function constraint?
-is_func_constraint :: VerificationCondition -> Bool
-
--- | Do all occurences of Bottom satisfy the given predicate?
-all_bot_satisfy :: (BotTyp -> Set BotSrc -> Bool) -> SimpleExpr -> Bool
+all_bot_satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
 
 -- | Simplification of symbolic expressions.
 --   
@@ -1169,28 +1141,36 @@ all_bot_satisfy :: (BotTyp -> Set BotSrc -> Bool) -> SimpleExpr -> Bool
 --   original.
 simp :: SimpleExpr -> SimpleExpr
 
+-- | The lowest botom element
+rock_bottom :: SimpleExpr
+
 -- | If the size of an expression becomes too large, we simply turn it into
 --   Bottom.
 trim_expr :: SimpleExpr -> SimpleExpr
 
--- | Count the number of assertions in the set of verification conditions.
-count_instructions_with_assertions :: Set VerificationCondition -> Int
-instance GHC.Generics.Generic SimplePred.AddrType
-instance GHC.Classes.Ord SimplePred.AddrType
-instance GHC.Classes.Eq SimplePred.AddrType
+-- | Pretty print expression, showing Bottom expressions only as Bot
+pp_expr :: SimpleExpr -> [Char]
+
+-- | Pretty print predicate, showing Bottom expressions only as Bot
+pp_pred :: Pred -> String
+
+-- | Unfold an expression with non-determinisism to a list of expressions.
+--   Keep an eye on the produced size, as this may cause blow-up.
+unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
+expr_size :: SimpleExpr -> Int
+max_expr_size :: Int
 instance GHC.Generics.Generic SimplePred.Operator
 instance GHC.Classes.Ord SimplePred.Operator
 instance GHC.Classes.Eq SimplePred.Operator
-instance GHC.Show.Show SimplePred.PointerBase
 instance GHC.Classes.Ord SimplePred.PointerBase
 instance GHC.Classes.Eq SimplePred.PointerBase
 instance GHC.Generics.Generic SimplePred.PointerBase
-instance GHC.Generics.Generic SimplePred.BotTyp
-instance GHC.Classes.Ord SimplePred.BotTyp
-instance GHC.Classes.Eq SimplePred.BotTyp
 instance GHC.Generics.Generic SimplePred.BotSrc
 instance GHC.Classes.Ord SimplePred.BotSrc
 instance GHC.Classes.Eq SimplePred.BotSrc
+instance GHC.Generics.Generic SimplePred.BotTyp
+instance GHC.Classes.Ord SimplePred.BotTyp
+instance GHC.Classes.Eq SimplePred.BotTyp
 instance GHC.Generics.Generic SimplePred.SimpleExpr
 instance GHC.Classes.Ord SimplePred.SimpleExpr
 instance GHC.Classes.Eq SimplePred.SimpleExpr
@@ -1200,9 +1180,6 @@ instance GHC.Classes.Eq SimplePred.StatePart
 instance GHC.Classes.Ord SimplePred.FlagStatus
 instance GHC.Classes.Eq SimplePred.FlagStatus
 instance GHC.Generics.Generic SimplePred.FlagStatus
-instance GHC.Classes.Ord SimplePred.VerificationCondition
-instance GHC.Classes.Eq SimplePred.VerificationCondition
-instance GHC.Generics.Generic SimplePred.VerificationCondition
 instance GHC.Classes.Ord SimplePred.StateMuddleStatus
 instance GHC.Show.Show SimplePred.StateMuddleStatus
 instance GHC.Classes.Eq SimplePred.StateMuddleStatus
@@ -1213,14 +1190,13 @@ instance GHC.Generics.Generic SimplePred.Pred
 instance Data.Serialize.Serialize SimplePred.Pred
 instance GHC.Show.Show SimplePred.Pred
 instance Data.Serialize.Serialize SimplePred.StateMuddleStatus
-instance GHC.Show.Show SimplePred.VerificationCondition
-instance Data.Serialize.Serialize SimplePred.VerificationCondition
 instance Data.Serialize.Serialize SimplePred.FlagStatus
 instance GHC.Show.Show SimplePred.FlagStatus
-instance GHC.Show.Show SimplePred.BotTyp
 instance GHC.Show.Show SimplePred.BotSrc
+instance GHC.Show.Show SimplePred.BotTyp
 instance GHC.Show.Show SimplePred.SimpleExpr
 instance GHC.Show.Show SimplePred.StatePart
+instance GHC.Show.Show SimplePred.PointerBase
 instance Data.Serialize.Serialize SimplePred.PointerBase
 instance Data.Serialize.Serialize SimplePred.BotTyp
 instance Data.Serialize.Serialize SimplePred.BotSrc
@@ -1228,8 +1204,6 @@ instance Data.Serialize.Serialize SimplePred.StatePart
 instance Data.Serialize.Serialize SimplePred.SimpleExpr
 instance GHC.Show.Show SimplePred.Operator
 instance Data.Serialize.Serialize SimplePred.Operator
-instance GHC.Show.Show SimplePred.AddrType
-instance Data.Serialize.Serialize SimplePred.AddrType
 
 
 -- | In this file, we eumerate assumptions made on calling conventions and
@@ -1237,7 +1211,7 @@ instance Data.Serialize.Serialize SimplePred.AddrType
 module Conventions
 
 -- | A list of function names of functions that never return.
-exiting_functon_calls :: [[Char]]
+exiting_function_calls :: [[Char]]
 
 -- | An overview of which sections can be modified by external functions.
 --   Other sections are assumed NOT to be modified by external functions.
@@ -1309,7 +1283,7 @@ data VerificationResult
 VerificationSuccess :: VerificationResult
 
 -- | Function was succesfully verified, but required assertions
-VerificationSuccesWithAssertions :: VerificationResult
+VerificationSuccesWithAssumptions :: VerificationResult
 
 -- | Function contains an unresolved indirection
 VerificationUnresolvedIndirection :: VerificationResult
@@ -1339,15 +1313,41 @@ Terminal :: NodeInfo
 --   final predicate after execution of the block
 type Postconditions = Set (NodeInfo, Pred)
 
--- | Per function, we report on:
-data Report
-Report :: VerificationResult -> Set VerificationCondition -> Report
+-- | Identifies where a memwrite occurred
+data MemWriteIdentifier
 
--- | The verification result
-[report_result] :: Report -> VerificationResult
+-- | A function with <tt>name</tt> at address <tt>i_a</tt> wrote to a
+--   statepart
+MemWriteFunction :: String -> Int -> StatePart -> MemWriteIdentifier
 
--- | The verification conditions
-[report_vcs] :: Report -> Set VerificationCondition
+-- | An instruction wrote to an operand, resolving to an address
+MemWriteInstruction :: Int -> Address -> SimpleExpr -> MemWriteIdentifier
+
+-- | A verification condition is either: * A precondition of the form: &gt;
+--   Precondition (a0,si0) (a1,si1) This formulates that at the initial
+--   state the two regions must be separate. * An assertion of the form:
+--   &gt; Assertion a (a0,si0) (a1,si1) This formulates that dynamically,
+--   whenever address a is executed, the two regions are asserted to be
+--   separate. * A function constraint of the form: &gt; FunctionConstraint
+--   foo [(RDI, v0), (RSI, v1), ...] { sp0,sp1,... } This formulates that a
+--   function call to function foo with values v0, v1, ... stored in the
+--   registers should not overwrite certain state parts.
+data VerificationCondition
+
+-- | Precondition: lhs SEP rhs
+Precondition :: SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
+
+-- | Assertion: @address, lhs SEP rhs
+Assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
+
+-- | Function name, address, of call, with param registers
+FunctionConstraint :: String -> Int -> [(Register, SimpleExpr)] -> Set StatePart -> VerificationCondition
+
+-- | A memory write for which no information was available
+SourcelessMemWrite :: MemWriteIdentifier -> VerificationCondition
+
+-- | An acornym for a set of verification conditions
+type VCS = Set VerificationCondition
 
 -- | A function initialisation consists of a mapping of stateparts to
 --   expressions.
@@ -1373,7 +1373,7 @@ UnknownRetBehavior :: FReturnBehavior
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context
-Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap Report -> Context
+Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
 
 -- | <b>S</b>: mapping from addresses to bytes (data and instructions from
 --   the binary/executable)
@@ -1419,9 +1419,12 @@ Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> 
 -- | <b>D</b>: the currently known function initialisations
 [ctxt_finits] :: Context -> IntMap FInit
 
--- | <b>D</b>: a mapping from function entries to reports storing
---   verification results
-[ctxt_report] :: Context -> IntMap Report
+-- | <b>D</b>: the verification conditions
+[ctxt_vcs] :: Context -> IntMap VCS
+
+-- | <b>D</b>: the verification result
+[ctxt_results] :: Context -> IntMap VerificationResult
+[ctxt_recursions] :: Context -> IntMap IntSet
 
 -- | Reading from a data section.
 --   
@@ -1442,17 +1445,40 @@ pp_instruction :: Context -> Instr -> String
 
 -- | Show function initialisation
 show_finit :: (Show a1, Show a2) => Map a1 a2 -> [Char]
+
+-- | Is the given verification condition an assertion?
+is_assertion :: VerificationCondition -> Bool
+
+-- | Is the given verification condition a precondition?
+is_precondition :: VerificationCondition -> Bool
+
+-- | Is the given verification condition a function constraint?
+is_func_constraint :: VerificationCondition -> Bool
+
+-- | Is the given verification condition a sourceless memwrite?
+is_sourceless_memwrite :: VerificationCondition -> Bool
+
+-- | Count the number of assertions in the set of verification conditions.
+count_instructions_with_assertions :: Set VerificationCondition -> Int
+
+-- | Count the number of sourceless memory writes in the set of
+--   verification conditions.
+count_sourceless_memwrites :: Set VerificationCondition -> Int
 instance GHC.Classes.Eq Context.CFG
 instance GHC.Generics.Generic Context.CFG
 instance GHC.Show.Show Context.CFG
 instance GHC.Generics.Generic Context.VerificationResult
 instance GHC.Classes.Eq Context.VerificationResult
-instance GHC.Show.Show Context.VerificationResult
 instance GHC.Classes.Ord Context.NodeInfo
 instance GHC.Classes.Eq Context.NodeInfo
 instance GHC.Generics.Generic Context.NodeInfo
 instance GHC.Show.Show Context.NodeInfo
-instance GHC.Generics.Generic Context.Report
+instance GHC.Classes.Ord Context.MemWriteIdentifier
+instance GHC.Classes.Eq Context.MemWriteIdentifier
+instance GHC.Generics.Generic Context.MemWriteIdentifier
+instance GHC.Classes.Ord Context.VerificationCondition
+instance GHC.Classes.Eq Context.VerificationCondition
+instance GHC.Generics.Generic Context.VerificationCondition
 instance GHC.Classes.Ord Context.FReturnBehavior
 instance GHC.Classes.Eq Context.FReturnBehavior
 instance GHC.Generics.Generic Context.FReturnBehavior
@@ -1460,9 +1486,13 @@ instance GHC.Show.Show Context.FReturnBehavior
 instance GHC.Generics.Generic Context.Context
 instance Data.Serialize.Serialize Context.Context
 instance Data.Serialize.Serialize Context.FReturnBehavior
-instance Data.Serialize.Serialize Context.Report
+instance Data.Serialize.Serialize Context.VerificationCondition
+instance GHC.Show.Show Context.VerificationCondition
+instance Data.Serialize.Serialize Context.MemWriteIdentifier
+instance GHC.Show.Show Context.MemWriteIdentifier
 instance Data.Serialize.Serialize Context.NodeInfo
 instance Data.Serialize.Serialize Context.VerificationResult
+instance GHC.Show.Show Context.VerificationResult
 instance Data.Serialize.Serialize Context.CFG
 
 
@@ -1564,7 +1594,7 @@ module Propagation
 class (Show pred) => Propagator ctxt pred
 
 -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-tau :: Propagator ctxt pred => ctxt -> [Instr] -> Maybe [Instr] -> pred -> pred
+tau :: Propagator ctxt pred => ctxt -> [Instr] -> Maybe [Instr] -> pred -> (pred, Set VerificationCondition)
 
 -- | A lattice-join
 join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
@@ -1575,7 +1605,7 @@ implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
 -- | Start propagation at the given entry address with the given initial
 --   predicate. Returns a set of invariants, i.e., a mapping of instruction
 --   addresses to predicates.
-do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> IntMap pred
+do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
 
 -- | The supremum of a list of predicates
 supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
@@ -1590,20 +1620,25 @@ module SymbolicExecution
 --   transformation. Parameter insts' is needed to set the flags properly.
 --   If <tt>Nothing</tt> is supplied, the flags are overapproximatively set
 --   to <tt><a>None</a></tt>.
-tau_block :: Context -> [Instr] -> Maybe [Instr] -> Pred -> Pred
+tau_block :: Context -> [Instr] -> Maybe [Instr] -> Pred -> (Pred, VCS)
 
--- | The initial predicate. Given the currently known invariants and
---   postconditions, gather all stateparts occurring in the current
---   function. The initial predicate assign a variable to each statepart,
---   e.g.: <tt>RSP == RSP0, RDI == RDI, ...</tt>.
+-- | The initial predicate.
 init_pred :: Invariants -> Set (NodeInfo, Pred) -> FInit -> Pred
 
 -- | Given the currently known invariants and postconditions, gather all
 --   stateparts occurring in the current function.
 gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
 is_initial :: StatePart -> SimpleExpr -> Bool
+
+-- | Convert the current invariant into a function initialisation
 invariant_to_finit :: Context -> Pred -> FInit
+
+-- | The join between two function initialisations
 weaken_finit :: Context -> FInit -> FInit -> FInit
+
+-- | Get the invariant for a given instruction address for a given function
+--   entry
+get_invariant :: Context -> Int -> Int -> Maybe Pred
 instance Propagation.Propagator Context.Context SimplePred.Pred
 
 
@@ -1632,10 +1667,6 @@ is_end_node :: CFG -> Int -> Bool
 --   
 --   Assumes the given blockID corresponds to a leaf-node.
 node_info_of :: Context -> CFG -> Int -> NodeInfo
-
--- | Get the invariant for a given instruction address for a given function
---   entry
-get_invariant :: Context -> Int -> Int -> Maybe Pred
 
 
 -- | After running FoxDec, a "verification report" (an object of type

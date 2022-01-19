@@ -66,15 +66,15 @@ ParsecT s u m a -&gt; String -&gt; ParsecT s u m a
 </span><span id="line-33"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserIndirections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-34"></span><span>  </span><span id="local-6989586621679187474"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679187474"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Key
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679195012"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679195012"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Key
 forall i st. Integral i =&gt; CharParser st i
 </span><span class="hs-identifier hs-var">hexnum</span></span><span>
 </span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserIndirections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-36"></span><span>  </span><span id="local-6989586621679187472"><span class="annot"><span class="annottext">[Key]
-</span><a href="#local-6989586621679187472"><span class="hs-identifier hs-var">inds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679195010"><span class="annot"><span class="annottext">[Key]
+</span><a href="#local-6989586621679195010"><span class="hs-identifier hs-var">inds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
 -&gt; ParsecT String u Identity Char
 -&gt; ParsecT String u Identity [Key]
 -&gt; ParsecT String u Identity [Key]
@@ -123,15 +123,15 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; (Key, IntSet) -&gt; ParsecT String u Identity (Key, IntSet)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679187474"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Key] -&gt; IntSet
+</span><a href="#local-6989586621679195012"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Key] -&gt; IntSet
 </span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="annot"><span class="annottext">[Key]
-</span><a href="#local-6989586621679187472"><span class="hs-identifier hs-var">inds</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679195010"><span class="hs-identifier hs-var">inds</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-40"></span><span> </span><span>
 </span><span id="line-41"></span><span>
 </span><span id="line-42"></span><span id="indirections"><span class="annot"><span class="annottext">indirections :: ParsecT String u Identity (IntMap IntSet)
 </span><a href="ParserIndirections.html#indirections"><span class="hs-identifier hs-var hs-var">indirections</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-43"></span><span>  </span><span id="local-6989586621679187465"><span class="annot"><span class="annottext">[(Key, IntSet)]
-</span><a href="#local-6989586621679187465"><span class="hs-identifier hs-var">inds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, IntSet)
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679195003"><span class="annot"><span class="annottext">[(Key, IntSet)]
+</span><a href="#local-6989586621679195003"><span class="hs-identifier hs-var">inds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, IntSet)
 -&gt; ParsecT String u Identity [(Key, IntSet)]
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, IntSet)
@@ -156,21 +156,21 @@ forall a. [(Key, a)] -&gt; IntMap a
 -&gt; [(Key, IntSet)] -&gt; IntMap IntSet
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(Key, IntSet)]
-</span><a href="#local-6989586621679187465"><span class="hs-identifier hs-var">inds</span></a></span><span>
+</span><a href="#local-6989586621679195003"><span class="hs-identifier hs-var">inds</span></a></span><span>
 </span><span id="line-47"></span><span>
 </span><span id="line-48"></span><span class="hs-comment">-- The parse function.</span><span>
 </span><span id="line-49"></span><span class="hs-comment">-- Takes as input a filename f and produces a list of instructions</span><span>
 </span><span id="line-50"></span><span class="hs-comment">-- to lists of instructions.</span><span>
 </span><span id="line-51"></span><span class="annot"><a href="ParserIndirections.html#parse_indirections"><span class="hs-identifier hs-type">parse_indirections</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-52"></span><span id="parse_indirections"><span class="annot"><span class="annottext">parse_indirections :: String -&gt; IO (Either ParseError (IntMap IntSet))
-</span><a href="ParserIndirections.html#parse_indirections"><span class="hs-identifier hs-var hs-var">parse_indirections</span></a></span></span><span> </span><span id="local-6989586621679187460"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679187460"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap IntSet)
+</span><a href="ParserIndirections.html#parse_indirections"><span class="hs-identifier hs-var hs-var">parse_indirections</span></a></span></span><span> </span><span id="local-6989586621679194998"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679194998"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap IntSet)
 -&gt; String -&gt; IO (Either ParseError (IntMap IntSet))
 forall a. Parser a -&gt; String -&gt; IO (Either ParseError a)
 </span><span class="hs-identifier hs-var">parseFromFile</span></span><span> </span><span class="annot"><span class="annottext">Parser (IntMap IntSet)
 forall u. ParsecT String u Identity (IntMap IntSet)
 </span><a href="ParserIndirections.html#indirections"><span class="hs-identifier hs-var">indirections</span></a></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679187460"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><a href="#local-6989586621679194998"><span class="hs-identifier hs-var">f</span></a></span><span>
 </span><span id="line-53"></span><span>
 </span><span id="line-54"></span><span>
 </span><span id="line-55"></span></pre></body></html>

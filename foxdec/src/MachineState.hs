@@ -3,6 +3,12 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 
+{-|
+Module      : MachineState
+Description : Functions for resolving symbolic memory reads and writes.
+
+Given a predicate of type 'Pred', we define functions for reading and writing from registers, flags and memory.
+-}
 module MachineState where
 
 import Base
@@ -20,6 +26,7 @@ import qualified Data.IntSet as IS
 import Data.Word 
 import Data.Traversable (for)
 import Control.Monad.State.Strict hiding (join)
+import Control.Monad.Extra (partitionM,mapMaybeM)
 import Data.List
 import Data.Maybe (mapMaybe,fromJust,catMaybes)
 import Debug.Trace
@@ -35,24 +42,18 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 
 
-
--- Given a predicate of type Pred, we define functions for reading and writing from registers, flags and memory.
-
-
----------------
--- REGISTERS --
----------------
-read_rreg :: Register -> State Pred SimpleExpr
+-- *  Registers
+read_rreg :: Register -> State (Pred,VCS) SimpleExpr
 read_rreg r = do
-  Predicate eqs flg ps muddle_status <- get
+  (Predicate eqs flg muddle_status, vcs) <- get
   case M.lookup (SP_Reg r) eqs of
     Nothing -> do
       let var = SE_Var (SP_Reg r)
-      put $ Predicate (M.insert (SP_Reg r) var eqs) flg ps muddle_status
+      put $ (Predicate (M.insert (SP_Reg r) var eqs) flg muddle_status, vcs)
       return var 
     Just e  -> return e
 
-read_reg :: Register -> State Pred SimpleExpr
+read_reg :: Register -> State (Pred,VCS) SimpleExpr
 read_reg r = do
   let rr = real_reg r
   v <- read_rreg rr
@@ -67,23 +68,23 @@ read_reg r = do
   else
     case v of
       SE_Immediate imm -> return $ SE_Immediate imm
-      e -> return $ Bottom FromBitMode $ S.empty -- TODO(srcs_of_expr e)
+      e -> return $ Bottom (FromBitMode $ srcs_of_expr e)
 
 
 
-write_rreg :: Register -> SimpleExpr -> State Pred () 
+write_rreg :: Register -> SimpleExpr -> State (Pred,VCS) () 
 write_rreg r e = 
   if take 2 (show r) == "ST" then
     return ()
   else 
     modify do_write
  where
-  do_write (Predicate eqs flg ps muddle_status) =
+  do_write (Predicate eqs flg muddle_status,vcs) =
     let eqs' = M.insert (SP_Reg r) (trim_expr $ simp e) eqs
         flg' = clean_flg (SP_Reg r) flg in
-      Predicate eqs' flg' ps muddle_status
+      (Predicate eqs' flg' muddle_status,vcs)
  
-write_reg :: Register -> SimpleExpr -> State Pred ()
+write_reg :: Register -> SimpleExpr -> State (Pred,VCS) ()
 write_reg r v = do
   if reg_size r == 8 then -- 64 bit
     write_rreg r $ simp v
@@ -98,12 +99,11 @@ write_reg r v = do
     curr_v <- read_rreg rr
     write_rreg rr (simp $ SE_Overwrite 8 curr_v (SE_Bit 8 v))
   else
-    write_rreg (real_reg r) $ Bottom FromBitMode $ S.empty -- TODO(srcs_of_expr v)
+    write_rreg (real_reg r) $ Bottom (FromBitMode $ srcs_of_expr v)
 
 
------------
--- FLAGS --
------------
+-- * Flags 
+
 
 -- If the given StatePart is overwritten, does that taint the current flag status?
 -- If so, set flagstatus to None, otherwise keep it.
@@ -126,127 +126,9 @@ clean_flg sp (FS_CMP b op1 op2) = do
 
 
 
-------------
--- MEMORY --
-------------
-necessarily_enclosed a0 si0 a1 si1 =
-  not (contains_bot a0) && not (contains_bot a1) && enc a0 a1
- where
-  -- v0 - i0 enc v0 - i1 <==> i1 >= i0  && si0 - i0 <= si1 - i1     (WHEN si0 >= i0 && si1 >= i1)
-  enc (SE_Op (Minus _) [SE_Var v0, SE_Immediate i0])
-      (SE_Op (Minus _) [SE_Var v1, SE_Immediate i1]) = 
-    v0 == v1 && 
-      if si0 <= fromIntegral i0 && si1 <= fromIntegral i1 then
-        fromIntegral i1 >= fromIntegral i0 && fromIntegral i0 - si0 >= fromIntegral i1 - si1
-      else if si0 <= fromIntegral i0 && si1 > fromIntegral i1 then
-        fromIntegral i1 >= fromIntegral i0
-      else if si0 > fromIntegral i0 && si1 <= fromIntegral i1 then
-        False
-      else if si0 > fromIntegral i0 && si1 > fromIntegral i1 then
-        fromIntegral i1 >= fromIntegral i0 && fromIntegral si0 - i0 <= fromIntegral si1 - i1
-      else
-        False
-  -- v0 + i0 enc v0 + i1 <==> i0 >= i1 && i0 + si0 <= i1 + si1
-  enc (SE_Op (Plus _) [SE_Var v0, SE_Immediate i0])
-      (SE_Op (Plus _) [SE_Var v1, SE_Immediate i1]) = 
-    v0 == v1 && i0 >= i1 && fromIntegral i0 + si0 <= fromIntegral i1 + si1
-  -- v0 + i0 enc v0 <==> i0 + si0 <= si1
-  enc (SE_Op (Plus _) [SE_Var v0, SE_Immediate i0])
-      (SE_Var v1) =
-    v0 == v1 && fromIntegral i0 + si0 <= si1
-  -- immediates
-  enc (SE_Immediate a0) (SE_Immediate a1) = 
-    a0 >= a1 && a0 + fromIntegral si0 <= a1 + fromIntegral si1
-  enc _ _ = False
+-- * Memory 
 
-necessarily_separate ctxt a0 si0 a1 si1 =
-  if not (contains_bot a0) && not (contains_bot a1) then
-    (a0,si0) /= (a1,si1) && sep a0 a1
-  else
-    pointers_have_separate_bases ctxt a0 a1
- where
-  -- two immediate addresses
-  sep (SE_Immediate a0)
-      (SE_Immediate a1) =
-    fromIntegral a0 + si0 <= fromIntegral a1 || fromIntegral a1 + si1 <= fromIntegral a0
-  -- v0 - i0 |x| v0 - i1 <==> v0 - i0 + si0 <= v0 - i1 || v0 - i1 + si1 <= v0 - i0 <==> i0-si0 >= i1 || i1-si1 >= i0
-  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
-      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
-    if necessarily_equal v0 v1 then
-      fromIntegral i0 - si0 >= fromIntegral i1 || fromIntegral i1 - si1 >= fromIntegral i0
-    else
-      pointers_have_separate_bases ctxt a0 a1
-
-
-  -- v0 - i0 |x| v0 + i1 <==> True
-  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
-      (SE_Op (Plus  _) [v1, SE_Immediate i1]) = 
-    if necessarily_equal v0 v1 then
-      True
-    else
-      pointers_have_separate_bases ctxt a0 a1
-  sep (SE_Op (Plus  _) [v0, SE_Immediate i0])
-      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
-    if necessarily_equal v0 v1 then
-      True
-    else
-      pointers_have_separate_bases ctxt a0 a1
-
-
-  -- v0 - i0 |x| v0 <==> i0 >= si0
-  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
-       v1 = 
-    if necessarily_equal v0 v1 then
-      fromIntegral i0 >= si0 
-    else
-      pointers_have_separate_bases ctxt a0 a1
-  sep v0
-      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
-    if necessarily_equal v0 v1 then
-      fromIntegral i1 >= si1
-    else
-      pointers_have_separate_bases ctxt a0 a1 
-
-  -- v0 + i0 |x| v0 + i1 <==> v0 + i0 + si0 <= v0 + i1 || v0 + i1 + si1 <= v0 + i0 <==> i0+si0 <= i1 || i1+si1 <= i0
-  sep (SE_Op (Plus _) [v0, SE_Immediate i0])
-      (SE_Op (Plus _) [v1, SE_Immediate i1]) = 
-    if necessarily_equal v0 v1 then
-      fromIntegral i0 + si0 <= fromIntegral i1 || fromIntegral i1 + si1 <= fromIntegral i0
-    else
-      pointers_have_separate_bases ctxt a0 a1 
-
-
-  -- v0 + i0 |x| v0 <==> i0 >= si1
-  sep (SE_Op (Plus _) [v0, SE_Immediate i0])
-      v1 =
-    if necessarily_equal v0 v1 then
-      fromIntegral i0 >= si1
-    else
-      pointers_have_separate_bases ctxt a0 a1 
-  sep v1
-      (SE_Op (Plus _) [v0,SE_Immediate i0]) =
-    if necessarily_equal v0 v1 then
-      fromIntegral i0 >= si1
-    else
-      pointers_have_separate_bases ctxt a0 a1 
-
-  -- remainder
-  sep a0 a1 = pointers_have_separate_bases ctxt a0 a1
-
-
-
-
-necessarily_equal a0 a1 = a0 == a1 && not (contains_bot a0) && not (contains_bot a1)
-
-necessarily_equal_stateparts (SP_Reg r0) (SP_Reg r1) = r0 == r1
-necessarily_equal_stateparts (SP_Mem a0 si0) (SP_Mem a1 si1) = si0 == si1 && necessarily_equal a0 a1
-necessarily_equal_stateparts _ _ = False
-
-
-
-
-
-resolve_address :: Address -> State Pred SimpleExpr
+resolve_address :: Address -> State (Pred,VCS) SimpleExpr
 resolve_address (FromReg r)       = read_reg r
 resolve_address (AddrImm i)       = return $ SE_Immediate $ fromIntegral i
 resolve_address (AddrMinus a0 a1) = do
@@ -264,15 +146,40 @@ resolve_address (AddrTimes a0 a1) = do
 resolve_address (SizeDir _ a) = resolve_address a
 
 
+-- | Can we assume that the two given symolic addresses are separate, and add a precondition?
+-- Returns true iff the expressions do not contain bottom.
+-- This function is called only after other checks have alreayd been done.
+is_preconditionable ctxt a0 a1 = not (contains_bot a0) && not (contains_bot a1)
 
-read_from_datasection_expr :: Context -> SimpleExpr -> Int -> Maybe SimpleExpr
-read_from_datasection_expr ctxt (SE_Immediate a) si = SE_Immediate <$> read_from_datasection ctxt a si
-read_from_datasection_expr _ _ _ = Nothing
+-- | Add a precondition to the given symbolic predicate
+add_precondition a0 si0 a1 si1 (p,vcs)   = (p,S.insert (Precondition a0 si0 a1 si1) vcs)
 
 
 
-generate_assertion :: Address -> State Pred SimpleExpr
-generate_assertion (FromReg r) = do
+is_assertable ctxt a0 a1 =
+  let srcs0     = srcs_of_expr a0
+      srcs1     = srcs_of_expr a1 
+      is_local0 = rsp `S.member` srcs0
+      is_local1 = rsp `S.member` srcs1 in
+  or [
+    contains_bot a0 && is_local0 && not (contains_bot a1) && is_local1, -- TODO this can be more precise
+    
+    not is_local0 && is_local1, 
+    not is_local1 && is_local0, 
+
+    pointers_from_different_global_section ctxt a0 a1
+  ]
+ where
+  rsp = Src_Var $ SP_Reg $ RSP
+
+-- | Add an assertion to the given symbolic predicate
+add_assertion rip a0 si0 a1 si1 (p,vcs)  = (p,S.insert (Assertion rip a0 si0 a1 si1) vcs)
+
+
+
+generate_assertion :: Maybe Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
+generate_assertion Nothing a0           = return a0
+generate_assertion (Just (FromReg r)) _ = do
   p <- get
   v <- read_reg r
   a <- do
@@ -284,31 +191,26 @@ generate_assertion (FromReg r) = do
     else
       return $ v
   return $ a
- where
-  is_function_src (Src_Function _) = True
-  is_function_src _ = False
-generate_assertion (AddrImm i) = return $ SE_Immediate $ fromIntegral i
-generate_assertion (AddrMinus a0 a1) = do
-  v0 <- generate_assertion a0
-  v1 <- generate_assertion a1
+generate_assertion (Just (AddrImm i))       _ = return $ SE_Immediate $ fromIntegral i
+generate_assertion (Just (AddrMinus a0 a1)) x = do
+  v0 <- generate_assertion (Just a0) x
+  v1 <- generate_assertion (Just a1) x
   return $ simp $ SE_Op (Minus 64) [v0,v1]
-generate_assertion (AddrPlus a0 a1) = do
-  v0 <- generate_assertion a0
-  v1 <- generate_assertion a1
+generate_assertion (Just (AddrPlus a0 a1) ) x = do
+  v0 <- generate_assertion (Just a0) x
+  v1 <- generate_assertion (Just a1) x
   return $ simp $ SE_Op (Plus 64) [v0,v1]
-generate_assertion (AddrTimes a0 a1) = do
-  v0 <- generate_assertion a0
-  v1 <- generate_assertion a1
+generate_assertion (Just (AddrTimes a0 a1)) x = do
+  v0 <- generate_assertion (Just a0) x
+  v1 <- generate_assertion (Just a1) x
   return $ simp $ SE_Op (Times 64) [v0,v1]
-generate_assertion (SizeDir _ a) = generate_assertion a
+generate_assertion (Just (SizeDir _ a))     x = generate_assertion (Just a) x
   
 
 
 
--- An address is considered "unwritable" only if it is an immediate address that belongs to a section that is considered unwritable
--- according to Conventions.
-
--- address_is_unwritable ctxt (SE_Var (SP_Mem (SE_Immediate a) _)) = IM.lookup (fromIntegral a) (ctxt_syms ctxt) == Just "___stack_chk_guard"
+-- | An address is considered "unwritable" only if it is an immediate address that belongs to a section that is considered unwritable
+-- according to Conventions (see 'section_is_unwritable')
 address_is_unwritable ctxt (SE_Immediate a) =
   case find_section_for_address ctxt $ fromIntegral a of
     Nothing -> False
@@ -327,195 +229,255 @@ address_is_unmodifiable_by_external_functions ctxt _ = False
 
 
 
-is_preconditionable ctxt a0 a1 = not (contains_bot a0) && not (contains_bot a1)
 
-is_assertable ctxt a0 a1 =
-  or [
-    contains_bot a0 && not (contains_bot a1) && expr_is_local_pointer ctxt a1,
-    pointers_from_different_global_section ctxt a0 a1
-  ]
+-- | Returns true if a pointer is not suitable for writing to memory.
+-- This may happen if the symbolic expression provides no information, i.e., it has @Bottom@ without known pointerbases,
+-- and without any sources.
+invalid_bottom_pointer ctxt e = not (is_immediate e)  && S.null (get_known_pointer_bases ctxt e) && S.null (srcs_of_expr e) 
 
-
-
-
-
-
-
-
-read_from_address :: Context -> Address -> SimpleExpr -> Int -> State Pred SimpleExpr
-read_from_address ctxt address (Bottom (FromNonDeterminism as) _) si = do
-  vs <- mapM (\a -> read_from_address ctxt address a si) $ S.toList as
-  return $ join_nondeterministic_exprs ctxt vs
-read_from_address ctxt address a0 si0 = do
-  case read_from_datasection_expr ctxt a0 si0 of
-    Just imm -> return $ imm 
-                -- trace ("Read immediate from datasection: " ++ show (a0,si0) ++ " := " ++ show imm) $ return $ SE_Immediate imm
-    Nothing -> do
-      Predicate eqs flg ps muddle_status <- get
-      do_read $ M.toList eqs
- where
-  do_read :: [(StatePart, SimpleExpr)] -> State Pred SimpleExpr
-  do_read [] = do
-    p <- get
-    let Predicate eqs flg ps muddle_status = p
-
-    if address_is_unwritable ctxt a0 then do
-      let sp  = SP_Mem a0 si0
-      let var = SE_Var sp
-      return var    
-    else if muddle_status == Clean || -- TODO
-            muddle_status == ExternalOnly ||
-            (expr_is_global_pointer ctxt a0 && address_is_unmodifiable_by_external_functions ctxt a0) then do
-
-      put' <- do
-        if invalid_bottom_pointer ctxt a0 then do
-          rip <- read_reg RIP
-          p <- get
-          --trace ("READ FROM BASELESS POINTER @ " ++ show rip ++ ": " ++ show (a0,si0)) $
-          return $ put
-        else
-          return put
-
-      let sp  = SP_Mem a0 si0
-      let var = SE_Var sp
-      put' $ Predicate (M.insert sp var eqs) flg ps muddle_status
-      return var
+-- | Assuming a valid pointer (see 'invalid_bottom_pointer'), produce a list of pointers that are to be written to in the memory.
+expr_to_mem_addresses ctxt a si =
+  if not (contains_bot a) then
+    [(a,si)]
+  else let bs = get_known_pointer_bases ctxt a in
+    if not $ S.null bs then
+      map (\bs -> (Bottom $ FromPointerBases $ S.fromList bs, 1)) $ split_per_base $ S.toList bs
     else
-      return $ Bottom FromUninitializedMemory $ S.singleton (Src_SP $ SP_Mem a0 si0)
-  do_read ((SP_Reg _,_):mem)       = do_read mem
-  do_read ((SP_Mem a1 si1,e1):mem) =
-    if si0 == si1 && necessarily_equal a0 a1 then 
-      return e1
-    else if address_is_unwritable ctxt a0 || necessarily_separate ctxt a0 si0 a1 si1 then
-      do_read mem
-    else if necessarily_enclosed a0 si0 a1 si1 || necessarily_enclosed a1 si1 a0 si0 then do
-      e0 <- do_read mem
-      let srcs = srcs_of_exprs e0 e1
-      let bot  = Bottom FromOverlap S.empty -- TODOsrcs
-      --error ("PRECONDITION (READ): ENCLOSURE BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
-      return $ bot
+      map srcs_to_mem_address $ split_per_source $ S.toList $ srcs_of_expr a
+ where
+  srcs_to_mem_address [Src_Var (SP_Reg RSP)] = (Bottom $ FromPointerBases $ S.singleton $ StackPointer,1)
+  srcs_to_mem_address [Src_Malloc i h]       = (Bottom $ FromPointerBases $ S.singleton $ Malloc i h,1)
+  srcs_to_mem_address srcs                   = (Bottom $ FromSources $ S.fromList srcs,1)
+    
+  split_per_base [] = []
+  split_per_base (bs:bss) =
+    let (separate,overlapping) = partition (pointer_bases_separate bs) bss in
+      (bs:overlapping) : split_per_base separate
+
+  split_per_source [] = []
+  split_per_source (src:srcs) =
+    let (separate,overlapping) = partition (sources_separate src) srcs in
+      (src:overlapping) : split_per_source separate
+
+
+
+
+
+
+data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
+  deriving Eq
+
+
+read_from_address :: Context -> Maybe Address -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
+read_from_address ctxt address a si0 = do
+  let as = map simp $ unfold_non_determinism a
+  vs <- mapM read_from_address' as
+  return $ join_exprs ("Read") ctxt vs
+ where
+  read_from_address' (SE_Immediate imm) = 
+    case read_from_datasection ctxt imm si0 of 
+      Just imm -> -- trace ("Read immediate from datasection: " ++ show (a0,si0) ++ " := " ++ show imm) $ return $ SE_Immediate imm
+                  return $ SE_Immediate imm  
+      Nothing  -> read_from_state $ SE_Immediate imm
+  read_from_address' a0 = read_from_state a0
+
+
+  read_from_state :: SimpleExpr -> State (Pred,VCS) SimpleExpr
+  read_from_state a0 = do
+    p@(Predicate eqs flg muddle_status,vcs) <- get
+    if contains_bot a0 then
+      if invalid_bottom_pointer ctxt a0 then do
+        rip <- read_reg RIP
+        trace ("READ FROM BASELESS POINTER @ " ++ show rip ++ ": " ++ show (a,si0)) $ return rock_bottom
+      else do
+        overlapping <- filterM (fmap not . has_separate_base a0) $ M.toList eqs
+
+        if overlapping == [] then do
+          let bot   = Bottom (FromUninitializedMemory $ srcs_of_expr a0)
+          let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
+          let eqs'  = M.union (M.fromList $ map (\sp' -> (sp',bot)) sps') eqs
+          put (Predicate eqs' flg muddle_status,vcs)
+          return bot
+        else do
+          let bot = Bottom (FromOverlap $ srcs_of_exprs $ (a0 : map snd overlapping))
+          return bot
+    else if address_is_unwritable ctxt a0 then do
+      let sp  = SP_Mem a0 si0
+      let var = SE_Var sp
+      return var   
+    else do
+      (Predicate eqs flg muddle_status,vcs) <- get
+      do_read a0 $ M.toList eqs
+
+
+  has_separate_base a0 (SP_Reg _,_)      = return True
+  has_separate_base a0 (SP_Mem a1 si1,_) = do
+    sep <- is_separate a0 si0 a1 si1
+    return $ sep == Separated
+
+
+
+  is_separate a0 si0 a1 si1 = do
+    if si0 == si1 && necessarily_equal a0 a1 then
+      return Alias
+    else if necessarily_separate ctxt a0 si0 a1 si1 then
+      return Separated
+    else if necessarily_enclosed a0 si0 a1 si1 then
+      --trace ("PRECONDITION (READ): ENCLOSURE BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
+       return Enclosed
+    else if necessarily_enclosed a1 si1 a0 si0 then
+      --trace ("PRECONDITION (READ): DISCLOSURE BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
+       return Disclosed
     else if is_preconditionable ctxt a0 a1 then do
-        --trace ("PRECONDITION (READ): SEPARATION BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
-        modify $ add_precondition a0 si0 a1 si1
-        do_read mem
+      --trace ("PRECONDITION (READ): SEPARATION BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
+      modify $ add_precondition a0 si0 a1 si1
+      return Separated
     else if is_assertable ctxt a0 a1 then do
       rip <- read_reg RIP
-      assertion <- generate_assertion address
-      -- trace ("ASSERTION (READ@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
+      assertion <- generate_assertion address a0
       modify $ add_assertion rip assertion si0 a1 si1
-      do_read mem
-    else if not (contains_bot a0) && contains_bot a1 && expr_is_local_pointer ctxt a0 then do
-      do_read mem
+      --trace ("ASSERTION (READ@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
+      return Separated
     else do
-      e0 <- do_read mem
-      let srcs = S.empty -- TODOsrcs_of_exprs e0 e1
-      let bot  = Bottom FromOverlap srcs
+     if do_trace a0 a1 then trace ("PRECONDITION (READ): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
+       return Overlap
 
-      --trace ("PRECONDITION (READ): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $
-      return $ bot 
+  do_trace a0 a1 = a0 /= a1 && a1 /= Bottom (FromPointerBases $ S.singleton StackPointer) && (expr_is_possibly_local_pointer ctxt a0 || expr_is_possibly_local_pointer ctxt a1)
 
-read_mem :: Context -> Address -> State Pred SimpleExpr
+  do_read :: SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) SimpleExpr
+  do_read a0 [] = do
+    (p,vcs) <- get
+    let Predicate eqs flg muddle_status = p
+    let sp  = SP_Mem a0 si0
+    let var = --if muddle_status == Clean || -- TODO
+                --   -- muddle_status == ExternalOnly ||
+                --   (muddle_status == ExternalOnly && expr_is_global_pointer ctxt a0 && address_is_unmodifiable_by_external_functions ctxt a0) then
+                SE_Var sp
+                -- else 
+                --  Bottom FromUninitializedMemory $ S.singleton (Src_SP sp)
+    put (Predicate (M.insert sp var eqs) flg muddle_status,vcs)
+    return var
+  do_read a0 ((SP_Reg _,_):mem)       = do_read a0 mem
+  do_read a0 ((SP_Mem a1 si1,e1):mem) = do
+      sep <- is_separate a0 si0 a1 si1
+      case sep of
+        Alias     -> return $ e1
+        Separated -> do_read a0 mem
+        Enclosed  -> return $ Bottom (FromOverlap $ srcs_of_expr e1)
+        _         -> do
+          e0 <- do_read a0 mem
+          let bot  = join_exprs ("read merge overlapping values2" ++ show (a0,si0,a1,si1)) ctxt [e0,e1]
+          return $ bot 
+
+
+
+
+read_mem :: Context -> Address -> State (Pred,VCS) SimpleExpr
 read_mem ctxt (SizeDir si a) = do
   resolved_address <- resolve_address a
-  read_from_address ctxt a resolved_address si
+  read_from_address ctxt (Just a) resolved_address si
 
 
 
-remove_region :: SimpleExpr -> Int -> State Pred ()
-remove_region a si = do
-  Predicate eqs flg ps muddle_status <- get
-  let eqs' = M.delete (SP_Mem a si) eqs
-  let flg' = clean_flg (SP_Mem a si) flg
-  put $ Predicate eqs' flg' ps muddle_status
+add_unknown_mem_write mid (p,vcs) = (p,S.insert (SourcelessMemWrite mid) vcs)
 
 
-
-
-
-
-write_region :: Context -> SimpleExpr -> Int -> SimpleExpr -> State Pred ()
-write_region ctxt a si v = do
-  Predicate eqs flg ps muddle_status <- do
-    if invalid_bottom_pointer ctxt a then do
-      rip <- read_reg RIP
-      p <- get
-      --trace ("WRITE TO BASELESS POINTER @ " ++ show rip ++ ": " ++ show (a,si))
-      get
-    else
-      get
-
-  let eqs' = M.insert (SP_Mem a si) v eqs
-  let flg' = clean_flg (SP_Mem a si) flg
-  put $ Predicate eqs' flg' ps muddle_status
-
-
-write_mem :: Context -> Address -> SimpleExpr -> Int -> SimpleExpr -> State Pred ()
-write_mem ctxt address (Bottom (FromNonDeterminism as) _) si v = mapM_ (\a -> write_mem ctxt address a si v) as -- TODO: $ Bottom FromMemWrite (srcs_of_expr v)
-write_mem ctxt address a0 si0 v = do
-  Predicate eqs flg ps muddle_status <- get
-  do_write True $ M.toList eqs
+write_mem :: Context -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -> State (Pred,VCS) ()
+write_mem ctxt mid a si0 v = do
+  let as = map simp $ unfold_non_determinism a
+  mapM_ (\a -> write_mem' a v) as -- TODO v should be bot?
  where
-  do_write :: Bool -> [(StatePart, SimpleExpr)] -> State Pred ()
-  do_write True  []                  = write_region ctxt a0 si0 (trim_expr $ simp v)
-  do_write False []                  = return ()
-  do_write b ((SP_Reg _,_):mem)      = do_write b mem
-  do_write b ((SP_Mem a1 si1,e):mem) =
+  write_mem' a0 v = do
+    p@(Predicate eqs flg muddle_status,vcs) <- get
+
     if address_is_unwritable ctxt a0 then do
-      p <- get
-      error ("Writing to unwritable section: " ++ show (a0,si0) ++ "\n" ++ show p)
-    else if si0 == si1 && necessarily_equal a0 a1 then do
-      write_region ctxt a1 si1 (simp v)
-      do_write False mem 
+      trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
+    else if invalid_bottom_pointer ctxt a0 && invalid_bottom_pointer ctxt a then do -- FORALL PATHS VS EXISTS PATH
+      modify $ add_unknown_mem_write mid
+    else do
+      p@(Predicate eqs flg muddle_status,vcs) <- get
+      eqs' <- M.fromList <$> do_write a0 si0 v (M.toList eqs)
+      let flg' = clean_flg (SP_Mem a0 si0) flg
+      put (Predicate eqs' flg' muddle_status,vcs)
+
+
+  is_separate a0 si0 a1 si1 = do
+    if si0 == si1 && necessarily_equal a0 a1 then
+      return Alias
     else if necessarily_separate ctxt a0 si0 a1 si1 then
       --trace ("SEPARATION (WRITE) BETWEEN " ++ show (a0,si0,expr_to_addr_type ctxt a0) ++ " and " ++ show (a1,si1,expr_to_addr_type ctxt a1) ++ "\n") $
-      do_write b mem
+       return Separated
     else if necessarily_enclosed a0 si0 a1 si1 then do
-      let srcs = srcs_of_exprs e v
-      let bot  = Bottom FromMemWrite srcs
-      p <- get
-      --trace ("ENCLOSURE1 (WRITE) BETWEEN " ++ show (a0,si0,expr_to_addr_type ctxt a0) ++ " and " ++ show (a1,si1,expr_to_addr_type ctxt a1) ++ "\n" ++ show p) $
-      write_region ctxt a1 si1 bot
+      --trace ("ENCLOSURE1 (WRITE) BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $
+       return Enclosed
     else if necessarily_enclosed a1 si1 a0 si0 then do
-      p <- get
-      remove_region a1 si1
-      --trace ("ENCLOSURE2 (WRITE) BETWEEN " ++ show (a0,si0,expr_to_addr_type ctxt a0) ++ " and " ++ show (a1,si1,expr_to_addr_type ctxt a1) ++ "\n" ++ show p) $
-      do_write b mem
+      --trace ("ENCLOSURE2 (WRITE) BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $
+       return Disclosed
     else if is_preconditionable ctxt a0 a1 then do
       --trace ("PRECONDITION (WRITE): SEPARATION BETWEEN " ++ show (a0,si0,expr_to_addr_type ctxt a0) ++ " and " ++ show (a1,si1,expr_to_addr_type ctxt a1))
       modify $ add_precondition a0 si0 a1 si1
-      do_write b mem
+      return Separated
     else if is_assertable ctxt a0 a1 then do
+      assertion <- generate_assertion (address mid) a0
       rip <- read_reg RIP
-      assertion <- generate_assertion address
-      --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0,expr_to_addr_type ctxt a0) ++ " and " ++ show (a1,si1,expr_to_addr_type ctxt a1)) $
       modify $ add_assertion rip assertion si0 a1 si1
-      do_write b mem
-    else if not (contains_bot a0) && contains_bot a1 && expr_is_local_pointer ctxt a0 then do
-      do_write b mem
-    else do
-      -- overlap, and thus overwrite with bottom
-      let srcs = srcs_of_exprs e v
-      let bot  = Bottom FromMemWrite srcs
+      --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
+      return Separated
+    else if a1 == SE_Var (SP_Reg RSP) then do
       rip <- read_reg RIP
-      --trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $
-      write_region ctxt a1 si1 bot
-      do_write b mem
+      error ("ERROR (WRITE@" ++ show rip ++ "): OVERLAP BETWEEN " ++ show (si0,a0) ++ " and " ++ show (a1,si1))
+    else
+     if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
+       return Overlap
+
+  address (MemWriteInstruction _ addr _) = Just addr
+  address (MemWriteFunction _ _ _)       = Nothing
 
 
---------------
--- OPERANDS --
---------------
 
-read_operand :: Context -> Operand -> State Pred SimpleExpr
+  do_trace a0 a1 = a0 /= a1 && a1 /= Bottom (FromPointerBases $ S.singleton StackPointer) && (expr_is_possibly_local_pointer ctxt a0 || expr_is_possibly_local_pointer ctxt a1)
+
+  do_write :: SimpleExpr -> Int -> SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) [(StatePart, SimpleExpr)]
+  do_write a0 si0 v []                      =  do
+    let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
+    return $ map (\sp' -> (sp', trim_expr v)) sps'
+  do_write a0 si0 v (eq@(SP_Reg _,_):mem)   = ((:) eq) <$> do_write a0 si0 v mem
+  do_write a0 si0 v (eq@(SP_Mem a1 si1,e):mem) = do
+    sep <- is_separate a0 si0 a1 si1
+    case sep of
+      Alias     -> return $ (SP_Mem a0 si0,trim_expr v) : mem
+      Separated -> ((:) $ eq) <$> do_write a0 si0 v mem
+      Enclosed  -> return $ (SP_Mem a1 si1,join_exprs ("write enclosure") ctxt [e,v]) : mem
+      Disclosed -> do_write a0 si0 v mem
+      Overlap   -> do_write (join_exprs ("write overlap adddres") ctxt [a0,a1]) si0 (join_exprs ("write overlap value") ctxt [e,v]) mem
+
+
+
+
+
+-- * Operands  
+read_operand :: Context -> Operand -> State (Pred,VCS) SimpleExpr
 read_operand ctxt (Reg r)       = read_reg r
 read_operand ctxt (Immediate w) = return $ SE_Immediate w
 read_operand ctxt (Address a)   = read_mem ctxt a
 
-write_operand :: Context -> Operand -> SimpleExpr -> State Pred ()
-write_operand ctxt (Reg r) v = write_reg r v
-write_operand ctxt (Address (SizeDir si a)) v = do
+write_operand :: Context -> Int -> Operand -> SimpleExpr -> State (Pred,VCS) ()
+write_operand ctxt instr_a (Reg r) v = write_reg r v
+write_operand ctxt instr_a (Address (SizeDir si a)) v = do
   resolved_address <- resolve_address a
-  write_mem ctxt a resolved_address si v
-write_operand ctxt op1 e = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
+  write_mem ctxt (MemWriteInstruction instr_a (SizeDir si a) resolved_address) resolved_address si v
+write_operand ctxt instr_a op1 e = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
  
+
+
+-- * Stateparts 
+read_sp :: Context -> StatePart -> State (Pred,VCS) SimpleExpr
+read_sp ctxt (SP_Reg r)    = simp <$> read_reg r
+read_sp ctxt (SP_Mem a si) = simp <$> read_from_address ctxt Nothing a si
+
+write_sp :: Context -> (StatePart -> MemWriteIdentifier) -> (StatePart,SimpleExpr) -> State (Pred,VCS) ()
+write_sp ctxt mk_mid (SP_Reg r,v)         = write_reg r v
+write_sp ctxt mk_mid (sp@(SP_Mem a si),v) = write_mem ctxt (mk_mid sp) a si v
+
+
 

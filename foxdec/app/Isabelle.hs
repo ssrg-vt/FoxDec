@@ -51,8 +51,7 @@ ctxt_base_name ctxt entry = do
 
 ctxt_create_hoare_triples :: Context -> IO ()
 ctxt_create_hoare_triples ctxt = do
-  let report = ctxt_report ctxt
-  imports <- mapM entry_to_hoare_triples $ IM.keys report
+  imports <- mapM entry_to_hoare_triples $ IM.keys $ ctxt_calls ctxt
 
   
   let dirname = ctxt_dirname ctxt
@@ -69,7 +68,7 @@ ctxt_create_hoare_triples ctxt = do
     let g        = ctxt_cfgs  ctxt IM.! entry
     let invs     = ctxt_invs  ctxt IM.! entry
     let posts    = ctxt_posts ctxt IM.! entry
-    let (Report _ vcs) = ctxt_report ctxt IM.! entry
+    let vcs      = ctxt_vcs   ctxt IM.! entry
 
     generate_isa_thy ctxt name entry fname g invs posts vcs
 
@@ -112,7 +111,7 @@ block_to_hoare_triples ctxt fname entry all_precs all_asserts invs (blockId,inst
 -- Generate a single Hoare triple for an instruction with precondition p
 instr_to_hoare_triple ctxt fname all_precs all_asserts p i = do
   -- obtain postcondition q
-  let q = tau_block ctxt [i] Nothing p
+  let (q,_) = tau_block ctxt [i] Nothing p
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for p i) $ S.toList all_precs
 
@@ -145,7 +144,7 @@ mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
 
 
 -- generate a predicate
-mk_pred_for_hoare_triple (Predicate eqs _ _ _) =
+mk_pred_for_hoare_triple (Predicate eqs _ _) =
   intercalate " ; " $ mapMaybe mk_eq_for_hoare_triple $ M.toList eqs
  where
   mk_eq_for_hoare_triple (sp,e) =
@@ -171,7 +170,7 @@ mk_fcs ctxt i p =
   else
       ""
  where
-  preserved_stateparts ctxt i (Predicate eqs _ _ _) =
+  preserved_stateparts ctxt i (Predicate eqs _ _) =
      [] -- TODO map fst $ filter (\(sp,v) -> not (contains_bot_sp sp) && statepart_is_preserved_after_function_call ctxt i sp v) $ M.toList eqs
 
 
@@ -187,7 +186,7 @@ all_preconditions ctxt invs posts vcs =
   gather_precs_from_stateparts ctxt [] = S.empty
   gather_precs_from_stateparts ctxt (sp0:sps) = S.union (S.fromList $ mapMaybe (mk_prec_from_stateparts ctxt sp0) sps) (gather_precs_from_stateparts ctxt sps)
   
-  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if pointers_have_separate_bases ctxt a0 a1 && not (contains_bot a0) && not (contains_bot a1) then Just (Precondition a0 si0 a1 si1) else Nothing
+  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if separate_pointer_domains ctxt a0 a1 && not (contains_bot a0) && not (contains_bot a1) then Just (Precondition a0 si0 a1 si1) else Nothing
   mk_prec_from_stateparts ctxt _ _ = Nothing
 
   is_precondition_without_bot (Precondition a0 _ a1 _) = (not (contains_bot a0) && not (contains_bot a1)) -- is_return_value_of_call a0 || is_return_value_of_call a1 || 
@@ -222,7 +221,7 @@ get_relevant_precs_for p i prec =
       POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (FromReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
       _    -> []
 
-  operand_to_statepart p i (Just (Address (SizeDir si a))) = [SP_Mem (evalState (resolve_address_of_operand i a) p) si]
+  operand_to_statepart p i (Just (Address (SizeDir si a))) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
   operand_to_statepart p _ _                               = []
 
   resolve_address_of_operand i a = do
@@ -250,11 +249,11 @@ mk_safe_isa_fun_name str =
 
 
 -- generate an isa-string for an expression
-expr_to_isa (Bottom FromCall srcs) = "bot(" ++ intercalate "," (map src_to_isa $ S.toList srcs) ++ ")"
-expr_to_isa e@(Bottom _ _)         = error "Cannot translate " ++ show e ++ " to Isabelle"
-expr_to_isa (SE_Var sp)            = sp_to_isa sp ++ "_0"
-expr_to_isa (SE_Immediate i)       = if i > 2000 then "0x" ++ showHex i else show i
-expr_to_isa (SE_StatePart sp )     = sp_to_isa sp
+expr_to_isa (Bottom (FromCall f)) = "bot(" ++ f ++ ")"
+expr_to_isa e@(Bottom _ )         = error "Cannot translate " ++ show e ++ " to Isabelle"
+expr_to_isa (SE_Var sp)           = sp_to_isa sp ++ "_0"
+expr_to_isa (SE_Immediate i)      = if i > 2000 then "0x" ++ showHex i else show i
+expr_to_isa (SE_StatePart sp )    = sp_to_isa sp
 
 expr_to_isa (SE_Op (Plus  b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (Plus  b) ++ " " ++ expr_to_isa a1)
 expr_to_isa (SE_Op (Minus b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (Minus b) ++ " " ++ expr_to_isa a1)
@@ -271,7 +270,6 @@ expr_to_isa (SE_Overwrite i a b)    = "overwrite(" ++ intercalate "," [show i,ex
 sp_to_isa (SP_Reg r)    = show r
 sp_to_isa (SP_Mem a si) = "[" ++ expr_to_isa a ++ "," ++ show si ++ "]"
 
-src_to_isa (Src_Function f) = mk_safe_isa_fun_name f
 src_to_isa src              = error $ "Cannot translate bottom-source to Isabelle: " ++ show src
 
 

@@ -49,11 +49,10 @@ sections_with_instructions = [
 
 -- | Sections in the following list are assumed not to be modifiable during execution, i.e., constant.
 section_is_unwritable s@(segname,sect_name) = 
-  segname `elem` ["__TEXT","__DATA_CONST"]
-  ||
-  s `elem` [
-    ("__DATA","__got"),
-    ("__DATA","__const")
+  or [
+    segname `elem` ["__TEXT","__DATA_CONST"],
+    s `elem` [ ("__DATA","__got"), ("__DATA","__const"), ("",".rodata") ],
+    s `elem` sections_with_instructions
   ]
 
 

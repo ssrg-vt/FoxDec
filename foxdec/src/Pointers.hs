@@ -1,16 +1,37 @@
-{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, StrictData #-}
+{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
 
 {-# OPTIONS_HADDOCK hide #-}
 
 
-module Pointers where
+module Pointers (
+   get_pointer_bases,
+   get_known_pointer_bases,
+   expr_highly_likely_pointer,
+   expr_is_global_pointer,
+   expr_is_highly_likely_local_pointer,
+   expr_is_possibly_local_pointer,
+   srcs_of_expr,
+   srcs_of_exprs,
+   pointers_from_different_global_section,
+   separate_pointer_domains,
+   join_exprs,
+   join_single,
+   pointer_bases_separate,
+   sources_separate,
+   necessarily_equal,
+   necessarily_equal_stateparts,
+   necessarily_separate,
+   necessarily_separate_stateparts,
+   necessarily_enclosed,
+  )
+  where
 
 import Base
 import SimplePred
 import Context
 import X86_Datastructures
 import ControlFlow
-
+import Config
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -18,26 +39,59 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import Data.List
 import Data.Word 
+import Debug.Trace
 
 
+-- * Pointer Bases
+
+-- | A 'Pointerbase' is a positive addend of a symbolic expression that may represent a pointer.
+-- Retrieves the pointer bases from a symbolic expression.
+-- They are either 1.) all known, or 2.) all unknown.
+get_pointer_bases :: Context -> SimpleExpr -> S.Set PointerBase
+get_pointer_bases ctxt e =
+  let bs = get_pointer_bases' ctxt e in
+    if any (not . is_unknown_ptr_base) bs then
+      S.filter (not . is_unknown_ptr_base) bs
+    else
+      bs
 
 
-
-
-get_pointer_bases :: Context -> SimpleExpr -> [PointerBase]
-get_pointer_bases ctxt (Bottom (FromNonDeterminism es) _) = concatMap (get_pointer_bases ctxt) $ S.toList es
-get_pointer_bases ctxt (SE_Op (Plus _) es)                = concatMap (get_pointer_bases ctxt) es
-get_pointer_bases ctxt (SE_Op (Minus _) (e:es))           = get_pointer_bases ctxt e
-get_pointer_bases ctxt e                                  = get_pointer_base e
+get_pointer_bases' :: Context -> SimpleExpr -> S.Set PointerBase
+get_pointer_bases' ctxt (Bottom (FromNonDeterminism es)) = S.unions $ S.map (get_pointer_bases ctxt) es
+get_pointer_bases' ctxt (SE_Op (Plus _) es)              = S.unions $ S.map (get_pointer_bases ctxt) $ S.fromList es
+get_pointer_bases' ctxt (SE_Op (Minus _) (e:es))         = get_pointer_bases ctxt e
+get_pointer_bases' ctxt e                                = get_pointer_base e
  where
-  get_pointer_base e@(SE_Immediate a)                      = if address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing then [GlobalAddress a] else [Unknown e]
+  get_pointer_base e@(SE_Immediate a)                      = if address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing then S.singleton $ GlobalAddress a else S.singleton $ Unknown e
   get_pointer_base e@(SE_Var (SP_Mem (SE_Immediate a) 8))  = case IM.lookup (fromIntegral a) (ctxt_syms ctxt) of
-                                                               Nothing  -> [Unknown e]
-                                                               Just sym -> [PointerToSymbol sym]
-  get_pointer_base   (SE_Var (SP_Reg RSP))                 = [StackPointer]
-  get_pointer_base   (SE_Malloc id hash)                   = [Malloc id hash]
-  get_pointer_base   (Bottom (FromAbstraction bases) _)    = if S.null bases then [Unknown e] else S.toList bases
-  get_pointer_base   e                                     = [Unknown e]
+                                                               Nothing  -> S.singleton $ Unknown e
+                                                               Just sym -> S.singleton $ PointerToSymbol a sym
+  get_pointer_base   (SE_Var (SP_Reg RSP))                 = S.singleton $ StackPointer
+  get_pointer_base   (SE_Malloc id hash)                   = S.singleton $ Malloc id hash
+  get_pointer_base  e@(Bottom (FromPointerBases bs))       = if S.null bs then S.singleton $ Unknown e else bs
+  get_pointer_base  e                                      = S.singleton $ Unknown e
+
+
+
+-- | Returns the set of known pointerbases, or the empty set if none.
+get_known_pointer_bases ctxt e = S.filter (not . is_unknown_ptr_base) $ get_pointer_bases ctxt e
+
+-- | Returns true if the expression has known pointerbases.
+expr_highly_likely_pointer ctxt e = not $ S.null $ get_known_pointer_bases ctxt e
+
+-- | Returns the set of global pointerbases, or the empty set if none.
+get_global_pointer_bases ctxt e = S.filter is_global_ptr_base $ get_pointer_bases ctxt e
+
+-- | Returns true if the expression has a global pointerbase.
+expr_is_global_pointer ctxt e = not $ S.null $ get_global_pointer_bases ctxt e
+
+-- | Returns true if the expression has a local pointerbase, and no others.
+expr_is_highly_likely_local_pointer ctxt e = get_known_pointer_bases ctxt e == S.singleton StackPointer || srcs_of_expr e == (S.singleton $ Src_Var $ SP_Reg $ RSP)
+
+-- | Returns true if the expression has a local pointerbase, but maybe other pointerbases as well.
+expr_is_possibly_local_pointer ctxt e = StackPointer `S.member` get_known_pointer_bases ctxt e || (Src_Var $ SP_Reg $ RSP) `S.member` (srcs_of_expr e)
+
+
 
 is_unknown_ptr_base (Unknown _) = True
 is_unknown_ptr_base _           = False
@@ -45,118 +99,320 @@ is_unknown_ptr_base _           = False
 is_global_ptr_base (GlobalAddress _) = True
 is_global_ptr_base _                 = False
 
-get_known_pointer_bases ctxt e = filter (not . is_unknown_ptr_base) $ get_pointer_bases ctxt e
-
-expr_highly_likely_pointer ctxt e = get_known_pointer_bases ctxt e /= []
-
-get_global_pointer_bases ctxt e = filter is_global_ptr_base $ get_pointer_bases ctxt e
-
-expr_is_global_pointer ctxt e = get_global_pointer_bases ctxt e /= []
-
-expr_is_local_pointer ctxt e = get_pointer_bases ctxt e == [StackPointer]
-
-
-pointer_bases_separate StackPointer           StackPointer            = False
-pointer_bases_separate StackPointer           (GlobalAddress _)       = True
-pointer_bases_separate StackPointer           (PointerToSymbol _)     = True
-pointer_bases_separate (GlobalAddress _)      StackPointer            = True
-pointer_bases_separate (GlobalAddress _)      (PointerToSymbol _)     = True
-pointer_bases_separate (GlobalAddress _)      (GlobalAddress _)       = False
-pointer_bases_separate (PointerToSymbol _)    StackPointer            = True
-pointer_bases_separate (PointerToSymbol _)    (GlobalAddress _)       = True
-pointer_bases_separate (PointerToSymbol sym0) (PointerToSymbol sym1)  = sym0 /= sym1
-pointer_bases_separate (Malloc id0 hash0)     (Malloc id1 hash1)      = Nothing `notElem` [id0,id1] && Nothing `notElem` [hash0,hash1] && (id0,hash0) /= (id1,hash1)
-pointer_bases_separate (Malloc _ _)           _                       = True
-pointer_bases_separate _                      (Malloc _ _)            = True
+is_malloc (Malloc _ _) = True
+is_malloc _            = False
 
 
 
-pointers_have_separate_bases ctxt a0 a1 =
-  let bs0 = get_known_pointer_bases ctxt a0
-      bs1 = get_known_pointer_bases ctxt a1 in
-    bs0 /= [] && bs1 /= [] && all (uncurry pointer_bases_separate) [(b0,b1) | b0 <- bs0, b1 <- bs1]
-
-
-invalid_bottom_pointer ctxt e = 
-  let bases = get_pointer_bases ctxt e in
-    all is_invalid_ptr_base bases
- where
-  is_invalid_ptr_base (Unknown e) = contains_bot e && all_bot_satisfy invalid_bottom_base_for_pointer e
-  is_invalid_ptr_base _           = False
-  invalid_bottom_base_for_pointer (FromAbstraction bs) srcs = S.null bs
-  invalid_bottom_base_for_pointer _ _                       = True
-
-is_empty_FromAbstraction (FromAbstraction bs) = S.null bs
-is_empty_FromAbstraction _                    = False
 
 
 
+-- * Sources
+
+
+
+-- | Returns the set of sources (inputs used to compute the expression) of an expression.
+srcs_of_expr (Bottom typ)         = srcs_of_bottyp typ
+srcs_of_expr (SE_Malloc id h)     = S.singleton $ Src_Malloc id h
+srcs_of_expr (SE_Var sp)          = S.singleton $ Src_Var sp
+srcs_of_expr (SE_Immediate i)     = S.empty
+srcs_of_expr (SE_StatePart sp)    = S.singleton $ Src_Var sp
+srcs_of_expr (SE_Op _ es)         = S.unions $ map srcs_of_expr es
+srcs_of_expr (SE_Bit i e)         = srcs_of_expr e
+srcs_of_expr (SE_SExtend _ _ e)   = srcs_of_expr e
+srcs_of_expr (SE_Overwrite _ a b) = srcs_of_exprs [a,b]
+
+-- | Returns the set of sources (state parts used to compute the expression) of two expressions.
+srcs_of_exprs es = S.unions $ map srcs_of_expr es 
+
+-- | Returns the set of sources of the bottom type
+srcs_of_bottyp (FromNonDeterminism es)        = S.unions $ S.map srcs_of_expr es
+srcs_of_bottyp (FromPointerBases bs)          = S.unions $ S.map srcs_of_base bs
+srcs_of_bottyp (FromSources srcs)             = srcs
+srcs_of_bottyp (FromBitMode srcs)             = srcs
+srcs_of_bottyp (FromOverlap srcs)             = srcs
+srcs_of_bottyp (FromSemantics srcs)           = srcs
+srcs_of_bottyp (FromMemWrite srcs)            = srcs
+srcs_of_bottyp (FromUninitializedMemory srcs) = srcs
+srcs_of_bottyp (FromCall f)                   = S.singleton $ Src_Function f
+
+-- | Returns the set of sources of the pointerbase
+srcs_of_base StackPointer            = S.singleton $ Src_Var $ SP_Reg RSP
+srcs_of_base (Unknown e)             = srcs_of_expr e
+srcs_of_base (Malloc id h)           = S.singleton $ Src_Malloc id h
+srcs_of_base (GlobalAddress a)       = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+srcs_of_base (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+
+
+
+
+
+
+-- * Joining
 
 
 -- | Given a set of expressions, produce an expression that resembles the join of the entire set.
 -- That is, the produced expression should be coarser than the disjunction of all input-expressions.
 --
--- We join based on pointer-bases. If two expressions are "joinable", i.e., if they share the same pointer-bases,
--- they are joined to a bottom abstract expression with these pointer-bases.
-join_nondeterministic_exprs ctxt es = 
-  let es' = S.unions $ map exprs_of es in
-   if S.size es' == 1 then 
-     head $ S.toList es'
-   else if any contains_bot es' then
-     mk_bottom es'
-   else let es'' = S.fromList $ join_expr_list $ S.toList es' in
-     if S.size es'' == 1 then
-       head $ S.toList es''
-     else if S.size es'' > 25 then
-       mk_bottom es''
-     else
-       Bottom (FromNonDeterminism es'') srcs
- where
-
-  exprs_of (Bottom (FromNonDeterminism es) _) = S.unions $ map exprs_of $ S.toList es
-  exprs_of e                                  = S.singleton e
-  
-  srcs = S.empty -- S.unions $ map srcs_of_expr es
-
-
-  join_expr_list []     = []
-  join_expr_list [e]    = [e]
-  join_expr_list (e:es) =
-    let (joins,unjoins) = partition (joinable e) es in
-      join_exprs (e:joins) : join_expr_list unjoins
-
-  joinable e0 e1 = 
-    let bases0 = get_known_pointer_bases ctxt e0
-        bases1 = get_known_pointer_bases ctxt e1 in
-      or [
-        bases0 /= [] && bases0 == bases1
-        --pointers_from_same_global_section ctxt e0 e1
-       ]
-
-  join_exprs [e] = e
-  join_exprs es  = mk_bottom es
-
-
-
-
-  mk_bottom es = 
-    if rock_bottom `elem` es then
+--   (1) First, just use non-determinism, i.e., @a join b@ becomes @{a,b}@. This is precise, but doesn't guarantee termination.
+--   (2) If step 1 produces too many cases, join based on known pointerbases. This requires all given expressions to have known pointerbases.
+--   (3) If step 2 produces too many bases, or the given expressions have no known pointerbases, join bsed on sources.
+--   (4) If step 3 produces too many sources, just produces 'rock_bottom'.
+--
+--
+-- TODO: joining immediates
+join_exprs :: String -> Context -> [SimpleExpr] -> SimpleExpr
+join_exprs msg ctxt es = 
+  let es' = S.unions $ map (S.fromList . unfold_non_determinism) es in
+    if S.size es' == 0 then
       rock_bottom
-    else let bs = S.fromList $ concatMap (get_known_pointer_bases ctxt) es in
-      if S.null bs || S.size bs > 25 then -- TODO what if list of globals
-        rock_bottom
+    else if S.size es' == 1 then
+      head $ S.toList es'  
+    else if S.size es' <= max_num_of_cases && all (not . contains_bot) es' then
+      Bottom (FromNonDeterminism es')
+    else if rock_bottom `S.member` es' then
+      rock_bottom
+    else let bss = S.map (get_known_pointer_bases ctxt) es'
+             bs  = S.unions bss in
+      if S.size bs <= max_num_of_bases && all (not . S.null) bss then
+        Bottom (FromPointerBases bs)
       else
-        Bottom (FromAbstraction bs) srcs
+        let srcs = S.unions $ S.map srcs_of_expr es' in
+          if S.size srcs <= max_num_of_sources then
+            Bottom (FromSources srcs)
+          else
+            trace ("Hitting max num of sources: " ++ show max_num_of_sources) rock_bottom
+ where
+  rsp = Src_Var $ SP_Reg RSP
+
+
+--join_exprs' ctxt es = 
+--  let e = join_exprs' ctxt es in
+--    if S.size (srcs_of_expr e) == 0 && all (\e -> S.size (srcs_of_expr e) > 0) es && es /= [] then traceShow ("joining: ",es,e, S.size $ srcs_of_exprs es) e else e 
+
+
+-- | Abstraction for a single expression, even if the expression is concrete.
+join_single :: Context -> SimpleExpr -> SimpleExpr
+join_single ctxt e =
+  let bs = get_known_pointer_bases ctxt e in
+    if not (S.null bs) && S.size bs <= max_num_of_bases  then
+      Bottom (FromPointerBases bs)
+    else
+      let srcs = srcs_of_expr e in 
+        if S.size srcs <= max_num_of_sources then
+          Bottom (FromSources srcs)
+        else
+          trace ("Hitting max num of sources: " ++ show max_num_of_sources) rock_bottom
+
+
+
+-- * Separation
+
+
+-- | Returns true iff the two given expressions have global pointerbases in different segments/sections of the binary.
+-- We do not assume that such pointers are separate, but do assert it.
+pointers_from_different_global_section ctxt a0 a1 =
+    case (S.toList $ get_global_pointer_bases ctxt a0, S.toList $ get_global_pointer_bases ctxt a1) of
+      ([GlobalAddress g0], [GlobalAddress g1]) -> find_section_for_address ctxt (fromIntegral g0) /= find_section_for_address ctxt (fromIntegral g1)
+      _ -> False
+
+
+-- | Two pointerbases are separate if they refer to completely different parts of the memory.
+-- We assume Stackframe, Global address space, and Heap are separate.
+-- Two different @malloc@'s point to different regions.
+pointer_bases_separate StackPointer             StackPointer              = False
+pointer_bases_separate StackPointer             (GlobalAddress _)         = True
+pointer_bases_separate StackPointer             (PointerToSymbol _ _)     = True
+pointer_bases_separate (GlobalAddress _)        StackPointer              = True
+pointer_bases_separate (GlobalAddress _)        (PointerToSymbol _ _)     = True
+pointer_bases_separate (GlobalAddress _)        (GlobalAddress _)         = False
+pointer_bases_separate (PointerToSymbol _ _)    StackPointer              = True
+pointer_bases_separate (PointerToSymbol _ _)    (GlobalAddress _)         = True
+pointer_bases_separate (PointerToSymbol _ sym0) (PointerToSymbol _ sym1)  = sym0 /= sym1
+pointer_bases_separate (Malloc id0 hash0)       (Malloc id1 hash1)        = Nothing `notElem` [id0,id1] && Nothing `notElem` [hash0,hash1] && (id0,hash0) /= (id1,hash1)
+pointer_bases_separate (Malloc _ _)             _                         = True
+pointer_bases_separate _                        (Malloc _ _)              = True
+
+
+-- | Two sources are inputs for separate pointers if, e.g., one of them is the stackpointer and the other a malloc-return-value.
+sources_separate s0 s1 =
+   case (src_to_base s0, src_to_base s1) of
+     (Just b0,Just b1)      -> pointer_bases_separate b0 b1
+     (Just StackPointer, _) -> True
+     (_, Just StackPointer) -> True
+     _                      -> False
+ where
+  src_to_base (Src_Var (SP_Reg RSP))   = Just $ StackPointer
+  src_to_base (Src_Malloc i h)         = Just $ Malloc i h
+  src_to_base _                        = Nothing
+
+
+
+-- | Returns true iff the two given expressions can be shown to be separate.
+-- This means that either:
+--   * They both have known pointerbases that are assumed to be separate (see 'pointer_bases_separate').
+--   * They both have sources that are all separate (see `sources_separate`)
+--   * One of them is an immediate and the other is local.
+
+separate_pointer_domains ctxt a0 a1 =
+  let bs0 = get_known_pointer_bases ctxt a0
+      bs1 = get_known_pointer_bases ctxt a1 in
+    if not (S.null bs0) && not (S.null bs1) then
+      all (uncurry pointer_bases_separate) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
+    else let srcs0 = srcs_of_expr a0
+             srcs1 = srcs_of_expr a1 in
+      or [
+        not (S.null srcs0) && not (S.null srcs1) && all (uncurry sources_separate) [(s0,s1) | s0 <- S.toList srcs0, s1 <- S.toList srcs1],
+        is_immediate a0 && expr_is_possibly_local_pointer ctxt a1,
+        is_immediate a1 && expr_is_possibly_local_pointer ctxt a0
+       ]
       
 
 
-  get_global (GlobalAddress g) = g
+
+ 
+
+-- | Returns true iff the given symbolic region is necessarily enclosed in the other.
+-- For example:
+--    @[RSP-16,4]@ is enclosed in @[RSP-18,8]@
+--    @[RSP+4,4]@ is enclosed in @[RSP,8]@
+--
+-- Will return @False@ if the expressions contain bottom.
+necessarily_enclosed a0 si0 a1 si1 =
+  not (contains_bot a0) && not (contains_bot a1) && enc a0 a1
+ where
+  -- v0 - i0 enc v0 - i1 <==> i1 >= i0  && si0 - i0 <= si1 - i1     (WHEN si0 >= i0 && si1 >= i1)
+  enc (SE_Op (Minus _) [SE_Var v0, SE_Immediate i0])
+      (SE_Op (Minus _) [SE_Var v1, SE_Immediate i1]) = 
+    v0 == v1 && 
+      if si0 <= fromIntegral i0 && si1 <= fromIntegral i1 then
+        fromIntegral i1 >= fromIntegral i0 && fromIntegral i0 - si0 >= fromIntegral i1 - si1
+      else if si0 <= fromIntegral i0 && si1 > fromIntegral i1 then
+        fromIntegral i1 >= fromIntegral i0
+      else if si0 > fromIntegral i0 && si1 <= fromIntegral i1 then
+        False
+      else if si0 > fromIntegral i0 && si1 > fromIntegral i1 then
+        fromIntegral i1 >= fromIntegral i0 && fromIntegral si0 - i0 <= fromIntegral si1 - i1
+      else
+        False
+  -- v0 + i0 enc v0 + i1 <==> i0 >= i1 && i0 + si0 <= i1 + si1
+  enc (SE_Op (Plus _) [SE_Var v0, SE_Immediate i0])
+      (SE_Op (Plus _) [SE_Var v1, SE_Immediate i1]) = 
+    v0 == v1 && i0 >= i1 && fromIntegral i0 + si0 <= fromIntegral i1 + si1
+  -- v0 + i0 enc v0 <==> i0 + si0 <= si1
+  enc (SE_Op (Plus _) [SE_Var v0, SE_Immediate i0])
+      (SE_Var v1) =
+    v0 == v1 && fromIntegral i0 + si0 <= si1
+  -- immediates
+  enc (SE_Immediate a0) (SE_Immediate a1) = 
+    a0 >= a1 && a0 + fromIntegral si0 <= a1 + fromIntegral si1
+  enc _ _ = False
 
 
-rock_bottom = Bottom (FromAbstraction S.empty) S.empty
+-- | Returns true iff the given symbolic regions are ncessarily separate.
+-- For example:
+--    @[RSP-16,4]@ is separate from @[RSP-12,8]@
+--    @[RSP+8,4]@ is separate from @[RSP,8]@
+--
+-- If none of the cases apply where it can be shjown arithmetically that the expressions are separate,
+-- we check whether the expressions can be proven separate based on their domains (see 'separate_pointer_domains').
+necessarily_separate ctxt a0 si0 a1 si1 =
+  if not (contains_bot a0) && not (contains_bot a1) then
+    (a0,si0) /= (a1,si1) && sep a0 a1
+  else
+    separate_pointer_domains ctxt a0 a1
+ where
+  -- two immediate addresses
+  sep (SE_Immediate a0)
+      (SE_Immediate a1) =
+    fromIntegral a0 + si0 <= fromIntegral a1 || fromIntegral a1 + si1 <= fromIntegral a0
+  -- v0 - i0 |x| v0 - i1 <==> v0 - i0 + si0 <= v0 - i1 || v0 - i1 + si1 <= v0 - i0 <==> i0-si0 >= i1 || i1-si1 >= i0
+  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
+      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
+    if necessarily_equal v0 v1 then
+      fromIntegral i0 - si0 >= fromIntegral i1 || fromIntegral i1 - si1 >= fromIntegral i0
+    else
+      separate_pointer_domains ctxt a0 a1
 
 
-pointers_from_different_global_section ctxt a0 a1 =
-    case (get_global_pointer_bases ctxt a0, get_global_pointer_bases ctxt a1) of
-      ([GlobalAddress g0], [GlobalAddress g1]) -> find_section_for_address ctxt (fromIntegral g0) /= find_section_for_address ctxt (fromIntegral g1)
-      _ -> False
+  -- v0 - i0 |x| v0 + i1 <==> True
+  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
+      (SE_Op (Plus  _) [v1, SE_Immediate i1]) = 
+    if necessarily_equal v0 v1 then
+      True
+    else
+      separate_pointer_domains ctxt a0 a1
+  sep (SE_Op (Plus  _) [v0, SE_Immediate i0])
+      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
+    if necessarily_equal v0 v1 then
+      True
+    else
+      separate_pointer_domains ctxt a0 a1
+
+
+  -- v0 - i0 |x| v0 <==> i0 >= si0
+  sep (SE_Op (Minus _) [v0, SE_Immediate i0])
+       v1 = 
+    if necessarily_equal v0 v1 then
+      fromIntegral i0 >= si0 
+    else
+      separate_pointer_domains ctxt a0 a1
+  sep v0
+      (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
+    if necessarily_equal v0 v1 then
+      fromIntegral i1 >= si1
+    else
+      separate_pointer_domains ctxt a0 a1 
+
+  -- v0 + i0 |x| v0 + i1 <==> v0 + i0 + si0 <= v0 + i1 || v0 + i1 + si1 <= v0 + i0 <==> i0+si0 <= i1 || i1+si1 <= i0
+  sep (SE_Op (Plus _) [v0, SE_Immediate i0])
+      (SE_Op (Plus _) [v1, SE_Immediate i1]) = 
+    if necessarily_equal v0 v1 then
+      fromIntegral i0 + si0 <= fromIntegral i1 || fromIntegral i1 + si1 <= fromIntegral i0
+    else
+      separate_pointer_domains ctxt a0 a1 
+
+
+  -- v0 + i0 |x| v0 <==> i0 >= si1
+  sep (SE_Op (Plus _) [v0, SE_Immediate i0])
+      v1 =
+    if necessarily_equal v0 v1 then
+      fromIntegral i0 >= si1
+    else
+      separate_pointer_domains ctxt a0 a1 
+  sep v1
+      (SE_Op (Plus _) [v0,SE_Immediate i0]) =
+    if necessarily_equal v0 v1 then
+      fromIntegral i0 >= si1
+    else
+      separate_pointer_domains ctxt a0 a1 
+
+  -- remainder
+  sep a0 a1 = separate_pointer_domains ctxt a0 a1
+
+
+
+necessarily_separate_stateparts ctxt (SP_Reg r0)     (SP_Reg r1)     = r0 /= r1
+necessarily_separate_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = necessarily_separate ctxt a0 si0 a1 si1
+necessarily_separate_stateparts _    _               _               = True
+
+
+
+
+-- | Returns true iff the given symbolic regions are necessarily equal.
+-- For example:
+--    @[RSP-16,4]@ is enclosed in @[RSP-16,4]@
+--
+-- Will return @False@ if the expressions contain bottom.
+necessarily_equal a0 a1 = a0 == a1 && not (contains_bot a0) && not (contains_bot a1)
+
+-- | Returns true iff the given symbolic stateparts are necessarily equal.
+necessarily_equal_stateparts (SP_Reg r0) (SP_Reg r1) = r0 == r1
+necessarily_equal_stateparts (SP_Mem a0 si0) (SP_Mem a1 si1) = si0 == si1 && necessarily_equal a0 a1
+necessarily_equal_stateparts _ _ = False
+
+
+
+
+
+

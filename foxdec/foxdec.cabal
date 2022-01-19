@@ -28,6 +28,7 @@ library
       Base
       CallGraph
       CFG_Gen
+      Config
       Context
       ControlFlow
       Conventions

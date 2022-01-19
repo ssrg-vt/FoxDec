@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -55,11 +55,12 @@ type SectionsInfo = [(String,String,Int,Int)]
 -- | An enumeration indicating the result of verification over a function
 data VerificationResult = 
      VerificationSuccess              -- ^ Function was succesfully verified
-  | VerificationSuccesWithAssertions  -- ^ Function was succesfully verified, but required assertions
+  | VerificationSuccesWithAssumptions -- ^ Function was succesfully verified, but required assertions
   | VerificationUnresolvedIndirection -- ^ Function contains an unresolved indirection
   | VerificationError String          -- ^ There was some verification error, e.g., return adresss overwrite
   | Unverified                        -- ^ The function has not been verified.
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Generic)
+
 
 -- | Invariants: a mapping of blockIDs to predicates
 type Invariants = IM.IntMap Pred
@@ -75,14 +76,32 @@ data NodeInfo =
 type Postconditions = S.Set (NodeInfo,Pred)
 
 
+-- | Identifies where a memwrite occurred
+data MemWriteIdentifier =
+   MemWriteFunction String Int StatePart      -- ^ A function with @name@ at address @i_a@ wrote to a statepart
+ | MemWriteInstruction Int Address SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
+  deriving (Generic,Eq,Ord)
 
+-- |  A verification condition is either:
+-- * A precondition of the form:
+-- >    Precondition (a0,si0) (a1,si1)
+-- This formulates that at the initial state the two regions must be separate.
+-- * An assertion of the form:
+-- >    Assertion a (a0,si0) (a1,si1)
+-- This formulates that dynamically, whenever address a is executed, the two regions are asserted to be separate.
+-- * A function constraint of the form:
+-- >    FunctionConstraint foo [(RDI, v0), (RSI, v1), ...]   { sp0,sp1,... }
+-- This formulates that a function call to function foo with values v0, v1, ... stored in the registers should not overwrite certain state parts.
+data VerificationCondition =
+    Precondition       SimpleExpr Int SimpleExpr Int                        -- ^ Precondition:           lhs SEP rhs
+  | Assertion          SimpleExpr SimpleExpr Int SimpleExpr Int             -- ^ Assertion:    @address, lhs SEP rhs
+  | FunctionConstraint String     Int [(Register,SimpleExpr)] (S.Set StatePart) -- ^ Function name, address, of call, with param registers
+  | SourcelessMemWrite MemWriteIdentifier                                       -- ^ A memory write for which no information was available
+  deriving (Generic,Eq,Ord)
 
--- | Per function, we report on:
-data Report = Report {
-   report_result  :: VerificationResult,         -- ^ The verification result
-   report_vcs     :: S.Set VerificationCondition -- ^ The verification conditions
- }
- deriving Generic
+-- | An acornym for a set of verification conditions
+type VCS = S.Set VerificationCondition
+
 
 -- | A function initialisation consists of a mapping of stateparts to expressions.
 type FInit = M.Map StatePart SimpleExpr
@@ -104,21 +123,23 @@ data FReturnBehavior =
 -- __D__: Information __D__ynamically updated during verification
 -------------------------------------------------------------------------------
 data Context = Context {
-   ctxt_dump          :: IM.IntMap Word8,              -- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)
-   ctxt_syms          :: IM.IntMap String,             -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
-   ctxt_sections      :: SectionsInfo,                 -- ^ __S__: information on segments/section
-   ctxt_dirname       :: String,                       -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
-   ctxt_name          :: String,                       -- ^ __S__: the name of the binary
-   ctxt_generate_pdfs :: Bool,                         -- ^ __S__: do we call graphviz to generate PDFs from .dot files?
+   ctxt_dump          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)
+   ctxt_syms          :: IM.IntMap String,               -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
+   ctxt_sections      :: SectionsInfo,                   -- ^ __S__: information on segments/section
+   ctxt_dirname       :: String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
+   ctxt_name          :: String,                         -- ^ __S__: the name of the binary
+   ctxt_generate_pdfs :: Bool,                           -- ^ __S__: do we call graphviz to generate PDFs from .dot files?
 
-   ctxt_entries       :: Graph,                        -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
-   ctxt_cfgs          :: IM.IntMap CFG,                -- ^ __D__: the currently known control flow graphs per function entry
-   ctxt_calls         :: IM.IntMap FReturnBehavior,    -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
-   ctxt_invs          :: IM.IntMap Invariants,         -- ^ __D__: the currently known invariants
-   ctxt_posts         :: IM.IntMap Postconditions,     -- ^ __D__: the currently known postconditions
-   ctxt_inds          :: Indirections,                 -- ^ __D__: the currently known indirections
-   ctxt_finits        :: IM.IntMap FInit,              -- ^ __D__: the currently known function initialisations
-   ctxt_report        :: IM.IntMap Report              -- ^ __D__: a mapping from function entries to reports storing verification results
+   ctxt_entries       :: Graph,                          -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
+   ctxt_cfgs          :: IM.IntMap CFG,                  -- ^ __D__: the currently known control flow graphs per function entry
+   ctxt_calls         :: IM.IntMap FReturnBehavior,      -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
+   ctxt_invs          :: IM.IntMap Invariants,           -- ^ __D__: the currently known invariants
+   ctxt_posts         :: IM.IntMap Postconditions,       -- ^ __D__: the currently known postconditions
+   ctxt_inds          :: Indirections,                   -- ^ __D__: the currently known indirections
+   ctxt_finits        :: IM.IntMap FInit,                -- ^ __D__: the currently known function initialisations
+   ctxt_vcs           :: IM.IntMap VCS,                  -- ^ __D__: the verification conditions
+   ctxt_results       :: IM.IntMap VerificationResult,   -- ^ __D__: the verification result
+   ctxt_recursions    :: IM.IntMap IS.IntSet
  }
  deriving Generic
 
@@ -126,8 +147,9 @@ data Context = Context {
 instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize CFG
-instance Cereal.Serialize Report
 instance Cereal.Serialize FReturnBehavior
+instance Cereal.Serialize MemWriteIdentifier
+instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize Context
 
 
@@ -199,4 +221,58 @@ pp_instruction ctxt i =
 
 -- | Show function initialisation
 show_finit finit = intercalate ", " $ map (\(sp,e) -> show sp ++ " == " ++ show e) $ M.toList finit
+
+
+
+
+
+instance Show VerificationResult where
+ show VerificationSuccess               = "VerificationSuccess"
+ show VerificationSuccesWithAssumptions = "VerificationSuccesWithAssumptions"
+ show VerificationUnresolvedIndirection = "VerificationUnresolvedIndirection"
+ show (VerificationError msg)           = "VerificationError: " ++ msg
+
+
+instance Show MemWriteIdentifier where
+  show (MemWriteFunction f a sp)       = f ++ "@" ++ showHex a ++ " WRITES TO " ++ show sp
+  show (MemWriteInstruction a addr a') = "@" ++ showHex a ++ " WRITES TO " ++ show addr ++ " == " ++ show a'
+
+
+
+instance Show VerificationCondition where
+  show (Precondition lhs _ rhs _)      = show lhs ++ " SEP " ++ show rhs
+  show (Assertion a  lhs _ rhs _)      = "@" ++ show a ++ ": " ++ show lhs ++ " SEP " ++ show rhs
+  show (SourcelessMemWrite mid)        = "UNKNOWN WRITE: " ++ show mid
+  show (FunctionConstraint f a ps sps) = f ++ "@" ++ showHex a ++ "(" ++ intercalate "," (map show_param ps) ++ ") PRESERVES " ++ (intercalate "," (map show $ S.toList sps))
+   where
+    show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show e)
+
+-- | Is the given verification condition an assertion?
+is_assertion (Assertion _ _ _ _ _) = True
+is_assertion _                     = False
+
+-- | Is the given verification condition a precondition?
+is_precondition (Precondition _ _ _ _) = True
+is_precondition _                      = False
+
+-- | Is the given verification condition a function constraint?
+is_func_constraint (FunctionConstraint _ _ _ _) = True
+is_func_constraint _                            = False
+
+-- | Is the given verification condition a sourceless memwrite?
+is_sourceless_memwrite (SourcelessMemWrite _) = True
+is_sourceless_memwrite _                      = False
+
+
+-- | Count the number of assertions in the set of verification conditions.
+count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion
+
+
+-- | Count the number of sourceless memory writes in the set of verification conditions.
+count_sourceless_memwrites = S.size . S.map (\(SourcelessMemWrite mid) -> prune mid) . S.filter is_sourceless_memwrite
+ where
+  prune mid@(MemWriteFunction f i_a sp)               = mid
+  prune mid@(MemWriteInstruction i_a addr a_resolved) = MemWriteInstruction i_a addr $ SE_Immediate 0
+
+
 

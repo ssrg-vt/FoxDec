@@ -8,8 +8,7 @@ module CFG_Gen (
    cfg_gen,
    cfg_to_dot,
    is_end_node,
-   node_info_of,
-   get_invariant
+   node_info_of
  )
  where
 
@@ -150,26 +149,6 @@ is_edge g a0 a1 =
 
 
 
-
-
-
--- | Get the invariant for a given instruction address for a given function entry
-get_invariant :: Context -> Int -> Int -> Maybe Pred
-get_invariant ctxt entry a = do
-  g         <- IM.lookup entry $ ctxt_cfgs ctxt
-  invs      <- IM.lookup entry $ ctxt_invs ctxt
-  blockId   <- IM.lookup a $ cfg_addr_to_blockID g
-  p         <- IM.lookup blockId invs
-  instrs    <- IM.lookup blockId $ cfg_instrs g
-
-  return $ tau_block ctxt (takeWhile (\i -> i_addr i /= a) instrs) Nothing p
-
-
-
-
-
-
-  
 
 
 
