@@ -39,11 +39,14 @@ The GitHub page is [here][git].
 
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
-3. Go to directory `./foxdec/`.
-3. Run `stack build --haddock --haddock-arguments --odir=docs/haddock`.
+3. Update the PATH variable: `PATH=$PATH:$HOME/.local/bin`
+4. Install [Capstone 4.0.1][capstone], by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> as that will install a newer version.
+5. Clone into the git ```git clone git@github.com:ssrg-vt/FoxDec.git```.
+6. Go to directory `./foxdec/`.
+7. Run ```stack build --haddock --haddock-arguments --odir=docs/haddock```.
 This builds the application and generates documentation using [Haddock](https://haskell-haddock.readthedocs.io/en/latest/index.html).
-4. Run `stack install`. This copies executables to accessible locations.
-5. Run `foxdec-exe 1 examples/du du`. This runs FoxDec on the `du` example.
+8. Run ```stack install```. This copies executables to accessible locations.
+9. Run ```foxdec-exe 1 examples/du du```. This runs FoxDec on the `du` example.
 
 We use some tools that are assumed to be standard available and accessible (i.e., added to the `PATH` environment variable). For Linux, these are `readelf` and `objdump` (latter is optional but convenient).
 For Mac, these are `otool` and `nm`.
@@ -157,3 +160,4 @@ Research ([ONR][onr]) under grant N00014-17-1-2297.
 [sefm20-artifacts]: https://doi.org/10.5281/zenodo.3952034
 [reportinterface]: https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/VerificationReportInterface.html
 [git]: https://github.com/ssrg-vt/FoxDec
+[capstone]: https://github.com/aquynh/capstone/archive/4.0.1.zip
