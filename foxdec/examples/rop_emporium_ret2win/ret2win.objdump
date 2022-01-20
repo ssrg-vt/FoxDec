@@ -1,0 +1,243 @@
+
+ret2win:	file format ELF64-x86-64
+
+
+Disassembly of section .init:
+
+0000000000400528 _init:
+  400528:      	sub	rsp, 0x8
+  40052c:      	mov	rax, qword ptr [rip + 0x200ac5]
+  400533:      	test	rax, rax
+  400536:      	je	0x2 <_init+0x12>
+  400538:      	call	rax
+  40053a:      	add	rsp, 0x8
+  40053e:      	ret
+
+Disassembly of section .plt:
+
+0000000000400540 .plt:
+  400540:      	push	qword ptr [rip + 0x200ac2]
+  400546:      	jmp	qword ptr [rip + 0x200ac4]
+  40054c:      	nop	dword ptr [rax]
+
+0000000000400550 puts@plt:
+  400550:      	jmp	qword ptr [rip + 0x200ac2]
+  400556:      	push	0x0
+  40055b:      	jmp	-0x20 <.plt>
+
+0000000000400560 system@plt:
+  400560:      	jmp	qword ptr [rip + 0x200aba]
+  400566:      	push	0x1
+  40056b:      	jmp	-0x30 <.plt>
+
+0000000000400570 printf@plt:
+  400570:      	jmp	qword ptr [rip + 0x200ab2]
+  400576:      	push	0x2
+  40057b:      	jmp	-0x40 <.plt>
+
+0000000000400580 memset@plt:
+  400580:      	jmp	qword ptr [rip + 0x200aaa]
+  400586:      	push	0x3
+  40058b:      	jmp	-0x50 <.plt>
+
+0000000000400590 read@plt:
+  400590:      	jmp	qword ptr [rip + 0x200aa2]
+  400596:      	push	0x4
+  40059b:      	jmp	-0x60 <.plt>
+
+00000000004005a0 setvbuf@plt:
+  4005a0:      	jmp	qword ptr [rip + 0x200a9a]
+  4005a6:      	push	0x5
+  4005ab:      	jmp	-0x70 <.plt>
+
+Disassembly of section .text:
+
+00000000004005b0 _start:
+  4005b0:      	xor	ebp, ebp
+  4005b2:      	mov	r9, rdx
+  4005b5:      	pop	rsi
+  4005b6:      	mov	rdx, rsp
+  4005b9:      	and	rsp, -0x10
+  4005bd:      	push	rax
+  4005be:      	push	rsp
+  4005bf:      	mov	r8, 0x4007f0
+  4005c6:      	mov	rcx, 0x400780
+  4005cd:      	mov	rdi, 0x400697
+  4005d4:      	call	qword ptr [rip + 0x200a16]
+  4005da:      	hlt
+  4005db:      	nop	dword ptr [rax + rax]
+
+00000000004005e0 _dl_relocate_static_pie:
+  4005e0:      	rep		ret
+  4005e2:      	nop	word ptr cs:[rax + rax]
+  4005ec:      	nop	dword ptr [rax]
+
+00000000004005f0 deregister_tm_clones:
+  4005f0:      	push	rbp
+  4005f1:      	mov	eax, 0x601058
+  4005f6:      	cmp	rax, 0x601058
+  4005fc:      	mov	rbp, rsp
+  4005ff:      	je	0x17 <deregister_tm_clones+0x28>
+  400601:      	mov	eax, 0x0
+  400606:      	test	rax, rax
+  400609:      	je	0xd <deregister_tm_clones+0x28>
+  40060b:      	pop	rbp
+  40060c:      	mov	edi, 0x601058
+  400611:      	jmp	rax
+  400613:      	nop	dword ptr [rax + rax]
+  400618:      	pop	rbp
+  400619:      	ret
+  40061a:      	nop	word ptr [rax + rax]
+
+0000000000400620 register_tm_clones:
+  400620:      	mov	esi, 0x601058
+  400625:      	push	rbp
+  400626:      	sub	rsi, 0x601058
+  40062d:      	mov	rbp, rsp
+  400630:      	sar	rsi, 0x3
+  400634:      	mov	rax, rsi
+  400637:      	shr	rax, 0x3f
+  40063b:      	add	rsi, rax
+  40063e:      	sar	rsi
+  400641:      	je	0x15 <register_tm_clones+0x38>
+  400643:      	mov	eax, 0x0
+  400648:      	test	rax, rax
+  40064b:      	je	0xb <register_tm_clones+0x38>
+  40064d:      	pop	rbp
+  40064e:      	mov	edi, 0x601058
+  400653:      	jmp	rax
+  400655:      	nop	dword ptr [rax]
+  400658:      	pop	rbp
+  400659:      	ret
+  40065a:      	nop	word ptr [rax + rax]
+
+0000000000400660 __do_global_dtors_aux:
+  400660:      	cmp	byte ptr [rip + 0x2009f9], 0x0
+  400667:      	jne	0x17 <__do_global_dtors_aux+0x20>
+  400669:      	push	rbp
+  40066a:      	mov	rbp, rsp
+  40066d:      	call	-0x82 <deregister_tm_clones>
+  400672:      	mov	byte ptr [rip + 0x2009e7], 0x1
+  400679:      	pop	rbp
+  40067a:      	ret
+  40067b:      	nop	dword ptr [rax + rax]
+  400680:      	rep		ret
+  400682:      	nop	dword ptr [rax]
+  400686:      	nop	word ptr cs:[rax + rax]
+
+0000000000400690 frame_dummy:
+  400690:      	push	rbp
+  400691:      	mov	rbp, rsp
+  400694:      	pop	rbp
+  400695:      	jmp	-0x77 <register_tm_clones>
+
+0000000000400697 main:
+  400697:      	push	rbp
+  400698:      	mov	rbp, rsp
+  40069b:      	mov	rax, qword ptr [rip + 0x2009b6]
+  4006a2:      	mov	ecx, 0x0
+  4006a7:      	mov	edx, 0x2
+  4006ac:      	mov	esi, 0x0
+  4006b1:      	mov	rdi, rax
+  4006b4:      	call	-0x119 <setvbuf@plt>
+  4006b9:      	mov	edi, 0x400808
+  4006be:      	call	-0x173 <puts@plt>
+  4006c3:      	mov	edi, 0x400820
+  4006c8:      	call	-0x17d <puts@plt>
+  4006cd:      	mov	eax, 0x0
+  4006d2:      	call	0x11 <pwnme>
+  4006d7:      	mov	edi, 0x400828
+  4006dc:      	call	-0x191 <puts@plt>
+  4006e1:      	mov	eax, 0x0
+  4006e6:      	pop	rbp
+  4006e7:      	ret
+
+00000000004006e8 pwnme:
+  4006e8:      	push	rbp
+  4006e9:      	mov	rbp, rsp
+  4006ec:      	sub	rsp, 0x20
+  4006f0:      	lea	rax, [rbp - 0x20]
+  4006f4:      	mov	edx, 0x20
+  4006f9:      	mov	esi, 0x0
+  4006fe:      	mov	rdi, rax
+  400701:      	call	-0x186 <memset@plt>
+  400706:      	mov	edi, 0x400838
+  40070b:      	call	-0x1c0 <puts@plt>
+  400710:      	mov	edi, 0x400898
+  400715:      	call	-0x1ca <puts@plt>
+  40071a:      	mov	edi, 0x4008b8
+  40071f:      	call	-0x1d4 <puts@plt>
+  400724:      	mov	edi, 0x400918
+  400729:      	mov	eax, 0x0
+  40072e:      	call	-0x1c3 <printf@plt>
+  400733:      	lea	rax, [rbp - 0x20]
+  400737:      	mov	edx, 0x38
+  40073c:      	mov	rsi, rax
+  40073f:      	mov	edi, 0x0
+  400744:      	call	-0x1b9 <read@plt>
+  400749:      	mov	edi, 0x40091b
+  40074e:      	call	-0x203 <puts@plt>
+  400753:      	nop
+  400754:      	leave
+  400755:      	ret
+
+0000000000400756 ret2win:
+  400756:      	push	rbp
+  400757:      	mov	rbp, rsp
+  40075a:      	mov	edi, 0x400926
+  40075f:      	call	-0x214 <puts@plt>
+  400764:      	mov	edi, 0x400943
+  400769:      	call	-0x20e <system@plt>
+  40076e:      	nop
+  40076f:      	pop	rbp
+  400770:      	ret
+  400771:      	nop	word ptr cs:[rax + rax]
+  40077b:      	nop	dword ptr [rax + rax]
+
+0000000000400780 __libc_csu_init:
+  400780:      	push	r15
+  400782:      	push	r14
+  400784:      	mov	r15, rdx
+  400787:      	push	r13
+  400789:      	push	r12
+  40078b:      	lea	r12, [rip + 0x20067e]
+  400792:      	push	rbp
+  400793:      	lea	rbp, [rip + 0x20067e]
+  40079a:      	push	rbx
+  40079b:      	mov	r13d, edi
+  40079e:      	mov	r14, rsi
+  4007a1:      	sub	rbp, r12
+  4007a4:      	sub	rsp, 0x8
+  4007a8:      	sar	rbp, 0x3
+  4007ac:      	call	-0x289 <_init>
+  4007b1:      	test	rbp, rbp
+  4007b4:      	je	0x20 <__libc_csu_init+0x56>
+  4007b6:      	xor	ebx, ebx
+  4007b8:      	nop	dword ptr [rax + rax]
+  4007c0:      	mov	rdx, r15
+  4007c3:      	mov	rsi, r14
+  4007c6:      	mov	edi, r13d
+  4007c9:      	call	qword ptr [r12 + 8*rbx]
+  4007cd:      	add	rbx, 0x1
+  4007d1:      	cmp	rbp, rbx
+  4007d4:      	jne	-0x16 <__libc_csu_init+0x40>
+  4007d6:      	add	rsp, 0x8
+  4007da:      	pop	rbx
+  4007db:      	pop	rbp
+  4007dc:      	pop	r12
+  4007de:      	pop	r13
+  4007e0:      	pop	r14
+  4007e2:      	pop	r15
+  4007e4:      	ret
+  4007e5:      	nop
+  4007e6:      	nop	word ptr cs:[rax + rax]
+
+00000000004007f0 __libc_csu_fini:
+  4007f0:      	rep		ret
+
+Disassembly of section .fini:
+
+00000000004007f4 _fini:
+  4007f4:      	sub	rsp, 0x8
+  4007f8:      	add	rsp, 0x8
+  4007fc:      	ret

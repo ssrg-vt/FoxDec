@@ -1,0 +1,30 @@
+(__TEXT,__text)
+  addr = 0x0000000100000910
+  size = 0x0000000000001420
+(__TEXT,__stubs)
+  addr = 0x0000000100001d30
+  size = 0x0000000000000054
+(__TEXT,__stub_helper)
+  addr = 0x0000000100001d84
+  size = 0x000000000000009c
+(__TEXT,__const)
+  addr = 0x0000000100001e20
+  size = 0x0000000000000038
+(__TEXT,__cstring)
+  addr = 0x0000000100001e58
+  size = 0x0000000000000131
+(__TEXT,__unwind_info)
+  addr = 0x0000000100001f8c
+  size = 0x0000000000000074
+(__DATA_CONST,__got)
+  addr = 0x0000000100002000
+  size = 0x0000000000000018
+(__DATA_CONST,__const)
+  addr = 0x0000000100002018
+  size = 0x0000000000000058
+(__DATA,__la_symbol_ptr)
+  addr = 0x0000000100003000
+  size = 0x0000000000000070
+(__DATA,__data)
+  addr = 0x0000000100003070
+  size = 0x0000000000000008
