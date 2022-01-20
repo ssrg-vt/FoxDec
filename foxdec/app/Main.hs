@@ -278,9 +278,9 @@ ctxt_verify_proper_return entry = do
   -- precondition (not a postcondition) of the node.
   do_post_check :: Context -> State (Pred,VCS) [Maybe String]
   do_post_check ctxt = do
-    rsp    <- read_reg RSP
-    rip    <- read_reg RIP
-    checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg r >>= return . reg_check r) 
+    rsp    <- read_reg ctxt RSP
+    rip    <- read_reg ctxt RIP
+    checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
     return $ [rsp_check rsp, rip_check rip] ++ checks
 
   -- check: are all caller-saved-registers restored to their initial values?

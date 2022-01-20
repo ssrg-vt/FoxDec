@@ -113,7 +113,7 @@ instr_to_hoare_triple ctxt fname all_precs all_asserts p i = do
   -- obtain postcondition q
   let (q,_) = tau_block ctxt [i] Nothing p
   -- filter separations relevant for p
-  let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for p i) $ S.toList all_precs
+  let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for ctxt p i) $ S.toList all_precs
 
   let htriple_name = "ht_" ++ (showHex $ i_addr i)
   appendFile fname $ 
@@ -195,7 +195,7 @@ all_preconditions ctxt invs posts vcs =
 -- produces the precondition, if any, relevant to predicate p and instruction i
 -- the resulting precondition has the region accessed by the instruction on the left, 
 -- and a region from the predicdate to the right
-get_relevant_precs_for p i prec =
+get_relevant_precs_for ctxt p i prec =
   let sps = instruction_to_stateparts p i in
     S.fromList $ concatMap (get_relevant_prec_for_sp prec) sps
  where
@@ -226,7 +226,7 @@ get_relevant_precs_for p i prec =
 
   resolve_address_of_operand i a = do
     write_rreg RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
-    resolve_address a
+    resolve_address ctxt a
 
 
 

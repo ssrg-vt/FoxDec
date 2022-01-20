@@ -156,6 +156,7 @@ transpose_bw ctxt f a p (sp,v) =
   let sp' = transpose_bw_sp ctxt p sp
       v'  = trim_expr $ simp $ transpose_bw_e ctxt p v in
     if is_invalid sp' then
+      --error $ show (((sp,v),(sp',v')), p)
       Left $ SourcelessMemWrite $ MemWriteFunction f a sp
     else
       Right (sp',v')
@@ -188,7 +189,7 @@ transpose_bw_bottyp ctxt p (FromBitMode srcs)             = FromSources $ S.unio
 transpose_bw_bottyp ctxt p (FromUninitializedMemory srcs) = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
 transpose_bw_bottyp ctxt p (FromCall f)                   = FromCall f
 
-transpose_bw_src ctxt p (Src_Var sp)      = srcs_of_expr $ transpose_bw_e ctxt p (SE_Var sp)
+transpose_bw_src ctxt p (Src_Var sp)      = srcs_of_expr ctxt $ transpose_bw_e ctxt p (SE_Var sp)
 transpose_bw_src ctxt p (Src_Malloc id h) = S.singleton $ Src_Malloc id h
 transpose_bw_src ctxt p (Src_Function f)  = S.singleton $ Src_Function f
 
@@ -209,7 +210,8 @@ transpose_bw_base ctxt p b@(Unknown e)           = Unknown $ transpose_bw_e ctxt
 -- | a list of some function that return a heap-pointer through RAX.
 -- The pointer is assumed to  be fresh.
 functions_returning_fresh_pointers = [ 
-     "_malloc", "malloc", "_calloc", "calloc", "strdup", "_strdup", "___error", "_fts_read$INODE64", "_fts_open$INODE64", "fopen", "_fopen", "_getenv",
+     "_malloc", "malloc", "_malloc_create_zone", "_malloc_default_zone", "_malloc_zone_malloc", "_calloc", "calloc", "_malloc_zone_calloc", "_mmap",
+     "strdup", "_strdup", "___error", "_fts_read$INODE64", "_fts_open$INODE64", "_opendir$INODE64", "fopen", "_fopen", "_getenv", "_open",
      "_localeconv", "localeconv", "_setlocale", "_wsetlocale", "_fgetln", "fgetln",
      "strerror", "_strerror", "_wcserror", "__wcserror"
    ]
@@ -232,16 +234,17 @@ functions_returning_bottom = [
 
 -- | Executes semantics for some external functions.
 -- Returns true iff the string corresponds to a known external function, and the semantics were applied.
-function_semantics :: Instr -> String -> State (Pred,VCS) Bool
-function_semantics i "_realloc"         = function_semantics i "realloc"
-function_semantics i "realloc"          = read_reg RDI >>= write_reg RAX >> return True
-function_semantics i "_strcpy"          = function_semantics i "strcpy"
-function_semantics i "strcpy"           = read_reg RDI >>= write_reg RAX >> return True
-function_semantics i "_strrchr"         = function_semantics i "strrchr"
-function_semantics i "strrchr"          = read_reg RDI >>= (\rdi -> write_reg RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
-function_semantics i f           = 
+function_semantics :: Context -> Instr -> String -> State (Pred,VCS) Bool
+function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
+function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
+function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt RAX >> return True
+function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "strcpy"
+function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt RAX >> return True
+function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
+function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
+function_semantics ctxt i f                      = 
   if f `elem` functions_returning_bottom then do
-    write_reg RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
+    write_reg ctxt RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
     write_rreg RAX $ SE_Malloc (Just (i_addr i)) (Just "")  -- TODO (show p))
@@ -261,7 +264,7 @@ call :: Context -> Instr -> State (Pred,VCS) ()
 call ctxt i = do
   let f   = function_name_of_instruction ctxt i
   let i_a = i_addr i
-  known <- function_semantics i f
+  known <- function_semantics ctxt i f
 
   when (not known) $ do
     (p@(Predicate p_eqs _ _),_) <- get
@@ -280,7 +283,7 @@ call ctxt i = do
       when (not $ S.null sps) $ modify $ add_function_constraint f i_a params sps
 
       -- 3.) For all return registers (RAX,XMM0), write some unknown return value
-      forM_ return_registers (\r -> write_reg r $ Bottom $ FromCall $ function_name_of_instruction ctxt i) -- TODO flags
+      forM_ return_registers (\r -> write_reg ctxt r $ Bottom $ FromCall $ function_name_of_instruction ctxt i) -- TODO flags
     else do
       -- an internal function, already verified
       sub ctxt i_a (Reg RSP) (Immediate 8)
@@ -342,7 +345,7 @@ call ctxt i = do
   mk_mid = MemWriteFunction (function_name_of_instruction ctxt i) (i_addr i) 
 
   -- forcibly insert the statepart into ther current predicate
-  -- should never be done without caution, one should aalways use the mem_write function
+  -- should never be done without caution, one should always use the mem_write function
   forced_insert_sp sp v = do
     (p@(Predicate p_eqs flg muddlestatus),vcs) <- get
     put (Predicate (M.insert sp v p_eqs) flg muddlestatus,vcs)
@@ -360,8 +363,9 @@ call ctxt i = do
   is_region_for a (SP_Mem a' _) = a == a'
 
   when_is_relevant_param p_eqs r = do
-    v <- read_reg r
-    if expr_highly_likely_pointer ctxt v || is_currently_pointer p_eqs v then
+    v <- read_reg ctxt r
+    p <- get
+    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then
       return $ Just (r,v)
     else
       return Nothing
@@ -412,15 +416,15 @@ push :: Context -> Int -> Operand -> State (Pred,VCS) ()
 push ctxt i_a (Immediate imm) = do
   let si = 8
   let address = AddrMinus (FromReg RSP) (AddrImm si)
-  e1 <- resolve_address address
-  write_reg RSP e1
+  e1 <- resolve_address ctxt address
+  write_reg ctxt RSP e1
   write_mem ctxt (MemWriteInstruction i_a address e1) e1 si (SE_Immediate imm)
 push ctxt i_a op1 = do
   e0 <- read_operand ctxt op1
   let si = operand_size op1
   let address = AddrMinus (FromReg RSP) (AddrImm $ fromIntegral si)
-  e1 <- resolve_address address
-  write_reg RSP e1
+  e1 <- resolve_address ctxt address
+  write_reg ctxt RSP e1
   write_mem ctxt (MemWriteInstruction i_a address e1) e1 si e0
 
 pop :: Context -> Int -> Operand -> State (Pred,VCS) ()
@@ -428,13 +432,13 @@ pop ctxt i_a op1 = do
   let si = operand_size op1
   e0 <- read_mem ctxt (SizeDir si (FromReg RSP))
   let address = AddrPlus (FromReg RSP) (AddrImm $ fromIntegral si)
-  e1 <- resolve_address address
-  write_reg RSP e1
+  e1 <- resolve_address ctxt address
+  write_reg ctxt RSP e1
   write_operand ctxt i_a op1 e0
 
 lea :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
 lea ctxt i_a op1 (Address a) = do
-  e <- resolve_address a
+  e <- resolve_address ctxt a
   write_operand ctxt i_a op1 e
 
 
@@ -469,27 +473,27 @@ mov_with_func_op2_to_op1 ctxt i_a f op1 op2 = do
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (f e1)
 
-mk_bottom es = Bottom $ FromSemantics $ S.unions (map srcs_of_expr es)
+mk_bottom ctxt es = Bottom $ FromSemantics $ S.unions (map (srcs_of_expr ctxt) es)
 
-mov_with_func1 :: Context -> Int -> ([SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> State (Pred,VCS) ()
+mov_with_func1 :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> State (Pred,VCS) ()
 mov_with_func1 ctxt i_a f do_write_flags op1 = do
   e0 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (f [e0])
+  write_operand ctxt i_a op1 (f ctxt [e0])
   when do_write_flags (write_flags (\_ _ -> None) op1 op1)
 
-mov_with_func :: Context -> Int -> ([SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> State (Pred,VCS) ()
 mov_with_func ctxt i_a f do_write_flags op1 op2 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (f [e0,e1])
+  write_operand ctxt i_a op1 (f ctxt [e0,e1])
   when do_write_flags (write_flags (\_ _ -> None) op1 op2)
 
-mov_with_func3 :: Context -> Int -> ([SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func3 :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
 mov_with_func3 ctxt i_a f do_write_flags op1 op2 op3 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
   e2 <- read_operand ctxt op3
-  write_operand ctxt i_a op1 (f [e0,e1,e2])
+  write_operand ctxt i_a op1 (f ctxt [e0,e1,e2])
   when do_write_flags (write_flags (\_ _ -> None) op2 op3)
 
 nop ctxt i_a = return ()
@@ -559,11 +563,11 @@ xchg ctxt i_a op1 op2 = do
 
 cmp ctxt i_a = write_flags $ FS_CMP Nothing
 
-add ctxt i_a op1 = mov_with_func ctxt i_a (SE_Op (Plus (8 * operand_size op1))) True op1
+add ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Plus (8 * operand_size op1))) True op1
 
-sub ctxt i_a op1 = mov_with_func ctxt i_a (SE_Op (Minus (8 * operand_size op1))) True op1
+sub ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Minus (8 * operand_size op1))) True op1
 
-neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\e -> SE_Op (Minus (8 * operand_size op1)) (SE_Immediate 0 : e) ) True op1
+neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\ctxt e -> SE_Op (Minus (8 * operand_size op1)) (SE_Immediate 0 : e) ) True op1
 
 test ctxt i_a = write_flags (\_ _ -> None) --TODO needed?
 
@@ -607,7 +611,7 @@ not' ctxt i_a op1 = do
 
 xor ctxt i_a op1 op2 = do
   if op1 == op2 then
-    mov_with_func ctxt i_a (\x -> SE_Immediate 0) True op1 op2
+    mov_with_func ctxt i_a (\ctxt x -> SE_Immediate 0) True op1 op2
   else do
     e1 <- read_operand ctxt op1
     e2 <- read_operand ctxt op2
@@ -842,12 +846,12 @@ div1 ctxt i_a op1 = do
 cdq :: Context -> Int -> State (Pred,VCS) ()
 cdq ctxt i_a = do
   e1 <- read_operand ctxt (Reg EAX)
-  write_operand ctxt i_a (Reg EDX) (mk_bottom [e1])
+  write_operand ctxt i_a (Reg EDX) (mk_bottom ctxt [e1])
 
 cqo :: Context -> Int -> State (Pred,VCS) ()
 cqo ctxt i_a = do
   e1 <- read_operand ctxt (Reg RAX)
-  write_operand ctxt i_a (Reg RDX) (mk_bottom [e1])
+  write_operand ctxt i_a (Reg RDX) (mk_bottom ctxt [e1])
 
 cdqe :: Context -> Int -> State (Pred,VCS) ()
 cdqe ctxt i_a = do
@@ -944,7 +948,7 @@ imul1 ctxt i_a op1 = do
   src0 <- read_operand ctxt (Reg $ srcs !! 0)
   src1 <- read_operand ctxt (Reg $ srcs !! 1)
   
-  write_operand ctxt i_a (Reg $ srcs !! 0) $ mk_bottom [src1,e1] -- high part of multiplication
+  write_operand ctxt i_a (Reg $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
   write_operand ctxt i_a (Reg $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
   write_flags (\_ _ -> None) op1 op1
 

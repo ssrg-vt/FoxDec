@@ -86,10 +86,10 @@ get_global_pointer_bases ctxt e = S.filter is_global_ptr_base $ get_pointer_base
 expr_is_global_pointer ctxt e = not $ S.null $ get_global_pointer_bases ctxt e
 
 -- | Returns true if the expression has a local pointerbase, and no others.
-expr_is_highly_likely_local_pointer ctxt e = get_known_pointer_bases ctxt e == S.singleton StackPointer || srcs_of_expr e == (S.singleton $ Src_Var $ SP_Reg $ RSP)
+expr_is_highly_likely_local_pointer ctxt e = get_known_pointer_bases ctxt e == S.singleton StackPointer || srcs_of_expr ctxt e == (S.singleton $ Src_Var $ SP_Reg $ RSP)
 
 -- | Returns true if the expression has a local pointerbase, but maybe other pointerbases as well.
-expr_is_possibly_local_pointer ctxt e = StackPointer `S.member` get_known_pointer_bases ctxt e || (Src_Var $ SP_Reg $ RSP) `S.member` (srcs_of_expr e)
+expr_is_possibly_local_pointer ctxt e = StackPointer `S.member` get_known_pointer_bases ctxt e || (Src_Var $ SP_Reg $ RSP) `S.member` (srcs_of_expr ctxt e)
 
 
 
@@ -112,36 +112,36 @@ is_malloc _            = False
 
 
 -- | Returns the set of sources (inputs used to compute the expression) of an expression.
-srcs_of_expr (Bottom typ)         = srcs_of_bottyp typ
-srcs_of_expr (SE_Malloc id h)     = S.singleton $ Src_Malloc id h
-srcs_of_expr (SE_Var sp)          = S.singleton $ Src_Var sp
-srcs_of_expr (SE_Immediate i)     = S.empty
-srcs_of_expr (SE_StatePart sp)    = S.singleton $ Src_Var sp
-srcs_of_expr (SE_Op _ es)         = S.unions $ map srcs_of_expr es
-srcs_of_expr (SE_Bit i e)         = srcs_of_expr e
-srcs_of_expr (SE_SExtend _ _ e)   = srcs_of_expr e
-srcs_of_expr (SE_Overwrite _ a b) = srcs_of_exprs [a,b]
+srcs_of_expr ctxt (Bottom typ)         = srcs_of_bottyp ctxt typ
+srcs_of_expr ctxt (SE_Malloc id h)     = S.singleton $ Src_Malloc id h
+srcs_of_expr ctxt (SE_Var sp)          = S.singleton $ Src_Var sp
+srcs_of_expr ctxt e@(SE_Immediate i)   = if expr_is_global_pointer ctxt e then S.singleton $ Src_Var $ SP_Mem e 8 else S.empty --  S.empty
+srcs_of_expr ctxt (SE_StatePart sp)    = S.singleton $ Src_Var sp
+srcs_of_expr ctxt (SE_Op _ es)         = S.unions $ map (srcs_of_expr ctxt) es
+srcs_of_expr ctxt (SE_Bit i e)         = srcs_of_expr ctxt e
+srcs_of_expr ctxt (SE_SExtend _ _ e)   = srcs_of_expr ctxt e
+srcs_of_expr ctxt (SE_Overwrite _ a b) = srcs_of_exprs ctxt [a,b]
 
 -- | Returns the set of sources (state parts used to compute the expression) of two expressions.
-srcs_of_exprs es = S.unions $ map srcs_of_expr es 
+srcs_of_exprs ctxt es = S.unions $ map (srcs_of_expr ctxt) es 
 
 -- | Returns the set of sources of the bottom type
-srcs_of_bottyp (FromNonDeterminism es)        = S.unions $ S.map srcs_of_expr es
-srcs_of_bottyp (FromPointerBases bs)          = S.unions $ S.map srcs_of_base bs
-srcs_of_bottyp (FromSources srcs)             = srcs
-srcs_of_bottyp (FromBitMode srcs)             = srcs
-srcs_of_bottyp (FromOverlap srcs)             = srcs
-srcs_of_bottyp (FromSemantics srcs)           = srcs
-srcs_of_bottyp (FromMemWrite srcs)            = srcs
-srcs_of_bottyp (FromUninitializedMemory srcs) = srcs
-srcs_of_bottyp (FromCall f)                   = S.singleton $ Src_Function f
+srcs_of_bottyp ctxt (FromNonDeterminism es)        = S.unions $ S.map (srcs_of_expr ctxt) es
+srcs_of_bottyp ctxt (FromPointerBases bs)          = S.unions $ S.map (srcs_of_base ctxt) bs
+srcs_of_bottyp ctxt (FromSources srcs)             = srcs
+srcs_of_bottyp ctxt (FromBitMode srcs)             = srcs
+srcs_of_bottyp ctxt (FromOverlap srcs)             = srcs
+srcs_of_bottyp ctxt (FromSemantics srcs)           = srcs
+srcs_of_bottyp ctxt (FromMemWrite srcs)            = srcs
+srcs_of_bottyp ctxt (FromUninitializedMemory srcs) = srcs
+srcs_of_bottyp ctxt (FromCall f)                   = S.singleton $ Src_Function f
 
 -- | Returns the set of sources of the pointerbase
-srcs_of_base StackPointer            = S.singleton $ Src_Var $ SP_Reg RSP
-srcs_of_base (Unknown e)             = srcs_of_expr e
-srcs_of_base (Malloc id h)           = S.singleton $ Src_Malloc id h
-srcs_of_base (GlobalAddress a)       = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
-srcs_of_base (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+srcs_of_base ctxt StackPointer            = S.singleton $ Src_Var $ SP_Reg RSP
+srcs_of_base ctxt (Unknown e)             = srcs_of_expr ctxt e
+srcs_of_base ctxt (Malloc id h)           = S.singleton $ Src_Malloc id h
+srcs_of_base ctxt (GlobalAddress a)       = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+srcs_of_base ctxt (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
 
 
 
@@ -177,7 +177,7 @@ join_exprs msg ctxt es =
       if S.size bs <= max_num_of_bases && all (not . S.null) bss then
         Bottom (FromPointerBases bs)
       else
-        let srcs = S.unions $ S.map srcs_of_expr es' in
+        let srcs = S.unions $ S.map (srcs_of_expr ctxt) es' in
           if S.size srcs <= max_num_of_sources then
             Bottom (FromSources srcs)
           else
@@ -198,7 +198,7 @@ join_single ctxt e =
     if not (S.null bs) && S.size bs <= max_num_of_bases  then
       Bottom (FromPointerBases bs)
     else
-      let srcs = srcs_of_expr e in 
+      let srcs = srcs_of_expr ctxt e in 
         if S.size srcs <= max_num_of_sources then
           Bottom (FromSources srcs)
         else
@@ -259,8 +259,8 @@ separate_pointer_domains ctxt a0 a1 =
       bs1 = get_known_pointer_bases ctxt a1 in
     if not (S.null bs0) && not (S.null bs1) then
       all (uncurry pointer_bases_separate) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
-    else let srcs0 = srcs_of_expr a0
-             srcs1 = srcs_of_expr a1 in
+    else let srcs0 = srcs_of_expr ctxt a0
+             srcs1 = srcs_of_expr ctxt a1 in
       or [
         not (S.null srcs0) && not (S.null srcs1) && all (uncurry sources_separate) [(s0,s1) | s0 <- S.toList srcs0, s1 <- S.toList srcs1],
         is_immediate a0 && expr_is_possibly_local_pointer ctxt a1,
