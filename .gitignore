@@ -32,5 +32,6 @@ foxdec/.stack-work
 .DS_Store
 *.swp
 *.log
+*.out
 
 temp
