@@ -39,8 +39,8 @@ The GitHub page is [here][git].
 
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
-3. Update the PATH variable: `PATH=$PATH:$HOME/.local/bin`
-4. Install [Capstone 4.0.1][capstone], by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> as that will install a newer version.
+3. Update the `PATH` variable: `PATH=$PATH:$HOME/.local/bin`
+4. Install [Capstone 4.0.1][capstone], by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or `brew` as that will install a newer version.
 5. Clone into the git ```git clone git@github.com:ssrg-vt/FoxDec.git```.
 6. Go to directory `./foxdec/`.
 7. Run ```stack build --haddock --haddock-arguments --odir=docs/haddock```.
