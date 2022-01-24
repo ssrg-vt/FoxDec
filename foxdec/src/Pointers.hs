@@ -1,8 +1,9 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
 
-{-# OPTIONS_HADDOCK hide #-}
-
-
+{-|
+Module      : Pointers
+Description : Functions for dealing with symbolic pointers and abstraction.
+-}
 module Pointers (
    get_pointer_bases,
    get_known_pointer_bases,
@@ -10,6 +11,7 @@ module Pointers (
    expr_is_global_pointer,
    expr_is_highly_likely_local_pointer,
    expr_is_possibly_local_pointer,
+   expr_is_global_immediate,
    srcs_of_expr,
    srcs_of_exprs,
    pointers_from_different_global_section,
@@ -44,7 +46,7 @@ import Debug.Trace
 
 -- * Pointer Bases
 
--- | A 'Pointerbase' is a positive addend of a symbolic expression that may represent a pointer.
+-- | A 'PointerBase' is a positive addend of a symbolic expression that may represent a pointer.
 -- Retrieves the pointer bases from a symbolic expression.
 -- They are either 1.) all known, or 2.) all unknown.
 get_pointer_bases :: Context -> SimpleExpr -> S.Set PointerBase
@@ -62,7 +64,7 @@ get_pointer_bases' ctxt (SE_Op (Plus _) es)              = S.unions $ S.map (get
 get_pointer_bases' ctxt (SE_Op (Minus _) (e:es))         = get_pointer_bases ctxt e
 get_pointer_bases' ctxt e                                = get_pointer_base e
  where
-  get_pointer_base e@(SE_Immediate a)                      = if address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing then S.singleton $ GlobalAddress a else S.singleton $ Unknown e
+  get_pointer_base e@(SE_Immediate a)                      = if expr_is_global_immediate ctxt e then S.singleton $ GlobalAddress a else S.singleton $ Unknown e
   get_pointer_base e@(SE_Var (SP_Mem (SE_Immediate a) 8))  = case IM.lookup (fromIntegral a) (ctxt_syms ctxt) of
                                                                Nothing  -> S.singleton $ Unknown e
                                                                Just sym -> S.singleton $ PointerToSymbol a sym
@@ -84,6 +86,10 @@ get_global_pointer_bases ctxt e = S.filter is_global_ptr_base $ get_pointer_base
 
 -- | Returns true if the expression has a global pointerbase.
 expr_is_global_pointer ctxt e = not $ S.null $ get_global_pointer_bases ctxt e
+
+-- | Returns true iff the expression is an immediate address falling into the range of sections of the binary
+expr_is_global_immediate ctxt (SE_Immediate a) = address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing
+expr_is_global_immediate ctxt _                = False
 
 -- | Returns true if the expression has a local pointerbase, and no others.
 expr_is_highly_likely_local_pointer ctxt e = get_known_pointer_bases ctxt e == S.singleton StackPointer || srcs_of_expr ctxt e == (S.singleton $ Src_Var $ SP_Reg $ RSP)
@@ -115,7 +121,7 @@ is_malloc _            = False
 srcs_of_expr ctxt (Bottom typ)         = srcs_of_bottyp ctxt typ
 srcs_of_expr ctxt (SE_Malloc id h)     = S.singleton $ Src_Malloc id h
 srcs_of_expr ctxt (SE_Var sp)          = S.singleton $ Src_Var sp
-srcs_of_expr ctxt e@(SE_Immediate i)   = if expr_is_global_pointer ctxt e then S.singleton $ Src_Var $ SP_Mem e 8 else S.empty --  S.empty
+srcs_of_expr ctxt e@(SE_Immediate i)   = if expr_is_global_immediate ctxt e then S.singleton $ Src_Var $ SP_Mem e 8 else S.empty --  S.empty
 srcs_of_expr ctxt (SE_StatePart sp)    = S.singleton $ Src_Var sp
 srcs_of_expr ctxt (SE_Op _ es)         = S.unions $ map (srcs_of_expr ctxt) es
 srcs_of_expr ctxt (SE_Bit i e)         = srcs_of_expr ctxt e
@@ -391,7 +397,7 @@ necessarily_separate ctxt a0 si0 a1 si1 =
   sep a0 a1 = separate_pointer_domains ctxt a0 a1
 
 
-
+-- | Returns true iff the given symbolic stateparts are necessarily separate.
 necessarily_separate_stateparts ctxt (SP_Reg r0)     (SP_Reg r1)     = r0 /= r1
 necessarily_separate_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = necessarily_separate ctxt a0 si0 a1 si1
 necessarily_separate_stateparts _    _               _               = True

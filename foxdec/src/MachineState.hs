@@ -1,15 +1,28 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, StrictData #-}
 
-{-# OPTIONS_HADDOCK hide #-}
 
 
 {-|
 Module      : MachineState
 Description : Functions for resolving symbolic memory reads and writes.
 
-Given a predicate of type 'Pred', we define functions for reading and writing from registers, flags and memory.
+These functions are defined using the @State (Pred,VCS)@ monad.
+Both the read- and write function may update the current predicate, as well as introduce new verification conditions.
 -}
-module MachineState where
+module MachineState (
+  read_reg,
+  write_reg,
+  read_mem,
+  write_mem,
+  read_operand,
+  write_operand,
+  read_sp,
+  write_sp,
+  invalid_bottom_pointer,
+  address_is_unwritable,
+  resolve_address
+ )
+ where
 
 import Base
 import SimplePred
@@ -53,6 +66,7 @@ read_rreg r = do
       return var 
     Just e  -> return e
 
+-- | Read from a register
 read_reg :: Context -> Register -> State (Pred,VCS) SimpleExpr
 read_reg ctxt r = do
   let rr = real_reg r
@@ -84,6 +98,7 @@ write_rreg r e =
         flg' = clean_flg (SP_Reg r) flg in
       (Predicate eqs' flg' muddle_status,vcs)
  
+-- | Write to a register
 write_reg :: Context -> Register -> SimpleExpr -> State (Pred,VCS) ()
 write_reg ctxt r v = do
   if reg_size r == 8 then -- 64 bit
@@ -128,6 +143,7 @@ clean_flg sp (FS_CMP b op1 op2) = do
 
 -- * Memory 
 
+-- | Given the address of an operand of an instruction, resolve it given the current state.
 resolve_address :: Context -> Address -> State (Pred,VCS) SimpleExpr
 resolve_address ctxt (FromReg r)       = read_reg ctxt r
 resolve_address ctxt (AddrImm i)       = return $ SE_Immediate $ fromIntegral i
@@ -216,15 +232,6 @@ address_is_unwritable ctxt (SE_Immediate a) =
     Nothing -> False
     Just (segname,sectname,_,_) -> section_is_unwritable (segname,sectname)
 address_is_unwritable ctxt _ = False
-
-
--- An address is considered "unmodifiable_by_external_functions" only if it is an immediate address
--- that belongs to a section that is not considered modifiable by extenral functions according to Conventions.
-address_is_unmodifiable_by_external_functions ctxt (SE_Immediate a) =
-  case find_section_for_address ctxt $ fromIntegral a of
-    Nothing -> False
-    Just (segname,sectname,_,_) -> (segname,sectname) `notElem` sections_modifiable_by_external_functions
-address_is_unmodifiable_by_external_functions ctxt _ = False
 
 
 
@@ -350,8 +357,7 @@ read_from_address ctxt address a si0 = do
     let Predicate eqs flg muddle_status = p
     let sp  = SP_Mem a0 si0
     let var = --if muddle_status == Clean || -- TODO
-                --   -- muddle_status == ExternalOnly ||
-                --   (muddle_status == ExternalOnly && expr_is_global_pointer ctxt a0 && address_is_unmodifiable_by_external_functions ctxt a0) then
+                --   -- muddle_status == ExternalOnly then
                 --SE_Var sp
                 -- else 
                 Bottom $ FromUninitializedMemory $ S.singleton (Src_Var sp)
@@ -371,8 +377,11 @@ read_from_address ctxt address a si0 = do
 
 
 
-
-read_mem :: Context -> Address -> State (Pred,VCS) SimpleExpr
+-- | Read from memory
+read_mem :: 
+     Context  -- ^ The context
+  -> Address  -- ^ The address of an operand of an instruction
+  -> State (Pred,VCS) SimpleExpr
 read_mem ctxt (SizeDir si a) = do
   resolved_address <- resolve_address ctxt a
   read_from_address ctxt (Just a) resolved_address si
@@ -381,8 +390,16 @@ read_mem ctxt (SizeDir si a) = do
 
 add_unknown_mem_write mid (p,vcs) = (p,S.insert (SourcelessMemWrite mid) vcs)
 
-
-write_mem :: Context -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -> State (Pred,VCS) ()
+-- | Write to memory
+-- Each memory write is accomponied with a `MemWriteIdentifier` so that we can log memory writes to unknown locations.
+--
+write_mem :: 
+  Context                -- ^ The context
+  -> MemWriteIdentifier  -- ^ An identifier where the write occurs
+  -> SimpleExpr          -- ^ The symbolic address
+  -> Int                 -- ^ The size (in bytes)
+  -> SimpleExpr          -- ^ The value to be written
+  -> State (Pred,VCS) ()
 write_mem ctxt mid a si0 v = do
   let as = map simp $ unfold_non_determinism a
   mapM_ (\a -> write_mem' a v) as -- TODO v should be bot?
@@ -457,12 +474,19 @@ write_mem ctxt mid a si0 v = do
 
 
 -- * Operands  
+-- | Read from an operand of an instruction
 read_operand :: Context -> Operand -> State (Pred,VCS) SimpleExpr
 read_operand ctxt (Reg r)       = read_reg ctxt r
 read_operand ctxt (Immediate w) = return $ SE_Immediate w
 read_operand ctxt (Address a)   = read_mem ctxt a
 
-write_operand :: Context -> Int -> Operand -> SimpleExpr -> State (Pred,VCS) ()
+-- | Write to an operand of an instruction
+write_operand ::
+ Context                 -- ^ The context
+ -> Int                  -- ^ The address of the instruction, used to build a `MemWriteIdentifier`
+ -> Operand              -- ^ The operand
+ -> SimpleExpr           -- ^ The value to be written
+ -> State (Pred,VCS) ()
 write_operand ctxt instr_a (Reg r) v = write_reg ctxt r v
 write_operand ctxt instr_a (Address (SizeDir si a)) v = do
   resolved_address <- resolve_address ctxt a
@@ -472,11 +496,17 @@ write_operand ctxt instr_a op1 e = trace ("Writing to immediate operand: " ++ sh
 
 
 -- * Stateparts 
+-- | Read from an statepart
 read_sp :: Context -> StatePart -> State (Pred,VCS) SimpleExpr
 read_sp ctxt (SP_Reg r)    = simp <$> read_reg ctxt r
 read_sp ctxt (SP_Mem a si) = simp <$> read_from_address ctxt Nothing a si
 
-write_sp :: Context -> (StatePart -> MemWriteIdentifier) -> (StatePart,SimpleExpr) -> State (Pred,VCS) ()
+-- | Write to a statepart
+write_sp :: 
+  Context                               -- ^ The context
+  -> (StatePart -> MemWriteIdentifier)  -- Given a statepart, build a memwrite identifier
+  -> (StatePart,SimpleExpr)             -- The statepart and the value to be written
+  -> State (Pred,VCS) ()
 write_sp ctxt mk_mid (SP_Reg r,v)         = write_reg ctxt r v
 write_sp ctxt mk_mid (sp@(SP_Mem a si),v) = write_mem ctxt (mk_mid sp) a si v
 

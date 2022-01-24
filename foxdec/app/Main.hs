@@ -8,6 +8,7 @@ import System.Console.ArgParser
 
 import Base
 import Context
+import Config
 import X86_Datastructures
 import ParserDump
 import ParserSymbols
@@ -328,6 +329,7 @@ ctxt_add_to_results entry verified = do
   to_log log $ "Verification result:        " ++ show_verification_result verified
   to_log log $ "#instructions:              " ++ show (num_of_instructions g)
   to_log log $ "#assertions:                " ++ show (count_instructions_with_assertions vcs)
+  to_log log $ "#unresolved indirections:   " ++ show (num_of_unres_inds_in_cfg ctxt g)
   to_log log $ "#sourceless memwrites:      " ++ show (count_sourceless_memwrites vcs)
   to_log log $ "#memwrites (approximation): " ++ show (count_all_mem_writes g)
   to_log log $ "#blocks:                    " ++ show (num_of_blocks       g)
@@ -367,6 +369,9 @@ ctxt_add_to_results entry verified = do
   show_verification_result VerificationUnresolvedIndirection = "Unresolved indirections"
   show_verification_result Unverified                        = "UNVERIFIED"
 
+num_of_unres_inds_in_cfg ctxt g = 
+  let blocks  = IM.keys $ cfg_blocks g in
+    length (filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) blocks)
 
 
 count_all_mem_writes g = 
@@ -425,7 +430,7 @@ ctxt_generate_end_report = do
     to_log log $ "#functions:                           " ++ show (IM.size $ ctxt_results ctxt)
     to_log log $ "    of which verified                 " ++ show (num_of_verified                              $ ctxt_results ctxt)
     to_log log $ "    of which verified with assertions " ++ show (num_of_verifiedw                             $ ctxt_results ctxt)
-    to_log log $ "    of which unres_inds               " ++ show (num_of_unres_inds                            $ ctxt_results ctxt)
+    to_log log $ "    of which unres_inds               " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
     to_log log $ "    of which verif_error              " ++ show (num_of_verif_error                           $ ctxt_results ctxt)
     to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions                $ ctxt_cfgs ctxt)
     to_log log $ "#assertions:                          " ++ show (sum_total count_instructions_with_assertions $ ctxt_vcs  ctxt)
@@ -459,10 +464,12 @@ ctxt_generate_end_report = do
 
   num_of_resolved_indirections ctxt         = IM.size $ ctxt_inds ctxt
 
-  num_of_verified    = IM.size . IM.filter ((==) VerificationSuccess)
-  num_of_verifiedw   = IM.size . IM.filter ((==) VerificationSuccesWithAssumptions)
-  num_of_unres_inds  = IM.size . IM.filter ((==) VerificationUnresolvedIndirection)
-  num_of_verif_error = IM.size . IM.filter isVerificationError
+  num_of_verified        = IM.size . IM.filter ((==) VerificationSuccess)
+  num_of_verifiedw       = IM.size . IM.filter ((==) VerificationSuccesWithAssumptions)
+  num_of_verif_error     = IM.size . IM.filter isVerificationError
+  num_of_unres_inds ctxt cfgs = sum (map (num_of_unres_inds_in_cfg ctxt) $ IM.elems cfgs)
+
+
 
   isVerificationError (VerificationError _) = True
   isVerificationError _                     = False
@@ -667,7 +674,7 @@ ctxt_generate_invs entry curr_invs curr_posts = do
 
   -- TODO remove
   entries <- ctxt_read_entries
-  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_rreg RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
+  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg ctxt RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
   result  <- liftIO (timeout max_time $ return $! do_prop ctxt g 0 p') -- TODO always 0?
 
   case result of
@@ -801,8 +808,8 @@ ctxt_analyze_unresolved_indirections entry = do
     case val of
       SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a
       Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then S.map take_immediates es else S.singleton Nothing
-      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton $ Just 0  --TODO
-      e                                  -> return $ S.singleton Nothing
+      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton Nothing
+      e                                  -> return $ traceShow ("unresolved", e) $ S.singleton Nothing
 
   take_immediates (SE_Immediate a) = Just $ fromIntegral a
   take_immediates _                = Nothing

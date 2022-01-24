@@ -27,10 +27,7 @@ exiting_function_calls = [
  ]
 
 
--- | An overview of which sections can be modified by external functions.
--- Other sections are assumed NOT to be modified by external functions.
-sections_modifiable_by_external_functions = [
- ]
+
 
 -- | Overview of sections with instructions.
 sections_with_instructions = [
@@ -70,6 +67,4 @@ return_registers = [RAX, XMM0]
 parameter_registers = [RDI, RSI, RDX, RCX, R8, R9]
 
 
--- | An overapproximation of the maximum number of entries in a jump table.
--- Does not affect soundness, but if the value is set too low, then more indirections may be left unresolved.
-max_jump_table_size = 20000
+

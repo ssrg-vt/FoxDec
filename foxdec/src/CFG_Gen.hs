@@ -110,15 +110,16 @@ add_to_intset a (Just x) = Just $ IS.insert a x
 append_to_list a Nothing = Just [a]
 append_to_list a (Just x) = Just (x++[a]) 
 
-add_edge a0 a1 g =
+add_edge a0 a1 is_call_a0 g =
   case add_to g of 
     Nothing -> error "Could not add edge"
-    Just g -> g
- where add_to = split_graph' a0 >=> split_graph a1 >=> add_edge_to_graph a0 a1
+    Just g  -> g
+ where
+  add_to = split_graph' a0 >=> split_graph a1 >=> add_edge_to_graph a0 a1 >=> split_calls a0 is_call_a0
+  split_calls a True  = split_graph' a
+  split_calls a False = return
 
 
-add_edges [] g = g 
-add_edges ((a0,a1):edges) g = add_edges edges (add_edge a0 a1 g)
 
 init_cfg a = CFG { cfg_blocks = IM.singleton 0 [a], cfg_edges = IM.empty, cfg_addr_to_blockID = IM.singleton a 0, cfg_fresh = 1, cfg_instrs = IM.empty }
 
@@ -160,7 +161,7 @@ is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctx
 resolve_call ctxt entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
-      Right []
+      Right [(i_addr i + i_size i,True)] -- Right []
     else 
       let nexts          = map next resolved_addresses
           (lefts,rights) = partitionEithers nexts in
@@ -174,7 +175,7 @@ resolve_call ctxt entry i =
     if sym `elem` exiting_function_calls then 
       Right []
     else
-      Right [i_addr i + i_size i]
+      Right [(i_addr i + i_size i,True)]
   next (ImmediateAddress a') =
     -- call to an immediate address
     if not $ is_new_function_call_to_be_analyzed ctxt (fromIntegral a') then
@@ -184,16 +185,16 @@ resolve_call ctxt entry i =
         Right []
       else
         -- verified and returning
-        Right [i_addr i + i_size i]
+        Right [(i_addr i + i_size i,True)]
     else if graph_is_edge (ctxt_entries ctxt) entry (fromIntegral a') then
       -- recursion
-      Right [i_addr i + i_size i]
+      Right [(i_addr i + i_size i,True)]
     else
       -- new function, stop CFG generation here
       Left [fromIntegral a']
 
 
-stepA :: Context -> Int -> Int -> IO (Either (S.Set (Instr,Int)) [Int])
+stepA :: Context -> Int -> Int -> IO (Either (S.Set (Instr,Int)) [(Int,Bool)])
 stepA ctxt entry a = do
   instr <- fetch_instruction ctxt a
   case instr of
@@ -202,34 +203,34 @@ stepA ctxt entry a = do
       if is_halt (i_opcode i) then
         return $ Right []
       else if is_jump (i_opcode i) then
-        return $ Right $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
+        return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
       else if is_cond_jump $ i_opcode i then
-        return $ Right $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + i_size i]
-      else if is_call (i_opcode i) then
+        return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + i_size i]
+      else if is_call $ i_opcode i then
         return $ resolve_call ctxt entry i
       else if is_ret (i_opcode i) then
         return $ Right []
       else
-        return $ Right [a + i_size i]
+        return $ Right [(a + i_size i,False)]
 
 
 
 
-mk_graph :: Context -> Int -> S.Set (Int, Int) -> CFG -> S.Set (Instr,Int) -> IO (S.Set (Instr,Int),CFG) 
+mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (Instr,Int) -> IO (S.Set (Instr,Int),CFG) 
 mk_graph ctxt entry bag g new_calls =
   case S.minView bag of
     Nothing -> return $ (new_calls,g)
-    Just ((a0,a1),bag) -> do
+    Just (((a0,is_call_a0),a1),bag) -> do
       if is_edge g a0 a1 then 
         mk_graph ctxt entry bag g new_calls
       else do
-        let g' = add_edge a0 a1 g
+        let g' = add_edge a0 a1 is_call_a0 g
         nxt <- stepA ctxt entry a1
         case nxt of
           Left new_calls' -> do
             mk_graph ctxt entry bag g' (S.union new_calls' new_calls)
           Right as -> do
-            let bag' = S.union (S.fromList $ map (\a2 -> (a1,a2)) as) bag
+            let bag' = S.union (S.fromList $ map (\(a2,is_call_a1) -> ((a1,is_call_a1),a2)) as) bag
             mk_graph ctxt entry bag' g' new_calls
     
 
@@ -256,17 +257,12 @@ cfg_gen ::
 cfg_gen ctxt entry = do
  let g           = init_cfg entry
  nxt            <- stepA ctxt entry entry
- let bag         = S.fromList $ map (\a -> (entry,a)) (fromRight [] nxt)
+ let bag         = S.fromList $ map (\(a,is_call_a) -> ((entry,False),a)) (fromRight [] nxt) -- assumes entry is not a call
  (new_calls,g') <- mk_graph ctxt entry bag g S.empty
  g''            <- cfg_add_instrs ctxt g'
  return (new_calls, g'')
 
- --if IS.null new_calls then do
- --  g'' <- cfg_add_instrs ctxt g'
- --  return $ Right g''
- --else 
- --  return $ Left new_calls
-     
+
 
 
         
@@ -292,13 +288,10 @@ node_info_of ::
 node_info_of ctxt g blockId =
   let a    = last (im_lookup ("C.) Block " ++ show blockId ++ " in cfg.") (cfg_blocks g) blockId)
       i    = last (im_lookup ("D.) Block " ++ show blockId ++ " in instrs.") (cfg_instrs g) blockId) in
-    if IS.null (post g blockId) then
-      if is_unresolved_indirection ctxt i then
-        UnresolvedIndirection
-      else if is_call (i_opcode i) || is_halt (i_opcode i) then
+    if is_unresolved_indirection ctxt i then
+      UnresolvedIndirection
+    else if IS.null (post g blockId) && (is_call (i_opcode i) || is_halt (i_opcode i)) then
         Terminal
-      else
-        Normal
     else
       Normal
 

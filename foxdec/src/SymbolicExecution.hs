@@ -9,7 +9,6 @@ module SymbolicExecution (
   tau_block,
   init_pred,
   gather_stateparts,
-  is_initial,
   invariant_to_finit,
   weaken_finit,
   get_invariant
@@ -247,7 +246,7 @@ function_semantics ctxt i f                      =
     write_reg ctxt RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
-    write_rreg RAX $ SE_Malloc (Just (i_addr i)) (Just "")  -- TODO (show p))
+    write_reg ctxt RAX $ SE_Malloc (Just (i_addr i)) (Just "")  -- TODO (show p))
     return True
   else
     return False
@@ -328,8 +327,8 @@ call ctxt i = do
         forced_insert_sp sp (SE_Op (Plus 64) [v,SE_Immediate 8])
         return $ S.singleton sp
       else if or [
-           is_external && v' /= v && statepart_preserved_after_external_function_call ctxt i sp && (must_be_preserved p_eqs sp v || is_reg_sp sp),
-           not is_external && v /= v' && is_mem_sp sp && statepart_preserved_after_external_function_call ctxt i sp && must_be_preserved p_eqs sp v
+           is_external && v' /= v && statepart_preserved_after_external_function_call ctxt is_external sp && (must_be_preserved p_eqs sp v || is_reg_sp sp),
+           not is_external && v /= v' && is_mem_sp sp && statepart_preserved_after_external_function_call ctxt is_external sp && must_be_preserved p_eqs sp v
           ] then do
         -- the statepart should have been preserved by the function, but that cannot be proven
         -- forcibly preserve the statepart and annotate
@@ -386,14 +385,14 @@ call ctxt i = do
 
 statepart_preserved_after_external_function_call ::
   Context       -- ^ The context
-  -> Instr      -- ^ The instruction currently symbolically executed (a @call@)
+  -> Bool       -- ^ Is the function external?
   -> StatePart  -- ^ A state part 
   -> Bool 
-statepart_preserved_after_external_function_call ctxt i (SP_Reg r)   = r `elem` callee_saved_registers
-statepart_preserved_after_external_function_call ctxt i (SP_Mem a _) = not (contains_bot a) && or [
+statepart_preserved_after_external_function_call ctxt is_external (SP_Reg r)   = r `elem` callee_saved_registers
+statepart_preserved_after_external_function_call ctxt is_external (SP_Mem a _) = not (contains_bot a) && or [
       expr_is_highly_likely_local_pointer ctxt a,
-      address_is_unwritable ctxt a ,
-      (instruction_jumps_to_external ctxt i && address_is_unmodifiable_by_external_functions ctxt a)
+      address_is_unwritable ctxt a,
+      (is_external && expr_is_global_immediate ctxt a)
      ]
 
 
@@ -450,7 +449,7 @@ ret ctxt i_a = pop ctxt i_a (Reg RIP)
 
 sysret ctxt i_a = do
   e0 <- read_operand ctxt (Reg RCX)
-  write_rreg RIP e0
+  write_reg ctxt RIP e0
   write_flags (\_ _ -> None) (Reg RCX) (Reg RCX)
 
 jmp ctxt i =
@@ -1430,7 +1429,7 @@ tau_i ctxt i =
 tau_b :: Context -> [Instr] -> State (Pred,VCS) ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
-  write_rreg RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
+  write_reg ctxt RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
   tau_i ctxt i
   tau_b ctxt is
 
