@@ -222,7 +222,7 @@ contains_bot_sp (SP_Mem a si)  = contains_bot a
 
 
 
--- | Do all occurences of Bottom satisfy the given predicate?
+-- | concatMap function p over all bottom values in the expression  
 map_all_bot :: Ord a => (BotTyp -> S.Set a) -> SimpleExpr -> S.Set a
 map_all_bot p (Bottom typ)         = p typ
 map_all_bot p (SE_Malloc _ _)      = S.empty
@@ -238,12 +238,13 @@ map_all_bot_sp p (SP_Reg r)      = S.empty
 map_all_bot_sp p (SP_Mem a si)   = map_all_bot p a
 
 
+-- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy p = and . map_all_bot (S.singleton . p)
 
 
 
 
-
+-- | 
 expr_size (Bottom typ)         = 1 + expr_size_bottyp typ
 expr_size (SE_Malloc id _)     = 1
 expr_size (SE_Var sp)          = expr_size_sp sp

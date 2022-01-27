@@ -180,8 +180,8 @@ is_assertable ctxt a0 a1 =
   or [
     contains_bot a0 && is_local0 && not (contains_bot a1) && is_local1, -- TODO this can be more precise
     
-    not is_local0 && is_local1, 
-    not is_local1 && is_local0, 
+    not is_local0 && not (S.null srcs0) && is_local1, 
+    not is_local1 && not (S.null srcs1) && is_local0, 
 
     pointers_from_different_global_section ctxt a0 a1
   ]
@@ -199,12 +199,9 @@ generate_assertion ctxt (Just (FromReg r)) _ = do
   p <- get
   v <- read_reg ctxt r
   a <- do
-    if contains_bot v then
-      --if all_bot_satisfy (\typ srcs -> typ `elem` [FromSemantics] && all (not . is_function_src) srcs) v then
-      --  error $ show (r,v,p)
-      --else
-        return $ SE_StatePart $ SP_Reg r
-    else
+    --if contains_bot v then
+    --  return $ SE_StatePart $ SP_Reg r
+    --else
       return $ v
   return $ a
 generate_assertion ctxt (Just (AddrImm i))       _ = return $ SE_Immediate $ fromIntegral i
@@ -441,9 +438,12 @@ write_mem ctxt mid a si0 v = do
       modify $ add_assertion rip assertion si0 a1 si1
       --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
       return Separated
-    else if a1 == SE_Var (SP_Reg RSP) then do
+    else if invalid_bottom_pointer ctxt a0 && expr_is_possibly_local_pointer ctxt a1 then do
+      assertion <- generate_assertion ctxt (address mid) a0
       rip <- read_reg ctxt RIP
-      error ("ERROR (WRITE@" ++ show rip ++ "): OVERLAP BETWEEN " ++ show (si0,a0) ++ " and " ++ show (a1,si1))
+      modify $ add_assertion rip assertion si0 a1 si1
+      --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
+      return Separated
     else
      if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
        return Overlap

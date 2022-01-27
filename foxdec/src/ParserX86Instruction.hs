@@ -124,13 +124,15 @@ address_term =
  (int <&>  AddrImm)
 
 size_directive = 
-      (try (string "xmmword ptr" >> return 16))
+      (try (string "ymmword ptr" >> return 32))
+  <|> (try (string "xmmword ptr" >> return 16))
   <|> (string "tbyte ptr" >> return 10)
   <|> (string "xword ptr" >> return 10)
   <|> (string "qword ptr" >> return 8)
   <|> (string "dword ptr" >> return 4)
   <|> (string "word ptr" >> return 2)
   <|> (string "byte ptr" >> return 1)
+  <|> (try (string "YMMWORD PTR" >> return 32))
   <|> (try (string "XMMWORD PTR" >> return 16))
   <|> (string "TBYTE PTR" >> return 10)
   <|> (string "XWORD PTR" >> return 10)

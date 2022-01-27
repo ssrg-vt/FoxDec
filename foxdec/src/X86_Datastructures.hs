@@ -57,8 +57,9 @@ data Register = InvalidRegister
   | CS | DS | ES | FS | GS | SS
   | EIZ | RIZ
   | ST0 | ST1 | ST2 | ST3 | ST4 | ST5 | ST6 | ST7
+  | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7 | YMM8 | YMM9 | YMM10 | YMM11 | YMM12 | YMM13 | YMM14 | YMM15
   | XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7 | XMM8 | XMM9 | XMM10 | XMM11 | XMM12 | XMM13 | XMM14 | XMM15
-  | XMM0_L | XMM1_L | XMM2_L | XMM3_L | XMM4_L | XMM5_L | XMM6_L | XMM7_L | XMM8_L | XMM9_L | XMM10_L | XMM11_L | XMM12_L | XMM13_L | XMM14_L | XMM15_L
+  -- | XMM0_L | XMM1_L | XMM2_L | XMM3_L | XMM4_L | XMM5_L | XMM6_L | XMM7_L | XMM8_L | XMM9_L | XMM10_L | XMM11_L | XMM12_L | XMM13_L | XMM14_L | XMM15_L
   deriving (Show,Eq,Read,Ord,Generic)
 
 instance Cereal.Serialize Register
@@ -379,6 +380,7 @@ data Opcode = InvalidOpcode
   | MOVDDUP
   | MOVDQA
   | MOVDQU
+  | MOVHLPS
   | MOVHPD
   | MOVHPS
   | MOVLHPS
@@ -420,6 +422,7 @@ data Opcode = InvalidOpcode
   | ORPS
   | OUT
   | OUTS
+  | PALIGNR
   | PACKSSDW
   | PACKSSWB
   | PADDB
@@ -570,6 +573,7 @@ data Opcode = InvalidOpcode
   | SHLD
   | SHR
   | SHRD
+  | SHUFPS
   | SIDT
   | SLDT
   | SMSW
@@ -602,18 +606,59 @@ data Opcode = InvalidOpcode
   | UNPCKHPS
   | UNPCKLPD
   | UNPCKLPS
+  | VANDPD
+  | VANDPS
+  | VADDPD
+  | VADDPS
+  | VBLENDPS
   | VERR
   | VERW
+  | VEXTRACTI128
+  | VEXTRACTF128
+  | VINSERTF128
   | VMCALL
   | VMCLEAR
   | VMLAUNCH
+  | VMOVAPD
+  | VMOVAPS
+  | VMOVHPS
+  | VMOVD
+  | VMOVDQA
+  | VMOVDQU
+  | VMOVLHPS
   | VMPTRLD
   | VMPTRST
   | VMREAD
   | VMRESUME
   | VMWRITE
+  | VMULPD
+  | VMULPS
   | VMXOFF
   | VMXON
+  | VPALIGNR
+  | VPAND
+  | VPANDN
+  | VPCMPEQB
+  | VPCMPEQW
+  | VPERM2F128
+  | VPERM2I128
+  | VPERMILPS
+  | VPOR
+  | VPSHUFB
+  | VPSHUFD
+  | VPSLLW
+  | VSHUFPS
+  | VSHUFPD
+  | VPXOR
+  | VPUNPCKLWD
+  | VPUNPCKHWD
+  | VSUBPD
+  | VSUBPS
+  | VUNPCKHPS 
+  | VUNPCKLPS 
+  | VXORPD
+  | VXORPS
+  | VZEROUPPER
   | WAIT
   | WBINVD
   | WRFSBASE
@@ -652,6 +697,7 @@ show_size_directive 2  = "WORD PTR"
 show_size_directive 4  = "DWORD PTR"
 show_size_directive 8  = "QWORD PTR"
 show_size_directive 16 = "XMMWORD PTR"
+show_size_directive 32 = "YMMWORD PTR"
 show_size_directive si = show (si*8) ++ " PTR"
 
 -- | Showing an operand
@@ -719,13 +765,15 @@ is_call m = m `elem` [CALL, CALLF ]
 is_ret m = m `elem` [RET, RETF, RET, RETN, IRET, IRETD, IRETQ]
 
 
+-- | List of 256 bit registers
+reg256 = [YMM0,YMM1,YMM2,YMM3,YMM4,YMM5,YMM6,YMM7,YMM8,YMM9,YMM10,YMM11,YMM12,YMM13,YMM14,YMM15]
 -- | List of 128 bit registers
 reg128 = [XMM0,XMM1,XMM2,XMM3,XMM4,XMM5,XMM6,XMM7,XMM8,XMM9,XMM10,XMM11,XMM12,XMM13,XMM14,XMM15]
 -- | List of 80 bit registers
 reg80  = [ST0,ST1,ST2,ST3,ST4,ST5,ST6,ST7]
 -- | List of 64 bit registers
 reg64  = [RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP, R8, R9, R10, R11, R12, R13, R14, R15, RIP,CS,DS,ES,FS,GS,
-          XMM0_L,XMM1_L,XMM2_L,XMM3_L,XMM4_L,XMM5_L,XMM6_L,XMM7_L,XMM8_L,XMM9_L,XMM10_L,XMM11_L,XMM12_L,XMM13_L,XMM14_L,XMM15_L,
+          -- XMM0_L,XMM1_L,XMM2_L,XMM3_L,XMM4_L,XMM5_L,XMM6_L,XMM7_L,XMM8_L,XMM9_L,XMM10_L,XMM11_L,XMM12_L,XMM13_L,XMM14_L,XMM15_L,
           CS, DS, ES, FS, GS, SS ]
 -- | List of 32 bit registers
 reg32  = [EAX, EBX, ECX, EDX, ESI, EDI, ESP, EBP, R8D, R9D, R10D, R11D, R12D, R13D, R14D, R15D]
@@ -736,7 +784,8 @@ reg8   = [AL,BL,CL,DL,SIL,DIL,SPL,BPL,R8B,R9B,R10B,R11B,R12B,R13B,R14B,R15B]
 
 -- | The size of the given register, in bytes.
 reg_size r =
-  if r `elem` reg128 then 16
+  if r `elem` reg256 then 32
+  else if r `elem` reg128 then 16
   else if r `elem` reg80 then 10
   else if r `elem` reg64 then 8
   else if r `elem` reg32 then 4
@@ -798,22 +847,22 @@ real_reg R13B = R13
 real_reg R14B = R14
 real_reg R15B = R15
 
-real_reg XMM0_L = XMM0
-real_reg XMM1_L = XMM1
-real_reg XMM2_L = XMM2
-real_reg XMM3_L = XMM3
-real_reg XMM4_L = XMM4
-real_reg XMM5_L = XMM5
-real_reg XMM6_L = XMM6
-real_reg XMM7_L = XMM7
-real_reg XMM8_L = XMM8
-real_reg XMM9_L = XMM9
-real_reg XMM10_L = XMM10
-real_reg XMM11_L = XMM11
-real_reg XMM12_L = XMM12
-real_reg XMM13_L = XMM13
-real_reg XMM14_L = XMM14
-real_reg XMM15_L = XMM15
+real_reg XMM0 = YMM0
+real_reg XMM1 = YMM1
+real_reg XMM2 = YMM2
+real_reg XMM3 = YMM3
+real_reg XMM4 = YMM4
+real_reg XMM5 = YMM5
+real_reg XMM6 = YMM6
+real_reg XMM7 = YMM7
+real_reg XMM8 = YMM8
+real_reg XMM9 = YMM9
+real_reg XMM10 = YMM10
+real_reg XMM11 = YMM11
+real_reg XMM12 = YMM12
+real_reg XMM13 = YMM13
+real_reg XMM14 = YMM14
+real_reg XMM15 = YMM15
 
 real_reg ST0 = ST0
 real_reg ST1 = ST1
@@ -828,7 +877,7 @@ real_reg AH = RAX
 real_reg BH = RBX
 real_reg CH = RCX
 real_reg DH = RDX
-real_reg r = if r `elem` (reg64 ++ reg128) then r else error $ "Cannot match register " ++ show r ++ " to real register"
+real_reg r = if r `elem` (reg64 ++ reg256) then r else error $ "Cannot match register " ++ show r ++ " to real register"
 
 
 

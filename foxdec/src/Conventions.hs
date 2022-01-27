@@ -55,11 +55,11 @@ section_is_unwritable s@(segname,sect_name) =
 
 
 -- | A list if registers that are non-volatile, i.e., that must be preserved by a function (callee-saved)
-callee_saved_registers = [RBX, RBP, RSP, R12, R13, R14, R15]
+callee_saved_registers = [RBX, RBP, RSP, R12, R13, R14, R15, YMM0, YMM1, YMM2, YMM3, YMM4, YMM5, YMM6, YMM7]
 
 
 -- | A list of registers that may be used for return values
-return_registers = [RAX, XMM0]
+return_registers = [RAX]
 
 
 

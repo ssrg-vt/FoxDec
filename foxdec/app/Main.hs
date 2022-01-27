@@ -107,7 +107,7 @@ run_with_ctxt = do
 
         g            <- gets (IM.lookup a . ctxt_cfgs)
         (invs,posts) <- ctxt_get_curr_posts a
-        let do_repeat = curr_g /= g || invs /= curr_invs || posts /= curr_posts
+        let do_repeat = curr_g /= g {-- || invs /= curr_invs --} || posts /= curr_posts
         new_calls <- ctxt_get_new_calls a
 
 
@@ -356,8 +356,8 @@ ctxt_add_to_results entry verified = do
   to_log log $ ""
 
 
-  --to_log log $ "Generated invariants:" TODO make configurable
-  --to_log log $ show_invariants g invs
+  -- to_log log $ "Generated invariants:" -- TODO make configurable
+  -- to_log log $ show_invariants g invs
  where
   show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"
@@ -430,10 +430,10 @@ ctxt_generate_end_report = do
     to_log log $ "#functions:                           " ++ show (IM.size $ ctxt_results ctxt)
     to_log log $ "    of which verified                 " ++ show (num_of_verified                              $ ctxt_results ctxt)
     to_log log $ "    of which verified with assertions " ++ show (num_of_verifiedw                             $ ctxt_results ctxt)
-    to_log log $ "    of which unres_inds               " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
     to_log log $ "    of which verif_error              " ++ show (num_of_verif_error                           $ ctxt_results ctxt)
     to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions                $ ctxt_cfgs ctxt)
     to_log log $ "#assertions:                          " ++ show (sum_total count_instructions_with_assertions $ ctxt_vcs  ctxt)
+    to_log log $ "unresolved indirections:              " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
     to_log log $ "#sourceless memwrites:                " ++ show (sum_total count_sourceless_memwrites         $ ctxt_vcs  ctxt)
     to_log log $ "#memwrites (approximation):           " ++ show (sum_total count_all_mem_writes               $ ctxt_cfgs  ctxt)
     to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
@@ -453,6 +453,7 @@ ctxt_generate_end_report = do
     to_log log $ "Verification result:        " ++ show result
     to_log log $ "#instructions:              " ++ show (num_of_instructions g)
     to_log log $ "#assertions:                " ++ show (count_instructions_with_assertions vcs)
+    to_log log $ "unresolved indirections:    " ++ show (num_of_unres_inds_in_cfg ctxt g)
     to_log log $ "#sourceless memwrites:      " ++ show (count_sourceless_memwrites vcs)
     to_log log $ "#memwrites (approximation): " ++ show (count_all_mem_writes g)
     to_log log $ "#blocks:                    " ++ show (num_of_blocks       g)
@@ -809,7 +810,7 @@ ctxt_analyze_unresolved_indirections entry = do
       SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a
       Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then S.map take_immediates es else S.singleton Nothing
       SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton Nothing
-      e                                  -> return $ traceShow ("unresolved", e) $ S.singleton Nothing
+      e                                  -> return $ S.singleton Nothing
 
   take_immediates (SE_Immediate a) = Just $ fromIntegral a
   take_immediates _                = Nothing

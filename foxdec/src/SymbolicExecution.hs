@@ -209,7 +209,7 @@ transpose_bw_base ctxt p b@(Unknown e)           = Unknown $ transpose_bw_e ctxt
 -- | a list of some function that return a heap-pointer through RAX.
 -- The pointer is assumed to  be fresh.
 functions_returning_fresh_pointers = [ 
-     "_malloc", "malloc", "_malloc_create_zone", "_malloc_default_zone", "_malloc_zone_malloc", "_calloc", "calloc", "_malloc_zone_calloc", "_mmap",
+     "_malloc", "malloc", "_malloc_create_zone", "_malloc_default_zone", "_malloc_zone_malloc", "_calloc", "calloc", "_malloc_zone_calloc", "_mmap", "_av_mallocz",
      "strdup", "_strdup", "___error", "_fts_read$INODE64", "_fts_open$INODE64", "_opendir$INODE64", "fopen", "_fopen", "_getenv", "_open",
      "_localeconv", "localeconv", "_setlocale", "_wsetlocale", "_fgetln", "fgetln",
      "strerror", "_strerror", "_wcserror", "__wcserror"
@@ -278,7 +278,7 @@ call ctxt i = do
       (q@(Predicate q_eqs _ _),_) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
-      sps <- S.unions <$> (mapM (transfer_current_statepart p q True) $ M.toList p_eqs)
+      sps <- S.unions <$> (mapM (transfer_current_statepart i p q True) $ M.toList p_eqs)
       when (not $ S.null sps) $ modify $ add_function_constraint f i_a params sps
 
       -- 3.) For all return registers (RAX,XMM0), write some unknown return value
@@ -296,7 +296,7 @@ call ctxt i = do
       (q_transposed@(Predicate q_eqs _ _),vcs) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
-      sps <- S.unions <$> (mapM (transfer_current_statepart p q_transposed False) $ M.toList p_eqs)
+      sps <- S.unions <$> (mapM (transfer_current_statepart i p q_transposed False) $ M.toList p_eqs)
       when (not $ S.null sps) $ modify $ add_function_constraint f i_a params sps
  where
   write_param f a =
@@ -312,13 +312,13 @@ call ctxt i = do
   -- q provides the predicate after the function call.
   -- We transfer the statepart sp and sometimes forcibly keep its original value v, even if we could not prove that it was preserved.
   -- In those cases, we add annotations in the form of "Function Constraints".
-  transfer_current_statepart p@(Predicate p_eqs _ _) q@(Predicate q_eqs _ _) is_external (sp,v) = do
+  transfer_current_statepart i p@(Predicate p_eqs _ _) q@(Predicate q_eqs _ _) is_external (sp,v) = do
     if sp == SP_Reg RIP then do
       -- forcibly transfer and set the value of the instruction pointer
       forced_insert_sp sp (SE_Immediate $ fromIntegral (i_addr i + i_size i))
       return S.empty
     else if all (necessarily_separate_stateparts ctxt sp) $ M.keys q_eqs then do
-      -- if the function did not write to the statpart, transfer it without annotations
+      -- if the function did not write to the statepart, transfer it without annotations
       forced_insert_sp sp v
       return S.empty
     else let v' = evalState (read_sp ctxt sp) (q,S.empty) in
@@ -334,10 +334,16 @@ call ctxt i = do
         -- forcibly preserve the statepart and annotate
         forced_insert_sp sp v
         return $ S.singleton sp
-      else do
-        -- the statepart was not preserved by the function, but therw as no need, so use its new value
-        write_sp ctxt mk_mid (sp,v')
-        return S.empty
+      else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
+        Just (_,v') -> do
+          -- the statepart was overwritten by the function, so use its new value
+          write_sp ctxt mk_mid (sp,v')
+          return S.empty
+        Nothing     -> do
+          -- the statepart was possibly overwritten by the function, so use its old and new value joined
+          --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
+          write_sp ctxt mk_mid (sp,join_expr ctxt v v')
+          return S.empty
         
 
   -- make a memory-write-identifier: the memroy write happened during this function call
@@ -547,6 +553,13 @@ movd   = mov
 
 movq   = mov
 
+vmovd = mov
+
+vmovapd = mov
+
+vmovaps = mov
+
+
 cmov ctxt i_a op1 op2 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
@@ -636,6 +649,13 @@ por ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 ptest ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+vpxor = xor --TODO flags?
+
+vpand ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+vpandn ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+vpor ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 xorpd = xor --TODO flags?
 
@@ -794,6 +814,7 @@ fnstcw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
 
 fstcw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
 
+emms ctxt i_a = return ()
 
 -- We do not model state changes to ST(_) registers, hence the following semantics
 -- instead of:
@@ -1004,6 +1025,10 @@ pshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 pshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+vpshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+vpshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
 pshuflw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
 
 pclmulqdq ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
@@ -1045,6 +1070,8 @@ punpcklbw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 blendvps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
 
 extractps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+shufps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
 
 movsd_string ctxt prefix op1 op2 = return () -- TODO 
 
@@ -1094,6 +1121,69 @@ wrfsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg FS)
 
 wrgsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg GS)
 
+vinsertf128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vextractf128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vextracti128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vperm2f128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vperm2i128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vshufpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vshufps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vaddpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vaddps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vsubpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vsubps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vmulpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vmulps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vxorpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vxorps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vandpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vandps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vpalignr ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+palignr ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vmovdqa ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vmovdqu  ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vmovlhps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vzeroupper ctxt i_a = return ()
+
+vpunpckhwd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vpunpcklwd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vpcmpeqb ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vpcmpeqw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+vpsllw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
+movhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+movlhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+movhlps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+vmovhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 
 xadd :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
@@ -1136,6 +1226,9 @@ tau_i ctxt (Instr i_a _       MOVLPD   (Just op1) (Just op2) _ _ _) = movlpd ctx
 tau_i ctxt (Instr i_a _       MOVLPS   (Just op1) (Just op2) _ _ _) = movlps ctxt i_a op1 op2
 tau_i ctxt (Instr i_a Nothing MOVSD    (Just op1) (Just op2) _ _ _) = movsd  ctxt i_a op1 op2
 tau_i ctxt (Instr i_a Nothing MOVSS    (Just op1) (Just op2) _ _ _) = movss  ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _       VMOVD    (Just op1) (Just op2) _ _ _) = vmovd  ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _       VMOVAPD  (Just op1) (Just op2) _ _ _) = vmovapd ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _       VMOVAPS  (Just op1) (Just op2) _ _ _) = vmovaps ctxt i_a op1 op2
 
 tau_i ctxt (Instr i_a _ CMOVO    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ CMOVNO   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
@@ -1263,6 +1356,8 @@ tau_i ctxt (Instr i_a _ UNPCKLPS  (Just op1) (Just op2) _ _ _)            = unpc
 tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) Nothing    _ _)   = blendvps   ctxt i_a op1 op2 (Reg XMM0)
 tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) (Just op3) _ _)   = blendvps   ctxt i_a op1 op2 op3
 tau_i ctxt (Instr i_a _ EXTRACTPS (Just op1) (Just op2) (Just op3) _ _)   = extractps  ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ SHUFPS    (Just op1) (Just op2) (Just op3) _ _)   = shufps     ctxt i_a op1 op2 op3
+
 
 tau_i ctxt (Instr i_a _ XORPD    (Just op1) (Just op2) _ _ _) = xorpd    ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ ANDPD    (Just op1) (Just op2) _ _ _) = andpd    ctxt i_a op1 op2
@@ -1273,11 +1368,15 @@ tau_i ctxt (Instr i_a _ ADDPD    (Just op1) (Just op2) _ _ _) = addpd    ctxt i_
 tau_i ctxt (Instr i_a _ HADDPD   (Just op1) (Just op2) _ _ _) = haddpd   ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ MOVMSKPD (Just op1) (Just op2) _ _ _) = movmskpd   ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a _ POR      (Just op1) (Just op2) _ _ _)            = por    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PAND     (Just op1) (Just op2) _ _ _)            = pand   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PANDN    (Just op1) (Just op2) _ _ _)            = pandn  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PXOR     (Just op1) (Just op2) _ _ _)            = pxor   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PTEST    (Just op1) (Just op2) _ _ _)            = ptest  ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ POR        (Just op1) (Just op2) _ _ _)          = por          ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ PAND       (Just op1) (Just op2) _ _ _)          = pand         ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ PANDN      (Just op1) (Just op2) _ _ _)          = pandn        ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ PXOR       (Just op1) (Just op2) _ _ _)          = pxor         ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPOR       (Just op1) (Just op2) _ _ _)          = vpor         ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPAND      (Just op1) (Just op2) _ _ _)          = vpand        ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPANDN     (Just op1) (Just op2) _ _ _)          = vpandn       ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPXOR      (Just op1) (Just op2) _ _ _)          = vpxor        ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ PTEST      (Just op1) (Just op2) _ _ _)          = ptest        ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PUNPCKLQDQ (Just op1) (Just op2) _ _ _)          = punpcklqdq   ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PUNPCKLBW  (Just op1) (Just op2) _ _ _)          = punpcklbw    ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PUNPCKLDQ  (Just op1) (Just op2) _ _ _)          = punpckldq    ctxt i_a op1 op2
@@ -1287,6 +1386,8 @@ tau_i ctxt (Instr i_a _ PMOVSXBD   (Just op1) (Just op2) _ _ _)          = pmovs
 tau_i ctxt (Instr i_a _ PMOVZXBD   (Just op1) (Just op2) _ _ _)          = pmovzxbd     ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PSHUFB     (Just op1) (Just op2) _ _ _)          = pshufb       ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PSHUFD     (Just op1) (Just op2) _ _ _)          = pshufd       ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPSHUFB    (Just op1) (Just op2) _ _ _)          = vpshufb      ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ VPSHUFD    (Just op1) (Just op2) _ _ _)          = vpshufd      ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PCMPEQB    (Just op1) (Just op2) _ _ _)          = pcmpeqb      ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PCMPEQD    (Just op1) (Just op2) _ _ _)          = pcmpeqd      ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ PCMPGTB    (Just op1) (Just op2) _ _ _)          = pcmpgtb      ctxt i_a op1 op2
@@ -1386,6 +1487,42 @@ tau_i ctxt (Instr i_a _ FISUB    (Just op1) Nothing    _ _ _)  = fisub    ctxt i
 tau_i ctxt (Instr i_a _ FISTTP   (Just op1) Nothing    _ _ _)  = fisttp   ctxt i_a op1
 tau_i ctxt (Instr i_a _ FXCH     (Just op1) _          _ _ _)  = fxch     ctxt i_a
 tau_i ctxt (Instr i_a _ FCHS     Nothing    _          _ _ _)  = fchs     ctxt i_a
+tau_i ctxt (Instr i_a _ EMMS     Nothing    _          _ _ _)  = emms     ctxt i_a
+
+
+tau_i ctxt (Instr i_a _ VINSERTF128  (Just op1) (Just op2) (Just op3) _ _)  = vinsertf128  ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VEXTRACTI128 (Just op1) (Just op2) (Just op3) _ _)  = vextractf128 ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VEXTRACTF128 (Just op1) (Just op2) (Just op3) _ _)  = vextracti128 ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPERM2F128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2f128   ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPERM2I128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2i128   ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPALIGNR     (Just op1) (Just op2) (Just op3) _ _)  = vpalignr     ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ PALIGNR      (Just op1) (Just op2) (Just op3) _ _)  = palignr      ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VSHUFPD      (Just op1) (Just op2) (Just op3) _ _)  = vshufpd      ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VSHUFPS      (Just op1) (Just op2) (Just op3) _ _)  = vshufps      ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VADDPD       (Just op1) (Just op2) (Just op3) _ _)  = vaddpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VADDPS       (Just op1) (Just op2) (Just op3) _ _)  = vaddps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VSUBPD       (Just op1) (Just op2) (Just op3) _ _)  = vsubpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VSUBPS       (Just op1) (Just op2) (Just op3) _ _)  = vsubps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VMULPD       (Just op1) (Just op2) (Just op3) _ _)  = vmulpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VMULPS       (Just op1) (Just op2) (Just op3) _ _)  = vmulps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VXORPD       (Just op1) (Just op2) (Just op3) _ _)  = vxorpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VXORPS       (Just op1) (Just op2) (Just op3) _ _)  = vxorps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VANDPD       (Just op1) (Just op2) (Just op3) _ _)  = vandpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VMOVDQA      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqa      ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VMOVDQU      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqu      ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VMOVLHPS     (Just op1) (Just op2) (Just op3) _ _)  = vmovlhps     ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPUNPCKHWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpckhwd   ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPUNPCKLWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpcklwd   ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VZEROUPPER   Nothing    _          _ _ _)           = vzeroupper   ctxt i_a
+tau_i ctxt (Instr i_a _ VPCMPEQB     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqb     ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPCMPEQW     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqw     ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ VPSLLW       (Just op1) (Just op2) (Just op3) _ _)  = vpsllw       ctxt i_a op1 op2 op3
+tau_i ctxt (Instr i_a _ MOVHPS       (Just op1) (Just op2) Nothing _ _)     = movhps       ctxt i_a op1 op2 
+tau_i ctxt (Instr i_a _ MOVHLPS      (Just op1) (Just op2) Nothing _ _)     = movhlps      ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ MOVLHPS      (Just op1) (Just op2) Nothing _ _)     = movlhps      ctxt i_a op1 op2 
+tau_i ctxt (Instr i_a _ VMOVHPS      (Just op1) (Just op2) Nothing _ _)     = vmovhps      ctxt i_a op1 op2 
 
 
 tau_i ctxt (Instr i_a _ CPUID    Nothing    _          _ _ _)  = cpuid    ctxt i_a
@@ -1422,7 +1559,7 @@ tau_i ctxt i =
   if is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
     return ()
   else
-    error $ "Unsupported instruction: " ++ show i
+    trace ("Unsupported instruction: " ++ show i) $ return () -- TODO make configurable
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.
