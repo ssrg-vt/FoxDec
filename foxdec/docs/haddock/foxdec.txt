@@ -9,7 +9,6 @@
 @version 0.1.0.0
 
 
--- | Some customizable constants
 module Config
 
 -- | When encountering an unknown instruction do we either 1.) report it to
@@ -1874,7 +1873,8 @@ is_end_node :: CFG -> Int -> Bool
 node_info_of :: Context -> CFG -> Int -> NodeInfo
 
 
--- | After running FoxDec, a "verification report" (an object of type
+-- | The interface to the <tt>.report</tt> generated after running FoxDec.
+--   After running FoxDec, a "verification report" (an object of type
 --   <tt><a>Context</a></tt>) can be retrieved from the generated .report
 --   file (see function <tt>ctxt_read_report</tt>). Essentially, this
 --   module provides hooks into some of the information retrieved and

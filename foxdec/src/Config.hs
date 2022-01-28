@@ -1,7 +1,7 @@
------------------------------------------------------------------------------
--- |
--- Some customizable constants
------------------------------------------------------------------------------
+{-|
+Module      : Config
+Description : Some customizable constants.
+-}
 
 module Config
  where

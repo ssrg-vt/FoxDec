@@ -4,6 +4,7 @@
 Module      : VerificationReportInterface
 Description : The interface to the @.report@ generated after running FoxDec.
 
+The interface to the @.report@ generated after running FoxDec.
 After running FoxDec, a \"verification report\" (an object of type @"Context"@) can be retrieved from the generated .report file (see function @ctxt_read_report@).
 Essentially, this module provides hooks into some of the information retrieved and derived from the binary,
 including instructions, invariants, function entry points, etc.
