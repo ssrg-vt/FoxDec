@@ -1,8 +1,13 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
------------------------------------------------------------------------------
--- | Contains function relating to control flow, including functions for
--- resolving the targets of jumps and calls.
------------------------------------------------------------------------------
+
+{-|
+Module      : ControlFlow
+Description : Functions for resolving jump targets.
+
+Contains function relating to control flow, including functions for
+resolving the targets of jumps and calls.
+-}
+
 
 
 module ControlFlow (

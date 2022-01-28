@@ -1,9 +1,10 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleContexts, StrictData #-}
 
------------------------------------------------------------------------------
--- |
--- Symbolic execution of sequential lists of instructions of type @`Instr'@ on predicates of type @`Pred`@.
------------------------------------------------------------------------------
+
+{-|
+Module      : SimplePred
+Description : Symbolic execution of sequential lists of instructions of type @`Instr'@ on predicates of type @`Pred`@.
+-}
 
 module SymbolicExecution (
   tau_block,
@@ -15,6 +16,7 @@ module SymbolicExecution (
   ) where
 
 import Base
+import Config
 import SimplePred
 import Context
 import MachineState
@@ -246,7 +248,7 @@ function_semantics ctxt i f                      =
     write_reg ctxt RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
-    write_reg ctxt RAX $ SE_Malloc (Just (i_addr i)) (Just "")  -- TODO (show p))
+    write_reg ctxt RAX $ SE_Malloc (Just (i_addr i)) (Just "")
     return True
   else
     return False
@@ -1558,8 +1560,10 @@ tau_i ctxt (Instr i_a (Just pre)  MOVSQ   (Just op1) (Just op2) _ _ _) = movsq  
 tau_i ctxt i =
   if is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
     return ()
+  else if continue_on_unknown_instruction then
+    trace ("Unsupported instruction: " ++ show i) $ return () 
   else
-    trace ("Unsupported instruction: " ++ show i) $ return () -- TODO make configurable
+    error ("Unsupported instruction: " ++ show i)
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.

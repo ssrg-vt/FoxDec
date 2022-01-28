@@ -1,12 +1,13 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
 
+{-|
+Module      : SimplePred
+Description : A datatype for symbolic expressions and symbolic predicates.
 
--------------------------------------------------------------------------
--- | A datatype for symbolic predicates, tailored to storing information
--- on equalities between the current values stored in state parts (lhs) 
--- and constant expressions (rhs).
--------------------------------------------------------------------------
-
+A datatype for symbolic predicates, tailored to storing information
+on equalities between the current values stored in state parts (lhs) 
+and constant expressions (rhs).
+-}
 
 module SimplePred ( 
   Pred (..),

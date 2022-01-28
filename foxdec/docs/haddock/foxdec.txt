@@ -2,7 +2,7 @@
 -- See Hoogle, http://www.haskell.org/hoogle/
 
 
--- | Formaly Verified x86-64 Decompilation
+-- | Formally Verified x86-64 Decompilation
 --   
 --   This package contains tools for decompilation based on formal methods.
 @package foxdec
@@ -12,23 +12,28 @@
 -- | Some customizable constants
 module Config
 
+-- | When encountering an unknown instruction do we either 1.) report it to
+--   stderr but continue (True), or 2.) exit with an error message (False)?
+continue_on_unknown_instruction :: Bool
+
 -- | The maximum number of separate concrete cases considered
---   non-deterministically
+--   non-deterministically, before abstraction is applied.
 max_num_of_cases :: Int
 
--- | The maximum number of pointer bases a bottom-expression may have
+-- | The maximum number of pointer bases a bottom-expression may have,
+--   before more asbtraction is applied.
 max_num_of_bases :: Int
 
--- | The maximum number of sources a bottom-expression may have
+-- | The maximum number of sources a bottom-expression may have, before
+--   resoring to rock-bottom.
 max_num_of_sources :: Int
 
--- | An overapproximation of the maximum number of entries in a jump table.
---   Does not affect soundness, but if the value is set too low, then more
---   indirections may be left unresolved.
+-- | A coarse overapproximation of the maximum number of entries in a jump
+--   table. Does not affect soundness, but if the value is set too low,
+--   then more indirections may be left unresolved.
 max_jump_table_size :: Integer
 
 
--- | Some base functions, imported by any other module.
 module Base
 
 -- | Show the integer in hex.
@@ -49,7 +54,7 @@ readHex' :: (Eq a, Num a) => String -> a
 -- | Lookup and produce error message if key does not exists in map.
 im_lookup :: [Char] -> IntMap p -> Key -> p
 
--- | use a feault value in case of <tt>Nothing</tt>
+-- | use a default value in case of <tt>Nothing</tt>
 orElse :: Maybe p -> p -> p
 
 -- | Find the index of one string in another.
@@ -66,7 +71,7 @@ bytes_to_word :: [Word8] -> Word64
 --   <tt>n&lt;8</tt>.
 word_to_sint :: Int -> Word64 -> Int
 
--- | Generic graph with ints as vertices. --
+-- | Generic graph with ints as vertices.
 data Graph
 Edges :: IntMap IntSet -> Graph
 
@@ -103,7 +108,6 @@ instance Data.Serialize.Serialize Base.Graph
 instance SCC.IntGraph Base.Graph
 
 
--- | Datastructures for storing x86-64 instructions.
 module X86_Datastructures
 
 -- | An instruction
@@ -1261,8 +1265,6 @@ instance GHC.Show.Show SimplePred.Operator
 instance Data.Serialize.Serialize SimplePred.Operator
 
 
--- | In this file, we eumerate assumptions made on calling conventions and
---   over external functions.
 module Conventions
 
 -- | A list of function names of functions that never return.
@@ -1286,13 +1288,11 @@ return_registers :: [Register]
 parameter_registers :: [Register]
 
 
--- | A <tt><a>Context</a></tt> stores all the information retrieved from
---   the binary, as well as the command-line parameters passed to FoxDec.
---   Moreover, it stores information obtained during verification, such as
---   CFGs, invariants, etc. (see <tt><a>Context</a></tt>).
---   
---   Module <a>VerificationReportInterface</a> provides functions for
---   obtaining and interfacing with a <tt>Context</tt>.
+-- | The context stores, among others, information obtained during
+--   verification, such as CFGs, invariants, etc. (see
+--   <tt><a>Context</a></tt>). Module <a>VerificationReportInterface</a>
+--   provides functions for obtaining and interfacing with a
+--   <tt>Context</tt>.
 module Context
 
 -- | A control flow graph with blocks and edges. A blockID (represented as
@@ -1633,7 +1633,9 @@ instance SCC.IntGraph Context.CFG
 -- | We assume a class where we can do predicate transformation through
 --   function <tt>tau</tt>, and we can merge two predicates through
 --   function <tt>join</tt>. Moreover, we assume an implementation of a
---   function <tt>implies</tt> that implements symbolic implication.
+--   function <tt>implies</tt> that implements symbolic implication. Given
+--   these functions, we provide a generic abstract interpretation
+--   algorithm.
 module Propagation
 
 -- | A class that allows propagation of predicates over a CFG.
@@ -1819,8 +1821,6 @@ resolve_address :: Context -> Address -> State (Pred, VCS) SimpleExpr
 instance GHC.Classes.Eq MachineState.SeparationStatus
 
 
--- | Symbolic execution of sequential lists of instructions of type
---   <tt><a>Instr</a></tt> on predicates of type <tt><a>Pred</a></tt>.
 module SymbolicExecution
 
 -- | Do predicate transformation over a basic block in a CFG. Given an edge
@@ -1849,17 +1849,15 @@ get_invariant :: Context -> Int -> Int -> Maybe Pred
 instance Propagation.Propagator Context.Context SimplePred.Pred
 
 
--- | Contains function control flow graph generation.
 module CFG_Gen
 
 -- | Produce a CFG
 --   
---   Given the entry point of the function, generate either a CFG, and a
---   possibly empty set of new entry points to be analyzed first. The set
---   of new entry points are function entries called by the current
---   function, but for which we do not know yet whether they terminate or
---   not. If a CFG is returned with empty set, then all function calls in
---   that CFG have already been analyzed.
+--   Given the entry point of the function, generate either a CFG, or a set
+--   of new entry points to be analyzed first. The set of new entry points
+--   are function entries called by the current function, but for which we
+--   do not know yet whether they terminate or not. If a CFG is returned,
+--   then all function calls in that CFG have already been analyzed.
 cfg_gen :: Context -> Int -> IO (Set (Instr, Int), CFG)
 
 -- | Export a CFG to .dot file
@@ -1892,15 +1890,14 @@ node_info_of :: Context -> CFG -> Int -> NodeInfo
 --   provided as first command-line parameter and outputs the function
 --   entries:
 --   
---   <pre>
---   main = do
---     args &lt;- getArgs
---     ctxt &lt;- ctxt_read_report $ head args
---     putStrLn $ show $ ctxt_get_function_entries ctxt
---   </pre>
---   
---   Some of the information is automatically also exported in plain-text
---   format, for easy access.
+--   <ul>
+--   <li>- &gt; main = do</li>
+--   <li>- &gt; args &lt;- getArgs</li>
+--   <li>- &gt; ctxt &lt;- ctxt_read_report $ head args</li>
+--   <li>- &gt; putStrLn $ show $ ctxt_get_function_entries ctxt</li>
+--   <li>- Some of the information is automatically also exported in
+--   plain-text format, for easy access.</li>
+--   </ul>
 module VerificationReportInterface
 
 -- | The return type when retrieving information from a verification

@@ -1,8 +1,9 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
------------------------------------------------------------------------------
--- | Contains function control flow graph generation.
------------------------------------------------------------------------------
 
+{-|
+Module      : CFG_Gen
+Description : Contains functions pertaining to control flow graph generation.
+-}
 
 module CFG_Gen (
    cfg_gen,
@@ -247,9 +248,9 @@ cfg_add_instrs ctxt g = do
 
 -- | Produce a CFG
 --
--- Given the entry point of the function, generate either a CFG, and a possibly empty set of new entry points to be analyzed first.
+-- Given the entry point of the function, generate either a CFG, or a set of new entry points to be analyzed first.
 -- The set of new entry points are function entries called by the current function, but for which we do not know yet whether they terminate or not.
--- If a CFG is returned with empty set, then all function calls in that CFG have already been analyzed.
+-- If a CFG is returned, then all function calls in that CFG have already been analyzed.
 cfg_gen ::
   Context -- ^ The context
   -> Int  -- ^ The entry point of the function

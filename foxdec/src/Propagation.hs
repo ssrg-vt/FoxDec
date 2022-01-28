@@ -1,9 +1,15 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
------------------------------------------------------------------------------------------
--- | We assume a class where we can do predicate transformation through function @tau@,
--- and we can merge two predicates through function @join@.
--- Moreover, we assume an implementation of a function @implies@ that implements symbolic implication.
------------------------------------------------------------------------------------------
+
+{-|
+Module      : Propagation
+Description : A generic abstract interpretation algorithm for propagating postcondition-transformations through a control flow graph.
+
+We assume a class where we can do predicate transformation through function @tau@,
+and we can merge two predicates through function @join@.
+Moreover, we assume an implementation of a function @implies@ that implements symbolic implication.
+Given these functions, we provide a generic abstract interpretation algorithm.
+-}
+
 
 
 module Propagation (

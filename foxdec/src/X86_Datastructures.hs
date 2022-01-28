@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
+{-|
+Module      : X86_Datastructures
+Description : Datastructures for storing x86-64 instructions.
+-}
 
-------------------------------------------------------
--- | Datastructures for storing x86-64 instructions.
-------------------------------------------------------
 module X86_Datastructures where
 
 import Data.List

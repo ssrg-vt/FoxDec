@@ -1,26 +1,26 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
------------------------------------------------------------------------------
--- |
---
--- After running FoxDec, a \"verification report\" (an object of type @"Context"@) can be retrieved from the generated .report file (see function @ctxt_read_report@).
--- Essentially, this module provides hooks into some of the information retrieved and derived from the binary,
--- including instructions, invariants, function entry points, etc.
---
--- A verification report is represented by the type @"Context"@, as internally it
--- is just the context passed around and maintained during verification.
---
--- The main flow is to read the .report file and use these functions to retrieve information.
--- The following example reads in a .report file provided as first command-line parameter and outputs the function entries:
--- 
+{-|
+Module      : VerificationReportInterface
+Description : The interface to the @.report@ generated after running FoxDec.
+
+After running FoxDec, a \"verification report\" (an object of type @"Context"@) can be retrieved from the generated .report file (see function @ctxt_read_report@).
+Essentially, this module provides hooks into some of the information retrieved and derived from the binary,
+including instructions, invariants, function entry points, etc.
+
+A verification report is represented by the type @"Context"@, as internally it
+is just the context passed around and maintained during verification.
+
+The main flow is to read the .report file and use these functions to retrieve information.
+The following example reads in a .report file provided as first command-line parameter and outputs the function entries:
+
 -- >  main = do
 -- >    args <- getArgs
 -- >    ctxt <- ctxt_read_report $ head args
 -- >    putStrLn $ show $ ctxt_get_function_entries ctxt
 -- 
---
--- Some of the information is automatically also exported in plain-text format, for easy access.
------------------------------------------------------------------------------
+Some of the information is automatically also exported in plain-text format, for easy access.
+-}
 
 
 module VerificationReportInterface

@@ -9,7 +9,7 @@ copyright:           "2021 Author name here"
 
 
 # Metadata used when publishing your package
-synopsis:            Formaly Verified x86-64 Decompilation
+synopsis:            Formally Verified x86-64 Decompilation
 category:            Disassembly, Decompilation
 
 # To avoid duplicated efforts in documentation and dealing with the
