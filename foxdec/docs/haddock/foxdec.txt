@@ -22,6 +22,11 @@ max_num_of_bases :: Int
 -- | The maximum number of sources a bottom-expression may have
 max_num_of_sources :: Int
 
+-- | An overapproximation of the maximum number of entries in a jump table.
+--   Does not affect soundness, but if the value is set too low, then more
+--   indirections may be left unresolved.
+max_jump_table_size :: Integer
+
 
 -- | Some base functions, imported by any other module.
 module Base
@@ -226,6 +231,22 @@ ST4 :: Register
 ST5 :: Register
 ST6 :: Register
 ST7 :: Register
+YMM0 :: Register
+YMM1 :: Register
+YMM2 :: Register
+YMM3 :: Register
+YMM4 :: Register
+YMM5 :: Register
+YMM6 :: Register
+YMM7 :: Register
+YMM8 :: Register
+YMM9 :: Register
+YMM10 :: Register
+YMM11 :: Register
+YMM12 :: Register
+YMM13 :: Register
+YMM14 :: Register
+YMM15 :: Register
 XMM0 :: Register
 XMM1 :: Register
 XMM2 :: Register
@@ -242,22 +263,6 @@ XMM12 :: Register
 XMM13 :: Register
 XMM14 :: Register
 XMM15 :: Register
-XMM0_L :: Register
-XMM1_L :: Register
-XMM2_L :: Register
-XMM3_L :: Register
-XMM4_L :: Register
-XMM5_L :: Register
-XMM6_L :: Register
-XMM7_L :: Register
-XMM8_L :: Register
-XMM9_L :: Register
-XMM10_L :: Register
-XMM11_L :: Register
-XMM12_L :: Register
-XMM13_L :: Register
-XMM14_L :: Register
-XMM15_L :: Register
 
 -- | Flags
 data Flag
@@ -593,6 +598,7 @@ MOVD :: Opcode
 MOVDDUP :: Opcode
 MOVDQA :: Opcode
 MOVDQU :: Opcode
+MOVHLPS :: Opcode
 MOVHPD :: Opcode
 MOVHPS :: Opcode
 MOVLHPS :: Opcode
@@ -634,6 +640,7 @@ ORPD :: Opcode
 ORPS :: Opcode
 OUT :: Opcode
 OUTS :: Opcode
+PALIGNR :: Opcode
 PACKSSDW :: Opcode
 PACKSSWB :: Opcode
 PADDB :: Opcode
@@ -784,6 +791,7 @@ SHL :: Opcode
 SHLD :: Opcode
 SHR :: Opcode
 SHRD :: Opcode
+SHUFPS :: Opcode
 SIDT :: Opcode
 SLDT :: Opcode
 SMSW :: Opcode
@@ -816,18 +824,59 @@ UNPCKHPD :: Opcode
 UNPCKHPS :: Opcode
 UNPCKLPD :: Opcode
 UNPCKLPS :: Opcode
+VANDPD :: Opcode
+VANDPS :: Opcode
+VADDPD :: Opcode
+VADDPS :: Opcode
+VBLENDPS :: Opcode
 VERR :: Opcode
 VERW :: Opcode
+VEXTRACTI128 :: Opcode
+VEXTRACTF128 :: Opcode
+VINSERTF128 :: Opcode
 VMCALL :: Opcode
 VMCLEAR :: Opcode
 VMLAUNCH :: Opcode
+VMOVAPD :: Opcode
+VMOVAPS :: Opcode
+VMOVHPS :: Opcode
+VMOVD :: Opcode
+VMOVDQA :: Opcode
+VMOVDQU :: Opcode
+VMOVLHPS :: Opcode
 VMPTRLD :: Opcode
 VMPTRST :: Opcode
 VMREAD :: Opcode
 VMRESUME :: Opcode
 VMWRITE :: Opcode
+VMULPD :: Opcode
+VMULPS :: Opcode
 VMXOFF :: Opcode
 VMXON :: Opcode
+VPALIGNR :: Opcode
+VPAND :: Opcode
+VPANDN :: Opcode
+VPCMPEQB :: Opcode
+VPCMPEQW :: Opcode
+VPERM2F128 :: Opcode
+VPERM2I128 :: Opcode
+VPERMILPS :: Opcode
+VPOR :: Opcode
+VPSHUFB :: Opcode
+VPSHUFD :: Opcode
+VPSLLW :: Opcode
+VSHUFPS :: Opcode
+VSHUFPD :: Opcode
+VPXOR :: Opcode
+VPUNPCKLWD :: Opcode
+VPUNPCKHWD :: Opcode
+VSUBPD :: Opcode
+VSUBPS :: Opcode
+VUNPCKHPS :: Opcode
+VUNPCKLPS :: Opcode
+VXORPD :: Opcode
+VXORPS :: Opcode
+VZEROUPPER :: Opcode
 WAIT :: Opcode
 WBINVD :: Opcode
 WRFSBASE :: Opcode
@@ -885,6 +934,9 @@ is_call :: Opcode -> Bool
 
 -- | Returns true iff m is the mnemonic of a return
 is_ret :: Opcode -> Bool
+
+-- | List of 256 bit registers
+reg256 :: [Register]
 
 -- | List of 128 bit registers
 reg128 :: [Register]
@@ -1133,6 +1185,8 @@ contains_bot :: SimpleExpr -> Bool
 
 -- | Returns true iff the statepart contains Bot
 contains_bot_sp :: StatePart -> Bool
+
+-- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
 
 -- | Simplification of symbolic expressions.
@@ -1157,6 +1211,7 @@ pp_pred :: Pred -> String
 -- | Unfold an expression with non-determinisism to a list of expressions.
 --   Keep an eye on the produced size, as this may cause blow-up.
 unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
+
 expr_size :: SimpleExpr -> Int
 max_expr_size :: Int
 instance GHC.Generics.Generic SimplePred.Operator
@@ -1213,10 +1268,6 @@ module Conventions
 -- | A list of function names of functions that never return.
 exiting_function_calls :: [[Char]]
 
--- | An overview of which sections can be modified by external functions.
---   Other sections are assumed NOT to be modified by external functions.
-sections_modifiable_by_external_functions :: [a]
-
 -- | Overview of sections with instructions.
 sections_with_instructions :: [([Char], [Char])]
 
@@ -1233,11 +1284,6 @@ return_registers :: [Register]
 
 -- | A list of registers used as parameters
 parameter_registers :: [Register]
-
--- | An overapproximation of the maximum number of entries in a jump table.
---   Does not affect soundness, but if the value is set too low, then more
---   indirections may be left unresolved.
-max_jump_table_size :: Integer
 
 
 -- | A <tt><a>Context</a></tt> stores all the information retrieved from
@@ -1611,6 +1657,168 @@ do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, S
 supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
 
 
+module Pointers
+
+-- | A <a>PointerBase</a> is a positive addend of a symbolic expression
+--   that may represent a pointer. Retrieves the pointer bases from a
+--   symbolic expression. They are either 1.) all known, or 2.) all
+--   unknown.
+get_pointer_bases :: Context -> SimpleExpr -> Set PointerBase
+
+-- | Returns the set of known pointerbases, or the empty set if none.
+get_known_pointer_bases :: Context -> SimpleExpr -> Set PointerBase
+
+-- | Returns true if the expression has known pointerbases.
+expr_highly_likely_pointer :: Context -> SimpleExpr -> Bool
+
+-- | Returns true if the expression has a global pointerbase.
+expr_is_global_pointer :: Context -> SimpleExpr -> Bool
+
+-- | Returns true if the expression has a local pointerbase, and no others.
+expr_is_highly_likely_local_pointer :: Context -> SimpleExpr -> Bool
+
+-- | Returns true if the expression has a local pointerbase, but maybe
+--   other pointerbases as well.
+expr_is_possibly_local_pointer :: Context -> SimpleExpr -> Bool
+
+-- | Returns true iff the expression is an immediate address falling into
+--   the range of sections of the binary
+expr_is_global_immediate :: Context -> SimpleExpr -> Bool
+
+-- | Returns the set of sources (inputs used to compute the expression) of
+--   an expression.
+srcs_of_expr :: Context -> SimpleExpr -> Set BotSrc
+
+-- | Returns the set of sources (state parts used to compute the
+--   expression) of two expressions.
+srcs_of_exprs :: Context -> [SimpleExpr] -> Set BotSrc
+
+-- | Returns true iff the two given expressions have global pointerbases in
+--   different segments/sections of the binary. We do not assume that such
+--   pointers are separate, but do assert it.
+pointers_from_different_global_section :: Context -> SimpleExpr -> SimpleExpr -> Bool
+
+-- | Returns true iff the two given expressions can be shown to be
+--   separate. This means that either: * They both have known pointerbases
+--   that are assumed to be separate (see <a>pointer_bases_separate</a>). *
+--   They both have sources that are all separate (see
+--   <a>sources_separate</a>) * One of them is an immediate and the other
+--   is local.
+separate_pointer_domains :: Context -> SimpleExpr -> SimpleExpr -> Bool
+
+-- | Given a set of expressions, produce an expression that resembles the
+--   join of the entire set. That is, the produced expression should be
+--   coarser than the disjunction of all input-expressions.
+--   
+--   <ol>
+--   <li>First, just use non-determinism, i.e., <tt>a join b</tt> becomes
+--   <tt>{a,b}</tt>. This is precise, but doesn't guarantee
+--   termination.</li>
+--   <li>If step 1 produces too many cases, join based on known
+--   pointerbases. This requires all given expressions to have known
+--   pointerbases.</li>
+--   <li>If step 2 produces too many bases, or the given expressions have
+--   no known pointerbases, join bsed on sources.</li>
+--   <li>If step 3 produces too many sources, just produces
+--   <a>rock_bottom</a>.</li>
+--   </ol>
+--   
+--   TODO: joining immediates
+join_exprs :: String -> Context -> [SimpleExpr] -> SimpleExpr
+
+-- | Abstraction for a single expression, even if the expression is
+--   concrete.
+join_single :: Context -> SimpleExpr -> SimpleExpr
+
+-- | Two pointerbases are separate if they refer to completely different
+--   parts of the memory. We assume Stackframe, Global address space, and
+--   Heap are separate. Two different <tt>malloc</tt>'s point to different
+--   regions.
+pointer_bases_separate :: PointerBase -> PointerBase -> Bool
+
+-- | Two sources are inputs for separate pointers if, e.g., one of them is
+--   the stackpointer and the other a malloc-return-value.
+sources_separate :: BotSrc -> BotSrc -> Bool
+
+-- | Returns true iff the given symbolic regions are necessarily equal. For
+--   example: <tt>[RSP-16,4]</tt> is enclosed in <tt>[RSP-16,4]</tt>
+--   
+--   Will return <tt>False</tt> if the expressions contain bottom.
+necessarily_equal :: SimpleExpr -> SimpleExpr -> Bool
+
+-- | Returns true iff the given symbolic stateparts are necessarily equal.
+necessarily_equal_stateparts :: StatePart -> StatePart -> Bool
+
+-- | Returns true iff the given symbolic regions are ncessarily separate.
+--   For example: <tt>[RSP-16,4]</tt> is separate from <tt>[RSP-12,8]</tt>
+--   <tt>[RSP+8,4]</tt> is separate from <tt>[RSP,8]</tt>
+--   
+--   If none of the cases apply where it can be shjown arithmetically that
+--   the expressions are separate, we check whether the expressions can be
+--   proven separate based on their domains (see
+--   <a>separate_pointer_domains</a>).
+necessarily_separate :: (Ord a, Num a) => Context -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
+
+-- | Returns true iff the given symbolic stateparts are necessarily
+--   separate.
+necessarily_separate_stateparts :: Context -> StatePart -> StatePart -> Bool
+
+-- | Returns true iff the given symbolic region is necessarily enclosed in
+--   the other. For example: <tt>[RSP-16,4]</tt> is enclosed in
+--   <tt>[RSP-18,8]</tt> <tt>[RSP+4,4]</tt> is enclosed in <tt>[RSP,8]</tt>
+--   
+--   Will return <tt>False</tt> if the expressions contain bottom.
+necessarily_enclosed :: Integral a => SimpleExpr -> a -> SimpleExpr -> a -> Bool
+
+
+-- | These functions are defined using the <tt>State (Pred,VCS)</tt> monad.
+--   Both the read- and write function may update the current predicate, as
+--   well as introduce new verification conditions.
+module MachineState
+
+-- | Read from a register
+read_reg :: Context -> Register -> State (Pred, VCS) SimpleExpr
+
+-- | Write to a register
+write_reg :: Context -> Register -> SimpleExpr -> State (Pred, VCS) ()
+
+-- | Read from memory
+read_mem :: Context -> Address -> State (Pred, VCS) SimpleExpr
+
+-- | Write to memory Each memory write is accomponied with a
+--   <a>MemWriteIdentifier</a> so that we can log memory writes to unknown
+--   locations.
+write_mem :: Context -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -> State (Pred, VCS) ()
+
+-- | Read from an operand of an instruction
+read_operand :: Context -> Operand -> State (Pred, VCS) SimpleExpr
+
+-- | Write to an operand of an instruction
+write_operand :: Context -> Int -> Operand -> SimpleExpr -> State (Pred, VCS) ()
+
+-- | Read from an statepart
+read_sp :: Context -> StatePart -> State (Pred, VCS) SimpleExpr
+
+-- | Write to a statepart
+write_sp :: Context -> (StatePart -> MemWriteIdentifier) -> (StatePart, SimpleExpr) -> State (Pred, VCS) ()
+
+-- | Returns true if a pointer is not suitable for writing to memory. This
+--   may happen if the symbolic expression provides no information, i.e.,
+--   it has <tt>Bottom</tt> without known pointerbases, and without any
+--   sources.
+invalid_bottom_pointer :: Context -> SimpleExpr -> Bool
+
+-- | An address is considered "unwritable" only if it is an immediate
+--   address that belongs to a section that is considered unwritable
+--   according to Conventions (see <a>section_is_unwritable</a>)
+address_is_unwritable :: Context -> SimpleExpr -> Bool
+
+-- | Given the address of an operand of an instruction, resolve it given
+--   the current state.
+resolve_address :: Context -> Address -> State (Pred, VCS) SimpleExpr
+instance GHC.Classes.Eq MachineState.SeparationStatus
+
+
 -- | Symbolic execution of sequential lists of instructions of type
 --   <tt><a>Instr</a></tt> on predicates of type <tt><a>Pred</a></tt>.
 module SymbolicExecution
@@ -1628,7 +1836,6 @@ init_pred :: Invariants -> Set (NodeInfo, Pred) -> FInit -> Pred
 -- | Given the currently known invariants and postconditions, gather all
 --   stateparts occurring in the current function.
 gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
-is_initial :: StatePart -> SimpleExpr -> Bool
 
 -- | Convert the current invariant into a function initialisation
 invariant_to_finit :: Context -> Pred -> FInit

@@ -66,8 +66,8 @@ ParsecT s u m a -&gt; String -&gt; ParsecT s u m a
 </span><span id="line-33"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserCalls.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-34"></span><span>  </span><span id="local-6989586621679194798"><span class="annot"><span class="annottext">Maybe Char
-</span><a href="#local-6989586621679194798"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679201876"><span class="annot"><span class="annottext">Maybe Char
+</span><a href="#local-6989586621679201876"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
 -&gt; ParsecT String u Identity (Maybe Char)
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -78,15 +78,15 @@ Stream s m Char =&gt;
 Char -&gt; ParsecT s u m Char
 </span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
 </span><span class="hs-char">'-'</span></span><span class="hs-special">)</span><span>
-</span><span id="line-35"></span><span>  </span><span id="local-6989586621679194795"><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679194795"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Key
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679201873"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679201873"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Key
 forall i st. Integral i =&gt; CharParser st i
 </span><span class="hs-identifier hs-var">hexnum</span></span><span>
 </span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserCalls.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-37"></span><span>  </span><span id="local-6989586621679194793"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679194793"><span class="hs-identifier hs-var">terminating</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity String
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621679201871"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679201871"><span class="hs-identifier hs-var">terminating</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity String
 -&gt; ParsecT String u Identity String
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ParsecT String u Identity String
@@ -117,17 +117,17 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; (Key, Bool) -&gt; ParsecT String u Identity (Key, Bool)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Maybe Char
-</span><a href="#local-6989586621679194798"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Char -&gt; Maybe Char -&gt; Bool
+</span><a href="#local-6989586621679201876"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Char -&gt; Maybe Char -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Maybe Char
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679194795"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679201873"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Key
 </span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Key -&gt; Key
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Key
-</span><a href="#local-6989586621679194795"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679194793"><span class="hs-identifier hs-var">terminating</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+</span><a href="#local-6989586621679201873"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679201871"><span class="hs-identifier hs-var">terminating</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;terminating&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Bool
@@ -137,8 +137,8 @@ forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span id="line-42"></span><span>
 </span><span id="line-43"></span><span id="calls"><span class="annot"><span class="annottext">calls :: ParsecT String u Identity (IntMap Bool)
 </span><a href="ParserCalls.html#calls"><span class="hs-identifier hs-var hs-var">calls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-44"></span><span>  </span><span id="local-6989586621679194787"><span class="annot"><span class="annottext">[(Key, Bool)]
-</span><a href="#local-6989586621679194787"><span class="hs-identifier hs-var">calls</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, Bool)
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679201865"><span class="annot"><span class="annottext">[(Key, Bool)]
+</span><a href="#local-6989586621679201865"><span class="hs-identifier hs-var">calls</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, Bool)
 -&gt; ParsecT String u Identity [(Key, Bool)]
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (Key, Bool)
@@ -162,21 +162,21 @@ forall a. [(Key, a)] -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Key, Bool)] -&gt; IntMap Bool) -&gt; [(Key, Bool)] -&gt; IntMap Bool
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(Key, Bool)]
-</span><a href="#local-6989586621679194787"><span class="hs-identifier hs-var">calls</span></a></span><span>
+</span><a href="#local-6989586621679201865"><span class="hs-identifier hs-var">calls</span></a></span><span>
 </span><span id="line-48"></span><span>
 </span><span id="line-49"></span><span class="hs-comment">-- The parse function.</span><span>
 </span><span id="line-50"></span><span class="hs-comment">-- Takes as input a filename f and produces a list of instructions</span><span>
 </span><span id="line-51"></span><span class="hs-comment">-- to lists of instructions.</span><span>
 </span><span id="line-52"></span><span class="annot"><a href="ParserCalls.html#parse_calls"><span class="hs-identifier hs-type">parse_calls</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-53"></span><span id="parse_calls"><span class="annot"><span class="annottext">parse_calls :: String -&gt; IO (Either ParseError (IntMap Bool))
-</span><a href="ParserCalls.html#parse_calls"><span class="hs-identifier hs-var hs-var">parse_calls</span></a></span></span><span> </span><span id="local-6989586621679194782"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679194782"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Bool)
+</span><a href="ParserCalls.html#parse_calls"><span class="hs-identifier hs-var hs-var">parse_calls</span></a></span></span><span> </span><span id="local-6989586621679201860"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679201860"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Bool)
 -&gt; String -&gt; IO (Either ParseError (IntMap Bool))
 forall a. Parser a -&gt; String -&gt; IO (Either ParseError a)
 </span><span class="hs-identifier hs-var">parseFromFile</span></span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Bool)
 forall u. ParsecT String u Identity (IntMap Bool)
 </span><a href="ParserCalls.html#calls"><span class="hs-identifier hs-var">calls</span></a></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679194782"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><a href="#local-6989586621679201860"><span class="hs-identifier hs-var">f</span></a></span><span>
 </span><span id="line-54"></span><span>
 </span><span id="line-55"></span><span>
 </span><span id="line-56"></span></pre></body></html>

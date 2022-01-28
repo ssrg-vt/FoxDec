@@ -410,6 +410,11 @@ write_mem ctxt mid a si0 v = do
       --error (show (a0,a,get_known_pointer_bases ctxt a0, srcs_of_expr ctxt a0, get_known_pointer_bases ctxt a, srcs_of_expr ctxt a))
       modify $ add_unknown_mem_write mid
     else do
+      when (a0 == SE_Immediate 0x100010428) $ do
+        rip <- read_reg ctxt RIP
+        trace ("FOLLOWING (WRITE@" ++ show rip ++ "): [" ++ show a0 ++ "," ++ show si0 ++ "]: " ++ show v) $ return ()
+
+
       p@(Predicate eqs flg muddle_status,vcs) <- get
       eqs' <- M.fromList <$> do_write a0 si0 v (M.toList eqs)
       let flg' = clean_flg (SP_Mem a0 si0) flg
@@ -448,7 +453,7 @@ write_mem ctxt mid a si0 v = do
      if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
        return Overlap
 
-  address (MemWriteInstruction _ addr _) = Just addr
+  address (MemWriteInstruction _ addr _) = Just addr -- TODO use mids for assertions
   address (MemWriteFunction _ _ _)       = Nothing
 
 

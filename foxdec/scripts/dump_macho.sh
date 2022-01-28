@@ -5,18 +5,22 @@
 # TOOL DEPENDENCIES:
 # otool
 # nm
+# (preferably): xcode
 
-if [[ $# -ne 2 ]]; then
+if [[ $# -ne 2 ]] && [[ $# -ne 3 ]] ; then
   echo "Usage: "
-  echo "./dump_macho.sh BINARY NAME"
+  echo "./dump_macho.sh BINARY NAME [DO_DATA]"
   echo ""
-  echo "  BINARY == binary under investigation"
-  echo "  NAME   == name of file to be generated"
+  echo "  BINARY  == binary under investigation"
+  echo "  NAME    == name of file to be generated"
+  echo "  DO_DATA == (optional) if set to 1, also dump the data section. Generally one should not do this." 
   echo ""
   echo "Example usage:"
   echo "./dump_macho.sh /usr/bin/du du"
   exit 1
 fi
+
+DODATA=${3:0}
 
 
 # OBJDUMP
@@ -98,6 +102,11 @@ do
         # -n +2 : start at line 2 of the file, skipping the first line.
         otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
       fi
+      if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__data" ]] && [[ $DODATA == 1 ]] ; then
+        # -n +2 : start at line 2 of the file, skipping the first line.
+        echo "Exporting (__DATA,__data)"
+        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+      fi
       expecting=0;
    fi
 
@@ -119,9 +128,12 @@ if [[ -f "$2.entry" ]]; then
    echo "Created $2.entry"
 else
    # No entry found in the load commands, so it is a library (.dylib)
+   #xcrun dyldinfo -arch x86_64 -export $1 | cut -d ' ' -f1 > $2.entry
+   
    nm  --defined-only $1 | grep " T " | awk '{print "0x" $0}' | cut -d ' ' -f1 > $2.entry
    echo "No load-command found that provides entry, so treating binary as library and all defined symbols in text sections as entry points."
    echo "Created $2.entry"
 fi
+
 
 
