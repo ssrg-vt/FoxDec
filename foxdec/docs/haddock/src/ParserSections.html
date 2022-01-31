@@ -91,8 +91,8 @@ Stream s m Char =&gt;
 String -&gt; ParsecT s u m String
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;(&quot;</span></span><span>
-</span><span id="line-42"></span><span>  </span><span id="local-6989586621679202187"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679202187"><span class="hs-identifier hs-var">segname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679202221"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679202221"><span class="hs-identifier hs-var">segname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ParsecT String u Identity Char
 forall s (m :: * -&gt; *) u.
@@ -106,8 +106,8 @@ Stream s m Char =&gt;
 String -&gt; ParsecT s u m String
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;,&quot;</span></span><span>
-</span><span id="line-44"></span><span>  </span><span id="local-6989586621679202185"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679202185"><span class="hs-identifier hs-var">sectname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679202219"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679202219"><span class="hs-identifier hs-var">sectname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ParsecT String u Identity Char
 forall s (m :: * -&gt; *) u.
@@ -149,8 +149,8 @@ String -&gt; ParsecT s u m String
 </span><span id="line-53"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserSections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-54"></span><span>  </span><span id="local-6989586621679202184"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679202184"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Int
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679202218"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679202218"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Int
 forall u. ParsecT String u Identity Int
 </span><a href="ParserSections.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-55"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
@@ -178,8 +178,8 @@ String -&gt; ParsecT s u m String
 </span><span id="line-61"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="ParserSections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-62"></span><span>  </span><span id="local-6989586621679202183"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679202183"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Int
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679202217"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679202217"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Int
 forall u. ParsecT String u Identity Int
 </span><a href="ParserSections.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-63"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
@@ -196,15 +196,15 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; ParsecT String u Identity (String, String, Int, Int)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679202187"><span class="hs-identifier hs-var">segname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679202185"><span class="hs-identifier hs-var">sectname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679202184"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679202183"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679202221"><span class="hs-identifier hs-var">segname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679202219"><span class="hs-identifier hs-var">sectname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679202218"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679202217"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-65"></span><span>
 </span><span id="line-66"></span><span id="sections_info"><span class="annot"><span class="annottext">sections_info :: ParsecT String u Identity [(String, String, Int, Int)]
 </span><a href="ParserSections.html#sections_info"><span class="hs-identifier hs-var hs-var">sections_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-67"></span><span>  </span><span id="local-6989586621679202181"><span class="annot"><span class="annottext">[(String, String, Int, Int)]
-</span><a href="#local-6989586621679202181"><span class="hs-identifier hs-var">sis</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Int, Int)
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679202215"><span class="annot"><span class="annottext">[(String, String, Int, Int)]
+</span><a href="#local-6989586621679202215"><span class="hs-identifier hs-var">sis</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Int, Int)
 -&gt; ParsecT String u Identity [(String, String, Int, Int)]
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Int, Int)
@@ -219,7 +219,7 @@ ParsecT s u m ()
 -&gt; ParsecT String u Identity [(String, String, Int, Int)]
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">[(String, String, Int, Int)]
-</span><a href="#local-6989586621679202181"><span class="hs-identifier hs-var">sis</span></a></span><span>
+</span><a href="#local-6989586621679202215"><span class="hs-identifier hs-var">sis</span></a></span><span>
 </span><span id="line-70"></span><span>
 </span><span id="line-71"></span><span class="hs-comment">-- The parse function.</span><span>
 </span><span id="line-72"></span><span class="hs-comment">-- Takes as input a filename f and produces a list of instructions</span><span>

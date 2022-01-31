@@ -65,18 +65,18 @@ For Mac, these are `otool` and `nm`.
 Before FoxDec can be applied to a binary, several files need to be generated. 
 We provide scripts `dump_elf.sh` and `dump_macho.sh` that generate these files automatically for respectively files in the ELF (Linux) and MACH-O (MacOS) format.
 
-    ./dump_elf.sh BINARY NAME
+    dump_elf.sh BINARY NAME
     
-Here, `BINARY` is the name of the binary and `NAME` is a short working title (without file extensions or paths). For example:
+Here, `BINARY` is the name of the binary and `NAME` is a short working title (without file extensions or paths). For example, when inside the `foxdec` directory:
 
-	mkdir du
-	cd du
-    ./dump_elf.sh /usr/bin/du du
+	mkdir examples/du
+	cd examples/du
+	../../scripts/dump_elf.sh /usr/bin/du du
 
-This generates a new directory `du` and generates the following files:
+This generates a new directory `examples/du` and generates the following files:
 
-- **`NAME.dump`**: We use `readelf` to get an overview of all segments/sections in the binary. For each relevant section, a hexdump is appended to **`NAME.dump`**.
-- **`NAME.section`**: A plain-text file containing an overview of all relevant segments/sections.
+- **`NAME.dump`**: We use `readelf`/`otool` (Linux/MacOS) to get an overview of all segments/sections in the binary. For each relevant section, a hexdump is appended to **`NAME.dump`**.
+- **`NAME.sections`**: A plain-text file containing an overview of all relevant segments/sections.
 - **`NAME.symbols`**: A plain-text file containing an overview of all external function symbols.
 - **`NAME.entry`**: A plain-text file containing the entry points of the binary (one if executable, multiple if library).
 - **`NAME.objdump`** (optional): For debugging purposes, we find it convenient to have the `objdump` available. This file is not used by FoxDec itself.
@@ -105,9 +105,10 @@ We provide two examples that use the `.report` file and its [interface][reportin
 From the same directory as where `foxdec-exe` was ran, one can run:
 
     foxdec-disassembler-exe examples/du/du.report
-    foxdec-isabelle-exe examples/du/du.report
+    foxdec-controlflow-exe examples/du/du.report 0x100002b2c
 
-The first reads in the report and provides an overview of disassembled instructions. The second is more involved: it generates Isabelle/HOL `.thy` files containing all invariants. The disassembler provides a good example of how to use the `.report` file and its [interface][reportinterface]. 
+The first reads in the report and provides an overview of disassembled instructions. The second perovides the set of next instruction addresses after executing of the instruciton at address `0x100002b2c`.
+For more information how to use the `.report` file, see its [interface][reportinterface]. 
 
 
 ## Documentation<a name="docs"></a>

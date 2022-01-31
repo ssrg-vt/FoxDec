@@ -9,7 +9,8 @@ module CFG_Gen (
    cfg_gen,
    cfg_to_dot,
    is_end_node,
-   node_info_of
+   node_info_of,
+   stepA
  )
  where
 

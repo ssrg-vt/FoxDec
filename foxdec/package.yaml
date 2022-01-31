@@ -48,14 +48,14 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - foxdec
-  foxdec-isabelle-exe:
-    main:                Isabelle.hs
+  foxdec-controlflow-exe:
+    main:                ControlFlowResolver.hs
     source-dirs:         app
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -main-is Isabelle
+    - -main-is ControlFlowResolver
     dependencies:
     - foxdec
   foxdec-disassembler-exe:

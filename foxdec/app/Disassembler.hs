@@ -21,7 +21,6 @@ import Control.Monad.State.Strict
 import Data.Functor.Identity
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
-import System.Exit (die)
 
 
 -- | Read in first command-line argument, check whether it is a .report file.
@@ -47,13 +46,6 @@ ctxt_disassemble ctxt = do
   ctxt_disassemble_address a = do
     (i,s) <- retrieve_io $ ctxt_get_instruction a ctxt
     putStrLn s
-
-
-retrieve_io :: Either String a -> IO a
-retrieve_io retrieve_result = do
-  case retrieve_result of
-    Left err -> die err
-    Right result -> return result
 
 
 
