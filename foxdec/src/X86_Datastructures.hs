@@ -19,11 +19,11 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 data Instr = Instr {
   i_addr :: Int,                 -- ^ address
   i_prefix :: Maybe Prefix,      -- ^ prefix, e.g., lock or repz
-  i_opcode :: Opcode,            -- ^ opcode (see data Opcode)
+  i_opcode :: Opcode,            -- ^ opcode/mnemonic
   i_op1 :: Maybe Operand,        -- ^ optional: operand
   i_op2 :: Maybe Operand,        -- ^ optional: operand
   i_op3 :: Maybe Operand,        -- ^ optional: operand
-  i_annot :: Maybe String,       -- ^ annotation, e.g., \<malloc\@plt + 10\>
+  i_annot :: Maybe String,       -- ^ optional: annotation, e.g., \"\<malloc\@plt + 10\>\"
   i_size :: Int                  -- ^ size of instruction
  }
  deriving (Eq,Ord, Generic)

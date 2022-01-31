@@ -31,12 +31,12 @@ module SimplePred (
   pp_expr,
   pp_pred,
   unfold_non_determinism,
-  expr_size,
-  max_expr_size
+  expr_size
  )
  where
 
 import Base
+import Config
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -277,7 +277,6 @@ trim_expr e =
   else
     e
 
-max_expr_size = 3000
 
 
 
@@ -402,12 +401,9 @@ data StateMuddleStatus =
 -- | A symbolic predicate consists of:
 --
 --   * A mapping from stateparts to symbolic expressions.
---
 --   * The status of the flags.
---   
 --   * A set of verification conditions.
---
---   * The @`StateMuddleStatus`@
+--   * The @"StateMuddleStatus"@.
 data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus StateMuddleStatus
   deriving (Generic,Eq,Ord)
 

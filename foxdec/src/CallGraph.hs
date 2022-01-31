@@ -89,8 +89,9 @@ summarize_function_constraints_short ctxt vcs =
  where
   summarize_fcs (FunctionConstraint f i_a params sps) = "@" ++ showHex i_a ++ ": " ++ f ++ parens (intercalate "," $ map show_param params) ++ " PRESERVES " ++ show_sps sps
 
-  show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show_param_value e)
+  show_param (r,e) = show r ++ show_param_eq_sign e ++ strip_parentheses (show_param_value e)
   show_param_value e = if not (contains_bot e) then pp_bot e else pp_bot $ join_single ctxt e
+  show_param_eq_sign e = if contains_bot e then "~=" else ":="
   
   show_sps sps =
     let (stackframe,others) = partition is_stack_frame $ S.toList sps

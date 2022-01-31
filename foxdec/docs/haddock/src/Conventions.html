@@ -98,21 +98,21 @@ Description : In this file, we eumerate assumptions made on calling conventions 
 </span><span id="line-46"></span><span>
 </span><span id="line-47"></span><span class="hs-comment">-- | Sections in the following list are assumed not to be modifiable during execution, i.e., constant.</span><span>
 </span><span id="line-48"></span><span id="section_is_unwritable"><span class="annot"><span class="annottext">section_is_unwritable :: ([Char], [Char]) -&gt; Bool
-</span><a href="Conventions.html#section_is_unwritable"><span class="hs-identifier hs-var hs-var">section_is_unwritable</span></a></span></span><span> </span><span id="local-6989586621679205106"><span class="annot"><span class="annottext">s :: ([Char], [Char])
-</span><a href="#local-6989586621679205106"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679205105"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205105"><span class="hs-identifier hs-var">segname</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679205104"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205104"><span class="hs-identifier hs-var">sect_name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><a href="Conventions.html#section_is_unwritable"><span class="hs-identifier hs-var hs-var">section_is_unwritable</span></a></span></span><span> </span><span id="local-6989586621679205100"><span class="annot"><span class="annottext">s :: ([Char], [Char])
+</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679205099"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679205099"><span class="hs-identifier hs-var">segname</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679205098"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679205098"><span class="hs-identifier hs-var">sect_name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span>
 </span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
 forall (t :: * -&gt; *). Foldable t =&gt; t Bool -&gt; Bool
 </span><span class="hs-identifier hs-var">or</span></span><span> </span><span class="hs-special">[</span><span>
 </span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205105"><span class="hs-identifier hs-var">segname</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; Bool
+</span><a href="#local-6989586621679205099"><span class="hs-identifier hs-var">segname</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__TEXT&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA_CONST&quot;</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
 </span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
-</span><a href="#local-6989586621679205106"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
+</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
@@ -122,7 +122,7 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.rodata&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span class="hs-special">,</span><span>
 </span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
-</span><a href="#local-6989586621679205106"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
+</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[([Char], [Char])]
 </span><a href="Conventions.html#sections_with_instructions"><span class="hs-identifier hs-var">sections_with_instructions</span></a></span><span>

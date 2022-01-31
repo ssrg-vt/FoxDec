@@ -11,8 +11,8 @@
 
 module Config
 
--- | When encountering an unknown instruction do we either 1.) report it to
---   stderr but continue (True), or 2.) exit with an error message (False)?
+-- | When encountering an unknown instruction do we either * report it to
+--   stderr but continue (True), or * exit with an error message (False)?
 continue_on_unknown_instruction :: Bool
 
 -- | The maximum number of separate concrete cases considered
@@ -30,7 +30,13 @@ max_num_of_sources :: Int
 -- | A coarse overapproximation of the maximum number of entries in a jump
 --   table. Does not affect soundness, but if the value is set too low,
 --   then more indirections may be left unresolved.
-max_jump_table_size :: Integer
+max_jump_table_size :: Int
+
+-- | The maximum size of an expression (counting each operator and each
+--   leaf as 1), before a symbolic expression is abstracted to rock bottom.
+--   Does not affect soundness, but if the value is set too low, then the
+--   results becomes overly overapproximative.
+max_expr_size :: Int
 
 
 module Base
@@ -119,7 +125,7 @@ Instr :: Int -> Maybe Prefix -> Opcode -> Maybe Operand -> Maybe Operand -> Mayb
 -- | prefix, e.g., lock or repz
 [i_prefix] :: Instr -> Maybe Prefix
 
--- | opcode (see data Opcode)
+-- | opcode/mnemonic
 [i_opcode] :: Instr -> Opcode
 
 -- | optional: operand
@@ -131,7 +137,7 @@ Instr :: Int -> Maybe Prefix -> Opcode -> Maybe Operand -> Maybe Operand -> Mayb
 -- | optional: operand
 [i_op3] :: Instr -> Maybe Operand
 
--- | annotation, e.g., &lt;malloc@plt + 10&gt;
+-- | optional: annotation, e.g., "&lt;malloc@plt + 10&gt;"
 [i_annot] :: Instr -> Maybe String
 
 -- | size of instruction
@@ -1014,7 +1020,7 @@ module SimplePred
 --   <li>A mapping from stateparts to symbolic expressions.</li>
 --   <li>The status of the flags.</li>
 --   <li>A set of verification conditions.</li>
---   <li>The <tt><a>StateMuddleStatus</a></tt></li>
+--   <li>The <tt><a>StateMuddleStatus</a></tt>.</li>
 --   </ul>
 data Pred
 Predicate :: Map StatePart SimpleExpr -> FlagStatus -> StateMuddleStatus -> Pred
@@ -1216,7 +1222,6 @@ pp_pred :: Pred -> String
 unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
 
 expr_size :: SimpleExpr -> Int
-max_expr_size :: Int
 instance GHC.Generics.Generic SimplePred.Operator
 instance GHC.Classes.Ord SimplePred.Operator
 instance GHC.Classes.Eq SimplePred.Operator

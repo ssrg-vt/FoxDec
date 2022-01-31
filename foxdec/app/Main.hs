@@ -794,7 +794,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
       return True
 
-  flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromInteger max_jump_table_size then Just (op1,n) else Nothing
+  flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_jump_table_size then Just (op1,n) else Nothing
   flagstatus_to_tries _ = Nothing
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
