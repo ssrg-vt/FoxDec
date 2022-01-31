@@ -131,7 +131,7 @@ Instr :: Int -> Maybe Prefix -> Opcode -> Maybe Operand -> Maybe Operand -> Mayb
 -- | optional: operand
 [i_op3] :: Instr -> Maybe Operand
 
--- | annotation, e.g., <a>+ 10</a>
+-- | annotation, e.g., &lt;malloc@plt + 10&gt;
 [i_annot] :: Instr -> Maybe String
 
 -- | size of instruction
@@ -280,7 +280,7 @@ InvalidFlag :: Flag
 data Address
 
 -- | Reading a pointer from a register
-FromReg :: Register -> Address
+AddrReg :: Register -> Address
 
 -- | Immediate address
 AddrImm :: Int -> Address

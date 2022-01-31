@@ -3,7 +3,7 @@
 </span><span id="line-3"></span><span>
 </span><span id="line-4"></span><span class="hs-comment">{-|
 Module      : SimplePred
-Description : Symbolic execution of sequential lists of instructions of type @`Instr'@ on predicates of type @`Pred`@.
+Description : Symbolic execution of sequential lists of instructions of type @&quot;Instr&quot;@ on predicates of type @&quot;Pred&quot;@.
 -}</span><span>
 </span><span id="line-8"></span><span>
 </span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">SymbolicExecution</span><span> </span><span class="hs-special">(</span><span>
@@ -2267,7 +2267,7 @@ forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span id="line-425"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209388"><span class="annot"><span class="annottext">address :: Address
 </span><a href="#local-6989586621679209388"><span class="hs-identifier hs-var hs-var">address</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Address -&gt; Address -&gt; Address
 </span><a href="X86_Datastructures.html#AddrMinus"><span class="hs-identifier hs-var">AddrMinus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Address
 </span><a href="X86_Datastructures.html#AddrImm"><span class="hs-identifier hs-var">AddrImm</span></a></span><span> </span><span class="annot"><span class="annottext">Int
 </span><a href="#local-6989586621679209389"><span class="hs-identifier hs-var">si</span></a></span><span class="hs-special">)</span><span>
@@ -2313,7 +2313,7 @@ forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span id="line-432"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209374"><span class="annot"><span class="annottext">address :: Address
 </span><a href="#local-6989586621679209374"><span class="hs-identifier hs-var hs-var">address</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Address -&gt; Address -&gt; Address
 </span><a href="X86_Datastructures.html#AddrMinus"><span class="hs-identifier hs-var">AddrMinus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Address
 </span><a href="X86_Datastructures.html#AddrImm"><span class="hs-identifier hs-var">AddrImm</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Address) -&gt; Int -&gt; Address
 forall a b. (a -&gt; b) -&gt; a -&gt; b
@@ -2363,12 +2363,12 @@ forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><a href="#local-6989586621679209371"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Address -&gt; Address
 </span><a href="X86_Datastructures.html#SizeDir"><span class="hs-identifier hs-var">SizeDir</span></a></span><span> </span><span class="annot"><span class="annottext">Int
 </span><a href="#local-6989586621679209368"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-441"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209364"><span class="annot"><span class="annottext">address :: Address
 </span><a href="#local-6989586621679209364"><span class="hs-identifier hs-var hs-var">address</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Address -&gt; Address -&gt; Address
 </span><a href="X86_Datastructures.html#AddrPlus"><span class="hs-identifier hs-var">AddrPlus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Address
 </span><a href="X86_Datastructures.html#AddrImm"><span class="hs-identifier hs-var">AddrImm</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Address) -&gt; Int -&gt; Address
 forall a b. (a -&gt; b) -&gt; a -&gt; b

@@ -3,7 +3,7 @@
 
 {-|
 Module      : SimplePred
-Description : Symbolic execution of sequential lists of instructions of type @`Instr'@ on predicates of type @`Pred`@.
+Description : Symbolic execution of sequential lists of instructions of type @"Instr"@ on predicates of type @"Pred"@.
 -}
 
 module SymbolicExecution (
@@ -422,14 +422,14 @@ is_initial sp v = v == SE_Var sp
 push :: Context -> Int -> Operand -> State (Pred,VCS) ()
 push ctxt i_a (Immediate imm) = do
   let si = 8
-  let address = AddrMinus (FromReg RSP) (AddrImm si)
+  let address = AddrMinus (AddrReg RSP) (AddrImm si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
   write_mem ctxt (MemWriteInstruction i_a address e1) e1 si (SE_Immediate imm)
 push ctxt i_a op1 = do
   e0 <- read_operand ctxt op1
   let si = operand_size op1
-  let address = AddrMinus (FromReg RSP) (AddrImm $ fromIntegral si)
+  let address = AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
   write_mem ctxt (MemWriteInstruction i_a address e1) e1 si e0
@@ -437,8 +437,8 @@ push ctxt i_a op1 = do
 pop :: Context -> Int -> Operand -> State (Pred,VCS) ()
 pop ctxt i_a op1 = do
   let si = operand_size op1
-  e0 <- read_mem ctxt (SizeDir si (FromReg RSP))
-  let address = AddrPlus (FromReg RSP) (AddrImm $ fromIntegral si)
+  e0 <- read_mem ctxt (SizeDir si (AddrReg RSP))
+  let address = AddrPlus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
   write_operand ctxt i_a op1 e0

@@ -2,7 +2,7 @@
 
 {-|
 Module      : CFG_Gen
-Description : A @`Context`@ stores all the information retrieved from the binary, as well as the command-line parameters passed to FoxDec.
+Description : A @"Context"@ stores all the information retrieved from the binary, as well as the command-line parameters passed to FoxDec.
 
 The context stores, among others, information obtained during verification, such as CFGs, invariants, etc. (see @`Context`@).
 Module "VerificationReportInterface" provides functions for obtaining and interfacing with a @Context@.

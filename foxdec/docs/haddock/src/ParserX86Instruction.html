@@ -375,7 +375,7 @@ forall st. GenParser Char st Register
 -&gt; (Register -&gt; Address) -&gt; ParsecT [Char] u Identity Address
 forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
 </span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span class="hs-special">)</span><span>
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-123"></span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Address
 -&gt; ParsecT [Char] u Identity Address
 -&gt; ParsecT [Char] u Identity Address
@@ -1033,7 +1033,7 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Address -&gt; Address -&gt; Address
 </span><a href="X86_Datastructures.html#AddrPlus"><span class="hs-identifier hs-var">AddrPlus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Address
-</span><a href="X86_Datastructures.html#FromReg"><span class="hs-identifier hs-var">FromReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#AddrReg"><span class="hs-identifier hs-var">AddrReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="#local-6989586621679204739"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Address
 </span><a href="#local-6989586621679204738"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-235"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>

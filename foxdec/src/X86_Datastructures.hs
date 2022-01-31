@@ -23,7 +23,7 @@ data Instr = Instr {
   i_op1 :: Maybe Operand,        -- ^ optional: operand
   i_op2 :: Maybe Operand,        -- ^ optional: operand
   i_op3 :: Maybe Operand,        -- ^ optional: operand
-  i_annot :: Maybe String,       -- ^ annotation, e.g., <malloc@plt + 10>
+  i_annot :: Maybe String,       -- ^ annotation, e.g., \<malloc\@plt + 10\>
   i_size :: Int                  -- ^ size of instruction
  }
  deriving (Eq,Ord, Generic)
@@ -71,7 +71,7 @@ data Flag = ZF | CF | SF | OF | PF | InvalidFlag
 
 -- | An unresolved address, within the operand of an instruction.
 data Address =
-    FromReg Register           -- ^ Reading a pointer from a register
+    AddrReg Register           -- ^ Reading a pointer from a register
   | AddrImm Int                -- ^ Immediate address
   | AddrMinus Address Address  -- ^ Minus
   | AddrPlus Address Address   -- ^ Plus
@@ -681,7 +681,7 @@ instance Cereal.Serialize Opcode
 
 
 -- | Showing unresolved address (inner part within a ptr[...])
-show_address' (FromReg r) = show r
+show_address' (AddrReg r) = show r
 show_address' (AddrImm i) = show i
 show_address' (AddrMinus a0 a1) = show_address' a0 ++ " - " ++ show_address' a1
 show_address' (AddrPlus a0 a1) = show_address' a0 ++ " + " ++ show_address' a1

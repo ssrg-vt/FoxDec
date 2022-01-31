@@ -113,11 +113,11 @@ operand_static_resolve ::
   -> Maybe Operand  -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
 operand_static_resolve ctxt i (Just (Immediate a'))                                                 = ImmediateAddress a'
-operand_static_resolve ctxt i (Just (Address (AddrPlus (FromReg RIP) (AddrImm imm))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
-operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrImm imm) (FromReg RIP))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (FromReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrImm imm) (FromReg RIP))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrMinus (FromReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
+operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrReg RIP) (AddrImm imm))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
+operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrImm imm) (AddrReg RIP))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrImm imm) (AddrReg RIP))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrMinus (AddrReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
 operand_static_resolve ctxt i _                                                                     = Unresolved
 
 static_resolve_rip_expr ctxt i f si =

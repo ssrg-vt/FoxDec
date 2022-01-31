@@ -145,7 +145,7 @@ clean_flg sp (FS_CMP b op1 op2) = do
 
 -- | Given the address of an operand of an instruction, resolve it given the current state.
 resolve_address :: Context -> Address -> State (Pred,VCS) SimpleExpr
-resolve_address ctxt (FromReg r)       = read_reg ctxt r
+resolve_address ctxt (AddrReg r)       = read_reg ctxt r
 resolve_address ctxt (AddrImm i)       = return $ SE_Immediate $ fromIntegral i
 resolve_address ctxt (AddrMinus a0 a1) = do
   ra0 <- resolve_address ctxt a0 
@@ -195,7 +195,7 @@ add_assertion rip a0 si0 a1 si1 (p,vcs)  = (p,S.insert (Assertion rip a0 si0 a1 
 
 generate_assertion :: Context -> Maybe Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
 generate_assertion ctxt Nothing a0           = return a0
-generate_assertion ctxt (Just (FromReg r)) _ = do
+generate_assertion ctxt (Just (AddrReg r)) _ = do
   p <- get
   v <- read_reg ctxt r
   a <- do

@@ -217,8 +217,8 @@ get_relevant_precs_for ctxt p i prec =
 
   extra_operands i =
     case i_opcode i of 
-      PUSH -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrMinus (FromReg RSP) (AddrImm $ fromIntegral $ operand_size (fromJust $ i_op1 i))) ]
-      POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (FromReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
+      PUSH -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral $ operand_size (fromJust $ i_op1 i))) ]
+      POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (AddrReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
       _    -> []
 
   operand_to_statepart p i (Just (Address (SizeDir si a))) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
