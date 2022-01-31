@@ -1871,6 +1871,20 @@ is_end_node :: CFG -> Int -> Bool
 --   
 --   Assumes the given blockID corresponds to a leaf-node.
 node_info_of :: Context -> CFG -> Int -> NodeInfo
+
+-- | An abstract step function
+--   
+--   Given the entry address of the function currently under investigation,
+--   and the instruction address of the current instruction, try to get the
+--   set of next instruction addresses.
+--   
+--   This returns either: * a set of tuples <tt>(i,a)</tt> where <tt>i</tt>
+--   is an instruction and <tt>a</tt> its address. All these instructions
+--   are function calls that need to be analyzed before this current
+--   function entry can continue. * a list of tuples <tt>(a,b)</tt> where
+--   <tt>a</tt> is an instruction address that may follow the current
+--   instruction, and <tt>b</tt> is a Bool indicating whether that address
+--   belongs to a <tt>call</tt>
 stepA :: Context -> Int -> Int -> IO (Either (Set (Instr, Int)) [(Int, Bool)])
 
 
@@ -1917,6 +1931,19 @@ type InstructionAddress = Int
 --   verification report stored in the .report file.
 ctxt_read_report :: String -> IO Context
 
+-- | Retrieve information from a <tt><a>Context</a></tt> read from a
+--   .report file, or die with an error message. For example:
+--   
+--   <pre>
+--   do
+--     ctxt &lt;- ctxt_read_report filename
+--     retrieve_io $ ctxt_get_instruction a ctxt
+--   </pre>
+--   
+--   This code reads in a .report file with the given <tt>filename</tt>,
+--   and reads the instruction at address <tt>a</tt> if any.
+retrieve_io :: Either String a -> IO a
+
 -- | Retrieve all function entries.
 --   
 --   Returns a set of funtion entries.
@@ -1929,7 +1956,7 @@ ctxt_get_instruction_addresses :: Retrieve (Set InstructionAddress)
 
 -- | Retrieve all indirections
 --   
---   Returns, a mapping that provides for some instruction addresses a set
+--   Returns a mapping that provides for some instruction addresses a set
 --   of jump targets.
 ctxt_get_indirections :: Retrieve Indirections
 
@@ -1950,16 +1977,3 @@ ctxt_get_internal_function_calls :: FunctionEntry -> Retrieve (Set FunctionEntry
 
 -- | Retrieve a CFG for a given function entry
 ctxt_get_cfg :: FunctionEntry -> Retrieve CFG
-
--- | Retrieve information from a <tt>Context</tt> read from a .report file,
---   or error out. For example:
---   
---   <pre>
---   do
---     ctxt &lt;- ctxt_read_report filename
---     retrieve_io $ ctxt_get_instruction a ctxt
---   </pre>
---   
---   This code reads in a .report file with the given <tt>filename</tt>,
---   and reads the isntruction at address <tt>a</tt> if any.
-retrieve_io :: Either String a -> IO a

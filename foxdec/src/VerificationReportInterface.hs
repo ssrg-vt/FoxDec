@@ -28,6 +28,7 @@ module VerificationReportInterface
   (
     Retrieve,FunctionEntry,InstructionAddress,
     ctxt_read_report,
+    retrieve_io,
     ctxt_get_function_entries,
     ctxt_get_instruction_addresses,
     ctxt_get_indirections,
@@ -35,7 +36,6 @@ module VerificationReportInterface
     ctxt_get_invariant,
     ctxt_get_internal_function_calls,
     ctxt_get_cfg,
-    retrieve_io
   )
 where
 
@@ -81,21 +81,22 @@ ctxt_read_report fname = do
   case Cereal.decode fcontents of
     Left err   -> error $ "Could not read verification report in file " ++ fname 
     Right ctxt -> return ctxt
-  
 
--- | Retrieve information from a @Context@ read from a .report file, or error out.
+-- | Retrieve information from a @"Context"@ read from a .report file, or die with an error message.
 -- For example:
 --
 -- > do
 -- >   ctxt <- ctxt_read_report filename
 -- >   retrieve_io $ ctxt_get_instruction a ctxt
 --
--- This code reads in a .report file with the given @filename@,  and reads the isntruction at address @a@ if any.
+-- This code reads in a .report file with the given @filename@,  and reads the instruction at address @a@ if any.
 retrieve_io :: Either String a -> IO a
 retrieve_io retrieve_result = do
   case retrieve_result of
     Left err -> die err
     Right result -> return result
+
+ 
 
 
 
@@ -118,7 +119,7 @@ ctxt_get_instruction_addresses ctxt =
 
 -- | Retrieve all indirections
 --
--- Returns, a mapping that provides for some instruction addresses a set of jump targets.
+-- Returns a mapping that provides for some instruction addresses a set of jump targets.
 ctxt_get_indirections :: Retrieve Indirections
 ctxt_get_indirections = Right . ctxt_inds
 
