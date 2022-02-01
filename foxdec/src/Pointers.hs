@@ -218,9 +218,9 @@ join_single ctxt e =
 -- | Returns true iff the two given expressions have global pointerbases in different segments/sections of the binary.
 -- We do not assume that such pointers are separate, but do assert it.
 pointers_from_different_global_section ctxt a0 a1 =
-    case (S.toList $ get_global_pointer_bases ctxt a0, S.toList $ get_global_pointer_bases ctxt a1) of
-      ([GlobalAddress g0], [GlobalAddress g1]) -> find_section_for_address ctxt (fromIntegral g0) /= find_section_for_address ctxt (fromIntegral g1)
-      _ -> False
+  case (S.toList $ get_global_pointer_bases ctxt a0, S.toList $ get_global_pointer_bases ctxt a1) of
+    ([GlobalAddress g0], [GlobalAddress g1]) -> find_section_for_address ctxt (fromIntegral g0) /= find_section_for_address ctxt (fromIntegral g1)
+    _ -> False
 
 
 -- | Two pointerbases are separate if they refer to completely different parts of the memory.

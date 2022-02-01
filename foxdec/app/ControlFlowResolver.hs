@@ -48,6 +48,7 @@ main = do
       putStrLn usage_msg
       error $ "Invalid second argument."
 
+-- | Given an address @a@, retrieve the set of next addresses.
 ctxt_get_posts :: Context -> Int -> IO IS.IntSet
 ctxt_get_posts ctxt a = do
   entries <- retrieve_io $ ctxt_get_function_entries ctxt
