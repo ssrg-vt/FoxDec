@@ -1,5 +1,6 @@
 *.aux
 .stack-work/
+dist-newstyle//
 *~
 foxdec/examples/*/0*/
 foxdec/examples/*/1*/

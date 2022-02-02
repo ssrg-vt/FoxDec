@@ -35,7 +35,9 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-The GitHub page is [here][git].
+The GitHub page is [here][git]. 
+
+***NOTE:*** the instructions for Apple Macbooks with the ***ARM M1 chip*** can be found [here](foxdec/docs/ARM64.md).
 
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
