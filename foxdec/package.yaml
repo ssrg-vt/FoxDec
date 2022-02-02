@@ -33,7 +33,6 @@ dependencies:
 - transformers >= 0.5.6
 - hapstone >= 0.2.0.1 && <= 0.2.0.1
 - strict
-- GraphSCC >= 1.0.4
 
 library:
   source-dirs: src

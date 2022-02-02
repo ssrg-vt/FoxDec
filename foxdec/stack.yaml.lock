@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
-    pantry-tree:
-      size: 333
-      sha256: 9a52cc3eafbca3ab1b9f7e3de63f7311ae82ec1cdaa1202eead796011e47bc25
-  original:
-    hackage: GraphSCC-1.0.4@sha256:dc3c6d6c59c15a50c9ce701bdead86f19bc2367e0d30c81a7bf55ccc6e5bd04d,936
-- completed:
     hackage: argparser-0.3.4@sha256:f277e6d568e88f0698a0ce1f2dc719d90717ffe99c8622302f65389f2a8ed01c,1952
     pantry-tree:
       size: 1449

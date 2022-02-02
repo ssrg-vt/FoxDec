@@ -52,8 +52,7 @@ library
   hs-source-dirs:
       src
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
@@ -82,8 +81,7 @@ executable foxdec-controlflow-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is ControlFlowResolver
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
@@ -113,8 +111,7 @@ executable foxdec-disassembler-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Disassembler
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
@@ -144,8 +141,7 @@ executable foxdec-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
@@ -175,8 +171,7 @@ executable foxdec-pkcs11-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Pkcs11
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
@@ -203,8 +198,7 @@ test-suite foxdec-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      GraphSCC >=1.0.4
-    , argparser >=0.3.4
+      argparser >=0.3.4
     , base >=4.7 && <5
     , bytestring
     , cereal >=0.5.8.1
