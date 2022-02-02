@@ -39,7 +39,7 @@ The GitHub page is [here][git].
    This generates documentation.
 8. Run
 
-        stack install
+        cabal install
        
    This copies executables to `~/.cabal/bin/`. Be sure that this directory is in your `PATH`.
 9. Run ```foxdec-exe 1 examples/du du```. This runs FoxDec on the `du` example.
