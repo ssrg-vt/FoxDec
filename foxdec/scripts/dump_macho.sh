@@ -23,15 +23,38 @@ fi
 DODATA=${3:0}
 
 
+
 # OBJDUMP
 # First, just run objdump for debugging purposes
 objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $1 > $2.objdump
 echo "Created $2.objdump"
 
+
+# See if it is auniversal binary
+# if so, extract the x86_64 part
+BINARY=$1
+if [[ $OSTYPE == 'darwin'* ]]; then
+  if file $1 | grep -q 'universal'; then
+    if file $1 | grep -q 'x86_64'; then
+      BINARY="$2_x86_64"
+      echo "$1 is a a fat (universal) binary, extracting x86_64 part to a new binary named \"$BINARY\""
+      lipo -extract x86_64 -output $BINARY $1
+    else
+      echo "$1 is a fat (universal) binary without x86_64 architecture support."
+    fi
+  else
+    echo "$1 is a not a fat (universal) binary, prcoeeding normally."
+  fi
+fi
+
+
 # SYMBOLS
 # Second, create a list of all external symbols
-otool -I -v $1 | grep '^0x' | tr -s ' ' | cut -d ' ' -f1,3 > $2.symbols
+otool -I -v $BINARY | grep '^0x' | tr -s ' ' | cut -d ' ' -f1,3 > $2.symbols
 echo "Created $2.symbols"
+
+
+
 
 
 # DUMP/ENTRY/SECTIONS
@@ -92,20 +115,20 @@ do
       echo "  size = $current_size" >> $2.sections
       if [[ $current_seg_name == "__TEXT" ]]; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__const" ]] ; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       if [[ $current_seg_name == "__DATA_CONST" ]] && [[ $current_sect_name == "__const" ]] ; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__data" ]] && [[ $DODATA == 1 ]] ; then
         # -n +2 : start at line 2 of the file, skipping the first line.
         echo "Exporting (__DATA,__data)"
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       expecting=0;
    fi
@@ -116,7 +139,7 @@ do
       printf '0x%x' $((0x100000000 + $entry)) >> $2.entry
    fi
 
-done < <(otool -l ${1})
+done < <(otool -l ${BINARY})
 
 if [[ -f "$2.dump" ]]; then
    echo "Created $2.dump"
@@ -128,9 +151,9 @@ if [[ -f "$2.entry" ]]; then
    echo "Created $2.entry"
 else
    # No entry found in the load commands, so it is a library (.dylib)
-   #xcrun dyldinfo -arch x86_64 -export $1 | cut -d ' ' -f1 > $2.entry
+   #xcrun dyldinfo -arch x86_64 -export $BINARY | cut -d ' ' -f1 > $2.entry
    
-   nm  --defined-only $1 | grep " T " | awk '{print "0x" $0}' | cut -d ' ' -f1 > $2.entry
+   nm  --defined-only $BINARY | grep " T " | awk '{print "0x" $0}' | cut -d ' ' -f1 > $2.entry
    echo "No load-command found that provides entry, so treating binary as library and all defined symbols in text sections as entry points."
    echo "Created $2.entry"
 fi

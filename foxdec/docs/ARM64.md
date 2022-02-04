@@ -18,7 +18,7 @@ The GitHub page is [here][git].
         brew install llvm
 
 4. Update the `PATH` variable: `export PATH="/opt/homebrew/opt/llvm/bin:$PATH"`
-5. Install [Capstone 4.0.1][capstone] (or their [git](https://github.com/capstone-engine/capstone/tree/4.0.1)), by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or <tt>brew</tt> as that will install a newer version.
+5. Install [Capstone 4.0.1][capstone] ([git](https://github.com/capstone-engine/capstone/tree/4.0.1)), by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or <tt>brew</tt> as that will install a newer version.
 6. Open, using **sudo**, the file `/Library/Developer/CommandLineTools/SDKs/MacOSX12.1.sdk/usr/include/mach/arm/_structs.h`
    Insert the following as line 443 
 	
