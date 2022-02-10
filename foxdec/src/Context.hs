@@ -219,7 +219,8 @@ pp_instruction ctxt i =
 
 
 -- | Show function initialisation
-show_finit finit = intercalate ", " $ map (\(sp,e) -> show sp ++ " == " ++ show e) $ M.toList finit
+show_finit :: FInit -> String
+show_finit finit = intercalate ", " $ (map (\(sp,e) -> show sp ++ " ~= " ++ show e) $ M.toList finit)
 
 
 

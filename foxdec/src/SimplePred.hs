@@ -85,7 +85,7 @@ data BotTyp =
 data BotSrc = 
     Src_Var StatePart                       -- An initial variable, i.e., a constant
   | Src_Malloc (Maybe Int) (Maybe String)   -- A malloced address
-  | Src_Function String                     -- A function return value
+  | Src_Function String                     -- A return value from a function
  deriving (Eq, Ord, Generic)
 
 

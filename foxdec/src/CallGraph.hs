@@ -146,9 +146,9 @@ summarize_sourceless_memwrites_long ctxt vcs =
 
 -- | Summarize function initialization
 summarize_finit Nothing      = ""
-summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ intercalate "\n" (map (intercalate ",") $ chunksOf 1 $ map show_finit_eq $ M.toList finit) ++ "\n"
+summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
  where
-  show_finit_eq (sp,e) = pp_statepart sp ++ " ~= " ++ pp_bot e
+  show_finit_entry (sp,v) = pp_statepart sp ++ " ~= " ++ pp_bot v
 
 parens str = "(" ++ str ++ ")"
 
@@ -215,7 +215,7 @@ callgraph_to_dot ctxt (Edges es) =
       case IM.lookup v $ ctxt_vcs ctxt of
         Nothing  -> function_name_of_entry ctxt v
         Just vcs -> 
-          if S.null vcs then
+          if S.null vcs && finit `elem` [Just M.empty,Nothing] then
             function_name_of_entry ctxt v
           else
             "{" ++ function_name_of_entry ctxt v ++ "|" ++ markup (summarize_verification_conditions ctxt v) ++ "}"

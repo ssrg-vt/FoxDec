@@ -204,6 +204,8 @@ resolve_call ctxt entry i =
 -- This returns either:
 --   * a set of tuples @(i,a)@ where @i@ is an instruction and @a@ its address. All these instructions are function calls that need to be analyzed before this current function entry can continue.
 --   * a list of tuples @(a,b)@ where @a@ is an instruction address that may follow the current instruction, and @b@ is a Bool indicating whether that address belongs to a @call@
+--
+--   TODO the Lefts are ignored so need no to return them
 stepA :: 
      Context -- ^ The context
   -> Int     -- ^ The entry address

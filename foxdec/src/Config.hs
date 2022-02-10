@@ -12,6 +12,11 @@ module Config
 --   * exit with an error message (False)?
 continue_on_unknown_instruction = True
 
+-- | The maximum verification time per function
+max_time_minutes = 30
+max_time :: Int
+max_time = 1000000 * 60 * max_time_minutes
+
 -- | The maximum number of separate concrete cases considered non-deterministically, before abstraction is applied.
 max_num_of_cases :: Int
 max_num_of_cases   = 5

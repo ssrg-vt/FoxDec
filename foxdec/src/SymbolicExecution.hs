@@ -11,7 +11,7 @@ module SymbolicExecution (
   init_pred,
   gather_stateparts,
   invariant_to_finit,
-  weaken_finit,
+  join_finit,
   get_invariant
   ) where
 
@@ -97,43 +97,26 @@ transpose_fw_base ctxt p bs           = return bs
 
 
 
+
 -- | Convert the current invariant into a function initialisation
-invariant_to_finit :: Context -> Pred -> FInit
-invariant_to_finit ctxt (Predicate eqs _ _) = M.mapMaybeWithKey keep eqs
+invariant_to_finit :: Context -> FInit -> Pred -> FInit
+invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
  where
-  keep sp@(SP_Reg r)    v = if r `elem` parameter_registers && expr_is_highly_likely_local_pointer ctxt v then Just bottom_rsp else Nothing 
-  keep sp@(SP_Mem a si) v = Nothing -- TODO
+  is_suitable_for_finit (SP_Reg r,_)    = r `notElem` [RIP,RSP]
+  is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
 
-  bottom_rsp = Bottom (FromPointerBases $ S.singleton StackPointer)
-{--
-invariant_to_finit ctxt p =
-  let (Predicate eqs _ _,_) = execState (push ctxt $ Immediate 42) (p,S.empty) in
-    M.mapMaybeWithKey (keep eqs) eqs
- where
-  keep eqs sp@(SP_Reg r)    v = if r `elem` parameter_registers then keep_pointer (simp <$> transpose_fw_e ctxt eqs v) else Nothing
-  keep eqs sp@(SP_Mem a si) v = 
-    if not (is_initial sp v) && expr_is_global_pointer ctxt a then
-      keep_pointer (simp <$> transpose_fw_e ctxt eqs v)
-    else
-      Nothing -- if expr_highly_likely_pointer ctxt v && not (is_initial sp v) then trace (show ("Pruned: ",sp,v)) Nothing else Nothing -- TODO
+  mk_finit_entry (sp,v) = 
+    let bases = get_known_pointer_bases ctxt v in
+      if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then -- TODO think about StackPointer
+        Just (sp,Bottom $ FromPointerBases bases)
+      else
+        Nothing
 
 
-  keep_pointer Nothing  = Nothing
-  keep_pointer (Just a) = if not (contains_bot a) && expr_is_global_pointer ctxt a then Just a else Nothing
---}
 
 -- | The join between two function initialisations
-weaken_finit :: Context -> FInit -> FInit -> FInit
-weaken_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith weaken_finit_eq f0 f1
- where
-  weaken_finit_eq e0 e1 = 
-    if e0 == e1 then
-      e0
-    else 
-      join_exprs "weaken_finit" ctxt [e0,e1]
-
-  keep (Bottom (FromPointerBases bs)) = not (S.null bs)   
-  keep (Bottom (FromSources srcs))    = not (S.null srcs) 
+join_finit :: Context -> FInit -> FInit -> FInit
+join_finit ctxt = M.unionWith (join_expr ctxt) -- TODO think through with if new
 
 
 
@@ -152,10 +135,10 @@ weaken_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith weaken_finit_eq f0 
 --
 -- Transposing this equality produces:
 --   *[RSP0-40,8] == 10
-transpose_bw :: Context -> String -> Int -> Pred -> (StatePart, SimpleExpr) -> Either VerificationCondition (StatePart, SimpleExpr)
-transpose_bw ctxt f a p (sp,v) =
-  let sp' = transpose_bw_sp ctxt p sp
-      v'  = trim_expr $ simp $ transpose_bw_e ctxt p v in
+transpose_bw :: Context -> FInit -> String -> Int -> Pred -> (StatePart, SimpleExpr) -> Either VerificationCondition (StatePart, SimpleExpr)
+transpose_bw ctxt finit f a p (sp,v) =
+  let sp' = transpose_bw_sp ctxt finit p sp
+      v'  = trim_expr $ simp $ transpose_bw_e ctxt finit p v in
     if is_invalid sp' then
       --error $ show (((sp,v),(sp',v')), p)
       Left $ SourcelessMemWrite $ MemWriteFunction f a sp
@@ -167,40 +150,40 @@ transpose_bw ctxt f a p (sp,v) =
 
 
 
-transpose_bw_e ctxt p (Bottom (FromNonDeterminism es)) = join_exprs ("transpose_bw") ctxt $ map (transpose_bw_e ctxt p) $ S.toList es
-transpose_bw_e ctxt p (Bottom (FromPointerBases bs))   = Bottom (FromPointerBases $ S.map (transpose_bw_base ctxt p) bs)
-transpose_bw_e ctxt p (Bottom typ)                     = Bottom $ transpose_bw_bottyp ctxt p typ
-transpose_bw_e ctxt p (SE_Malloc id hash)              = SE_Malloc id hash
-transpose_bw_e ctxt p (SE_Immediate i)                 = SE_Immediate i
-transpose_bw_e ctxt p (SE_StatePart sp)                = Bottom $ FromSemantics S.empty
-transpose_bw_e ctxt p (SE_Var sp)                      = evalState (read_sp ctxt $ transpose_bw_sp ctxt p sp) (p,S.empty)
-transpose_bw_e ctxt p (SE_Bit i e)                     = SE_Bit i $ transpose_bw_e ctxt p e
-transpose_bw_e ctxt p (SE_SExtend l h e)               = SE_SExtend l h $ transpose_bw_e ctxt p e
-transpose_bw_e ctxt p (SE_Op op es)                    = SE_Op op $ map (transpose_bw_e ctxt p) es
-transpose_bw_e ctxt p (SE_Overwrite i a b)             = SE_Overwrite i (transpose_bw_e ctxt p a) (transpose_bw_e ctxt p b) 
+transpose_bw_e :: Context -> FInit -> Pred -> SimpleExpr -> SimpleExpr
+transpose_bw_e ctxt finit p (Bottom (FromNonDeterminism es)) = join_exprs ("transpose_bw") ctxt $ map (transpose_bw_e ctxt finit p) $ S.toList es
+transpose_bw_e ctxt finit p (Bottom (FromPointerBases bs))   = Bottom (FromPointerBases $ S.map (transpose_bw_base ctxt finit p) bs)
+transpose_bw_e ctxt finit p (Bottom typ)                     = Bottom $ transpose_bw_bottyp ctxt finit p typ
+transpose_bw_e ctxt finit p (SE_Malloc id hash)              = SE_Malloc id hash
+transpose_bw_e ctxt finit p (SE_Immediate i)                 = SE_Immediate i
+transpose_bw_e ctxt finit p (SE_StatePart sp)                = Bottom $ FromSemantics S.empty
+transpose_bw_e ctxt finit p (SE_Var sp)                      = evalState (read_sp ctxt finit $ transpose_bw_sp ctxt finit p sp) (p,S.empty)
+transpose_bw_e ctxt finit p (SE_Bit i e)                     = SE_Bit i $ transpose_bw_e ctxt finit p e
+transpose_bw_e ctxt finit p (SE_SExtend l h e)               = SE_SExtend l h $ transpose_bw_e ctxt finit p e
+transpose_bw_e ctxt finit p (SE_Op op es)                    = SE_Op op $ map (transpose_bw_e ctxt finit p) es
+transpose_bw_e ctxt finit p (SE_Overwrite i a b)             = SE_Overwrite i (transpose_bw_e ctxt finit p a) (transpose_bw_e ctxt finit p b) 
 
-transpose_bw_sp ctxt p (SP_Reg r)    = SP_Reg r
-transpose_bw_sp ctxt p (SP_Mem a si) = SP_Mem (trim_expr $ simp $ transpose_bw_e ctxt p a) si
+transpose_bw_sp ctxt finit p (SP_Reg r)    = SP_Reg r
+transpose_bw_sp ctxt finit p (SP_Mem a si) = SP_Mem (trim_expr $ simp $ transpose_bw_e ctxt finit p a) si
 
-transpose_bw_bottyp ctxt p (FromSources srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromOverlap srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromMemWrite srcs)            = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromSemantics srcs)           = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromBitMode srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromUninitializedMemory srcs) = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
-transpose_bw_bottyp ctxt p (FromCall f)                   = FromCall f
+transpose_bw_bottyp ctxt finit p (FromSources srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromOverlap srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromMemWrite srcs)            = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromSemantics srcs)           = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromBitMode srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromUninitializedMemory srcs) = FromSources $ S.unions $ S.map (transpose_bw_src ctxt finit p) srcs
+transpose_bw_bottyp ctxt finit p (FromCall f)                   = FromCall f
 
-transpose_bw_src ctxt p (Src_Var sp)      = srcs_of_expr ctxt $ transpose_bw_e ctxt p (SE_Var sp)
-transpose_bw_src ctxt p (Src_Malloc id h) = S.singleton $ Src_Malloc id h
-transpose_bw_src ctxt p (Src_Function f)  = S.singleton $ Src_Function f
+transpose_bw_src ctxt finit p src@(Src_Var sp)      = srcs_of_expr ctxt $ transpose_bw_e ctxt finit p (SE_Var sp)
+transpose_bw_src ctxt finit p src@(Src_Malloc id h) = S.singleton src
+transpose_bw_src ctxt finit p src@(Src_Function f)  = S.singleton src
 
 
-
-transpose_bw_base ctxt p b@StackPointer          = b
-transpose_bw_base ctxt p b@(GlobalAddress _)     = b
-transpose_bw_base ctxt p b@(PointerToSymbol _ _) = b
-transpose_bw_base ctxt p b@(Malloc _ _)          = b
-transpose_bw_base ctxt p b@(Unknown e)           = Unknown $ transpose_bw_e ctxt p e
+transpose_bw_base ctxt finit p b@StackPointer          = b
+transpose_bw_base ctxt finit p b@(GlobalAddress _)     = b
+transpose_bw_base ctxt finit p b@(PointerToSymbol _ _) = b
+transpose_bw_base ctxt finit p b@(Malloc _ _)          = b
+transpose_bw_base ctxt finit p b@(Unknown e)           = Unknown $ transpose_bw_e ctxt finit p e
 
 
 
@@ -260,9 +243,14 @@ function_semantics ctxt i f                      =
 add_function_constraint f a ps sps (p,vcs) = (p,S.insert (FunctionConstraint f a ps sps) vcs)
 
 
+evalState_discard :: State s a -> State s a
+evalState_discard ma = do
+  s <- get
+  return $ evalState ma s 
+
 -- | Symbolically execute a function call
-call :: Context -> Instr -> State (Pred,VCS) ()
-call ctxt i = do
+call :: Context -> FInit -> Instr -> State (Pred,VCS) ()
+call ctxt finit i = do
   let f   = function_name_of_instruction ctxt i
   let i_a = i_addr i
   known <- function_semantics ctxt i f
@@ -276,7 +264,7 @@ call ctxt i = do
       -- an external function, or a function that produced a verification error, or with unrersolved indirections
 
       -- 1.) for each parameter, smudge the current state
-      forM_ params (write_param f . snd)
+      forM_ params (write_param f)
       (q@(Predicate q_eqs _ _),_) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
@@ -287,27 +275,36 @@ call ctxt i = do
       forM_ return_registers (\r -> write_reg ctxt r $ Bottom $ FromCall $ function_name_of_instruction ctxt i) -- TODO flags
     else do
       -- an internal function, already verified
-      sub ctxt i_a (Reg RSP) (Immediate 8)
+      sub ctxt finit i_a (Reg RSP) (Immediate 8)
       (p@(Predicate p_eqs _ _),vcs) <- get
 
       -- 1.) obtain the postcondition of the function, and do backwards transposition
-      let (q@(Predicate q_eqs _ _)) = supremum ctxt $ map fromJust postconditions
-      let (vcs',q_eqs_transposed)   = partitionEithers $ map (transpose_bw ctxt f i_a p) $ filter (uncurry do_transfer) $ M.toList q_eqs
+      let (q@(Predicate q_eqs _ _)) = supremum ctxt finit $ map fromJust postconditions
+      let (vcs',q_eqs_transposed)   = partitionEithers $ map (transpose_bw ctxt finit f i_a p) $ filter (uncurry do_transfer) $ M.toList q_eqs
       put ((Predicate M.empty None Clean),S.union vcs $ S.fromList vcs')
-      mapM_ (write_sp ctxt mk_mid) q_eqs_transposed
+      mapM_ (write_sp ctxt finit mk_mid) q_eqs_transposed
       (q_transposed@(Predicate q_eqs _ _),vcs) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
       sps <- S.unions <$> (mapM (transfer_current_statepart i p q_transposed False) $ M.toList p_eqs)
       when (not $ S.null sps) $ modify $ add_function_constraint f i_a params sps
  where
-  write_param f a =
-    if address_is_unwritable ctxt a then
-      return () 
+  -- in case of an external function f, which is passed a parameter (r,a) with r a register and a some value (likely a pointer),
+  -- do a write to region [a+bot,1] to muddle the state. The value written to that region is an abstraction of what is already there.
+  write_param f (r,a) = do
+    let a'  = SE_Op (Plus 64) [a,rock_bottom]
+    let si' = 1 
+    v'     <- evalState_discard $ read_sp ctxt finit (SP_Mem a 1)
+    let bot = join_single ctxt v'
+    write_sp ctxt finit mk_mid (SP_Mem a' si',bot) -- (Bottom $ FromCall f)  
+
+  when_is_relevant_param p_eqs r = do
+    v <- read_reg ctxt r
+    if not (address_is_unwritable ctxt v) && (expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) || is_initial (SP_Reg r) v) then
+      return $ Just (r,v)
     else
-      let a'  = SE_Op (Plus 64) [a,rock_bottom]
-          si' = 1 in
-      write_mem ctxt (mk_mid $ SP_Mem a' si') a' si' (Bottom $ FromSources $ S.singleton $ Src_Function f)  
+      return Nothing
+
 
 
   -- let the current predicate p, before the call, contain an equation sp == v
@@ -319,11 +316,11 @@ call ctxt i = do
       -- forcibly transfer and set the value of the instruction pointer
       forced_insert_sp sp (SE_Immediate $ fromIntegral (i_addr i + i_size i))
       return S.empty
-    else if all (necessarily_separate_stateparts ctxt sp) $ M.keys q_eqs then do
+    else if all (necessarily_separate_stateparts ctxt finit sp) $ M.keys q_eqs then do
       -- if the function did not write to the statepart, transfer it without annotations
       forced_insert_sp sp v
       return S.empty
-    else let v' = evalState (read_sp ctxt sp) (q,S.empty) in
+    else let v' = evalState (read_sp ctxt finit sp) (q,S.empty) in
       if sp == SP_Reg RSP && not is_external && v' /= simp (SE_Op (Plus 64) [v,SE_Immediate 8]) then do
         -- register RSP must be set to its original value + 8, force this and add an annotation
         forced_insert_sp sp (SE_Op (Plus 64) [v,SE_Immediate 8])
@@ -339,12 +336,12 @@ call ctxt i = do
       else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
         Just (_,v') -> do
           -- the statepart was overwritten by the function, so use its new value
-          write_sp ctxt mk_mid (sp,v')
+          write_sp ctxt finit mk_mid (sp,v')
           return S.empty
         Nothing     -> do
           -- the statepart was possibly overwritten by the function, so use its old and new value joined
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
-          write_sp ctxt mk_mid (sp,join_expr ctxt v v')
+          write_sp ctxt finit mk_mid (sp,join_expr ctxt v v')
           return S.empty
         
 
@@ -369,13 +366,7 @@ call ctxt i = do
   is_region_for a (SP_Reg _)    = False
   is_region_for a (SP_Mem a' _) = a == a'
 
-  when_is_relevant_param p_eqs r = do
-    v <- read_reg ctxt r
-    p <- get
-    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then
-      return $ Just (r,v)
-    else
-      return Nothing
+
 
 
   do_transfer sp@(SP_Reg _)                                             v = True 
@@ -419,51 +410,51 @@ is_initial sp v = v == SE_Var sp
 
 
 -- | Instruction semantics
-push :: Context -> Int -> Operand -> State (Pred,VCS) ()
-push ctxt i_a (Immediate imm) = do
+push :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+push ctxt finit i_a (Immediate imm) = do
   let si = 8
   let address = AddrMinus (AddrReg RSP) (AddrImm si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
-  write_mem ctxt (MemWriteInstruction i_a address e1) e1 si (SE_Immediate imm)
-push ctxt i_a op1 = do
-  e0 <- read_operand ctxt op1
+  write_mem ctxt finit (MemWriteInstruction i_a address e1) e1 si (SE_Immediate imm)
+push ctxt finit i_a op1 = do
+  e0 <- read_operand ctxt finit op1
   let si = operand_size op1
   let address = AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
-  write_mem ctxt (MemWriteInstruction i_a address e1) e1 si e0
+  write_mem ctxt finit (MemWriteInstruction i_a address e1) e1 si e0
 
-pop :: Context -> Int -> Operand -> State (Pred,VCS) ()
-pop ctxt i_a op1 = do
+pop :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+pop ctxt finit i_a op1 = do
   let si = operand_size op1
-  e0 <- read_mem ctxt (SizeDir si (AddrReg RSP))
+  e0 <- read_mem ctxt finit (SizeDir si (AddrReg RSP))
   let address = AddrPlus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt RSP e1
-  write_operand ctxt i_a op1 e0
+  write_operand ctxt finit i_a op1 e0
 
-lea :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-lea ctxt i_a op1 (Address a) = do
+lea :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+lea ctxt finit i_a op1 (Address a) = do
   e <- resolve_address ctxt a
-  write_operand ctxt i_a op1 e
+  write_operand ctxt finit i_a op1 e
 
 
-leave :: Context -> Int -> State (Pred,VCS) ()
-leave ctxt i_a = mov ctxt i_a (Reg RSP) (Reg RBP) >> pop ctxt i_a (Reg RBP)
+leave :: Context -> FInit -> Int -> State (Pred,VCS) ()
+leave ctxt finit i_a = mov ctxt finit i_a (Reg RSP) (Reg RBP) >> pop ctxt finit i_a (Reg RBP)
 
 
-ret ctxt i_a = pop ctxt i_a (Reg RIP)
+ret ctxt finit i_a = pop ctxt finit i_a (Reg RIP)
 
-sysret ctxt i_a = do
-  e0 <- read_operand ctxt (Reg RCX)
+sysret ctxt finit i_a = do
+  e0 <- read_operand ctxt finit (Reg RCX)
   write_reg ctxt RIP e0
   write_flags (\_ _ -> None) (Reg RCX) (Reg RCX)
 
-jmp ctxt i =
+jmp ctxt finit i =
   if instruction_jumps_to_external ctxt i then
     -- A jump to an external symbol is treated as a function call and implicit RET
-    call ctxt i >> ret ctxt (i_addr i)
+    call ctxt finit i >> ret ctxt finit (i_addr i)
   else
     return ()
 
@@ -475,59 +466,59 @@ write_flags g op1 op2 = do
   put (Predicate eqs (g op1 op2) muddle_status,vcs)
 
 
-mov_with_func_op2_to_op1 :: Context -> Int -> (SimpleExpr -> SimpleExpr) -> Operand -> Operand -> State (Pred,VCS) ()
-mov_with_func_op2_to_op1 ctxt i_a f op1 op2 = do
-  e1 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (f e1)
+mov_with_func_op2_to_op1 :: Context -> FInit -> Int -> (SimpleExpr -> SimpleExpr) -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func_op2_to_op1 ctxt finit i_a f op1 op2 = do
+  e1 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (f e1)
 
 mk_bottom ctxt es = Bottom $ FromSemantics $ S.unions (map (srcs_of_expr ctxt) es)
 
-mov_with_func1 :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> State (Pred,VCS) ()
-mov_with_func1 ctxt i_a f do_write_flags op1 = do
-  e0 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (f ctxt [e0])
+mov_with_func1 :: Context -> FInit -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> State (Pred,VCS) ()
+mov_with_func1 ctxt finit i_a f do_write_flags op1 = do
+  e0 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (f ctxt [e0])
   when do_write_flags (write_flags (\_ _ -> None) op1 op1)
 
-mov_with_func :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> State (Pred,VCS) ()
-mov_with_func ctxt i_a f do_write_flags op1 op2 = do
-  e0 <- read_operand ctxt op1
-  e1 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (f ctxt [e0,e1])
+mov_with_func :: Context -> FInit -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func ctxt finit i_a f do_write_flags op1 op2 = do
+  e0 <- read_operand ctxt finit op1
+  e1 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (f ctxt [e0,e1])
   when do_write_flags (write_flags (\_ _ -> None) op1 op2)
 
-mov_with_func3 :: Context -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
-mov_with_func3 ctxt i_a f do_write_flags op1 op2 op3 = do
-  e0 <- read_operand ctxt op1
-  e1 <- read_operand ctxt op2
-  e2 <- read_operand ctxt op3
-  write_operand ctxt i_a op1 (f ctxt [e0,e1,e2])
+mov_with_func3 :: Context -> FInit -> Int -> (Context -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func3 ctxt finit i_a f do_write_flags op1 op2 op3 = do
+  e0 <- read_operand ctxt finit op1
+  e1 <- read_operand ctxt finit op2
+  e2 <- read_operand ctxt finit op3
+  write_operand ctxt finit i_a op1 (f ctxt [e0,e1,e2])
   when do_write_flags (write_flags (\_ _ -> None) op2 op3)
 
-nop ctxt i_a = return ()
+nop ctxt finit i_a = return ()
 
-ud2 ctxt i_a = return ()
+ud2 ctxt finit i_a = return ()
 
-hlt ctxt i_a = return ()
+hlt ctxt finit i_a = return ()
 
-wait ctxt i_a = return ()
+wait ctxt finit i_a = return ()
 
-mfence ctxt i_a = return ()
+mfence ctxt finit i_a = return ()
 
-clflush ctxt i_a = return ()
+clflush ctxt finit i_a = return ()
 
-mov ctxt i_a = mov_with_func_op2_to_op1 ctxt i_a id 
+mov ctxt finit i_a = mov_with_func_op2_to_op1 ctxt finit i_a id 
 
-movzx ctxt i_a op1 op2 = do
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 e2
+movzx ctxt finit i_a op1 op2 = do
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 e2
 
-movsx ctxt i_a op1 op2 = do
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
+movsx ctxt finit i_a op1 op2 = do
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
 
-movsxd ctxt i_a op1 op2 = do
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
+movsxd ctxt finit i_a op1 op2 = do
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
 
 movsd = mov
 
@@ -562,1002 +553,994 @@ vmovapd = mov
 vmovaps = mov
 
 
-cmov ctxt i_a op1 op2 = do
-  e0 <- read_operand ctxt op1
-  e1 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 $ join_exprs ("cmov") ctxt [e0,e1]
+cmov ctxt finit i_a op1 op2 = do
+  e0 <- read_operand ctxt finit op1
+  e1 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 $ join_exprs ("cmov") ctxt [e0,e1]
 
-xchg :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-xchg ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 e2
-  write_operand ctxt i_a op2 e1
+xchg :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+xchg ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 e2
+  write_operand ctxt finit i_a op2 e1
 
 
-cmp ctxt i_a = write_flags $ FS_CMP Nothing
+cmp ctxt finit i_a = write_flags $ FS_CMP Nothing
 
-add ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Plus (8 * operand_size op1))) True op1
+add ctxt finit i_a op1 = mov_with_func ctxt finit i_a (\ctxt -> SE_Op (Plus (8 * operand_size op1))) True op1
 
-sub ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Minus (8 * operand_size op1))) True op1
+sub ctxt finit i_a op1 = mov_with_func ctxt finit i_a (\ctxt -> SE_Op (Minus (8 * operand_size op1))) True op1
 
-neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\ctxt e -> SE_Op (Minus (8 * operand_size op1)) (SE_Immediate 0 : e) ) True op1
+neg ctxt finit i_a op1 = mov_with_func1 ctxt finit i_a (\ctxt e -> SE_Op (Minus (8 * operand_size op1)) (SE_Immediate 0 : e) ) True op1
 
-test ctxt i_a = write_flags (\_ _ -> None) --TODO needed?
+test ctxt finit i_a = write_flags (\_ _ -> None) --TODO needed?
 
-ucomisd ctxt i_a = write_flags (\_ _ -> None)
+ucomisd ctxt finit i_a = write_flags (\_ _ -> None)
 
-ucomiss ctxt i_a = write_flags (\_ _ -> None)
+ucomiss ctxt finit i_a = write_flags (\_ _ -> None)
 
-inc :: Context -> Int -> Operand -> State (Pred,VCS) ()
-inc ctxt i_a op1 = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Plus (8 * operand_size op1)) [e1,SE_Immediate 1])
+inc :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+inc ctxt finit i_a op1 = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (SE_Op (Plus (8 * operand_size op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-dec :: Context -> Int -> Operand -> State (Pred,VCS) ()
-dec ctxt i_a op1 = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Minus (8 * operand_size op1)) [e1,SE_Immediate 1])
+dec :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+dec ctxt finit i_a op1 = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (SE_Op (Minus (8 * operand_size op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-or' :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-or' ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Or (8 * operand_size op1)) [e1,e2])
+or' :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+or' ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Or (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-and' :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-and' ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (And (8 * operand_size op1)) [e1,e2])
+and' :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+and' ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (And (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
-not' :: Context -> Int -> Operand -> State (Pred,VCS) ()
-not' ctxt i_a op1 = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Not (8 * operand_size op1)) [e1])
+not' :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+not' ctxt finit i_a op1 = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (SE_Op (Not (8 * operand_size op1)) [e1])
   write_flags (\_ _ -> None) op1 op1
 
 
-xor ctxt i_a op1 op2 = do
+xor ctxt finit i_a op1 op2 = do
   if op1 == op2 then
-    mov_with_func ctxt i_a (\ctxt x -> SE_Immediate 0) True op1 op2
+    mov_with_func ctxt finit i_a (\ctxt x -> SE_Immediate 0) True op1 op2
   else do
-    e1 <- read_operand ctxt op1
-    e2 <- read_operand ctxt op2
-    write_operand ctxt i_a op1 (SE_Op (Xor (8 * operand_size op1)) [e1,e2])
+    e1 <- read_operand ctxt finit op1
+    e2 <- read_operand ctxt finit op2
+    write_operand ctxt finit i_a op1 (SE_Op (Xor (8 * operand_size op1)) [e1,e2])
     write_flags (\_ _ -> None) op1 op2
 
-{--
-setxx :: Context -> Operand -> State (Pred,VCS) ()
-setxx ctxt op1 = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt op1 (SE_Op SetXX [e1])
-  write_flags (\_ _ -> None) op1 op1
---}
-setxx ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False -- TODO ND 0/1
+setxx ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False -- TODO ND 0/1
 
 pxor = xor --TODO flags?
 
-pand ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pand ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pandn ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pandn ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-por ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+por ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-ptest ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+ptest ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
 vpxor = xor --TODO flags?
 
-vpand ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vpand ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-vpandn ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vpandn ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-vpor ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vpor ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 xorpd = xor --TODO flags?
 
 
 xorps = xor -- TODO flags?
 
-andpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+andpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-andnpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+andnpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-orpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+orpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-subpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+subpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-addpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+addpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-subss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+subss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-addss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+addss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-mulss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+mulss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-divss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+divss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-roundss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+roundss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-subsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+subsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-addsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+addsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-mulsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+mulsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-divsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+divsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-roundsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+roundsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-bt :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-bt ctxt i_a op1 op2 = do
+bt :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+bt ctxt finit i_a op1 op2 = do
   write_flags (\_ _ -> None) op1 op2
 
-btc ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+btc ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-btr ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+btr ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-bsr ctxt i_a op1 op2 = do
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 $ SE_Op (Bsr (8 * operand_size op1)) [e2]
+bsr ctxt finit i_a op1 op2 = do
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 $ SE_Op (Bsr (8 * operand_size op1)) [e2]
   write_flags (\_ _ -> None) op1 op2
 
-bsf ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+bsf ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-bts ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+bts ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-paddd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+paddd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-paddb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+paddb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-paddq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+paddq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psubd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psubd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psubb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psubb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psubq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psubq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psrld ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psrld ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psrlw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psrlw ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psrldq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psrldq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pslldq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pslldq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psllq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psllq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psrlq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psrlq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmulld ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmulld ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pminud ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pminud ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pminsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pminsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmaxud ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmaxud ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmaxuq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmaxuq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psubusb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psubusb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-psubusw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+psubusw ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-packssdw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+packssdw ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-packsswb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+packsswb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvtss2sd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvtss2sd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvtsd2ss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvtsd2ss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvtsi2sd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvtsi2sd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvtsi2ss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvtsi2ss ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvttss2si ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvttss2si ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvttsd2si ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvttsd2si ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvttpd2dq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvttpd2dq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cvtdq2pd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cvtdq2pd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 is_st_reg_operand (Reg r) = take 2 (show r) == "ST"
 is_st_reg_operand _       = False
 
-fst' ctxt i_a op1 =
+fst' ctxt finit i_a op1 =
   if is_st_reg_operand op1 then
     return ()
   else
-    write_operand ctxt i_a op1 $ Bottom (FromSemantics $ S.empty)
+    write_operand ctxt finit i_a op1 $ Bottom (FromSemantics $ S.empty)
 
-fstp ctxt i_a op1 =
+fstp ctxt finit i_a op1 =
   if is_st_reg_operand op1 then
     return ()
   else
-    write_operand ctxt i_a op1 $ Bottom (FromSemantics $ S.empty)
+    write_operand ctxt finit i_a op1 $ Bottom (FromSemantics $ S.empty)
 
-fld ctxt i_a op1 = return ()
+fld ctxt finit i_a op1 = return ()
 
-fld1 ctxt i_a = return ()
+fld1 ctxt finit i_a = return ()
 
-fldz ctxt i_a = return ()
+fldz ctxt finit i_a = return ()
 
-fild ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+fild ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-fxch ctxt i_a = return ()
+fxch ctxt finit i_a = return ()
 
-fchs ctxt i_a = return ()
+fchs ctxt finit i_a = return ()
   
-fucom ctxt i_a = return ()
+fucom ctxt finit i_a = return ()
 
-fucomi ctxt i_a = return ()
+fucomi ctxt finit i_a = return ()
 
-fucomip ctxt i_a = return ()
+fucomip ctxt finit i_a = return ()
 
-fucomp ctxt i_a = return ()
+fucomp ctxt finit i_a = return ()
 
-fucompi ctxt i_a = return ()
+fucompi ctxt finit i_a = return ()
 
-fucompp ctxt i_a = return ()
+fucompp ctxt finit i_a = return ()
 
-finit ctxt i_a = return ()
+finit' ctxt finit i_a = return ()
 
-fninit ctxt i_a = return ()
+fninit ctxt finit i_a = return ()
 
-fnstcw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+fnstcw ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-fstcw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+fstcw ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-emms ctxt i_a = return ()
+emms ctxt finit i_a = return ()
 
 -- We do not model state changes to ST(_) registers, hence the following semantics
 -- instead of:
---    mov_with_func ctxt i_a mk_bottom False (Reg ST0) op1
-fadd1 ctxt i_a op1 = return ()
+--    mov_with_func ctxt finit i_a mk_bottom False (Reg ST0) op1
+fadd1 ctxt finit i_a op1 = return ()
 
-fadd2 ctxt i_a op1 op2 = return ()
+fadd2 ctxt finit i_a op1 op2 = return ()
 
-fmul1 ctxt i_a op1 = return ()
+fmul1 ctxt finit i_a op1 = return ()
 
-fmul2 ctxt i_a op1 op2 = return ()
+fmul2 ctxt finit i_a op1 op2 = return ()
 
-fmulp1 ctxt i_a op1 = return ()
+fmulp1 ctxt finit i_a op1 = return ()
 
-fmulp2 ctxt i_a op1 op2 = return ()
+fmulp2 ctxt finit i_a op1 op2 = return ()
 
-fdivr1 ctxt i_a op1 = return ()
+fdivr1 ctxt finit i_a op1 = return ()
 
-fdivr2 ctxt i_a op1 op2 = return ()
+fdivr2 ctxt finit i_a op1 op2 = return ()
 
-fdivrp1 ctxt i_a op1 = return ()
+fdivrp1 ctxt finit i_a op1 = return ()
 
-fdivrp2 ctxt i_a op1 op2 = return ()
+fdivrp2 ctxt finit i_a op1 op2 = return ()
 
-fisub ctxt i_a op1 = return ()
+fisub ctxt finit i_a op1 = return ()
 
-fcmovxx ctxt i_a = return ()
+fcmovxx ctxt finit i_a = return ()
 
-fisttp ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+fisttp ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-idiv ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True
+idiv ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom True
 
-div1 :: Context -> Int -> Operand -> State (Pred,VCS) ()
-div1 ctxt i_a op1 = do
+div1 :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+div1 ctxt finit i_a op1 = do
   let srcs = case operand_size op1 of
                8 -> [RDX,RAX]
                4 -> [EDX,EAX]
                2 -> [DX,AX]
                1 -> [AH,AL]
-  e1 <- read_operand ctxt op1
-  src0 <- read_operand ctxt (Reg $ srcs !! 0)
-  src1 <- read_operand ctxt (Reg $ srcs !! 1)
+  e1 <- read_operand ctxt finit op1
+  src0 <- read_operand ctxt finit (Reg $ srcs !! 0)
+  src1 <- read_operand ctxt finit (Reg $ srcs !! 1)
   
-  write_operand ctxt i_a (Reg $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
-  write_operand ctxt i_a (Reg $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
+  write_operand ctxt finit i_a (Reg $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
+  write_operand ctxt finit i_a (Reg $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
 
-cdq :: Context -> Int -> State (Pred,VCS) ()
-cdq ctxt i_a = do
-  e1 <- read_operand ctxt (Reg EAX)
-  write_operand ctxt i_a (Reg EDX) (mk_bottom ctxt [e1])
+cdq :: Context -> FInit -> Int -> State (Pred,VCS) ()
+cdq ctxt finit i_a = do
+  e1 <- read_operand ctxt finit (Reg EAX)
+  write_operand ctxt finit i_a (Reg EDX) (mk_bottom ctxt [e1])
 
-cqo :: Context -> Int -> State (Pred,VCS) ()
-cqo ctxt i_a = do
-  e1 <- read_operand ctxt (Reg RAX)
-  write_operand ctxt i_a (Reg RDX) (mk_bottom ctxt [e1])
+cqo :: Context -> FInit -> Int -> State (Pred,VCS) ()
+cqo ctxt finit i_a = do
+  e1 <- read_operand ctxt finit (Reg RAX)
+  write_operand ctxt finit i_a (Reg RDX) (mk_bottom ctxt [e1])
 
-cdqe :: Context -> Int -> State (Pred,VCS) ()
-cdqe ctxt i_a = do
-  e1 <- read_operand ctxt (Reg EAX)
-  write_operand ctxt i_a (Reg RAX) (SE_SExtend 32 64 e1)
+cdqe :: Context -> FInit -> Int -> State (Pred,VCS) ()
+cdqe ctxt finit i_a = do
+  e1 <- read_operand ctxt finit (Reg EAX)
+  write_operand ctxt finit i_a (Reg RAX) (SE_SExtend 32 64 e1)
 
-cbw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Reg AX)
+cbw ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom True (Reg AX)
 
-cwde ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Reg EAX)
-
-
+cwde ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom True (Reg EAX)
 
 
 
-shl :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-shl ctxt i_a op1 op2@(Immediate i) = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
+
+
+shl :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+shl ctxt finit i_a op1 op2@(Immediate i) = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
   write_flags (\_ _ -> None) op1 op2
-shl ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Shl (8 * operand_size op1)) [e1,e2])
-  write_flags (\_ _ -> None) op1 op2
-
-shr :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-shr ctxt i_a op1 op2@(Immediate i) = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Udiv (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
-  write_flags (\_ _ -> None) op1 op2
-shr ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Shr (8 * operand_size op1)) [e1,e2])
+shl ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Shl (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-sar ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Sar (8 * operand_size op1)) [e1,e2])
+shr :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+shr ctxt finit i_a op1 op2@(Immediate i) = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 (SE_Op (Udiv (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
+  write_flags (\_ _ -> None) op1 op2
+shr ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Shr (8 * operand_size op1)) [e1,e2])
+  write_flags (\_ _ -> None) op1 op2
+
+sar ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Sar (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
-shld ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
+shld ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False -- TODO
 
-shrd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
+shrd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False -- TODO
 
 
-rol :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-rol ctxt i_a op1 op2@(Immediate i) = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Rol (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
+rol :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+rol ctxt finit i_a op1 op2@(Immediate i) = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 $ SE_Op (Rol (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
   write_flags (\_ _ -> None) op1 op2
-rol ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
+rol ctxt finit i_a op1 op2 = mov_with_func ctxt finit i_a mk_bottom True op1 op2
 
-ror :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-ror ctxt i_a op1 op2@(Immediate i) = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Ror (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
+ror :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+ror ctxt finit i_a op1 op2@(Immediate i) = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 $ SE_Op (Ror (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
   write_flags (\_ _ -> None) op1 op2
-ror ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
+ror ctxt finit i_a op1 op2 = mov_with_func ctxt finit i_a mk_bottom True op1 op2
 
 {-
 adc :: Context -> Operand -> Operand -> State (Pred,VCS) ()
 adc ctxt op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
   write_operand ctxt op1 $ SE_Binop "adc" [e1,e2]
   write_flags (\_ _ -> None) op1 op2
 
 sbb :: Context -> Operand -> Operand -> State (Pred,VCS) ()
 sbb ctxt op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
   write_operand ctxt op1 $ SE_Binop "sbb" [e1,e2]
   write_flags (\_ _ -> None) op1 op2
 -}
-adc ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+adc ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-sbb ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+sbb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
-mul1 ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True --TODO 
+mul1 ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom True --TODO 
 
-mul2 ctxt i_a = mov_with_func ctxt i_a mk_bottom True --TODO 
+mul2 ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True --TODO 
 
-imul1 :: Context -> Int -> Operand -> State (Pred,VCS) ()
-imul1 ctxt i_a op1 = do
+imul1 :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+imul1 ctxt finit i_a op1 = do
   let srcs = case operand_size op1 of
                8 -> [RDX,RAX]
                4 -> [EDX,EAX]
                2 -> [DX,AX]
                1 -> [AH,AL]
-  e1 <- read_operand ctxt op1
-  src0 <- read_operand ctxt (Reg $ srcs !! 0)
-  src1 <- read_operand ctxt (Reg $ srcs !! 1)
+  e1 <- read_operand ctxt finit op1
+  src0 <- read_operand ctxt finit (Reg $ srcs !! 0)
+  src1 <- read_operand ctxt finit (Reg $ srcs !! 1)
   
-  write_operand ctxt i_a (Reg $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
-  write_operand ctxt i_a (Reg $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
+  write_operand ctxt finit i_a (Reg $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
+  write_operand ctxt finit i_a (Reg $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
-imul2 :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-imul2 ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,e2])
+imul2 :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+imul2 ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-imul3 :: Context -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
-imul3 ctxt i_a op0 op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op0 (SE_Op (Times (8 * operand_size op0)) [e1,e2])
+imul3 :: Context -> FInit -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+imul3 ctxt finit i_a op0 op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op0 (SE_Op (Times (8 * operand_size op0)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
 
-bswap :: Context -> Int -> Operand -> State (Pred,VCS) ()
-bswap ctxt i_a op1 = do
-  e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Bswap (8 * operand_size op1)) [e1]
+bswap :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
+bswap ctxt finit i_a op1 = do
+  e1 <- read_operand ctxt finit op1
+  write_operand ctxt finit i_a op1 $ SE_Op (Bswap (8 * operand_size op1)) [e1]
   write_flags (\_ _ -> None) op1 op1
 
-pextrb :: Context -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
-pextrb ctxt i_a op0 op1 op2 = do
-  e0 <- read_operand ctxt op0
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op0 (SE_Op (Pextr 8) [e0,e1,e2])
+pextrb :: Context -> FInit -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrb ctxt finit i_a op0 op1 op2 = do
+  e0 <- read_operand ctxt finit op0
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op0 (SE_Op (Pextr 8) [e0,e1,e2])
 
-pextrd :: Context -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
-pextrd ctxt i_a op0 op1 op2 = do
-  e0 <- read_operand ctxt op0
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op0 (SE_Op (Pextr 32) [e0,e1,e2])
+pextrd :: Context -> FInit -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrd ctxt finit i_a op0 op1 op2 = do
+  e0 <- read_operand ctxt finit op0
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op0 (SE_Op (Pextr 32) [e0,e1,e2])
 
-pextrq :: Context -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
-pextrq ctxt i_a op0 op1 op2 = do
-  e0 <- read_operand ctxt op0
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op0 (SE_Op (Pextr 64) [e0,e1,e2])
+pextrq :: Context -> FInit -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrq ctxt finit i_a op0 op1 op2 = do
+  e0 <- read_operand ctxt finit op0
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op0 (SE_Op (Pextr 64) [e0,e1,e2])
 
-haddpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+haddpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pinsrq ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+pinsrq ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-pinsrd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+pinsrd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-pshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pshufb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pshufd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-vpshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vpshufb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-vpshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vpshufd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pshuflw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+pshuflw ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-pclmulqdq ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+pclmulqdq ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-pcmpeqb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pcmpeqb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pcmpeqd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pcmpeqd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pcmpgtb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pcmpgtb ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pcmpgtd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pcmpgtd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-movmskps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+movmskps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmovsxdq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmovsxdq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmovzxdq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmovzxdq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmovsxbd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmovsxbd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-pmovzxbd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+pmovzxbd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-movmskpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+movmskpd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-unpcklps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+unpcklps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cmpltsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cmpltsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cmpeqsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cmpeqsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-cmpneqsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+cmpneqsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-punpcklqdq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+punpcklqdq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-punpckldq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+punpckldq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-punpcklbw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+punpcklbw ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-blendvps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+blendvps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-extractps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+extractps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-shufps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+shufps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
 movsd_string ctxt prefix op1 op2 = return () -- TODO 
 
 movsq ctxt prefix op1 op2 = return () -- TODO 
 
-x86_in ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+x86_in ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-x86_out ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
+x86_out ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False
 
-cli ctxt i_a = return ()
+cli ctxt finit i_a = return ()
 
-clts ctxt i_a = return ()
+clts ctxt finit i_a = return ()
 
-cpuid ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
+cpuid ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False (Reg RAX)
 
-invpcid ctxt i_a = return ()
+invpcid ctxt finit i_a = return ()
 
-lgdt ctxt i_a = return ()
+lgdt ctxt finit i_a = return ()
 
-lidt ctxt i_a = return ()
+lidt ctxt finit i_a = return ()
 
-lldt ctxt i_a = return ()
+lldt ctxt finit i_a = return ()
 
-ltr ctxt i_a = return ()
+ltr ctxt finit i_a = return ()
 
-rdmsr ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+rdmsr ctxt finit i_a = do
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RAX)
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RDX)
 
-wrmsr ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+wrmsr ctxt finit i_a = do
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RAX)
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RDX)
 
-rdtsc ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+rdtsc ctxt finit i_a = do
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RAX)
+  mov_with_func1 ctxt finit i_a mk_bottom False (Reg RDX)
 
-swapgs ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg GS)
+swapgs ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False (Reg GS)
 
-xsetbv ctxt i_a = return ()
+xsetbv ctxt finit i_a = return ()
 
-xsaveopt ctxt i_a = return ()
+xsaveopt ctxt finit i_a = return ()
 
-xrstor ctxt i_a = return ()
+xrstor ctxt finit i_a = return ()
 
-wrfsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg FS)
+wrfsbase ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False (Reg FS)
 
-wrgsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg GS)
+wrgsbase ctxt finit i_a = mov_with_func1 ctxt finit i_a mk_bottom False (Reg GS)
 
-vinsertf128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vinsertf128 ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vextractf128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vextractf128 ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vextracti128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vextracti128 ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vperm2f128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vperm2f128 ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vperm2i128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vperm2i128 ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vshufpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vshufpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vshufps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vshufps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vaddpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vaddpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vaddps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vaddps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vsubpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vsubpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vsubps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vsubps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vmulpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vmulpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vmulps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vmulps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vxorpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vxorpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vxorps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vxorps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vandpd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vandpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vandps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vandps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vpalignr ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpalignr ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-palignr ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+palignr ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vmovdqa ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vmovdqa ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vmovdqu  ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vmovdqu  ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vmovlhps ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vmovlhps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vzeroupper ctxt i_a = return ()
+vzeroupper ctxt finit i_a = return ()
 
-vpunpckhwd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpunpckhwd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vpunpcklwd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpunpcklwd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vpcmpeqb ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpcmpeqb ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vpcmpeqw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpcmpeqw ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-vpsllw ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+vpsllw ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
-movhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+movhps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-movlhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+movlhps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-movhlps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+movhlps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
-vmovhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+vmovhps ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 
-xadd :: Context -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-xadd ctxt i_a op1 op2 = do
-  e1 <- read_operand ctxt op1
-  e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Plus (operand_size op1)) [e1,e2])
-  write_operand ctxt i_a op2 e1
+xadd :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+xadd ctxt finit i_a op1 op2 = do
+  e1 <- read_operand ctxt finit op1
+  e2 <- read_operand ctxt finit op2
+  write_operand ctxt finit i_a op1 (SE_Op (Plus (operand_size op1)) [e1,e2])
+  write_operand ctxt finit i_a op2 e1
   write_flags (\_ _ -> None) op1 op2
 
-cmpxchg ctxt i_a = mov_with_func ctxt i_a mk_bottom True
+cmpxchg ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom True
 
 
-tau_i :: Context -> Instr -> State (Pred,VCS) ()
-tau_i ctxt (Instr i_a _ PUSH     (Just op1) _          _ _ _)   = push   ctxt i_a op1
-tau_i ctxt (Instr i_a _ POP      (Just op1) _          _ _ _)   = pop    ctxt i_a op1
-tau_i ctxt (Instr i_a _ LEA      (Just op1) (Just op2) _ _ _)   = lea    ctxt i_a op1 op2
+tau_i :: Context -> FInit -> Instr -> State (Pred,VCS) ()
+tau_i ctxt finit (Instr i_a _ PUSH     (Just op1) _          _ _ _)   = push   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ POP      (Just op1) _          _ _ _)   = pop    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ LEA      (Just op1) (Just op2) _ _ _)   = lea    ctxt finit i_a op1 op2
 
-tau_i ctxt i@(Instr i_a _ CALL     _          _          _ _ _) = call   ctxt i
-tau_i ctxt   (Instr i_a _ RET      _          _          _ _ _) = ret    ctxt i_a 
-tau_i ctxt   (Instr i_a _ IRETQ    _          _          _ _ _) = ret    ctxt i_a 
-tau_i ctxt   (Instr i_a _ SYSRET   _          _          _ _ _) = sysret ctxt i_a
-tau_i ctxt i@(Instr i_a _ JMP      (Just op1) _          _ _ _) = jmp    ctxt i
-tau_i ctxt   (Instr i_a _ LEAVE    _          _          _ _ _) = leave  ctxt i_a
+tau_i ctxt finit i@(Instr i_a _ CALL     _          _          _ _ _) = call   ctxt finit i
+tau_i ctxt finit   (Instr i_a _ RET      _          _          _ _ _) = ret    ctxt finit i_a 
+tau_i ctxt finit   (Instr i_a _ IRETQ    _          _          _ _ _) = ret    ctxt finit i_a 
+tau_i ctxt finit   (Instr i_a _ SYSRET   _          _          _ _ _) = sysret ctxt finit i_a
+tau_i ctxt finit i@(Instr i_a _ JMP      (Just op1) _          _ _ _) = jmp    ctxt finit i
+tau_i ctxt finit   (Instr i_a _ LEAVE    _          _          _ _ _) = leave  ctxt finit i_a
 
-tau_i ctxt (Instr i_a _       MOV      (Just op1) (Just op2) _ _ _) = mov    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVZX    (Just op1) (Just op2) _ _ _) = movzx  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVSX    (Just op1) (Just op2) _ _ _) = movsx  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVSXD   (Just op1) (Just op2) _ _ _) = movsxd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVAPS   (Just op1) (Just op2) _ _ _) = movaps ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVAPD   (Just op1) (Just op2) _ _ _) = movapd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVABS   (Just op1) (Just op2) _ _ _) = movabs ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVUPD   (Just op1) (Just op2) _ _ _) = movupd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVUPS   (Just op1) (Just op2) _ _ _) = movups ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVDQU   (Just op1) (Just op2) _ _ _) = movdqu ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVDQA   (Just op1) (Just op2) _ _ _) = movdqa ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVD     (Just op1) (Just op2) _ _ _) = movd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVQ     (Just op1) (Just op2) _ _ _) = movq   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVLPD   (Just op1) (Just op2) _ _ _) = movlpd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVLPS   (Just op1) (Just op2) _ _ _) = movlps ctxt i_a op1 op2
-tau_i ctxt (Instr i_a Nothing MOVSD    (Just op1) (Just op2) _ _ _) = movsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a Nothing MOVSS    (Just op1) (Just op2) _ _ _) = movss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVD    (Just op1) (Just op2) _ _ _) = vmovd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVAPD  (Just op1) (Just op2) _ _ _) = vmovapd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVAPS  (Just op1) (Just op2) _ _ _) = vmovaps ctxt i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOV      (Just op1) (Just op2) _ _ _) = mov    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVZX    (Just op1) (Just op2) _ _ _) = movzx  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVSX    (Just op1) (Just op2) _ _ _) = movsx  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVSXD   (Just op1) (Just op2) _ _ _) = movsxd ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVAPS   (Just op1) (Just op2) _ _ _) = movaps ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVAPD   (Just op1) (Just op2) _ _ _) = movapd ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVABS   (Just op1) (Just op2) _ _ _) = movabs ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVUPD   (Just op1) (Just op2) _ _ _) = movupd ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVUPS   (Just op1) (Just op2) _ _ _) = movups ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVDQU   (Just op1) (Just op2) _ _ _) = movdqu ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVDQA   (Just op1) (Just op2) _ _ _) = movdqa ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVD     (Just op1) (Just op2) _ _ _) = movd   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVQ     (Just op1) (Just op2) _ _ _) = movq   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVLPD   (Just op1) (Just op2) _ _ _) = movlpd ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       MOVLPS   (Just op1) (Just op2) _ _ _) = movlps ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a Nothing MOVSD    (Just op1) (Just op2) _ _ _) = movsd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a Nothing MOVSS    (Just op1) (Just op2) _ _ _) = movss  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       VMOVD    (Just op1) (Just op2) _ _ _) = vmovd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       VMOVAPD  (Just op1) (Just op2) _ _ _) = vmovapd ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _       VMOVAPS  (Just op1) (Just op2) _ _ _) = vmovaps ctxt finit i_a op1 op2
 
-tau_i ctxt (Instr i_a _ CMOVO    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNO   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVS    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNS   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVE    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVZ    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNZ   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVB    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNAE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVC    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNB   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVAE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNC   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVBE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNA   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVA    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNBE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVL    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNGE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVG    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVGE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNL   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVLE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNG   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNLE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVP    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVPE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNP   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVPO   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVO    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNO   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVS    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNS   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVE    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVZ    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNZ   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVB    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNAE  (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVC    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNB   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVAE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNC   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVBE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNA   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVA    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNBE  (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVL    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNGE  (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVG    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVGE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNL   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVLE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNG   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNLE  (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVP    (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVPE   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVNP   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMOVPO   (Just op1) (Just op2) _ _ _) = cmov   ctxt finit i_a op1 op2
 
-tau_i ctxt (Instr i_a _ CDQ      Nothing    _          _ _ _) = cdq    ctxt i_a
-tau_i ctxt (Instr i_a _ CDQE     Nothing    _          _ _ _) = cdqe   ctxt i_a
-tau_i ctxt (Instr i_a _ CQO      Nothing    _          _ _ _) = cqo    ctxt i_a
-tau_i ctxt (Instr i_a _ CBW      Nothing    _          _ _ _) = cbw    ctxt i_a
-tau_i ctxt (Instr i_a _ CWDE     Nothing    _          _ _ _) = cwde   ctxt i_a
+tau_i ctxt finit (Instr i_a _ CDQ      Nothing    _          _ _ _) = cdq    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CDQE     Nothing    _          _ _ _) = cdqe   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CQO      Nothing    _          _ _ _) = cqo    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CBW      Nothing    _          _ _ _) = cbw    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CWDE     Nothing    _          _ _ _) = cwde   ctxt finit i_a
 
-tau_i ctxt (Instr i_a _ ADD      (Just op1) (Just op2) _ _ _) = add    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SUB      (Just op1) (Just op2) _ _ _) = sub    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ NEG      (Just op1) Nothing    _ _ _) = neg    ctxt i_a op1
-tau_i ctxt (Instr i_a _ INC      (Just op1) _          _ _ _) = inc    ctxt i_a op1
-tau_i ctxt (Instr i_a _ DEC      (Just op1) _          _ _ _) = dec    ctxt i_a op1
-tau_i ctxt (Instr i_a _ SHL      (Just op1) (Just op2) _ _ _) = shl    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHL      (Just op1) Nothing    _ _ _) = shl    ctxt i_a op1 (Immediate 1)
+tau_i ctxt finit (Instr i_a _ ADD      (Just op1) (Just op2) _ _ _) = add    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SUB      (Just op1) (Just op2) _ _ _) = sub    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ NEG      (Just op1) Nothing    _ _ _) = neg    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ INC      (Just op1) _          _ _ _) = inc    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ DEC      (Just op1) _          _ _ _) = dec    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SHL      (Just op1) (Just op2) _ _ _) = shl    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SHL      (Just op1) Nothing    _ _ _) = shl    ctxt finit i_a op1 (Immediate 1)
 
-tau_i ctxt (Instr i_a _ NOP      _          _          _ _ _) = nop    ctxt i_a
-tau_i ctxt (Instr i_a _ UD2      _          _          _ _ _) = ud2    ctxt i_a
-tau_i ctxt (Instr i_a _ HLT      _          _          _ _ _) = hlt    ctxt i_a
+tau_i ctxt finit (Instr i_a _ NOP      _          _          _ _ _) = nop    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ UD2      _          _          _ _ _) = ud2    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ HLT      _          _          _ _ _) = hlt    ctxt finit i_a
 
-tau_i ctxt (Instr i_a _ WAIT     _          _          _ _ _) = wait    ctxt i_a
-tau_i ctxt (Instr i_a _ MFENCE   _          _          _ _ _) = mfence  ctxt i_a
-tau_i ctxt (Instr i_a _ CLFLUSH  _          _          _ _ _) = clflush ctxt i_a
+tau_i ctxt finit (Instr i_a _ WAIT     _          _          _ _ _) = wait    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ MFENCE   _          _          _ _ _) = mfence  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CLFLUSH  _          _          _ _ _) = clflush ctxt finit i_a
 
-tau_i ctxt (Instr i_a _ ADC      (Just op1) (Just op2) _ _ _)          = adc    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SBB      (Just op1) (Just op2) _ _ _)          = sbb    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROL      (Just op1) (Just op2) _ _ _)          = rol    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROR      (Just op1) (Just op2) _ _ _)          = ror    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHR      (Just op1) (Just op2) _ _ _)          = shr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHR      (Just op1) Nothing    _ _ _)          = shr    ctxt i_a op1 (Immediate 1)
-tau_i ctxt (Instr i_a _ SAR      (Just op1) (Just op2) _ _ _)          = sar    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SAR      (Just op1) Nothing    _ _ _)          = sar    ctxt i_a op1 (Immediate 1)
-tau_i ctxt (Instr i_a _ MUL      (Just op1) Nothing    _ _ _)          = mul1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ MUL      (Just op1) (Just op2) Nothing _ _)    = mul2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) Nothing    _ _ _)          = imul1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) (Just op2) Nothing _ _)    = imul2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) (Just op2) (Just op3) _ _) = imul3  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ IDIV     (Just op1) Nothing    _ _ _)          = idiv   ctxt i_a op1
-tau_i ctxt (Instr i_a _ DIV      (Just op1) Nothing    _ _ _)          = div1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ SHLD     (Just op1) (Just op2) (Just op3) _ _) = shld ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ SHRD     (Just op1) (Just op2) (Just op3) _ _) = shrd ctxt i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ ADC      (Just op1) (Just op2) _ _ _)          = adc    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SBB      (Just op1) (Just op2) _ _ _)          = sbb    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ROL      (Just op1) (Just op2) _ _ _)          = rol    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ROR      (Just op1) (Just op2) _ _ _)          = ror    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SHR      (Just op1) (Just op2) _ _ _)          = shr    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SHR      (Just op1) Nothing    _ _ _)          = shr    ctxt finit i_a op1 (Immediate 1)
+tau_i ctxt finit (Instr i_a _ SAR      (Just op1) (Just op2) _ _ _)          = sar    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SAR      (Just op1) Nothing    _ _ _)          = sar    ctxt finit i_a op1 (Immediate 1)
+tau_i ctxt finit (Instr i_a _ MUL      (Just op1) Nothing    _ _ _)          = mul1  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ MUL      (Just op1) (Just op2) Nothing _ _)    = mul2  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ IMUL     (Just op1) Nothing    _ _ _)          = imul1  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ IMUL     (Just op1) (Just op2) Nothing _ _)    = imul2  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ IMUL     (Just op1) (Just op2) (Just op3) _ _) = imul3  ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ IDIV     (Just op1) Nothing    _ _ _)          = idiv   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ DIV      (Just op1) Nothing    _ _ _)          = div1   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SHLD     (Just op1) (Just op2) (Just op3) _ _) = shld ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ SHRD     (Just op1) (Just op2) (Just op3) _ _) = shrd ctxt finit i_a op1 op2 op3
 
-tau_i ctxt (Instr i_a _ CMP      (Just op1) (Just op2) _ _ _) = cmp    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ TEST     (Just op1) (Just op2) _ _ _) = test   ctxt i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMP      (Just op1) (Just op2) _ _ _) = cmp    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ TEST     (Just op1) (Just op2) _ _ _) = test   ctxt finit i_a op1 op2
 
-tau_i ctxt (Instr i_a _ XOR      (Just op1) (Just op2) _ _ _) = xor    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ OR       (Just op1) (Just op2) _ _ _) = or'    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ AND      (Just op1) (Just op2) _ _ _) = and'   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ NOT      (Just op1) _          _ _ _) = not'   ctxt i_a op1
-tau_i ctxt (Instr i_a _ BT       (Just op1) (Just op2) _ _ _) = bt     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTC      (Just op1) (Just op2) _ _ _) = btc    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTR      (Just op1) (Just op2) _ _ _) = btr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSR      (Just op1) (Just op2) _ _ _) = bsr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSF      (Just op1) (Just op2) _ _ _) = bsf    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTS      (Just op1) (Just op2) _ _ _) = bts    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSWAP    (Just op1) _          _ _ _) = bswap  ctxt i_a op1
-
-
-
-tau_i ctxt (Instr i_a _ SETO     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNO    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETS     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNS    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETE     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETZ     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNZ    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETB     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNAE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETC     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNB    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETAE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNC    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETBE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNA    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETA     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNBE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETL     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNGE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETGE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNL    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETLE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNG    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETG     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNLE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETP     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETPE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNP    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETPO    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-
-
-tau_i ctxt (Instr i_a _ XORPS     (Just op1) (Just op2) _ _ _)            = xorps      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVMSKPS  (Just op1) (Just op2) _ _ _)            = movmskps   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UNPCKLPS  (Just op1) (Just op2) _ _ _)            = unpcklps   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) Nothing    _ _)   = blendvps   ctxt i_a op1 op2 (Reg XMM0)
-tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) (Just op3) _ _)   = blendvps   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ EXTRACTPS (Just op1) (Just op2) (Just op3) _ _)   = extractps  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ SHUFPS    (Just op1) (Just op2) (Just op3) _ _)   = shufps     ctxt i_a op1 op2 op3
-
-
-tau_i ctxt (Instr i_a _ XORPD    (Just op1) (Just op2) _ _ _) = xorpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ANDPD    (Just op1) (Just op2) _ _ _) = andpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ANDNPD   (Just op1) (Just op2) _ _ _) = andnpd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ORPD     (Just op1) (Just op2) _ _ _) = orpd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SUBPD    (Just op1) (Just op2) _ _ _) = subpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDPD    (Just op1) (Just op2) _ _ _) = addpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ HADDPD   (Just op1) (Just op2) _ _ _) = haddpd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVMSKPD (Just op1) (Just op2) _ _ _) = movmskpd   ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ POR        (Just op1) (Just op2) _ _ _)          = por          ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PAND       (Just op1) (Just op2) _ _ _)          = pand         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PANDN      (Just op1) (Just op2) _ _ _)          = pandn        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PXOR       (Just op1) (Just op2) _ _ _)          = pxor         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPOR       (Just op1) (Just op2) _ _ _)          = vpor         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPAND      (Just op1) (Just op2) _ _ _)          = vpand        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPANDN     (Just op1) (Just op2) _ _ _)          = vpandn       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPXOR      (Just op1) (Just op2) _ _ _)          = vpxor        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PTEST      (Just op1) (Just op2) _ _ _)          = ptest        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLQDQ (Just op1) (Just op2) _ _ _)          = punpcklqdq   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLBW  (Just op1) (Just op2) _ _ _)          = punpcklbw    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLDQ  (Just op1) (Just op2) _ _ _)          = punpckldq    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVSXDQ   (Just op1) (Just op2) _ _ _)          = pmovsxdq     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVZXDQ   (Just op1) (Just op2) _ _ _)          = pmovzxdq     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVSXBD   (Just op1) (Just op2) _ _ _)          = pmovsxbd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVZXBD   (Just op1) (Just op2) _ _ _)          = pmovzxbd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSHUFB     (Just op1) (Just op2) _ _ _)          = pshufb       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSHUFD     (Just op1) (Just op2) _ _ _)          = pshufd       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPSHUFB    (Just op1) (Just op2) _ _ _)          = vpshufb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPSHUFD    (Just op1) (Just op2) _ _ _)          = vpshufd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPEQB    (Just op1) (Just op2) _ _ _)          = pcmpeqb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPEQD    (Just op1) (Just op2) _ _ _)          = pcmpeqd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPGTB    (Just op1) (Just op2) _ _ _)          = pcmpgtb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPGTD    (Just op1) (Just op2) _ _ _)          = pcmpgtd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDD      (Just op1) (Just op2) _ _ _)          = paddd        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDB      (Just op1) (Just op2) _ _ _)          = paddb        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDQ      (Just op1) (Just op2) _ _ _)          = paddq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBD      (Just op1) (Just op2) _ _ _)          = psubd        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBB      (Just op1) (Just op2) _ _ _)          = psubb        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBQ      (Just op1) (Just op2) _ _ _)          = psubq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMULLD     (Just op1) (Just op2) _ _ _)          = pmulld       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMINSD     (Just op1) (Just op2) _ _ _)          = pminsd       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMINUD     (Just op1) (Just op2) _ _ _)          = pminud       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMAXUD     (Just op1) (Just op2) _ _ _)          = pmaxud       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMAXUQ     (Just op1) (Just op2) _ _ _)          = pmaxuq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLD      (Just op1) (Just op2) _ _ _)          = psrld        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLW      (Just op1) (Just op2) _ _ _)          = psrlw        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLDQ     (Just op1) (Just op2) _ _ _)          = psrldq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSLLDQ     (Just op1) (Just op2) _ _ _)          = pslldq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSLLQ      (Just op1) (Just op2) _ _ _)          = psllq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLQ      (Just op1) (Just op2) _ _ _)          = psrlq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBUSB    (Just op1) (Just op2) _ _ _)          = psubusb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBUSW    (Just op1) (Just op2) _ _ _)          = psubusw      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PINSRQ     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PINSRD     (Just op1) (Just op2) (Just op3) _ _) = pinsrd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRB     (Just op1) (Just op2) (Just op3) _ _) = pextrb       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRD     (Just op1) (Just op2) (Just op3) _ _) = pextrd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRQ     (Just op1) (Just op2) (Just op3) _ _) = pextrq       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PSHUFLW    (Just op1) (Just op2) (Just op3) _ _) = pshuflw      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PCLMULQDQ  (Just op1) (Just op2) (Just op3) _ _) = pclmulqdq    ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PACKSSDW   (Just op1) (Just op2) _ _ _)          = packssdw     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PACKSSWB   (Just op1) (Just op2) _ _ _)          = packsswb     ctxt i_a op1 op2
-
-
-tau_i ctxt (Instr i_a _ SUBSS    (Just op1) (Just op2) _ _ _) = subss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDSS    (Just op1) (Just op2) _ _ _) = addss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ DIVSS    (Just op1) (Just op2) _ _ _) = divss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MULSS    (Just op1) (Just op2) _ _ _) = mulss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROUNDSS  (Just op1) (Just op2) _ _ _) = roundss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UCOMISS  (Just op1) (Just op2) _ _ _) = ucomiss  ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ SUBSD    (Just op1) (Just op2) _ _ _) = subsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDSD    (Just op1) (Just op2) _ _ _) = addsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ DIVSD    (Just op1) (Just op2) _ _ _) = divsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MULSD    (Just op1) (Just op2) _ _ _) = mulsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROUNDSD  (Just op1) (Just op2) _ _ _) = roundsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UCOMISD  (Just op1) (Just op2) _ _ _) = ucomisd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPLTSD  (Just op1) (Just op2) _ _ _) = cmpltsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPEQSD  (Just op1) (Just op2) _ _ _) = cmpeqsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPNEQSD (Just op1) (Just op2) _ _ _) = cmpneqsd ctxt i_a op1 op2
+tau_i ctxt finit (Instr i_a _ XOR      (Just op1) (Just op2) _ _ _) = xor    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ OR       (Just op1) (Just op2) _ _ _) = or'    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ AND      (Just op1) (Just op2) _ _ _) = and'   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ NOT      (Just op1) _          _ _ _) = not'   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ BT       (Just op1) (Just op2) _ _ _) = bt     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BTC      (Just op1) (Just op2) _ _ _) = btc    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BTR      (Just op1) (Just op2) _ _ _) = btr    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BSR      (Just op1) (Just op2) _ _ _) = bsr    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BSF      (Just op1) (Just op2) _ _ _) = bsf    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BTS      (Just op1) (Just op2) _ _ _) = bts    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BSWAP    (Just op1) _          _ _ _) = bswap  ctxt finit i_a op1
 
 
 
-tau_i ctxt (Instr i_a _ CVTSS2SD  (Just op1) (Just op2) _ _ _) = cvtss2sd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSI2SS  (Just op1) (Just op2) _ _ _) = cvtsi2ss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSI2SD  (Just op1) (Just op2) _ _ _) = cvtsi2sd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSD2SS  (Just op1) (Just op2) _ _ _) = cvtsd2ss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTSS2SI (Just op1) (Just op2) _ _ _) = cvttss2si ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTSD2SI (Just op1) (Just op2) _ _ _) = cvttsd2si ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTPD2DQ (Just op1) (Just op2) _ _ _) = cvttpd2dq ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTDQ2PD  (Just op1) (Just op2) _ _ _) = cvtdq2pd  ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ FST      (Just op1) _          _ _ _)  = fst'     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FSTP     (Just op1) _          _ _ _)  = fstp     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FINIT    _          _          _ _ _)  = finit    ctxt i_a
-tau_i ctxt (Instr i_a _ FNINIT   _          _          _ _ _)  = fninit   ctxt i_a
-tau_i ctxt (Instr i_a _ FNSTCW   (Just op1) _          _ _ _)  = fnstcw   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FSTCW    (Just op1) _          _ _ _)  = fstcw    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FLD      (Just op1) _          _ _ _)  = fld      ctxt i_a op1
-tau_i ctxt (Instr i_a _ FLD1     Nothing    _          _ _ _)  = fld1     ctxt i_a
-tau_i ctxt (Instr i_a _ FLDZ     Nothing    _          _ _ _)  = fldz     ctxt i_a
-tau_i ctxt (Instr i_a _ FILD     (Just op1) Nothing    _ _ _)  = fild     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FUCOM    _          _          _ _ _)  = fucom    ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMI   _          _          _ _ _)  = fucomi   ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMIP  _          _          _ _ _)  = fucomip  ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMP   _          _          _ _ _)  = fucomp   ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMPI  _          _          _ _ _)  = fucompi  ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMPP  _          _          _ _ _)  = fucompp  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVB   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVBE  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVE   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNE  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVU   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNU  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNBE _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FADD     (Just op1) Nothing    _ _ _)  = fadd1    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FADD     (Just op1) (Just op2) _ _ _)  = fadd2    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FMUL     (Just op1) Nothing    _ _ _)  = fmul1    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FMUL     (Just op1) (Just op2) _ _ _)  = fmul2    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FMULP    (Just op1) Nothing    _ _ _)  = fmulp1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FMULP    (Just op1) (Just op2) _ _ _)  = fmulp2   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FDIVR    (Just op1) Nothing    _ _ _)  = fdivr1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FDIVR    (Just op1) (Just op2) _ _ _)  = fdivr2   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FDIVRP   (Just op1) Nothing    _ _ _)  = fdivrp1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ FDIVRP   (Just op1) (Just op2) _ _ _)  = fdivrp2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FISUB    (Just op1) Nothing    _ _ _)  = fisub    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FISTTP   (Just op1) Nothing    _ _ _)  = fisttp   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FXCH     (Just op1) _          _ _ _)  = fxch     ctxt i_a
-tau_i ctxt (Instr i_a _ FCHS     Nothing    _          _ _ _)  = fchs     ctxt i_a
-tau_i ctxt (Instr i_a _ EMMS     Nothing    _          _ _ _)  = emms     ctxt i_a
+tau_i ctxt finit (Instr i_a _ SETO     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNO    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETS     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNS    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETE     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETZ     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNZ    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETB     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNAE   (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETC     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNB    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETAE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNC    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETBE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNA    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETA     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNBE   (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETL     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNGE   (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETGE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNL    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETLE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNG    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETG     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNLE   (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETP     (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETPE    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETNP    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ SETPO    (Just op1) Nothing    _ _ _) = setxx  ctxt finit i_a op1
 
 
-tau_i ctxt (Instr i_a _ VINSERTF128  (Just op1) (Just op2) (Just op3) _ _)  = vinsertf128  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VEXTRACTI128 (Just op1) (Just op2) (Just op3) _ _)  = vextractf128 ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VEXTRACTF128 (Just op1) (Just op2) (Just op3) _ _)  = vextracti128 ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPERM2F128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2f128   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPERM2I128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2i128   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPALIGNR     (Just op1) (Just op2) (Just op3) _ _)  = vpalignr     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PALIGNR      (Just op1) (Just op2) (Just op3) _ _)  = palignr      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSHUFPD      (Just op1) (Just op2) (Just op3) _ _)  = vshufpd      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSHUFPS      (Just op1) (Just op2) (Just op3) _ _)  = vshufps      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VADDPD       (Just op1) (Just op2) (Just op3) _ _)  = vaddpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VADDPS       (Just op1) (Just op2) (Just op3) _ _)  = vaddps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSUBPD       (Just op1) (Just op2) (Just op3) _ _)  = vsubpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSUBPS       (Just op1) (Just op2) (Just op3) _ _)  = vsubps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMULPD       (Just op1) (Just op2) (Just op3) _ _)  = vmulpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMULPS       (Just op1) (Just op2) (Just op3) _ _)  = vmulps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VXORPD       (Just op1) (Just op2) (Just op3) _ _)  = vxorpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VXORPS       (Just op1) (Just op2) (Just op3) _ _)  = vxorps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPD       (Just op1) (Just op2) (Just op3) _ _)  = vandpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVDQA      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqa      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVDQU      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqu      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVLHPS     (Just op1) (Just op2) (Just op3) _ _)  = vmovlhps     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPUNPCKHWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpckhwd   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPUNPCKLWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpcklwd   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VZEROUPPER   Nothing    _          _ _ _)           = vzeroupper   ctxt i_a
-tau_i ctxt (Instr i_a _ VPCMPEQB     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqb     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPCMPEQW     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqw     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPSLLW       (Just op1) (Just op2) (Just op3) _ _)  = vpsllw       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ MOVHPS       (Just op1) (Just op2) Nothing _ _)     = movhps       ctxt i_a op1 op2 
-tau_i ctxt (Instr i_a _ MOVHLPS      (Just op1) (Just op2) Nothing _ _)     = movhlps      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVLHPS      (Just op1) (Just op2) Nothing _ _)     = movlhps      ctxt i_a op1 op2 
-tau_i ctxt (Instr i_a _ VMOVHPS      (Just op1) (Just op2) Nothing _ _)     = vmovhps      ctxt i_a op1 op2 
+tau_i ctxt finit (Instr i_a _ XORPS     (Just op1) (Just op2) _ _ _)            = xorps      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ MOVMSKPS  (Just op1) (Just op2) _ _ _)            = movmskps   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ UNPCKLPS  (Just op1) (Just op2) _ _ _)            = unpcklps   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BLENDVPS  (Just op1) (Just op2) Nothing    _ _)   = blendvps   ctxt finit i_a op1 op2 (Reg XMM0)
+tau_i ctxt finit (Instr i_a _ BLENDVPS  (Just op1) (Just op2) (Just op3) _ _)   = blendvps   ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ EXTRACTPS (Just op1) (Just op2) (Just op3) _ _)   = extractps  ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ SHUFPS    (Just op1) (Just op2) (Just op3) _ _)   = shufps     ctxt finit i_a op1 op2 op3
 
 
-tau_i ctxt (Instr i_a _ CPUID    Nothing    _          _ _ _)  = cpuid    ctxt i_a
-tau_i ctxt (Instr i_a _ RDMSR    Nothing    _          _ _ _)  = rdmsr    ctxt i_a
-tau_i ctxt (Instr i_a _ WRMSR    Nothing    _          _ _ _)  = wrmsr    ctxt i_a
-tau_i ctxt (Instr i_a _ RDTSC    Nothing    _          _ _ _)  = rdtsc    ctxt i_a
-tau_i ctxt (Instr i_a _ IN       (Just op1) _          _ _ _)  = x86_in   ctxt i_a op1
-tau_i ctxt (Instr i_a _ OUT      (Just op1) _          _ _ _)  = x86_out  ctxt i_a op1
-tau_i ctxt (Instr i_a _ CLI      Nothing    _          _ _ _)  = cli      ctxt i_a
-tau_i ctxt (Instr i_a _ CLTS     Nothing    _          _ _ _)  = clts     ctxt i_a
-tau_i ctxt (Instr i_a _ INVPCID  _          _          _ _ _)  = invpcid  ctxt i_a
-tau_i ctxt (Instr i_a _ LGDT     _          _          _ _ _)  = lgdt     ctxt i_a
-tau_i ctxt (Instr i_a _ LIDT     _          _          _ _ _)  = lidt     ctxt i_a
-tau_i ctxt (Instr i_a _ LLDT     _          _          _ _ _)  = lldt     ctxt i_a
-tau_i ctxt (Instr i_a _ LTR      _          _          _ _ _)  = ltr      ctxt i_a
-tau_i ctxt (Instr i_a _ SWAPGS   _          _          _ _ _)  = swapgs   ctxt i_a
-tau_i ctxt (Instr i_a _ XSETBV   _          _          _ _ _)  = xsetbv   ctxt i_a
-tau_i ctxt (Instr i_a _ XSAVEOPT _          _          _ _ _)  = xsaveopt ctxt i_a
-tau_i ctxt (Instr i_a _ XRSTOR   _          _          _ _ _)  = xrstor   ctxt i_a
-tau_i ctxt (Instr i_a _ WRFSBASE _          _          _ _ _)  = wrfsbase ctxt i_a
-tau_i ctxt (Instr i_a _ WRGSBASE _          _          _ _ _)  = wrgsbase ctxt i_a
+tau_i ctxt finit (Instr i_a _ XORPD    (Just op1) (Just op2) _ _ _) = xorpd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ANDPD    (Just op1) (Just op2) _ _ _) = andpd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ANDNPD   (Just op1) (Just op2) _ _ _) = andnpd   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ORPD     (Just op1) (Just op2) _ _ _) = orpd     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ SUBPD    (Just op1) (Just op2) _ _ _) = subpd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ADDPD    (Just op1) (Just op2) _ _ _) = addpd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ HADDPD   (Just op1) (Just op2) _ _ _) = haddpd   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ MOVMSKPD (Just op1) (Just op2) _ _ _) = movmskpd   ctxt finit i_a op1 op2
+
+tau_i ctxt finit (Instr i_a _ POR        (Just op1) (Just op2) _ _ _)          = por          ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PAND       (Just op1) (Just op2) _ _ _)          = pand         ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PANDN      (Just op1) (Just op2) _ _ _)          = pandn        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PXOR       (Just op1) (Just op2) _ _ _)          = pxor         ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPOR       (Just op1) (Just op2) _ _ _)          = vpor         ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPAND      (Just op1) (Just op2) _ _ _)          = vpand        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPANDN     (Just op1) (Just op2) _ _ _)          = vpandn       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPXOR      (Just op1) (Just op2) _ _ _)          = vpxor        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PTEST      (Just op1) (Just op2) _ _ _)          = ptest        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PUNPCKLQDQ (Just op1) (Just op2) _ _ _)          = punpcklqdq   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PUNPCKLBW  (Just op1) (Just op2) _ _ _)          = punpcklbw    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PUNPCKLDQ  (Just op1) (Just op2) _ _ _)          = punpckldq    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMOVSXDQ   (Just op1) (Just op2) _ _ _)          = pmovsxdq     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMOVZXDQ   (Just op1) (Just op2) _ _ _)          = pmovzxdq     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMOVSXBD   (Just op1) (Just op2) _ _ _)          = pmovsxbd     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMOVZXBD   (Just op1) (Just op2) _ _ _)          = pmovzxbd     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSHUFB     (Just op1) (Just op2) _ _ _)          = pshufb       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSHUFD     (Just op1) (Just op2) _ _ _)          = pshufd       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPSHUFB    (Just op1) (Just op2) _ _ _)          = vpshufb      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ VPSHUFD    (Just op1) (Just op2) _ _ _)          = vpshufd      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PCMPEQB    (Just op1) (Just op2) _ _ _)          = pcmpeqb      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PCMPEQD    (Just op1) (Just op2) _ _ _)          = pcmpeqd      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PCMPGTB    (Just op1) (Just op2) _ _ _)          = pcmpgtb      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PCMPGTD    (Just op1) (Just op2) _ _ _)          = pcmpgtd      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PADDD      (Just op1) (Just op2) _ _ _)          = paddd        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PADDB      (Just op1) (Just op2) _ _ _)          = paddb        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PADDQ      (Just op1) (Just op2) _ _ _)          = paddq        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSUBD      (Just op1) (Just op2) _ _ _)          = psubd        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSUBB      (Just op1) (Just op2) _ _ _)          = psubb        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSUBQ      (Just op1) (Just op2) _ _ _)          = psubq        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMULLD     (Just op1) (Just op2) _ _ _)          = pmulld       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMINSD     (Just op1) (Just op2) _ _ _)          = pminsd       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMINUD     (Just op1) (Just op2) _ _ _)          = pminud       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMAXUD     (Just op1) (Just op2) _ _ _)          = pmaxud       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMAXUQ     (Just op1) (Just op2) _ _ _)          = pmaxuq       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSRLD      (Just op1) (Just op2) _ _ _)          = psrld        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSRLW      (Just op1) (Just op2) _ _ _)          = psrlw        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSRLDQ     (Just op1) (Just op2) _ _ _)          = psrldq       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSLLDQ     (Just op1) (Just op2) _ _ _)          = pslldq       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSLLQ      (Just op1) (Just op2) _ _ _)          = psllq        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSRLQ      (Just op1) (Just op2) _ _ _)          = psrlq        ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSUBUSB    (Just op1) (Just op2) _ _ _)          = psubusb      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PSUBUSW    (Just op1) (Just op2) _ _ _)          = psubusw      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PINSRQ     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PINSRD     (Just op1) (Just op2) (Just op3) _ _) = pinsrd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PEXTRB     (Just op1) (Just op2) (Just op3) _ _) = pextrb       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PEXTRD     (Just op1) (Just op2) (Just op3) _ _) = pextrd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PEXTRQ     (Just op1) (Just op2) (Just op3) _ _) = pextrq       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PSHUFLW    (Just op1) (Just op2) (Just op3) _ _) = pshuflw      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PCLMULQDQ  (Just op1) (Just op2) (Just op3) _ _) = pclmulqdq    ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PACKSSDW   (Just op1) (Just op2) _ _ _)          = packssdw     ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PACKSSWB   (Just op1) (Just op2) _ _ _)          = packsswb     ctxt finit i_a op1 op2
+
+
+tau_i ctxt finit (Instr i_a _ SUBSS    (Just op1) (Just op2) _ _ _) = subss    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ADDSS    (Just op1) (Just op2) _ _ _) = addss    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ DIVSS    (Just op1) (Just op2) _ _ _) = divss    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ MULSS    (Just op1) (Just op2) _ _ _) = mulss    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ROUNDSS  (Just op1) (Just op2) _ _ _) = roundss  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ UCOMISS  (Just op1) (Just op2) _ _ _) = ucomiss  ctxt finit i_a op1 op2
+
+tau_i ctxt finit (Instr i_a _ SUBSD    (Just op1) (Just op2) _ _ _) = subsd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ADDSD    (Just op1) (Just op2) _ _ _) = addsd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ DIVSD    (Just op1) (Just op2) _ _ _) = divsd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ MULSD    (Just op1) (Just op2) _ _ _) = mulsd    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ ROUNDSD  (Just op1) (Just op2) _ _ _) = roundsd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ UCOMISD  (Just op1) (Just op2) _ _ _) = ucomisd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMPLTSD  (Just op1) (Just op2) _ _ _) = cmpltsd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMPEQSD  (Just op1) (Just op2) _ _ _) = cmpeqsd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CMPNEQSD (Just op1) (Just op2) _ _ _) = cmpneqsd ctxt finit i_a op1 op2
 
 
 
-tau_i ctxt (Instr a Nothing XCHG (Just op1) (Just op2) _ _ _)        = xchg         ctxt a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTSS2SD  (Just op1) (Just op2) _ _ _) = cvtss2sd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTSI2SS  (Just op1) (Just op2) _ _ _) = cvtsi2ss  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTSI2SD  (Just op1) (Just op2) _ _ _) = cvtsi2sd  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTSD2SS  (Just op1) (Just op2) _ _ _) = cvtsd2ss  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTTSS2SI (Just op1) (Just op2) _ _ _) = cvttss2si ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTTSD2SI (Just op1) (Just op2) _ _ _) = cvttsd2si ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTTPD2DQ (Just op1) (Just op2) _ _ _) = cvttpd2dq ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ CVTDQ2PD  (Just op1) (Just op2) _ _ _) = cvtdq2pd  ctxt finit i_a op1 op2
 
-tau_i ctxt (Instr i_a (Just LOCK) XADD    (Just op1) (Just op2) _ _ _) = xadd         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a (Just LOCK) CMPXCHG (Just op1) (Just op2) _ _ _) = cmpxchg      ctxt i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FST      (Just op1) _          _ _ _)  = fst'     ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FSTP     (Just op1) _          _ _ _)  = fstp     ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FINIT    _          _          _ _ _)  = finit'   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FNINIT   _          _          _ _ _)  = fninit   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FNSTCW   (Just op1) _          _ _ _)  = fnstcw   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FSTCW    (Just op1) _          _ _ _)  = fstcw    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FLD      (Just op1) _          _ _ _)  = fld      ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FLD1     Nothing    _          _ _ _)  = fld1     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FLDZ     Nothing    _          _ _ _)  = fldz     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FILD     (Just op1) Nothing    _ _ _)  = fild     ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FUCOM    _          _          _ _ _)  = fucom    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FUCOMI   _          _          _ _ _)  = fucomi   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FUCOMIP  _          _          _ _ _)  = fucomip  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FUCOMP   _          _          _ _ _)  = fucomp   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FUCOMPI  _          _          _ _ _)  = fucompi  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FUCOMPP  _          _          _ _ _)  = fucompp  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVB   _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVBE  _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVE   _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVNE  _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVU   _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVNU  _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCMOVNBE _          _          _ _ _)  = fcmovxx  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FADD     (Just op1) Nothing    _ _ _)  = fadd1    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FADD     (Just op1) (Just op2) _ _ _)  = fadd2    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FMUL     (Just op1) Nothing    _ _ _)  = fmul1    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FMUL     (Just op1) (Just op2) _ _ _)  = fmul2    ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FMULP    (Just op1) Nothing    _ _ _)  = fmulp1   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FMULP    (Just op1) (Just op2) _ _ _)  = fmulp2   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FDIVR    (Just op1) Nothing    _ _ _)  = fdivr1   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FDIVR    (Just op1) (Just op2) _ _ _)  = fdivr2   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FDIVRP   (Just op1) Nothing    _ _ _)  = fdivrp1  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FDIVRP   (Just op1) (Just op2) _ _ _)  = fdivrp2  ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ FISUB    (Just op1) Nothing    _ _ _)  = fisub    ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FISTTP   (Just op1) Nothing    _ _ _)  = fisttp   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ FXCH     (Just op1) _          _ _ _)  = fxch     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ FCHS     Nothing    _          _ _ _)  = fchs     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ EMMS     Nothing    _          _ _ _)  = emms     ctxt finit i_a
 
-tau_i ctxt (Instr i_a (Just pre)  MOVSD   (Just op1) (Just op2) _ _ _) = movsd_string ctxt pre op1 op2
-tau_i ctxt (Instr i_a (Just pre)  MOVSQ   (Just op1) (Just op2) _ _ _) = movsq        ctxt pre op1 op2
 
-tau_i ctxt i =
+tau_i ctxt finit (Instr i_a _ VINSERTF128  (Just op1) (Just op2) (Just op3) _ _)  = vinsertf128  ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VEXTRACTI128 (Just op1) (Just op2) (Just op3) _ _)  = vextractf128 ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VEXTRACTF128 (Just op1) (Just op2) (Just op3) _ _)  = vextracti128 ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPERM2F128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2f128   ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPERM2I128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2i128   ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPALIGNR     (Just op1) (Just op2) (Just op3) _ _)  = vpalignr     ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ PALIGNR      (Just op1) (Just op2) (Just op3) _ _)  = palignr      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VSHUFPD      (Just op1) (Just op2) (Just op3) _ _)  = vshufpd      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VSHUFPS      (Just op1) (Just op2) (Just op3) _ _)  = vshufps      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VADDPD       (Just op1) (Just op2) (Just op3) _ _)  = vaddpd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VADDPS       (Just op1) (Just op2) (Just op3) _ _)  = vaddps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VSUBPD       (Just op1) (Just op2) (Just op3) _ _)  = vsubpd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VSUBPS       (Just op1) (Just op2) (Just op3) _ _)  = vsubps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VMULPD       (Just op1) (Just op2) (Just op3) _ _)  = vmulpd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VMULPS       (Just op1) (Just op2) (Just op3) _ _)  = vmulps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VXORPD       (Just op1) (Just op2) (Just op3) _ _)  = vxorpd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VXORPS       (Just op1) (Just op2) (Just op3) _ _)  = vxorps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VANDPD       (Just op1) (Just op2) (Just op3) _ _)  = vandpd       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VMOVDQA      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqa      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VMOVDQU      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqu      ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VMOVLHPS     (Just op1) (Just op2) (Just op3) _ _)  = vmovlhps     ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPUNPCKHWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpckhwd   ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPUNPCKLWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpcklwd   ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VZEROUPPER   Nothing    _          _ _ _)           = vzeroupper   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ VPCMPEQB     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqb     ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPCMPEQW     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqw     ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ VPSLLW       (Just op1) (Just op2) (Just op3) _ _)  = vpsllw       ctxt finit i_a op1 op2 op3
+tau_i ctxt finit (Instr i_a _ MOVHPS       (Just op1) (Just op2) Nothing _ _)     = movhps       ctxt finit i_a op1 op2 
+tau_i ctxt finit (Instr i_a _ MOVHLPS      (Just op1) (Just op2) Nothing _ _)     = movhlps      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ MOVLHPS      (Just op1) (Just op2) Nothing _ _)     = movlhps      ctxt finit i_a op1 op2 
+tau_i ctxt finit (Instr i_a _ VMOVHPS      (Just op1) (Just op2) Nothing _ _)     = vmovhps      ctxt finit i_a op1 op2 
+
+
+tau_i ctxt finit (Instr i_a _ CPUID    Nothing    _          _ _ _)  = cpuid    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ RDMSR    Nothing    _          _ _ _)  = rdmsr    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ WRMSR    Nothing    _          _ _ _)  = wrmsr    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ RDTSC    Nothing    _          _ _ _)  = rdtsc    ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ IN       (Just op1) _          _ _ _)  = x86_in   ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ OUT      (Just op1) _          _ _ _)  = x86_out  ctxt finit i_a op1
+tau_i ctxt finit (Instr i_a _ CLI      Nothing    _          _ _ _)  = cli      ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ CLTS     Nothing    _          _ _ _)  = clts     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ INVPCID  _          _          _ _ _)  = invpcid  ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ LGDT     _          _          _ _ _)  = lgdt     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ LIDT     _          _          _ _ _)  = lidt     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ LLDT     _          _          _ _ _)  = lldt     ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ LTR      _          _          _ _ _)  = ltr      ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ SWAPGS   _          _          _ _ _)  = swapgs   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ XSETBV   _          _          _ _ _)  = xsetbv   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ XSAVEOPT _          _          _ _ _)  = xsaveopt ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ XRSTOR   _          _          _ _ _)  = xrstor   ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ WRFSBASE _          _          _ _ _)  = wrfsbase ctxt finit i_a
+tau_i ctxt finit (Instr i_a _ WRGSBASE _          _          _ _ _)  = wrgsbase ctxt finit i_a
+
+
+
+tau_i ctxt finit (Instr i_a Nothing     XCHG (Just op1) (Just op2) _ _ _)    = xchg         ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a (Just LOCK) XADD    (Just op1) (Just op2) _ _ _) = xadd         ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a (Just LOCK) CMPXCHG (Just op1) (Just op2) _ _ _) = cmpxchg      ctxt finit i_a op1 op2
+
+tau_i ctxt finit (Instr i_a (Just pre)  MOVSD   (Just op1) (Just op2) _ _ _) = movsd_string ctxt pre op1 op2
+tau_i ctxt finit (Instr i_a (Just pre)  MOVSQ   (Just op1) (Just op2) _ _ _) = movsq        ctxt pre op1 op2
+
+tau_i ctxt finit i =
   if is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
     return ()
   else if continue_on_unknown_instruction then
@@ -1567,12 +1550,12 @@ tau_i ctxt i =
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.
-tau_b :: Context -> [Instr] -> State (Pred,VCS) ()
-tau_b ctxt []  = return ()
-tau_b ctxt (i:is) = do
+tau_b :: Context -> FInit -> [Instr] -> State (Pred,VCS) ()
+tau_b ctxt finit []  = return ()
+tau_b ctxt finit (i:is) = do
   write_reg ctxt RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
-  tau_i ctxt i
-  tau_b ctxt is
+  tau_i ctxt finit i
+  tau_b ctxt finit is
 
 
 
@@ -1590,17 +1573,18 @@ add_jump_to_pred i0 i1 flg = flg
 -- Parameter insts' is needed to set the flags properly. If @Nothing@ is supplied, the flags are overapproximatively set to @`None`@.
 tau_block ::
   Context           -- ^ The context
+  -> FInit          -- ^ The function intialisation
   -> [Instr]        -- ^ The instructions of the basic block
   -> Maybe [Instr]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
   -> Pred           -- ^ The predicate to be transformed
   -> (Pred, VCS)
-tau_block ctxt insts insts' p@(Predicate eqs flg muddle_status) = 
+tau_block ctxt finit insts insts' p@(Predicate eqs flg muddle_status) = 
   if insts == [] then
     (p, S.empty)
   else let
       addr                        = i_addr $ head insts
       eqs'                        = write_rip addr eqs
-      (p'',vcs'')                 = execState (tau_b ctxt insts) $ (Predicate eqs' flg muddle_status, S.empty)
+      (p'',vcs'')                 = execState (tau_b ctxt finit insts) $ (Predicate eqs' flg muddle_status, S.empty)
       Predicate eqs'' flgs'' im'' = p'' in
     case insts' of
       Nothing -> (p'', vcs'')
@@ -1636,7 +1620,7 @@ join_muddle_status _ _            = Clean
 temp_trace v v' sp = id -- if S.size (srcs_of_expr v'') == 0 && S.size (srcs_of_expr v) > 0 && S.size (srcs_of_expr v') > 0 then traceShow ("temp_trace",sp,v,v',v'') v'' else v''
 
 
-join_preds ctxt p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 muddle_status1) =
+join_preds ctxt finit p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 muddle_status1) =
   let m    = M.mapWithKey mk_entry eqs0
       flg' = if flg0 == flg1 then flg0 else None
       ms'  = join_muddle_status muddle_status0 muddle_status1
@@ -1649,7 +1633,7 @@ join_preds ctxt p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 m
         if is_initial sp v then
           v
         else 
-          let v' = evalState (read_sp ctxt sp) (p',S.empty) in
+          let v' = evalState (read_sp ctxt finit sp) (p',S.empty) in
             temp_trace v v' sp $ join_expr' ctxt p p' v v'
       Just (sp',v') -> 
         if necessarily_equal v v' || v == v' then
@@ -1661,10 +1645,10 @@ join_preds ctxt p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 m
     case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
       Nothing -> 
         if is_initial sp' v' then
-          fst $ execState (write_sp ctxt mk_mid (sp', v')) (q,S.empty)
+          fst $ execState (write_sp ctxt finit mk_mid (sp', v')) (q,S.empty)
         else
-          let v = evalState (read_sp ctxt sp') (p,S.empty) in
-            fst $ execState (write_sp ctxt mk_mid (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) (q,S.empty)
+          let v = evalState (read_sp ctxt finit sp') (p,S.empty) in
+            fst $ execState (write_sp ctxt finit mk_mid (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) (q,S.empty)
       Just _  -> q
 
   mk_mid = MemWriteFunction "joining" 0 -- never used
@@ -1693,9 +1677,9 @@ init_pred ::
   -> FInit                 -- ^ The function initialisation
   -> Pred
 init_pred curr_invs curr_posts finit = 
-  let sps = S.delete (SP_Reg RIP) $ S.insert (SP_Mem (SE_Var (SP_Reg RSP)) 8) $ gather_stateparts curr_invs curr_posts
+  let sps = S.delete (SP_Reg RIP) $ S.insert (SP_Mem (SE_Var (SP_Reg RSP)) 8) $ gather_stateparts finit curr_invs curr_posts
       eqs = M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
-    Predicate (M.union finit eqs) None Clean
+    Predicate eqs None Clean
 
 
 
@@ -1707,10 +1691,11 @@ get_stateparts_of_pred (Predicate eqs _ _) = S.filter (not . contains_bot_sp) $ 
 
 -- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
 gather_stateparts ::
-  Invariants               -- ^ The currently available invariants
+  FInit                    -- ^ The function initialisation
+  -> Invariants            -- ^ The currently available invariants
   -> S.Set (NodeInfo,Pred) -- ^ The currently known postconditions
   -> S.Set StatePart
-gather_stateparts invs posts = S.union (IM.foldrWithKey accumulate_stateparts S.empty invs) (get_stateparts_of_preds (S.map snd posts))
+gather_stateparts finit invs posts = S.unions [S.fromList $ M.keys finit, IM.foldrWithKey accumulate_stateparts S.empty invs, get_stateparts_of_preds (S.map snd posts)]
  where
   accumulate_stateparts a p sps = S.union sps (get_stateparts_of_pred p)
 
@@ -1724,13 +1709,14 @@ gather_stateparts invs posts = S.union (IM.foldrWithKey accumulate_stateparts S.
 -- | Get the invariant for a given instruction address for a given function entry
 get_invariant :: Context -> Int -> Int -> Maybe Pred
 get_invariant ctxt entry a = do
-  g         <- IM.lookup entry $ ctxt_cfgs ctxt
-  invs      <- IM.lookup entry $ ctxt_invs ctxt
+  g         <- IM.lookup entry $ ctxt_cfgs   ctxt
+  invs      <- IM.lookup entry $ ctxt_invs   ctxt
+  finit     <- IM.lookup entry $ ctxt_finits ctxt
   blockId   <- IM.lookup a $ cfg_addr_to_blockID g
   p         <- IM.lookup blockId invs
   instrs    <- IM.lookup blockId $ cfg_instrs g
 
-  return $ fst $ tau_block ctxt (takeWhile (\i -> i_addr i /= a) instrs) Nothing p
+  return $ fst $ tau_block ctxt finit (takeWhile (\i -> i_addr i /= a) instrs) Nothing p
 
 
 

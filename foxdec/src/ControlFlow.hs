@@ -49,7 +49,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 
 
--- | The set of next blocks from the given block
+-- | The set of next blocks from the given block in a CFG
 post g blockId =
   case IM.lookup blockId (cfg_edges g) of
     Nothing -> IS.empty
@@ -80,9 +80,6 @@ address_has_instruction ctxt a =
   case find_section_for_address ctxt $ fromIntegral a of
     Nothing                    -> False
     Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions
-  --case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- TODO. However, should be safe as result is immutable.
-  --  Nothing -> False
-  --  Just i  -> True
 
 -- | Returns true iff a symbol is associated with the address.
 address_has_symbol ctxt a =
