@@ -56,6 +56,12 @@ orElse (Just a) _ = a
 findString :: (Eq a) => [a] -> [a] -> Maybe Int
 findString search str = findIndex (isPrefixOf search) (tails str)
 
+-- | Take until the occurence of the string
+takeUntilString :: String -> String -> String
+takeUntilString search []   = []
+takeUntilString search str = if isPrefixOf search str then [] else head str : takeUntilString search (tail str)
+
+
 -- | Strip outer parentheses from a string, if it has them.
 strip_parentheses s = if length s > 0 && head s == '(' && last s == ')' then init $ tail s else s
 
