@@ -53,6 +53,7 @@ main = do
       putStrLn $ literal_string_data_section ctxt
       putStrLn $ bss_data_section ctxt
       putStrLn $ data_section ctxt
+      putStrLn $ ro_data_section ctxt
     else
       putStrLn $ "File: " ++ show (head args) ++ " does not exist."
  where
@@ -93,7 +94,7 @@ is_literal_string_section ("__TEXT","__cstring",_,_) = True
 is_literal_string_section _ = False
 
 externals ctxt =
-  intercalate "\n" $ map ((++) "extern ") $ nub $ IM.elems $ ctxt_syms ctxt
+  intercalate "\n" $ map ((++) "extern ") $ filter ((/=) "") $ nub $ IM.elems $ ctxt_syms ctxt
 
 symbolize_entry ctxt entry =
   header_comment ++ symbolized_cfg
@@ -111,6 +112,7 @@ bss_data_section ctxt =
   
 is_bss_data_section ("__DATA","__bss",_,_) = True
 is_bss_data_section ("__DATA","__common",_,_) = True
+is_bss_data_section ("",".bss",_,_) = True
 is_bss_data_section _ = False
 
 
@@ -118,10 +120,20 @@ is_bss_data_section _ = False
 data_section ctxt =
   mk_data_section $ ctxt_data ctxt
  where
-  mk_data_section dat = intercalate "\n" $ (section_data : data_section_label : (map mk_data_entry $ IM.assocs dat)) ++ [""] -- check whether contiguous 
+  mk_data_section dat = intercalate "\n" $ (section_data : (data_section_label ++ ":") : (map mk_data_entry $ IM.assocs dat)) ++ [""] -- check whether contiguous 
   mk_data_entry (a,v) = "db 0" ++ showHex v ++ "h" 
 
-  data_section_label = section_label "__DATA" "__data" ++ ":"
+ro_data_section ctxt = 
+  concatMap mk_ro_data_section $ filter is_ro_data_section $ ctxt_sections ctxt
+ where
+  mk_ro_data_section (segment,section,a0,sz) = intercalate "\n" $ (section_data : (section_label segment section ++ ":") : (map (mk_data_entry $ fromIntegral a0) [0..sz-1])) ++ [""] 
+  mk_data_entry a0 i = 
+    case read_from_datasection ctxt (a0 + fromIntegral i) 1 of
+      Just v -> "db 0" ++ showHex v ++ "h" 
+  
+is_ro_data_section ("",".rodata",_,_) = True
+is_ro_data_section _ = False
+
 
 
 comment_block strs =
@@ -145,8 +157,10 @@ symbolize_block ctxt entry cfg (blockID, instrs) =
   symbolyzed_block = [block_label'] ++ block_body ++ [block_end]
 
   block_label' = block_label entry blockID ++ ":"
-  block_body   = map (indent . symbolize_instr ctxt entry cfg) instrs
+  block_body   = map (indent . symbolize_instr ctxt entry cfg) $ filter_unnecessary_jumps instrs
   block_end    = if instrs == [] || is_proper_block_end_instruction (i_opcode $ last instrs) then "" else mk_extra_jmp
+
+  filter_unnecessary_jumps instrs = (filter (not . is_jump . i_opcode) $ init instrs) ++ [last instrs]
 
   indent str = "    " ++ str
 
@@ -220,23 +234,30 @@ finally (Just a) _ = a
  
 -- | Showing unresolved address (inner part within a ptr[...])
 --
--- Always of form [ reg + reg*scale + number ]
-show_nasm_address'' (AddrReg r) = show r
-show_nasm_address'' (AddrImm i) = show i
-show_nasm_address'' (AddrPlus (AddrReg r) (AddrImm i))  = show r ++ " + " ++ show i
-show_nasm_address'' (AddrMinus (AddrReg r) (AddrImm i)) = show r ++ " + " ++ show (0 -i)
-show_nasm_address'' (AddrPlus (AddrReg r) (AddrReg r1)) = show r ++ " + " ++ show r1
+-- Always of form [ seg: reg + reg*scale + number ]
+show_nasm_address''' (AddrReg r) = show r
+show_nasm_address''' (AddrImm i) = show i
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrImm i))  = show r ++ " + " ++ show i
+show_nasm_address''' (AddrMinus (AddrReg r) (AddrImm i)) = show r ++ " + " ++ show (0 -i)
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrReg r1)) = show r ++ " + " ++ show r1
+show_nasm_address''' (AddrPlus (AddrPlus (AddrReg r) (AddrReg r1)) (AddrImm i)) = show r ++ " + " ++ show r1 ++ " + " ++ show i
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrPlus (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ " + " ++ show i
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrMinus (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ show (0-1)
+show_nasm_address''' (AddrPlus (AddrTimes (AddrReg r) (AddrImm i)) (AddrImm i1)) = show r ++ " * " ++ show i ++ " * " ++ show i1
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrTimes (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ " * " ++ show i
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrPlus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show i1
+show_nasm_address''' (AddrPlus (AddrReg r) (AddrMinus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show (0-i1)
+show_nasm_address''' (AddrTimes (AddrReg r) (AddrImm i))  = show r ++ " * " ++ show i
+show_nasm_address''' a           = error $ "TODO: " ++ show a
 
 
-show_nasm_address'' (AddrPlus (AddrTimes (AddrReg r) (AddrImm i)) (AddrImm i1)) = show r ++ " * " ++ show i ++ " * " ++ show i1
-show_nasm_address'' (AddrPlus (AddrReg r) (AddrTimes (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ " * " ++ show i
-show_nasm_address'' (AddrPlus (AddrReg r) (AddrPlus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show i1
-show_nasm_address'' (AddrPlus (AddrReg r) (AddrMinus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show (0-i1)
 
-show_nasm_address'' a           = error $ "TODO: " ++ show a
+show_nasm_address'' a@(AddrPlus (AddrReg r) a') = if is_segment_register r then show r ++ ":" ++ show_nasm_address''' a' else show_nasm_address''' a 
+show_nasm_address'' a                           = show_nasm_address''' a
 
+is_segment_register r = r `elem` [CS,DS,ES,FS,GS,SS]
 
-show_nasm_address' ctxt entry cfg  i address =
+show_nasm_address' ctxt entry cfg i address =
   case rip_relative_to_immediate address of
     Just imm -> "rel " ++ (symbolize_immediate $ fromIntegral imm)
     Nothing  -> show_nasm_address'' address
@@ -258,7 +279,7 @@ show_nasm_address' ctxt entry cfg  i address =
     
   pointer_to_instruction a = 
     if address_has_instruction ctxt a then
-      uncurry block_label <$> find_block_for_instruction ctxt cfg a 
+      uncurry block_label <$> find_block_for_instruction ctxt entry cfg i a 
     else
       Nothing
 
@@ -274,17 +295,16 @@ show_nasm_address' ctxt entry cfg  i address =
       section_label segment section ++ " + " ++ show (a - a0)
 
 
-find_block_for_instruction ctxt cfg a =
+find_block_for_instruction ctxt entry cfg i a =
   case catMaybes $ map (find_block_for_instruction_address_in_cfg a) $ IM.assocs $ ctxt_cfgs ctxt of
     [b] -> Just b
-    _   -> Nothing
+    _   -> trace ("Address " ++ showHex a ++ " has instruction but no block (entry " ++ showHex entry ++ ", instruction " ++ show i ++ ")") $ Nothing
   
 find_block_for_instruction_address_in_cfg a (entry,cfg) = 
-  pair entry <$> (find (\instrs -> i_addr (head instrs) == a) $ cfg_instrs cfg)
+  return_entry_and_blockID <$> (find (\(blockID,instrs) -> i_addr (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
+ where
+  return_entry_and_blockID (blockID,instrs) = (entry,blockID)
 
-
---TODO move
-pair a b = (a,b)
 
 
 
@@ -296,8 +316,8 @@ show_nasm_size_directive 8  = "qword"
 show_nasm_size_directive 16 = "oword"
 
 -- | Showing unresolved address
-show_nasm_address ctxt entry cfg i (SizeDir si a) = show_nasm_size_directive si ++ " [" ++ show_nasm_address' ctxt entry cfg  i a ++ "]"
-show_nasm_address ctxt entry cfg i a = "[" ++ show_nasm_address' ctxt entry cfg  i a ++ "]"
+show_nasm_address ctxt entry cfg i (SizeDir si a)  = show_nasm_size_directive si ++ " [" ++ show_nasm_address' ctxt entry cfg i a ++ "]"
+show_nasm_address ctxt entry cfg i a                = "[" ++ show_nasm_address' ctxt entry cfg i a ++ "]"
 
 
 -- | Showing an operand
@@ -310,11 +330,18 @@ show_nasm_operand ctxt entry cfg  i Nothing   = ""
 show_nasm_operand ctxt entry cfg  i (Just op) = show_nasm_operand' ctxt entry cfg  i op
 
 
+section_label "" ".data"      = data_section_label
 section_label segment section = "L" ++ segment ++ "_" ++ section
+
+data_section_label = "L_DATASECTION"
+
+
+show_nasm_opcode MOVABS = "MOV"
+show_nasm_opcode opcode = show opcode
 
 show_nasm_instruction ctxt entry cfg  i@(Instr addr pre opcode op1 op2 op3 annot size) =
      show_prefix pre
-  ++ show opcode
+  ++ show_nasm_opcode opcode
   ++ " "
   ++ show_nasm_operand ctxt entry cfg  i op1
   ++ show_nasm_operand2 op2

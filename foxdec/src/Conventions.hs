@@ -45,7 +45,7 @@ sections_with_instructions = [
    ("",".text"),
    ("",".init"),
    ("",".plt"),
-   ("",".got.plt"),
+   ("",".plt.got"),
    ("",".fini")
  ]
 
