@@ -104,6 +104,7 @@ do
    if [[ $line == *".got.plt "* ]]; then
       current_sect_name=".got.plt"
       found_section=true;
+      found_relevant_section=true;
    fi
 
 
