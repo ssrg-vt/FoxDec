@@ -99,6 +99,9 @@ transpose_fw_base ctxt p bs           = return bs
 
 
 -- | Convert the current invariant into a function initialisation
+--
+ -- TODO think about StackPointer
+ -- TODO transpose_bw: use finit?
 invariant_to_finit :: Context -> FInit -> Pred -> FInit
 invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
  where
@@ -107,7 +110,7 @@ invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_fin
 
   mk_finit_entry (sp,v) = 
     let bases = get_known_pointer_bases ctxt v in
-      if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then -- TODO think about StackPointer
+      if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then
         Just (sp,Bottom $ FromPointerBases bases)
       else
         Nothing

@@ -13,7 +13,7 @@ if [[ $# -ne 2 ]] && [[ $# -ne 3 ]] ; then
   echo ""
   echo "  BINARY  == binary under investigation"
   echo "  NAME    == name of file to be generated"
-  echo "  DO_DATA == (optional) if set to 1, also dump the data section. Generally one should not do this." 
+  echo "  DO_DATA == (optional) if set to 1, also dump the data section into the main file. Generally one should not do this." 
   echo ""
   echo "Example usage:"
   echo "./dump_macho.sh /usr/bin/du du"
@@ -24,10 +24,7 @@ DODATA=${3:0}
 
 
 
-# OBJDUMP
-# First, just run objdump for debugging purposes
-objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $1 > $2.objdump
-echo "Created $2.objdump"
+
 
 
 # See if it is auniversal binary
@@ -47,6 +44,10 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   fi
 fi
 
+# OBJDUMP
+# First, just run objdump for debugging purposes
+objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $BINARY > $2.objdump
+echo "Created $2.objdump"
 
 # SYMBOLS
 # Second, create a list of all external symbols
@@ -68,6 +69,7 @@ echo "Created $2.symbols"
 # In the .sections file, the sections that may be modified by **external** functions are annotated with preceding |
 # For MachO that is (__DATA,__common), for ELF it is is the SHN_COMMON sections.
 rm -f $2.dump;
+rm -f $2.data;
 rm -f $2.entry;
 rm -f $2.sections;
 
@@ -125,10 +127,12 @@ do
         # -n +2 : start at line 2 of the file, skipping the first line.
         otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
-      if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__data" ]] && [[ $DODATA == 1 ]] ; then
-        # -n +2 : start at line 2 of the file, skipping the first line.
-        echo "Exporting (__DATA,__data)"
-        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
+      if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__data" ]] ; then
+        if [[ $DODATA == 1 ]] ; then
+          echo "Exporting (__DATA,__data)"
+          otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
+        fi
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.data
       fi
       expecting=0;
    fi
@@ -143,6 +147,9 @@ done < <(otool -l ${BINARY})
 
 if [[ -f "$2.dump" ]]; then
    echo "Created $2.dump"
+fi
+if [[ -f "$2.data" ]]; then
+   echo "Created $2.data"
 fi
 if [[ -f "$2.sections" ]]; then
    echo "Created $2.sections"

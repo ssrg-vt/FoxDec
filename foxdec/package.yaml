@@ -67,6 +67,16 @@ executables:
     - -main-is Disassembler
     dependencies:
     - foxdec
+  foxdec-symbolizer-exe:
+    main:                Symbolizer.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -main-is Symbolizer
+    dependencies:
+    - foxdec
   foxdec-pkcs11-exe:
     main:                Pkcs11.hs
     source-dirs:         app

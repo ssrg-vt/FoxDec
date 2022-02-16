@@ -23,7 +23,7 @@ import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.Exit (die)
 
-usage_msg = "Usage:\n\n  foxdec-controlflow-exe NAME.report ADDRESS\n\nHere NAME refers to the NAME used when running foxdec-exe and ADDRESS is a hexadecimal address prefixed with 0x.\nRun this program from the same directory foxdec-exe was run."
+usage_msg = "Usage:\n\n  foxdec-disassembler-exe NAME.report ADDRESS\n\nHere NAME refers to the NAME used when running foxdec-exe and ADDRESS is a hexadecimal address prefixed with 0x.\nRun this program from the same directory foxdec-exe was run."
 
 -- | Read in first command-line argument, check whether it is a .report file.
 -- Read the file, and use the "VerificationReportInterface" to get an overview of the instructions.
@@ -36,9 +36,8 @@ main = do
     if exists then do
       a     <- read_address $ args !! 1
       ctxt  <- ctxt_read_report $ head args
-
-      entries <- retrieve_io $ ctxt_get_function_entries ctxt
-      mapM_ (report_per_entry ctxt a) entries
+      posts <- ctxt_get_posts ctxt a
+      putStrLn $ showHex a ++ " --> " ++ showHex_set posts
     else
       putStrLn $ "File: " ++ show (head args) ++ " does not exist."
  where
@@ -49,23 +48,17 @@ main = do
       putStrLn usage_msg
       error $ "Invalid second argument."
 
-
-  -- Per function entry, check if @a@ is an instruction address occuring in that function.
-  report_per_entry ctxt a entry = do
-    case IM.lookup entry (ctxt_cfgs ctxt) of
-      Nothing  -> return ()
-      Just cfg -> do
-        when (a `elem` concat (IM.elems $ cfg_blocks cfg)) $ do
-           -- If yes, retrieve the post-set and the invariant
-          putStrLn $ "FUNCTION ENTRY: " ++ showHex entry ++ "\n"
-          post <- stepA ctxt entry a
-          case post of
-            Left _     -> putStrLn $ "Cannot retrieve post-set for address " ++ showHex a ++ "\n"
-            Right nxts -> putStrLn $ "CONTROL FLOW:\n" ++ showHex a ++ " --> " ++ showHex_list (map fst nxts) ++"\n"
-          case ctxt_get_invariant entry a ctxt of
-            Left _    -> return ()
-            Right inv -> putStrLn $ "INVARIANT:\n" ++ show inv
-          putStrLn "\n"
-
+-- | Given an address @a@, retrieve the set of next addresses.
+ctxt_get_posts :: Context -> Int -> IO IS.IntSet
+ctxt_get_posts ctxt a = do
+  entries <- retrieve_io $ ctxt_get_function_entries ctxt
+  posts   <- mapM get_post_per_entry $ S.toList entries
+  return $ IS.unions posts
+ where
+  get_post_per_entry entry = do
+    post <- stepA ctxt entry a
+    case post of
+      Left _     -> return $ IS.empty
+      Right nxts -> return $ IS.fromList $ map fst nxts
 
 

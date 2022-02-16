@@ -122,7 +122,8 @@ data FReturnBehavior =
 -- __D__: Information __D__ynamically updated during verification
 -------------------------------------------------------------------------------
 data Context = Context {
-   ctxt_dump          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (data and instructions from the binary/executable)
+   ctxt_dump          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (constant data and instructions from the binary/executable)
+   ctxt_data          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (writable data section)
    ctxt_syms          :: IM.IntMap String,               -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
    ctxt_sections      :: SectionsInfo,                   -- ^ __S__: information on segments/section
    ctxt_dirname       :: String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
@@ -143,6 +144,7 @@ data Context = Context {
  deriving Generic
 
 
+
 instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize CFG
@@ -150,6 +152,13 @@ instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize MemWriteIdentifier
 instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize Context
+
+
+
+-- " intialize an empty context based on the command-line parameters
+init_context dirname name generate_pdfs = 
+  let dirname' = if last dirname  == '/' then dirname else dirname ++ "/" in
+    Context IM.empty IM.empty  IM.empty [] dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 

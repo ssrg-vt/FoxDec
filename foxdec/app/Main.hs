@@ -486,12 +486,6 @@ num_of_edges                  g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
 
--- intialize an empty context based on the command-line parameters
-init_context dirname name generate_pdfs = 
-  let dirname' = if last dirname  == '/' then dirname else dirname ++ "/" in
-    Context IM.empty IM.empty [] dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
-
-
 
 
 
@@ -544,9 +538,12 @@ ctxt_read_dump = do
   let dirname     = ctxt_dirname ctxt
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".dump"
+  let dname       = dirname ++ name ++ ".data"
 
-  ds <- liftIO $ parse fname
-  put $ ctxt { ctxt_dump = ds }
+  dump <- liftIO $ parse fname
+  dat  <- liftIO $ parse dname
+
+  put $ ctxt { ctxt_dump = dump, ctxt_data = dat }
  where
   parse fname = do
     ret0 <- parse_dump fname
