@@ -215,7 +215,6 @@ functions_returning_bottom = [
      "___stack_chk_fail", "_getopt", "_free",
      "_warn", "_warnx"
    ]
- ++ exiting_function_calls
 
 
 
@@ -230,7 +229,7 @@ function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_r
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
 function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      = 
-  if f `elem` functions_returning_bottom then do
+  if f `elem` functions_returning_bottom || is_exiting_function_call f then do
     write_reg ctxt RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
@@ -256,7 +255,7 @@ call :: Context -> FInit -> Instr -> State (Pred,VCS) ()
 call ctxt finit i = do
   let f   = function_name_of_instruction ctxt i
   let i_a = i_addr i
-  known <- function_semantics ctxt i f
+  known <- function_semantics ctxt i $ takeUntilString "@GLIBC" f
 
   when (not known) $ do
     (p@(Predicate p_eqs _ _),_) <- get

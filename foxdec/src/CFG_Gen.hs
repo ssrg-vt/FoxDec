@@ -174,7 +174,7 @@ resolve_call ctxt entry i =
  where
   next (External sym) =
     -- external function call 
-    if sym `elem` exiting_function_calls then 
+    if is_exiting_function_call sym then
       Right []
     else
       Right [(i_addr i + i_size i,True)]
