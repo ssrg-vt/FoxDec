@@ -103,3 +103,4 @@
 0x000000000020a208 iswprint@GLIBC_2.2.5
 0x000000000020a210 getdelim@GLIBC_2.2.5
 0x000000000020a218 __ctype_b_loc@GLIBC_2.3
+0x000000000020a2a0 obstack_alloc_failed_handler

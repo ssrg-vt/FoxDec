@@ -27,6 +27,7 @@ echo "Created $2.objdump"
 # Second, create a list of all external symbols
 # Obtain symbol list, grep all lines that start with 0, remove double spaces, take columns 1 and 5, and prepend "0x"
 readelf --wide --relocs $1 | grep '^[0]' | tr -s ' ' | cut -d ' ' -f1,5 | awk '{print "0x" $0}' > $2.symbols
+nm -D $1 | grep ^[0] | grep " D " | cut -d ' ' -f1,3 | awk '{print "0x" $0}' >> $2.symbols
 echo "Created $2.symbols"
 
 #ENTRY
