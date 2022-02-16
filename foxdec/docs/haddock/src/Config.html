@@ -1,28 +1,49 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
-</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
-</span><span id="line-3"></span><span class="hs-comment">-- Some customizable constants</span><span>
-</span><span id="line-4"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-|
+Module      : Config
+Description : Some customizable constants.
+-}</span><span>
 </span><span id="line-5"></span><span>
 </span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Config</span><span>
 </span><span id="line-7"></span><span> </span><span class="hs-keyword">where</span><span>
 </span><span id="line-8"></span><span>
-</span><span id="line-9"></span><span class="hs-comment">-- | The maximum number of separate concrete cases considered non-deterministically</span><span>
-</span><span id="line-10"></span><span class="annot"><a href="Config.html#max_num_of_cases"><span class="hs-identifier hs-type">max_num_of_cases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
-</span><span id="line-11"></span><span id="max_num_of_cases"><span class="annot"><span class="annottext">max_num_of_cases :: Int
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- | When encountering an unknown instruction do we either</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--   * report it to stderr but continue (True), or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--   * exit with an error message (False)?</span><span>
+</span><span id="line-13"></span><span id="continue_on_unknown_instruction"><span class="annot"><span class="annottext">continue_on_unknown_instruction :: Bool
+</span><a href="Config.html#continue_on_unknown_instruction"><span class="hs-identifier hs-var hs-var">continue_on_unknown_instruction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- | The maximum number of separate concrete cases considered non-deterministically, before abstraction is applied.</span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Config.html#max_num_of_cases"><span class="hs-identifier hs-type">max_num_of_cases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-17"></span><span id="max_num_of_cases"><span class="annot"><span class="annottext">max_num_of_cases :: Int
 </span><a href="Config.html#max_num_of_cases"><span class="hs-identifier hs-var hs-var">max_num_of_cases</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">5</span></span><span>
-</span><span id="line-12"></span><span>
-</span><span id="line-13"></span><span class="hs-comment">-- | The maximum number of pointer bases a bottom-expression may have</span><span>
-</span><span id="line-14"></span><span class="annot"><a href="Config.html#max_num_of_bases"><span class="hs-identifier hs-type">max_num_of_bases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
-</span><span id="line-15"></span><span id="max_num_of_bases"><span class="annot"><span class="annottext">max_num_of_bases :: Int
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | The maximum number of pointer bases a bottom-expression may have, before more asbtraction is applied.</span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Config.html#max_num_of_bases"><span class="hs-identifier hs-type">max_num_of_bases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-21"></span><span id="max_num_of_bases"><span class="annot"><span class="annottext">max_num_of_bases :: Int
 </span><a href="Config.html#max_num_of_bases"><span class="hs-identifier hs-var hs-var">max_num_of_bases</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">25</span></span><span>
-</span><span id="line-16"></span><span>
-</span><span id="line-17"></span><span class="hs-comment">-- | The maximum number of sources a bottom-expression may have</span><span>
-</span><span id="line-18"></span><span class="annot"><a href="Config.html#max_num_of_sources"><span class="hs-identifier hs-type">max_num_of_sources</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
-</span><span id="line-19"></span><span id="max_num_of_sources"><span class="annot"><span class="annottext">max_num_of_sources :: Int
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | The maximum number of sources a bottom-expression may have, before resoring to rock-bottom.</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Config.html#max_num_of_sources"><span class="hs-identifier hs-type">max_num_of_sources</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-25"></span><span id="max_num_of_sources"><span class="annot"><span class="annottext">max_num_of_sources :: Int
 </span><a href="Config.html#max_num_of_sources"><span class="hs-identifier hs-var hs-var">max_num_of_sources</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">150</span></span><span>
-</span><span id="line-20"></span><span>
-</span><span id="line-21"></span><span>
-</span><span id="line-22"></span></pre></body></html>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | A coarse overapproximation of the maximum number of entries in a jump table.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Does not affect soundness, but if the value is set too low, then more indirections may be left unresolved.</span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Config.html#max_jump_table_size"><span class="hs-identifier hs-type">max_jump_table_size</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-30"></span><span id="max_jump_table_size"><span class="annot"><span class="annottext">max_jump_table_size :: Int
+</span><a href="Config.html#max_jump_table_size"><span class="hs-identifier hs-var hs-var">max_jump_table_size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">20000</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.</span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Config.html#max_expr_size"><span class="hs-identifier hs-type">max_expr_size</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-35"></span><span id="max_expr_size"><span class="annot"><span class="annottext">max_expr_size :: Int
+</span><a href="Config.html#max_expr_size"><span class="hs-identifier hs-var hs-var">max_expr_size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3000</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span></pre></body></html>

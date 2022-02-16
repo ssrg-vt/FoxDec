@@ -65,12 +65,13 @@ ctxt_create_hoare_triples ctxt = do
     base        <- ctxt_base_name ctxt entry
     let fname    = base ++ "_" ++ showHex entry ++ ".thy"
 
-    let g        = ctxt_cfgs  ctxt IM.! entry
-    let invs     = ctxt_invs  ctxt IM.! entry
-    let posts    = ctxt_posts ctxt IM.! entry
-    let vcs      = ctxt_vcs   ctxt IM.! entry
+    let g        = ctxt_cfgs   ctxt IM.! entry
+    let invs     = ctxt_invs   ctxt IM.! entry
+    let posts    = ctxt_posts  ctxt IM.! entry
+    let vcs      = ctxt_vcs    ctxt IM.! entry
+    let finit    = ctxt_finits ctxt IM.! entry
 
-    generate_isa_thy ctxt name entry fname g invs posts vcs
+    generate_isa_thy ctxt finit name entry fname g invs posts vcs
 
 
 
@@ -79,15 +80,15 @@ generate_isa_main_thy name fname imports = do
   let thy_contents = concat $ ["theory ", name, "\n  imports\n"] ++ map (\s -> "  \"" ++ s ++ "\"\n") imports ++ ["\n\nbegin\n\nend\n"]
   writeFile fname thy_contents
 
-generate_isa_thy ctxt name entry fname g invs posts vcs = do
+generate_isa_thy ctxt finit name entry fname g invs posts vcs = do
   let thy_name = name ++ "_" ++ showHex entry
   -- generate header
   let header   = isa_file_header thy_name
   writeFile fname header
   -- per block, generate sets of Hoare triples
-  let all_precs   = all_preconditions ctxt invs posts vcs
+  let all_precs   = all_preconditions ctxt finit invs posts vcs
   let all_asserts = S.filter is_assertion vcs 
-  mapM_ (block_to_hoare_triples ctxt fname entry all_precs all_asserts invs) (IM.toList $ cfg_instrs g)
+  mapM_ (block_to_hoare_triples ctxt finit fname entry all_precs all_asserts invs) (IM.toList $ cfg_instrs g)
   -- generate end of file
   appendFile fname $ isa_file_end
   return $ showHex entry ++ "/" ++ thy_name
@@ -100,18 +101,18 @@ isa_file_end = "end\nend\n"
 
 
 -- Generate Hoare triples for a block of instructions
-block_to_hoare_triples ctxt fname entry all_precs all_asserts invs (blockId,instrs) = do
+block_to_hoare_triples ctxt finit fname entry all_precs all_asserts invs (blockId,instrs) = do
   let p = im_lookup ("Block " ++ show blockId ++ " in invs") invs blockId
   appendFile fname $ mk_isa_comment $ mk_block $ "Entry = " ++ showHex entry ++ ", blockId == " ++ show blockId
   appendFile fname $ "\n"
-  foldlM (instr_to_hoare_triple ctxt fname all_precs all_asserts) p instrs
+  foldlM (instr_to_hoare_triple ctxt finit fname all_precs all_asserts) p instrs
   appendFile fname $ "\n\n"
   return ()
 
 -- Generate a single Hoare triple for an instruction with precondition p
-instr_to_hoare_triple ctxt fname all_precs all_asserts p i = do
+instr_to_hoare_triple ctxt finit fname all_precs all_asserts p i = do
   -- obtain postcondition q
-  let (q,_) = tau_block ctxt [i] Nothing p
+  let (q,_) = tau_block ctxt finit [i] Nothing p
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for ctxt p i) $ S.toList all_precs
 
@@ -178,15 +179,15 @@ mk_fcs ctxt i p =
 --   any precondition occuring in the verification conditions without bot or a return-value of a call
 -- and
 --   any relation between any stateparts sp0 and sp1 that are assumed to be separate (see function pointers_have_separate_bases)
-all_preconditions ctxt invs posts vcs =
+all_preconditions ctxt finit invs posts vcs =
   let precs0 = S.filter is_precondition_without_bot $ S.filter is_precondition vcs
-      precs1 = gather_precs_from_stateparts ctxt $ S.toList $ gather_stateparts invs posts in
+      precs1 = gather_precs_from_stateparts ctxt $ S.toList $ gather_stateparts finit invs posts in
     S.union precs0 precs1
  where
   gather_precs_from_stateparts ctxt [] = S.empty
   gather_precs_from_stateparts ctxt (sp0:sps) = S.union (S.fromList $ mapMaybe (mk_prec_from_stateparts ctxt sp0) sps) (gather_precs_from_stateparts ctxt sps)
   
-  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if separate_pointer_domains ctxt a0 a1 && not (contains_bot a0) && not (contains_bot a1) then Just (Precondition a0 si0 a1 si1) else Nothing
+  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if necessarily_separate ctxt finit a0 si0 a1 si1 then Just (Precondition a0 si0 a1 si1) else Nothing
   mk_prec_from_stateparts ctxt _ _ = Nothing
 
   is_precondition_without_bot (Precondition a0 _ a1 _) = (not (contains_bot a0) && not (contains_bot a1)) -- is_return_value_of_call a0 || is_return_value_of_call a1 || 
@@ -217,8 +218,8 @@ get_relevant_precs_for ctxt p i prec =
 
   extra_operands i =
     case i_opcode i of 
-      PUSH -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrMinus (FromReg RSP) (AddrImm $ fromIntegral $ operand_size (fromJust $ i_op1 i))) ]
-      POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (FromReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
+      PUSH -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral $ operand_size (fromJust $ i_op1 i))) ]
+      POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (AddrReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
       _    -> []
 
   operand_to_statepart p i (Just (Address (SizeDir si a))) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]

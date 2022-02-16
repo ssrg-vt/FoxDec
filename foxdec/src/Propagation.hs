@@ -1,9 +1,15 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, DeriveGeneric, DefaultSignatures, FlexibleContexts, Strict #-}
------------------------------------------------------------------------------------------
--- | We assume a class where we can do predicate transformation through function @tau@,
--- and we can merge two predicates through function @join@.
--- Moreover, we assume an implementation of a function @implies@ that implements symbolic implication.
------------------------------------------------------------------------------------------
+
+{-|
+Module      : Propagation
+Description : A generic abstract interpretation algorithm for propagating postcondition-transformations through a control flow graph.
+
+We assume a class where we can do predicate transformation through function @tau@,
+and we can merge two predicates through function @join@.
+Moreover, we assume an implementation of a function @implies@ that implements symbolic implication.
+Given these functions, we provide a generic abstract interpretation algorithm.
+-}
+
 
 
 module Propagation (
@@ -29,15 +35,15 @@ import Debug.Trace
 -- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
   -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-  tau     :: ctxt -> [Instr] -> Maybe [Instr] -> pred -> (pred,S.Set VerificationCondition)
+  tau     :: ctxt -> FInit -> [Instr] -> Maybe [Instr] -> pred -> (pred,S.Set VerificationCondition)
   -- | A lattice-join
-  join    :: ctxt -> pred -> pred -> pred
+  join    :: ctxt -> FInit -> pred -> pred -> pred
   -- | Symbolic implication
   implies :: ctxt -> pred -> pred -> Bool
 
 -- | The supremum of a list of predicates
-supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
-supremum ctxt = foldr1 (join ctxt)
+supremum :: Propagator ctxt pred => ctxt -> FInit -> [pred] -> pred
+supremum ctxt finit = foldr1 (join ctxt finit)
 
 
 -- The set of edges starting in $v$
@@ -62,8 +68,8 @@ pick_edge_from_bag = do
 -- The state consists of 
 -- 		1.) the current mapping of addresses to predicates 
 -- 		2.) the current bag (a set of edges to be explored)
-prop :: Propagator ctxt pred => ctxt -> CFG -> State (IM.IntMap pred, S.Set (Int,Int), S.Set VerificationCondition) ()
-prop ctxt g = do
+prop :: Propagator ctxt pred => ctxt -> FInit -> CFG -> State (IM.IntMap pred, S.Set (Int,Int), S.Set VerificationCondition) ()
+prop ctxt finit g = do
   pick <- pick_edge_from_bag
   case pick of
     Nothing ->
@@ -74,13 +80,13 @@ prop ctxt g = do
       -- do predicate transformation on the currently available precondition of v0
       let p = im_lookup "v0 must have predicate" m v0
       -- this produces q: the precondition for v1
-      let (q,vcs') = tau ctxt (fetch_block g v0) (Just $ fetch_block g v1) p
+      let (q,vcs') = tau ctxt finit (fetch_block g v0) (Just $ fetch_block g v1) p
       -- add verification conditions
       modify (\(m,_,vcs) -> (m,bag', S.union vcs vcs'))
       -- store q
       add_predicate q v1
       -- continue
-      prop ctxt g
+      prop ctxt finit g
  where
   add_predicate q v1 = do
    (m,bag,vcs) <- get
@@ -89,7 +95,7 @@ prop ctxt g = do
        -- first time visit, store q and explore all outgoing edges
        put (IM.insert v1 q m, S.union bag $ out_edges g v1, vcs)
      Just p -> do
-       let j = join ctxt p q
+       let j = join ctxt finit p q
        if implies ctxt q p then
          -- previously visited, no need for further exploration
          put (IM.insert v1 j m, bag, vcs)
@@ -101,12 +107,13 @@ prop ctxt g = do
 -- Returns a set of invariants, i.e., a mapping of instruction addresses to predicates.
 do_prop :: Propagator ctxt pred => 
   ctxt     -- ^ The context
+  -> FInit -- ^ The function initialisation
   -> CFG   -- ^ The CFG
   -> Int   -- ^ The entry address
   -> pred  -- ^ The initial predicate
   -> (IM.IntMap pred, S.Set VerificationCondition)
-do_prop ctxt g entry p = 
-  let (m,_,vcs) = execState (prop ctxt g) $ (IM.singleton entry p, out_edges g entry, S.empty) in
+do_prop ctxt finit g entry p = 
+  let (m,_,vcs) = execState (prop ctxt finit g) $ (IM.singleton entry p, out_edges g entry, S.empty) in
     (m,vcs)
 
 

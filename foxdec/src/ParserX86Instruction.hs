@@ -119,7 +119,7 @@ prefix =
 -- Then, it can be an expression with address_term as terms at the leaves.
 -- Address terms are immediates or registers. Address operands are '+', '-' or '*'.
 address_term =
- (register <&> FromReg)
+ (register <&> AddrReg)
  <|>
  (int <&>  AddrImm)
 
@@ -231,7 +231,7 @@ op_address =
     whitespaces
     a <- address_expr_inner
     whitespaces
-    return $ Address $ AddrPlus (FromReg r) a
+    return $ Address $ AddrPlus (AddrReg r) a
   ))
 
 

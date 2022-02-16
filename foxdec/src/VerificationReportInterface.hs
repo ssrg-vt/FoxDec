@@ -1,39 +1,41 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
------------------------------------------------------------------------------
--- |
---
--- After running FoxDec, a \"verification report\" (an object of type @"Context"@) can be retrieved from the generated .report file (see function @ctxt_read_report@).
--- Essentially, this module provides hooks into some of the information retrieved and derived from the binary,
--- including instructions, invariants, function entry points, etc.
---
--- A verification report is represented by the type @"Context"@, as internally it
--- is just the context passed around and maintained during verification.
---
--- The main flow is to read the .report file and use these functions to retrieve information.
--- The following example reads in a .report file provided as first command-line parameter and outputs the function entries:
--- 
--- >  main = do
--- >    args <- getArgs
--- >    ctxt <- ctxt_read_report $ head args
--- >    putStrLn $ show $ ctxt_get_function_entries ctxt
--- 
---
--- Some of the information is automatically also exported in plain-text format, for easy access.
------------------------------------------------------------------------------
+{-|
+Module      : VerificationReportInterface
+Description : The interface to the @.report@ generated after running FoxDec.
+
+The interface to the @.report@ generated after running FoxDec.
+After running FoxDec, a \"verification report\" (an object of type @"Context"@) can be retrieved from the generated .report file (see function @ctxt_read_report@).
+Essentially, this module provides hooks into some of the information retrieved and derived from the binary,
+including instructions, invariants, function entry points, etc.
+
+A verification report is represented by the type @"Context"@, as internally it
+is just the context passed around and maintained during verification.
+
+The main flow is to read the .report file and use these functions to retrieve information.
+The following example reads in a .report file provided as first command-line parameter and outputs the function entries:
+
+>  main = do
+>    args <- getArgs
+>    ctxt <- ctxt_read_report $ head args
+>    putStrLn $ show $ ctxt_get_function_entries ctxt
+
+Some of the information is automatically also exported in plain-text format, for easy access.
+-}
 
 
 module VerificationReportInterface
   (
     Retrieve,FunctionEntry,InstructionAddress,
     ctxt_read_report,
+    retrieve_io,
     ctxt_get_function_entries,
     ctxt_get_instruction_addresses,
     ctxt_get_indirections,
     ctxt_get_instruction,
     ctxt_get_invariant,
     ctxt_get_internal_function_calls,
-    ctxt_get_cfg
+    ctxt_get_cfg,
   )
 where
 
@@ -51,7 +53,7 @@ import qualified Data.Set as S
 import qualified Data.IntSet as IS
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as BS (readFile,writeFile) 
-
+import System.Exit (die)
 
 
 
@@ -79,7 +81,25 @@ ctxt_read_report fname = do
   case Cereal.decode fcontents of
     Left err   -> error $ "Could not read verification report in file " ++ fname 
     Right ctxt -> return ctxt
-  
+
+-- | Retrieve information from a @"Context"@ read from a .report file, or die with an error message.
+-- For example:
+--
+-- > do
+-- >   ctxt <- ctxt_read_report filename
+-- >   retrieve_io $ ctxt_get_instruction a ctxt
+--
+-- This code reads in a .report file with the given @filename@,  and reads the instruction at address @a@ if any.
+retrieve_io :: Either String a -> IO a
+retrieve_io retrieve_result = do
+  case retrieve_result of
+    Left err -> die err
+    Right result -> return result
+
+ 
+
+
+
 
 -- | Retrieve all function entries.
 --
@@ -99,7 +119,7 @@ ctxt_get_instruction_addresses ctxt =
 
 -- | Retrieve all indirections
 --
--- Returns, a mapping that provides for some instruction addresses a set of jump targets.
+-- Returns a mapping that provides for some instruction addresses a set of jump targets.
 ctxt_get_indirections :: Retrieve Indirections
 ctxt_get_indirections = Right . ctxt_inds
 

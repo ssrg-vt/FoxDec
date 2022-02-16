@@ -1,6 +1,10 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict #-}
 
--- | Some base functions, imported by any other module.
+{-|
+Module      : Base
+Description : Some base functions, imported by almost all other modules.
+-}
+
 
 module Base where
 
@@ -43,7 +47,7 @@ im_lookup s m k =
     Nothing -> error s
     Just v  -> v
 
--- | use a feault value in case of @Nothing@
+-- | use a default value in case of @Nothing@
 orElse Nothing a  = a
 orElse (Just a) _ = a
 
@@ -74,7 +78,7 @@ word_to_sint si w =
 
 
 --------------------------------------------
--- | Generic graph with ints as vertices. --
+-- | Generic graph with ints as vertices.
 --------------------------------------------
 data Graph = Edges (IM.IntMap IS.IntSet)
   deriving (Generic,Show)

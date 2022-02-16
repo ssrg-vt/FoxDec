@@ -1,8 +1,13 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
------------------------------------------------------------------------------
--- | Contains function relating to control flow, including functions for
--- resolving the targets of jumps and calls.
------------------------------------------------------------------------------
+
+{-|
+Module      : ControlFlow
+Description : Functions for resolving jump targets.
+
+Contains function relating to control flow, including functions for
+resolving the targets of jumps and calls.
+-}
+
 
 
 module ControlFlow (
@@ -44,7 +49,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 
 
--- | The set of next blocks from the given block
+-- | The set of next blocks from the given block in a CFG
 post g blockId =
   case IM.lookup blockId (cfg_edges g) of
     Nothing -> IS.empty
@@ -75,9 +80,6 @@ address_has_instruction ctxt a =
   case find_section_for_address ctxt $ fromIntegral a of
     Nothing                    -> False
     Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions
-  --case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- TODO. However, should be safe as result is immutable.
-  --  Nothing -> False
-  --  Just i  -> True
 
 -- | Returns true iff a symbol is associated with the address.
 address_has_symbol ctxt a =
@@ -108,11 +110,11 @@ operand_static_resolve ::
   -> Maybe Operand  -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
 operand_static_resolve ctxt i (Just (Immediate a'))                                                 = ImmediateAddress a'
-operand_static_resolve ctxt i (Just (Address (AddrPlus (FromReg RIP) (AddrImm imm))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
-operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrImm imm) (FromReg RIP))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (FromReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrImm imm) (FromReg RIP))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
-operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrMinus (FromReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
+operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrReg RIP) (AddrImm imm))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
+operand_static_resolve ctxt i (Just (Address (AddrPlus (AddrImm imm) (AddrReg RIP))))               = ImmediateAddress $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrPlus  (AddrImm imm) (AddrReg RIP))))) = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
+operand_static_resolve ctxt i (Just (Address (SizeDir si (AddrMinus (AddrReg RIP) (AddrImm imm))))) = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
 operand_static_resolve ctxt i _                                                                     = Unresolved
 
 static_resolve_rip_expr ctxt i f si =

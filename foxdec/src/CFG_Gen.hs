@@ -1,14 +1,16 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
------------------------------------------------------------------------------
--- | Contains function control flow graph generation.
------------------------------------------------------------------------------
 
+{-|
+Module      : CFG_Gen
+Description : Contains functions pertaining to control flow graph generation.
+-}
 
 module CFG_Gen (
    cfg_gen,
    cfg_to_dot,
    is_end_node,
-   node_info_of
+   node_info_of,
+   stepA
  )
  where
 
@@ -194,7 +196,21 @@ resolve_call ctxt entry i =
       Left [fromIntegral a']
 
 
-stepA :: Context -> Int -> Int -> IO (Either (S.Set (Instr,Int)) [(Int,Bool)])
+-- | An abstract step function
+--
+-- Given the entry address of the function currently under investigation, and the instruction address of the current instruction,
+-- try to get the set of next instruction addresses.
+-- 
+-- This returns either:
+--   * a set of tuples @(i,a)@ where @i@ is an instruction and @a@ its address. All these instructions are function calls that need to be analyzed before this current function entry can continue.
+--   * a list of tuples @(a,b)@ where @a@ is an instruction address that may follow the current instruction, and @b@ is a Bool indicating whether that address belongs to a @call@
+--
+--   TODO the Lefts are ignored so need no to return them
+stepA :: 
+     Context -- ^ The context
+  -> Int     -- ^ The entry address
+  -> Int     -- ^ The instruction address
+  -> IO (Either (S.Set (Instr,Int)) [(Int,Bool)])
 stepA ctxt entry a = do
   instr <- fetch_instruction ctxt a
   case instr of
@@ -247,9 +263,9 @@ cfg_add_instrs ctxt g = do
 
 -- | Produce a CFG
 --
--- Given the entry point of the function, generate either a CFG, and a possibly empty set of new entry points to be analyzed first.
+-- Given the entry point of the function, generate either a CFG, or a set of new entry points to be analyzed first.
 -- The set of new entry points are function entries called by the current function, but for which we do not know yet whether they terminate or not.
--- If a CFG is returned with empty set, then all function calls in that CFG have already been analyzed.
+-- If a CFG is returned, then all function calls in that CFG have already been analyzed.
 cfg_gen ::
   Context -- ^ The context
   -> Int  -- ^ The entry point of the function

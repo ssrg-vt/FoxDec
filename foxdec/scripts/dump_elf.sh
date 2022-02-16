@@ -47,6 +47,7 @@ echo "Created $2.entry"
 
 # Store information on all sections (addresses and sizes) in .sections file.
 rm -f $2.dump;
+rm -f $2.data;
 rm -f $2.sections;
 
 current_sect_name="";
@@ -63,6 +64,7 @@ do
    line=`echo $line | sed -e 's/^[[:space:]]*//g' -e 's/[[:space:]]*\$//g' | tr -s ' ' | sed -e 's/\[ /\[/g'`
 
    found_section=false
+   found_data_section=false
    found_relevant_section=false
    if [[ $line == *".text "* ]]; then
       current_sect_name=".text"
@@ -88,6 +90,7 @@ do
    if [[ $line == *".data "* ]]; then
       current_sect_name=".data"
       found_section=true;
+      found_data_section=true;
    fi
    if [[ $line == *".bss"* ]]; then
       current_sect_name=".bss "
@@ -108,6 +111,11 @@ do
       echo "Contents of $current_sect_name section" >> $2.dump
       readelf --wide --hex-dump=$current_sect_name $1 | grep . | grep -v "Hex dump" | sed -e 's/^[[:space:]]*//g' -e 's/[[:space:]]*\$//g' | tr -s ' ' | cut -d ' ' -f1,2,3,4,5 >> $2.dump
    fi
+   if [ "$found_data_section" = true ] ; then
+      # dump section, remove empty lines, remove lines with "Hex dump", trim spaces (leading and end), remove double spaces, takes columns 1 to 5
+      echo "Contents of $current_sect_name section" >> $2.data
+      readelf --wide --hex-dump=$current_sect_name $1 | grep . | grep -v "Hex dump" | sed -e 's/^[[:space:]]*//g' -e 's/[[:space:]]*\$//g' | tr -s ' ' | cut -d ' ' -f1,2,3,4,5 >> $2.data
+   fi
    if [ "$found_section" = true ] ; then
       # the address/size is found in columns 4/6 of the line
       current_addr=`echo $line | cut -d ' ' -f4 | awk '{print "0x" $0}'`
@@ -121,6 +129,9 @@ done < <(readelf --wide --sections ${1})
 
 if [[ -f "$2.dump" ]]; then
    echo "Created $2.dump"
+fi
+if [[ -f "$2.data" ]]; then
+   echo "Created $2.data"
 fi
 if [[ -f "$2.sections" ]]; then
    echo "Created $2.sections"

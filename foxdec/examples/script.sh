@@ -22,7 +22,7 @@ do
   done
 done
 
-
+# wait for jobs to be done
 for job in `jobs -p`
 do
   wait $job 

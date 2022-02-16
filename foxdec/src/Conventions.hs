@@ -1,7 +1,7 @@
------------------------------------------------------------------------------
--- |
--- In this file, we eumerate assumptions made on calling conventions and over external functions.
------------------------------------------------------------------------------
+{-|
+Module      : Conventions 
+Description : In this file, we eumerate assumptions made on calling conventions and over external functions.
+-}
 
 module Conventions where
 

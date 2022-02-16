@@ -1,12 +1,13 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
 
+{-|
+Module      : SimplePred
+Description : A datatype for symbolic expressions and symbolic predicates.
 
--------------------------------------------------------------------------
--- | A datatype for symbolic predicates, tailored to storing information
--- on equalities between the current values stored in state parts (lhs) 
--- and constant expressions (rhs).
--------------------------------------------------------------------------
-
+A datatype for symbolic predicates, tailored to storing information
+on equalities between the current values stored in state parts (lhs) 
+and constant expressions (rhs).
+-}
 
 module SimplePred ( 
   Pred (..),
@@ -30,12 +31,12 @@ module SimplePred (
   pp_expr,
   pp_pred,
   unfold_non_determinism,
-  expr_size,
-  max_expr_size
+  expr_size
  )
  where
 
 import Base
+import Config
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -84,7 +85,7 @@ data BotTyp =
 data BotSrc = 
     Src_Var StatePart                       -- An initial variable, i.e., a constant
   | Src_Malloc (Maybe Int) (Maybe String)   -- A malloced address
-  | Src_Function String                     -- A function return value
+  | Src_Function String                     -- A return value from a function
  deriving (Eq, Ord, Generic)
 
 
@@ -276,7 +277,6 @@ trim_expr e =
   else
     e
 
-max_expr_size = 3000
 
 
 
@@ -401,12 +401,9 @@ data StateMuddleStatus =
 -- | A symbolic predicate consists of:
 --
 --   * A mapping from stateparts to symbolic expressions.
---
 --   * The status of the flags.
---   
 --   * A set of verification conditions.
---
---   * The @`StateMuddleStatus`@
+--   * The @"StateMuddleStatus"@.
 data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus StateMuddleStatus
   deriving (Generic,Eq,Ord)
 

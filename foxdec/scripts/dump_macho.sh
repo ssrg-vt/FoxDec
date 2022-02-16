@@ -5,29 +5,57 @@
 # TOOL DEPENDENCIES:
 # otool
 # nm
+# (preferably): xcode
 
-if [[ $# -ne 2 ]]; then
+if [[ $# -ne 2 ]] && [[ $# -ne 3 ]] ; then
   echo "Usage: "
-  echo "./dump_macho.sh BINARY NAME"
+  echo "./dump_macho.sh BINARY NAME [DO_DATA]"
   echo ""
-  echo "  BINARY == binary under investigation"
-  echo "  NAME   == name of file to be generated"
+  echo "  BINARY  == binary under investigation"
+  echo "  NAME    == name of file to be generated"
+  echo "  DO_DATA == (optional) if set to 1, also dump the data section into the main file. Generally one should not do this." 
   echo ""
   echo "Example usage:"
   echo "./dump_macho.sh /usr/bin/du du"
   exit 1
 fi
 
+DODATA=${3:0}
+
+
+
+
+
+
+# See if it is auniversal binary
+# if so, extract the x86_64 part
+BINARY=$1
+if [[ $OSTYPE == 'darwin'* ]]; then
+  if file $1 | grep -q 'universal'; then
+    if file $1 | grep -q 'x86_64'; then
+      BINARY="$2_x86_64"
+      echo "$1 is a a fat (universal) binary, extracting x86_64 part to a new binary named \"$BINARY\""
+      lipo -extract x86_64 -output $BINARY $1
+    else
+      echo "$1 is a fat (universal) binary without x86_64 architecture support."
+    fi
+  else
+    echo "$1 is a not a fat (universal) binary, prcoeeding normally."
+  fi
+fi
 
 # OBJDUMP
 # First, just run objdump for debugging purposes
-objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $1 > $2.objdump
+objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $BINARY > $2.objdump
 echo "Created $2.objdump"
 
 # SYMBOLS
 # Second, create a list of all external symbols
-otool -I -v $1 | grep '^0x' | tr -s ' ' | cut -d ' ' -f1,3 > $2.symbols
+otool -I -v $BINARY | grep '^0x' | tr -s ' ' | cut -d ' ' -f1,3 > $2.symbols
 echo "Created $2.symbols"
+
+
+
 
 
 # DUMP/ENTRY/SECTIONS
@@ -41,6 +69,7 @@ echo "Created $2.symbols"
 # In the .sections file, the sections that may be modified by **external** functions are annotated with preceding |
 # For MachO that is (__DATA,__common), for ELF it is is the SHN_COMMON sections.
 rm -f $2.dump;
+rm -f $2.data;
 rm -f $2.entry;
 rm -f $2.sections;
 
@@ -88,15 +117,22 @@ do
       echo "  size = $current_size" >> $2.sections
       if [[ $current_seg_name == "__TEXT" ]]; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__const" ]] ; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
       fi
       if [[ $current_seg_name == "__DATA_CONST" ]] && [[ $current_sect_name == "__const" ]] ; then
         # -n +2 : start at line 2 of the file, skipping the first line.
-        otool -s $current_seg_name $current_sect_name $1 | tail -n +2  >> $2.dump
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
+      fi
+      if [[ $current_seg_name == "__DATA" ]] && [[ $current_sect_name == "__data" ]] ; then
+        if [[ $DODATA == 1 ]] ; then
+          echo "Exporting (__DATA,__data)"
+          otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.dump
+        fi
+        otool -s $current_seg_name $current_sect_name $BINARY | tail -n +2  >> $2.data
       fi
       expecting=0;
    fi
@@ -107,10 +143,13 @@ do
       printf '0x%x' $((0x100000000 + $entry)) >> $2.entry
    fi
 
-done < <(otool -l ${1})
+done < <(otool -l ${BINARY})
 
 if [[ -f "$2.dump" ]]; then
    echo "Created $2.dump"
+fi
+if [[ -f "$2.data" ]]; then
+   echo "Created $2.data"
 fi
 if [[ -f "$2.sections" ]]; then
    echo "Created $2.sections"
@@ -119,9 +158,12 @@ if [[ -f "$2.entry" ]]; then
    echo "Created $2.entry"
 else
    # No entry found in the load commands, so it is a library (.dylib)
-   nm  --defined-only $1 | grep " T " | awk '{print "0x" $0}' | cut -d ' ' -f1 > $2.entry
+   #xcrun dyldinfo -arch x86_64 -export $BINARY | cut -d ' ' -f1 > $2.entry
+   
+   nm  --defined-only $BINARY | grep " T " | awk '{print "0x" $0}' | cut -d ' ' -f1 > $2.entry
    echo "No load-command found that provides entry, so treating binary as library and all defined symbols in text sections as entry points."
    echo "Created $2.entry"
 fi
+
 
 

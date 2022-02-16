@@ -35,12 +35,14 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-The GitHub page is [here][git].
+The GitHub page is [here][git]. 
+
+***NOTE:*** the instructions for Apple Macbooks with the ***ARM M1 chip*** can be found [here](foxdec/docs/ARM64.md).
 
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
 3. Update the `PATH` variable: `PATH=$PATH:$HOME/.local/bin`
-4. Install [Capstone 4.0.1][capstone], by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or `brew` as that will install a newer version.
+4. Install [Capstone 4.0.1][capstone] ([git](https://github.com/capstone-engine/capstone/tree/4.0.1)), by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or <tt>brew</tt> as that will install a newer version.
 5. Clone into the git ```git clone git@github.com:ssrg-vt/FoxDec.git```.
 6. Go to directory `./foxdec/`.
 7. Run ```stack build --haddock --haddock-arguments --odir=docs/haddock```.
@@ -65,18 +67,18 @@ For Mac, these are `otool` and `nm`.
 Before FoxDec can be applied to a binary, several files need to be generated. 
 We provide scripts `dump_elf.sh` and `dump_macho.sh` that generate these files automatically for respectively files in the ELF (Linux) and MACH-O (MacOS) format.
 
-    ./dump_elf.sh BINARY NAME
+    dump_elf.sh BINARY NAME
     
-Here, `BINARY` is the name of the binary and `NAME` is a short working title (without file extensions or paths). For example:
+Here, `BINARY` is the name of the binary and `NAME` is a short working title (without file extensions or paths). For example, when inside the `foxdec` directory:
 
-	mkdir du
-	cd du
-    ./dump_elf.sh /usr/bin/du du
+	mkdir examples/du
+	cd examples/du
+	../../scripts/dump_elf.sh /usr/bin/du du
 
-This generates a new directory `du` and generates the following files:
+This generates a new directory `examples/du` and generates the following files:
 
-- **`NAME.dump`**: We use `readelf` to get an overview of all segments/sections in the binary. For each relevant section, a hexdump is appended to **`NAME.dump`**.
-- **`NAME.section`**: A plain-text file containing an overview of all relevant segments/sections.
+- **`NAME.dump`**: We use `readelf`/`otool` (Linux/MacOS) to get an overview of all segments/sections in the binary. For each relevant section, a hexdump is appended to **`NAME.dump`**.
+- **`NAME.sections`**: A plain-text file containing an overview of all relevant segments/sections.
 - **`NAME.symbols`**: A plain-text file containing an overview of all external function symbols.
 - **`NAME.entry`**: A plain-text file containing the entry points of the binary (one if executable, multiple if library).
 - **`NAME.objdump`** (optional): For debugging purposes, we find it convenient to have the `objdump` available. This file is not used by FoxDec itself.
@@ -105,9 +107,10 @@ We provide two examples that use the `.report` file and its [interface][reportin
 From the same directory as where `foxdec-exe` was ran, one can run:
 
     foxdec-disassembler-exe examples/du/du.report
-    foxdec-isabelle-exe examples/du/du.report
+    foxdec-controlflow-exe examples/du/du.report 0x100002b2c
 
-The first reads in the report and provides an overview of disassembled instructions. The second is more involved: it generates Isabelle/HOL `.thy` files containing all invariants. The disassembler provides a good example of how to use the `.report` file and its [interface][reportinterface]. 
+The first reads in the report and provides an overview of disassembled instructions. The second perovides the set of next instruction addresses after executing of the instruciton at address `0x100002b2c`.
+For more information how to use the `.report` file, see its [interface][reportinterface]. 
 
 
 ## Documentation<a name="docs"></a>
@@ -129,7 +132,7 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 ---
 
 FoxDec is an open-source project from the Systems Software Research Group
-([SSRG][ssrg]) at [Virginia Tech][vt]. It is supported by the Office of Naval
+([SSRG][ssrg]) at [Virginia Tech][vt]. It is supported by the Defense Advanced Research Projects Agency (DARPA) under contract N6600121C4028, and by the Office of Naval
 Research ([ONR][onr]) under grant N00014-17-1-2297.
 
 

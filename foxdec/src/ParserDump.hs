@@ -1,17 +1,18 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 
--- Parser that can be used to read the output (data sections) of objdump/objcopy applied to X86 binaries.
+-- Parser that can be used to read dumps of binaries.
+-- Let $1 be the binary. For ELF files one can use readelf, for MachO files one can use otool.
 --
---  UBUNTU:
---      TODO
+-- ELF:
+--      readelf --wide $1 | grep . | grep -v "Hex dump" | sed -e 's/^[[:space:]]*//g' -e 's/[[:space:]]*\$//g' | tr -s ' ' | cut -d ' ' -f1,2,3,4,5
 --
--- MACOS:
---      objdump -s -j __data -j __text #DIR#/#BINARY# | tr -s ' ' |  grep "^ ......... " | cut -d ' ' -f1,2,3,4,5,6
+-- MACHO:
+--      otool -s $current_seg_name $current_sect_name $1 | tail -n +2
 --
 --
 -- Example input line:
---   1000b3f80 ffff4889 fb488b05 acc01400 488b0048  ..H..H......H..H
+--   1000b3f80 ffff4889 fb488b05 acc01400 488b0048 
 --
 --      ^       ^     
 --      |       |
@@ -95,4 +96,9 @@ ignored_line =
     skipMany (noneOf "\n")
     newline
   ))
-
+  <|> (try (do 
+    whitespaces
+    string "("
+    skipMany (noneOf "\n")
+    newline
+  ))

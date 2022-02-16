@@ -90,12 +90,12 @@ run_with_ctxt entry = do
   (new_calls,g) <- liftIO $ cfg_gen ctxt entry
   -- generate invariants for the entry function
   let p          = init_pred IM.empty S.empty M.empty
-  let (invs,vcs) = do_prop ctxt g 0 p
+  let (invs,vcs) = do_prop ctxt M.empty g 0 p
 
   case IM.toList invs of
     [(0,p)] -> do
       -- retrieve the postcondition
-      let (Predicate q_eqs _ _) = fst $ tau_block ctxt (fetch_block g 0) Nothing p
+      let (Predicate q_eqs _ _) = fst $ tau_block ctxt M.empty (fetch_block g 0) Nothing p
       -- lookup region [RDI0,8]
       case M.lookup (SP_Mem (SE_Var $ SP_Reg RDI) 8) q_eqs of
         Just (SE_Immediate a) -> read_pointer_table ctxt a
@@ -131,8 +131,6 @@ ctxt_read_dump = do
       Left err -> error $ show err
       Right syms -> return syms
 
-empty_context dirname name = 
-  Context IM.empty IM.empty [] dirname name False (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 
@@ -147,7 +145,7 @@ argsParser = Args
 
 run (Args entry_str dirname name) = do
   let entry = readHex' entry_str
-  let ctxt  = empty_context dirname name
+  let ctxt  = init_context dirname name False
   evalStateT (run_with_ctxt entry) ctxt
   
 -- Parse the command line arguments and run

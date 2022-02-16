@@ -89,8 +89,9 @@ summarize_function_constraints_short ctxt vcs =
  where
   summarize_fcs (FunctionConstraint f i_a params sps) = "@" ++ showHex i_a ++ ": " ++ f ++ parens (intercalate "," $ map show_param params) ++ " PRESERVES " ++ show_sps sps
 
-  show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show_param_value e)
+  show_param (r,e) = show r ++ show_param_eq_sign e ++ strip_parentheses (show_param_value e)
   show_param_value e = if not (contains_bot e) then pp_bot e else pp_bot $ join_single ctxt e
+  show_param_eq_sign e = if contains_bot e then "~=" else ":="
   
   show_sps sps =
     let (stackframe,others) = partition is_stack_frame $ S.toList sps
@@ -145,9 +146,9 @@ summarize_sourceless_memwrites_long ctxt vcs =
 
 -- | Summarize function initialization
 summarize_finit Nothing      = ""
-summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ intercalate "\n" (map (intercalate ",") $ chunksOf 1 $ map show_finit_eq $ M.toList finit) ++ "\n"
+summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
  where
-  show_finit_eq (sp,e) = pp_statepart sp ++ " ~= " ++ pp_bot e
+  show_finit_entry (sp,v) = pp_statepart sp ++ " ~= " ++ pp_bot v
 
 parens str = "(" ++ str ++ ")"
 
@@ -214,7 +215,7 @@ callgraph_to_dot ctxt (Edges es) =
       case IM.lookup v $ ctxt_vcs ctxt of
         Nothing  -> function_name_of_entry ctxt v
         Just vcs -> 
-          if S.null vcs then
+          if S.null vcs && finit `elem` [Just M.empty,Nothing] then
             function_name_of_entry ctxt v
           else
             "{" ++ function_name_of_entry ctxt v ++ "|" ++ markup (summarize_verification_conditions ctxt v) ++ "}"

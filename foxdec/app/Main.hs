@@ -67,7 +67,7 @@ run_with_ctxt = do
   -- 3.) generate report and call graph
   ctxt_generate_end_report
   ctxt_generate_call_graph
-  -- ctxt_serialize_ctxt
+  ctxt_serialize_ctxt
  where
   -- 2.)
   repeat = do
@@ -97,16 +97,16 @@ run_with_ctxt = do
       _ -> do
         to_out $ "\n\nEntry " ++ showHex a
         -- 2.2.3) Entry is new, generate a CFG
-        curr_g                 <- gets (IM.lookup a . ctxt_cfgs)
-        (curr_invs,curr_posts) <- ctxt_get_curr_posts a
+        curr_g                            <- gets (IM.lookup a . ctxt_cfgs)
+        (curr_finit,curr_invs,curr_posts) <- ctxt_get_curr_posts a
 
 
         to_out $ "Entry " ++ showHex a ++ ": starting CFG generation."
         ctxt_generate_cfg a
         ctxt_generate_invs a curr_invs curr_posts   
 
-        g            <- gets (IM.lookup a . ctxt_cfgs)
-        (invs,posts) <- ctxt_get_curr_posts a
+        g                  <- gets (IM.lookup a . ctxt_cfgs)
+        (finit,invs,posts) <- ctxt_get_curr_posts a
         let do_repeat = curr_g /= g {-- || invs /= curr_invs --} || posts /= curr_posts
         new_calls <- ctxt_get_new_calls a
 
@@ -185,34 +185,34 @@ ctxt_reconsider_mutual_recursive_call = do
 ctxt_get_new_calls entry = do
   ctxt <- get
   let g = ctxt_cfgs ctxt IM.! entry
-  return $ gather ctxt $ catMaybes $ concat $ concatMap (get_new_calls ctxt) $ IM.elems $ cfg_instrs g
+  (finit_of_entry,_,_) <- ctxt_get_curr_posts entry
+
+  return $ gather ctxt $ catMaybes $ concat $ concatMap (get_new_calls ctxt finit_of_entry) $ IM.elems $ cfg_instrs g
  where
-  get_new_calls ctxt is = map (get_new_call ctxt) is
-  get_new_call  ctxt i =
+  get_new_calls ctxt finit_of_entry is = map (get_new_call ctxt finit_of_entry) is
+  get_new_call  ctxt finit_of_entry i =
     if is_call (i_opcode i) then
-       map (trgt_to_finit ctxt i) $ resolve_jump_target ctxt i
+       map (trgt_to_finit ctxt finit_of_entry i) $ resolve_jump_target ctxt i
     else
       []
 
-  trgt_to_finit ctxt i (ImmediateAddress trgt) =
+  trgt_to_finit ctxt finit_of_entry i (ImmediateAddress trgt) =
     case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant ctxt entry $ i_addr i) of
-      (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit ctxt inv)
-      (Just _, Nothing,Just inv) -> Nothing
-      (x,Just finit,Nothing)  -> if M.null finit then Nothing {-- verification error --} else error $ show (x,Just finit)
+      (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit ctxt finit_of_entry inv)
       (_,Just finit,Just inv)    -> do
-        let finit' = weaken_finit ctxt (invariant_to_finit ctxt inv) finit
+        let finit' = join_finit ctxt (invariant_to_finit ctxt finit_of_entry inv) finit
         if finit /= finit' || (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt) && not (graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt))) then
-          return (fromIntegral trgt,finit') -- traceShow ("new finit", showHex trgt, finit, inv, finit') $ 
+          return (fromIntegral trgt,finit') -- trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit ctxt finit_of_entry inv) ++ "\n" ++ show finit') $ 
         else
           Nothing
       (x,y,z) -> error (show (x,y,z))
-  trgt_to_finit ctxt i _ = Nothing
+  trgt_to_finit ctxt finit_of_entry i _ = Nothing
 
   gather ctxt []         = []
   gather ctxt [new_call] = [new_call]
   gather ctxt ((entry',finit):new_calls) =
     let (same,others) = partition ((==) entry' . fst) new_calls in
-      (entry', foldr1 (weaken_finit ctxt) (finit:map snd same)) : gather ctxt others
+      (entry', foldr1 (join_finit ctxt) (finit:map snd same)) : gather ctxt others
     
 
 
@@ -238,11 +238,12 @@ ctxt_add_entry_edge a (trgt,finit) = do
   modify (\ctxt -> ctxt { ctxt_posts   = IM.delete trgt $ ctxt_posts ctxt })
 
 
-ctxt_get_curr_posts :: Int -> StateT Context IO (Invariants,S.Set (NodeInfo,Pred))
+ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Pred))
 ctxt_get_curr_posts entry = do
-  invs  <- gets ctxt_invs
-  posts <- gets ctxt_posts
-  return (IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty)
+  finits <- gets ctxt_finits
+  invs   <- gets ctxt_invs
+  posts  <- gets ctxt_posts
+  return (IM.lookup entry finits `orElse` M.empty, IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty)
 
 
 
@@ -252,10 +253,10 @@ ctxt_get_curr_posts entry = do
 -- not overwritten and callee-saved registers are preserved and RSP is set to RSP0+8
 ctxt_verify_proper_return :: Int -> StateT Context IO VerificationResult
 ctxt_verify_proper_return entry = do
-  ctxt       <- get
-  let vcs     = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
-  (_,posts)  <- ctxt_get_curr_posts entry
-  all_checks <- mapM (correct ctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
+  ctxt            <- get
+  let vcs          = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
+  (_,_,posts)     <- ctxt_get_curr_posts entry
+  all_checks      <- mapM (correct ctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
 
   if S.null posts then
     return (VerificationError "time out reached")
@@ -336,11 +337,9 @@ ctxt_add_to_results entry verified = do
   to_log log $ "#edges:                     " ++ show (num_of_edges        g)
   to_log log $ ""
 
-  case finit of
-    Nothing -> return ()
-    Just finit -> when (not $ M.null finit) $ do
-                    to_log log $ "Initialization:\n" ++ show_finit finit
-                    to_log log $ ""
+  to_log log $ summarize_finit finit
+  to_log log $ ""
+
   to_log log $ "Return behavior: " ++ show_return_behavior ret  
 
   to_log log $ summarize_preconditions_long ctxt vcs
@@ -356,8 +355,8 @@ ctxt_add_to_results entry verified = do
   to_log log $ ""
 
 
-  -- to_log log $ "Generated invariants:" -- TODO make configurable
-  -- to_log log $ show_invariants g invs
+  --to_log log $ "Generated invariants:" -- TODO make configurable
+  --to_log log $ show_invariants g invs
  where
   show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"
@@ -487,12 +486,6 @@ num_of_edges                  g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
 
--- intialize an empty context based on the command-line parameters
-init_context dirname name generate_pdfs = 
-  let dirname' = if last dirname  == '/' then dirname else dirname ++ "/" in
-    Context IM.empty IM.empty [] dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
-
-
 
 
 
@@ -545,9 +538,12 @@ ctxt_read_dump = do
   let dirname     = ctxt_dirname ctxt
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".dump"
+  let dname       = dirname ++ name ++ ".data"
 
-  ds <- liftIO $ parse fname
-  put $ ctxt { ctxt_dump = ds }
+  dump <- liftIO $ parse fname
+  dat  <- liftIO $ parse dname
+
+  put $ ctxt { ctxt_dump = dump, ctxt_data = dat }
  where
   parse fname = do
     ret0 <- parse_dump fname
@@ -651,21 +647,21 @@ ctxt_generate_cfg entry = do
      
 
 
-ctxt_add_invariants entry invs posts vcs = do
-  all_invs  <- gets ctxt_invs
-  all_posts <- gets ctxt_posts
-  all_vcs   <- gets ctxt_vcs
-  modify (\ctxt -> ctxt { ctxt_invs = IM.insert entry invs all_invs, ctxt_posts = IM.insert entry posts all_posts, ctxt_vcs = IM.insert entry vcs all_vcs } )
+ctxt_add_invariants entry finit invs posts vcs = do
+  all_invs   <- gets ctxt_invs
+  all_posts  <- gets ctxt_posts
+  all_vcs    <- gets ctxt_vcs
+  all_finits <- gets ctxt_finits
+  modify (\ctxt -> ctxt { ctxt_invs = IM.insert entry invs all_invs, ctxt_posts = IM.insert entry posts all_posts, ctxt_vcs = IM.insert entry vcs all_vcs, ctxt_finits = IM.insert entry finit all_finits } )
 
 
-max_time_minutes = 30
-max_time = 1000000 * 60 * max_time_minutes
+
 
 ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Context IO ()
 ctxt_generate_invs entry curr_invs curr_posts = do
   -- Generate invariants
   ctxt <- get
-  let finit   = (IM.lookup entry $ ctxt_finits ctxt) `orElse` M.empty
+  (finit,_,_) <- ctxt_get_curr_posts entry
   when (not $ M.null finit) $ to_out $ "Function initialisation: " ++ show_finit finit
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
@@ -676,31 +672,31 @@ ctxt_generate_invs entry curr_invs curr_posts = do
   -- TODO remove
   entries <- ctxt_read_entries
   let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg ctxt RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
-  result  <- liftIO (timeout max_time $ return $! do_prop ctxt g 0 p') -- TODO always 0?
+  result  <- liftIO (timeout max_time $ return $! do_prop ctxt finit g 0 p') -- TODO always 0?
 
   case result of
     Nothing         -> do
       to_out $ "Entry " ++ showHex entry ++ ": time out of " ++ show max_time_minutes ++ " minutes reached."
-      ctxt_add_invariants entry IM.empty S.empty S.empty
+      ctxt_add_invariants entry finit IM.empty S.empty S.empty
     Just (invs,vcs) -> do
       let blocks  = IM.keys $ cfg_blocks g
-      postss     <- catMaybes <$> mapM (get_post ctxt g invs) blocks
+      postss     <- catMaybes <$> mapM (get_post ctxt finit g invs) blocks
       let posts   = S.fromList $ map fst postss
       let vcs'    = S.unions $ map snd postss 
-      ctxt_add_invariants entry invs posts (S.union vcs vcs')
+      ctxt_add_invariants entry finit invs posts (S.union vcs vcs')
  where
-  get_post :: Context -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
-  get_post ctxt g invs b = do
+  get_post :: Context -> FInit -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
+  get_post ctxt finit g invs b = do
     if is_end_node g b then do
-      let (q,vcs') = runIdentity $ execStateT (do_tau ctxt g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b, S.empty)
+      let (q,vcs') = runIdentity $ execStateT (do_tau ctxt finit g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b, S.empty)
       return $ Just ((node_info_of ctxt g b,q),vcs')
     else
       return $ Nothing
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_tau :: Context -> CFG -> Int -> State (Pred,VCS) ()
-  do_tau ctxt g b = modify $ (tau_block ctxt (fetch_block g b) Nothing . fst)
+  do_tau :: Context -> FInit -> CFG -> Int -> State (Pred,VCS) ()
+  do_tau ctxt finit g b = modify $ (tau_block ctxt finit (fetch_block g b) Nothing . fst)
 
 
 
@@ -714,14 +710,14 @@ ctxt_add_call entry verified = do
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".calls"
 
-  (invs,posts) <- ctxt_get_curr_posts entry
+  (finit,invs,posts) <- ctxt_get_curr_posts entry
   
   (ret,msg) <-
     if (any ((==) UnresolvedIndirection) $ S.map fst posts) || verified `notElem` [VerificationSuccesWithAssumptions,VerificationSuccess] then
       return (UnknownRetBehavior, "unknown.")
     else if all ((==) Terminal) $ S.map fst posts then
       return (Terminating, "always terminating.")
-    else let q = supremum ctxt $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
+    else let q = supremum ctxt finit $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
       return (ReturningWith q, "normally returning.")
 
   put $ ctxt { ctxt_calls = IM.insert entry ret $ calls }
@@ -748,7 +744,7 @@ ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool
 ctxt_analyze_unresolved_indirections entry = do
   ctxt <- get
 
-  (invs,posts) <- ctxt_get_curr_posts entry
+  (finit,invs,posts) <- ctxt_get_curr_posts entry
   let g        =  ctxt_cfgs ctxt IM.! entry
 
   let bs = filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) $ IM.keys $ cfg_blocks g
@@ -756,10 +752,10 @@ ctxt_analyze_unresolved_indirections entry = do
     to_out $ "No unresolved indirections."
     return False
   else do
-    results <- forM bs $ try_to_resolve_indirection g invs
+    results <- forM bs $ try_to_resolve_indirection finit g invs
     return $ not $ all not results -- prevent lazy execution
  where
-  try_to_resolve_indirection g invs b = do
+  try_to_resolve_indirection finit g invs b = do
     ctxt <- get
     dirname   <- gets ctxt_dirname
     name      <- gets ctxt_name
@@ -770,10 +766,10 @@ ctxt_analyze_unresolved_indirections entry = do
     let p                   = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg _ = p
 
-    let values0 = evalState (try' ctxt g b trgt) (p,S.empty)
+    let values0 = evalState (try' ctxt finit g b trgt) (p,S.empty)
     let values1 = case flagstatus_to_tries flg of
                    Nothing      -> S.empty
-                   Just (op1,n) -> S.unions $ map (\n -> evalState (try ctxt (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n-1]
+                   Just (op1,n) -> S.unions $ map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n-1]
     let values  = S.union values0 values1
 
     -- TODO instead of once and for all, widen it
@@ -794,18 +790,18 @@ ctxt_analyze_unresolved_indirections entry = do
 
       return True
 
-  flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromInteger max_jump_table_size then Just (op1,n) else Nothing
+  flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_jump_table_size then Just (op1,n) else Nothing
   flagstatus_to_tries _ = Nothing
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
-  try ctxt i_a g blockId op1 trgt n = do
-    write_operand ctxt i_a op1 (SE_Immediate n)
-    try' ctxt g blockId trgt
+  try ctxt finit i_a g blockId op1 trgt n = do
+    write_operand ctxt finit i_a op1 (SE_Immediate n)
+    try' ctxt finit g blockId trgt
 
-  try' ctxt g blockId trgt = do
-    modify $ (tau_block ctxt (init $ fetch_block g blockId) Nothing . fst)
-    val <- read_operand ctxt trgt
+  try' ctxt finit g blockId trgt = do
+    modify $ (tau_block ctxt finit (init $ fetch_block g blockId) Nothing . fst)
+    val <- read_operand ctxt finit trgt
     case val of
       SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a
       Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then S.map take_immediates es else S.singleton Nothing

@@ -9,7 +9,7 @@ copyright:           "2021 Author name here"
 
 
 # Metadata used when publishing your package
-synopsis:            Formaly Verified x86-64 Decompilation
+synopsis:            Formally Verified x86-64 Decompilation
 category:            Disassembly, Decompilation
 
 # To avoid duplicated efforts in documentation and dealing with the
@@ -33,7 +33,6 @@ dependencies:
 - transformers >= 0.5.6
 - hapstone >= 0.2.0.1 && <= 0.2.0.1
 - strict
-- GraphSCC >= 1.0.4
 
 library:
   source-dirs: src
@@ -48,14 +47,14 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - foxdec
-  foxdec-isabelle-exe:
-    main:                Isabelle.hs
+  foxdec-controlflow-exe:
+    main:                ControlFlowResolver.hs
     source-dirs:         app
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -main-is Isabelle
+    - -main-is ControlFlowResolver
     dependencies:
     - foxdec
   foxdec-disassembler-exe:
@@ -66,6 +65,16 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -main-is Disassembler
+    dependencies:
+    - foxdec
+  foxdec-symbolizer-exe:
+    main:                Symbolizer.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -main-is Symbolizer
     dependencies:
     - foxdec
   foxdec-pkcs11-exe:

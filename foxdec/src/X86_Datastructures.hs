@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
+{-|
+Module      : X86_Datastructures
+Description : Datastructures for storing x86-64 instructions.
+-}
 
-------------------------------------------------------
--- | Datastructures for storing x86-64 instructions.
-------------------------------------------------------
 module X86_Datastructures where
 
 import Data.List
@@ -18,11 +19,11 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 data Instr = Instr {
   i_addr :: Int,                 -- ^ address
   i_prefix :: Maybe Prefix,      -- ^ prefix, e.g., lock or repz
-  i_opcode :: Opcode,            -- ^ opcode (see data Opcode)
+  i_opcode :: Opcode,            -- ^ opcode/mnemonic
   i_op1 :: Maybe Operand,        -- ^ optional: operand
   i_op2 :: Maybe Operand,        -- ^ optional: operand
   i_op3 :: Maybe Operand,        -- ^ optional: operand
-  i_annot :: Maybe String,       -- ^ annotation, e.g., <malloc@plt + 10>
+  i_annot :: Maybe String,       -- ^ optional: annotation, e.g., \"\<malloc\@plt + 10\>\"
   i_size :: Int                  -- ^ size of instruction
  }
  deriving (Eq,Ord, Generic)
@@ -59,7 +60,7 @@ data Register = InvalidRegister
   | ST0 | ST1 | ST2 | ST3 | ST4 | ST5 | ST6 | ST7
   | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7 | YMM8 | YMM9 | YMM10 | YMM11 | YMM12 | YMM13 | YMM14 | YMM15
   | XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7 | XMM8 | XMM9 | XMM10 | XMM11 | XMM12 | XMM13 | XMM14 | XMM15
-  -- | XMM0_L | XMM1_L | XMM2_L | XMM3_L | XMM4_L | XMM5_L | XMM6_L | XMM7_L | XMM8_L | XMM9_L | XMM10_L | XMM11_L | XMM12_L | XMM13_L | XMM14_L | XMM15_L
+  -- XMM0_L | XMM1_L | XMM2_L | XMM3_L | XMM4_L | XMM5_L | XMM6_L | XMM7_L | XMM8_L | XMM9_L | XMM10_L | XMM11_L | XMM12_L | XMM13_L | XMM14_L | XMM15_L
   deriving (Show,Eq,Read,Ord,Generic)
 
 instance Cereal.Serialize Register
@@ -70,7 +71,7 @@ data Flag = ZF | CF | SF | OF | PF | InvalidFlag
 
 -- | An unresolved address, within the operand of an instruction.
 data Address =
-    FromReg Register           -- ^ Reading a pointer from a register
+    AddrReg Register           -- ^ Reading a pointer from a register
   | AddrImm Int                -- ^ Immediate address
   | AddrMinus Address Address  -- ^ Minus
   | AddrPlus Address Address   -- ^ Plus
@@ -680,7 +681,7 @@ instance Cereal.Serialize Opcode
 
 
 -- | Showing unresolved address (inner part within a ptr[...])
-show_address' (FromReg r) = show r
+show_address' (AddrReg r) = show r
 show_address' (AddrImm i) = show i
 show_address' (AddrMinus a0 a1) = show_address' a0 ++ " - " ++ show_address' a1
 show_address' (AddrPlus a0 a1) = show_address' a0 ++ " + " ++ show_address' a1

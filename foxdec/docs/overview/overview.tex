@@ -69,14 +69,19 @@
          };
 
 
+%\draw[-{Stealth[length=6mm, width=4mm]}] (16,-1) -- (15,-2.5);
+%\node[inner sep=0pt] (isabelle) at (14,-4) {\includegraphics[width=3cm]{isabelle_logo.jpg}};
+
 \draw[-{Stealth[length=6mm, width=4mm]}] (16,-1) -- (15,-2.5);
-\node[inner sep=0pt] (isabelle) at (14,-4) {\includegraphics[width=3cm]{isabelle_logo.jpg}};
+\filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
+    (14,-6) rectangle (16,-2.75)
+    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\Large Disassembly}}}} ;
 
 
 \draw[-{Stealth[length=6mm, width=4mm]}] (17.5,-1) -- (17.5,-2.5);
 \filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
     (16.5,-6) rectangle (18.5,-2.75)
-    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\Large Disassembly}}}} ;
+    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\Large ControlFlow}}}} ;
 
 
 \draw[-{Stealth[length=6mm, width=4mm]},dashed] (19,-1) -- (20,-2.5);
