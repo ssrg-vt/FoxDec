@@ -76,10 +76,104 @@ executable foxdec-controlflow-exe
       Isabelle
       Main
       Pkcs11
+      Symbolizer
       Paths_foxdec
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is ControlFlowResolver
+  build-depends:
+      argparser >=0.3.4
+    , base >=4.7 && <5
+    , bytestring
+    , cereal >=0.5.8.1
+    , containers
+    , directory
+    , extra >=1.7.9
+    , foxdec
+    , hapstone >=0.2.0.1 && <=0.2.0.1
+    , mtl
+    , parsec >=3.1
+    , parsec-numbers >=0.1
+    , process >=1.6.9.0
+    , split >=0.2.3
+    , strict
+    , transformers >=0.5.6
+  default-language: Haskell2010
+
+executable foxdec-disassembler-exe
+  main-is: Disassembler.hs
+  other-modules:
+      ControlFlowResolver
+      Isabelle
+      Main
+      Pkcs11
+      Symbolizer
+      Paths_foxdec
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Disassembler
+  build-depends:
+      argparser >=0.3.4
+    , base >=4.7 && <5
+    , bytestring
+    , cereal >=0.5.8.1
+    , containers
+    , directory
+    , extra >=1.7.9
+    , foxdec
+    , hapstone >=0.2.0.1 && <=0.2.0.1
+    , mtl
+    , parsec >=3.1
+    , parsec-numbers >=0.1
+    , process >=1.6.9.0
+    , split >=0.2.3
+    , strict
+    , transformers >=0.5.6
+  default-language: Haskell2010
+
+executable foxdec-exe
+  main-is: Main.hs
+  other-modules:
+      ControlFlowResolver
+      Disassembler
+      Isabelle
+      Pkcs11
+      Symbolizer
+      Paths_foxdec
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      argparser >=0.3.4
+    , base >=4.7 && <5
+    , bytestring
+    , cereal >=0.5.8.1
+    , containers
+    , directory
+    , extra >=1.7.9
+    , foxdec
+    , hapstone >=0.2.0.1 && <=0.2.0.1
+    , mtl
+    , parsec >=3.1
+    , parsec-numbers >=0.1
+    , process >=1.6.9.0
+    , split >=0.2.3
+    , strict
+    , transformers >=0.5.6
+  default-language: Haskell2010
+
+executable foxdec-pkcs11-exe
+  main-is: Pkcs11.hs
+  other-modules:
+      ControlFlowResolver
+      Disassembler
+      Isabelle
+      Main
+      Symbolizer
+      Paths_foxdec
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Pkcs11
   build-depends:
       argparser >=0.3.4
     , base >=4.7 && <5
@@ -111,96 +205,6 @@ executable foxdec-symbolizer-exe
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Symbolizer
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , directory
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-disassembler-exe
-  main-is: Disassembler.hs
-  other-modules:
-      ControlFlowResolver
-      Isabelle
-      Main
-      Pkcs11
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Disassembler
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , directory
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-exe
-  main-is: Main.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Isabelle
-      Pkcs11
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , directory
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-pkcs11-exe
-  main-is: Pkcs11.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Isabelle
-      Main
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Pkcs11
   build-depends:
       argparser >=0.3.4
     , base >=4.7 && <5
