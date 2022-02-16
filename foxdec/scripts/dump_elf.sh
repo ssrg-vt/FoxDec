@@ -101,8 +101,12 @@ do
       current_sect_name=".got"
       found_section=true;
    fi
-   if [[ $line == *".got.plt "* ]]; then
+   if [[ $line == *".got.plt"* ]]; then
       current_sect_name=".got.plt"
+      found_section=true;
+   fi
+   if [[ $line == *".plt.got"* ]]; then
+      current_sect_name=".plt.got"
       found_section=true;
       found_relevant_section=true;
    fi

@@ -4,7 +4,7 @@
 (,.plt)
   addr = 0x0000000000001a70
   size = 0x000420
-(,.got)
+(,.plt.got)
   addr = 0x0000000000001e90
   size = 0x000018
 (,.text)
