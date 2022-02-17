@@ -94,7 +94,7 @@ do
       found_data_section=true;
    fi
    if [[ $line == *".bss"* ]]; then
-      current_sect_name=".bss "
+      current_sect_name=".bss"
       found_section=true;
    fi
    if [[ $line == *".got "* ]]; then
