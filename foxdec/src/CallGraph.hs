@@ -144,12 +144,44 @@ summarize_sourceless_memwrites_long ctxt vcs =
       "SOURCELESS MEM WRITES:\n" ++ (intercalate "\n" $ map show $ S.toList mws) ++ "\n"
 
 
+summarize_function_pointer_intros_short ctxt vcs =
+  let fpis = S.toList $ S.filter is_introfunctionpointer vcs in
+    if fpis == [] then
+      ""
+    else
+      "FUNCTION POINTERS INTRODUCED:\n" ++ show_fpis fpis
+  where
+    show_fpis []   = ""
+    show_fpis (fpi@(IntroFunctionPointer a mid):fpis) = 
+      let (same,others) = partition (equal_address a) fpis in
+        if same == [] then
+          showHex a ++ ":  " ++ show_mid fpi ++ "\n" ++ show_fpis others
+        else 
+          showHex a ++ ":\n" ++ map (indent . show_mid) (fpi:same) ++ show_fpis others
+
+    show_mid (IntroFunctionPointer _ mid) = show mid
+    indent str = "  " ++ str ++ "\n"
+        
+    equal_address a (IntroFunctionPointer a' _) = a == a'
+
+
+
+summarize_function_pointer_intros ctxt vcs =
+  let fpis = S.filter is_introfunctionpointer vcs in
+    if S.null fpis then
+      ""
+    else
+      "FUNCTION POINTERS INTRODUCED:\n" ++ (intercalate "\n" $ map show $ S.toList fpis) ++ "\n"
+
 -- | Summarize function initialization
 summarize_finit Nothing      = ""
 summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
  where
   show_finit_entry (sp,v) = pp_statepart sp ++ " ~= " ++ pp_bot v
 
+
+
+-- TODO move
 parens str = "(" ++ str ++ ")"
 
 summarize_verification_conditions ctxt entry =
@@ -159,11 +191,13 @@ summarize_verification_conditions ctxt entry =
                    ++ summarize_preconditions_short ctxt vcs
                    -- ++ summarize_assertions_short ctxt vcs
                    ++ summarize_function_constraints_short ctxt vcs
-                   ++ summarize_sourceless_memwrites_short ctxt vcs in
+                   ++ summarize_sourceless_memwrites_short ctxt vcs
+                   ++ summarize_function_pointer_intros ctxt vcs in
     butlast summary
  where
   butlast ""  = ""
   butlast str = init str
+
 
 
 

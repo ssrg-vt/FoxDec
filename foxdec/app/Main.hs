@@ -343,16 +343,10 @@ ctxt_add_to_results entry verified = do
   to_log log $ "Return behavior: " ++ show_return_behavior ret  
 
   to_log log $ summarize_preconditions_long ctxt vcs
-  to_log log $ ""
-
   to_log log $ summarize_assertions_long ctxt vcs
-  to_log log $ ""
-
   to_log log $ summarize_function_constraints_long ctxt vcs
-  to_log log $ ""
-
   to_log log $ summarize_sourceless_memwrites_long ctxt vcs
-  to_log log $ ""
+  to_log log $ summarize_function_pointer_intros ctxt vcs
 
 
   --to_log log $ "Generated invariants:" -- TODO make configurable
@@ -438,6 +432,8 @@ ctxt_generate_end_report = do
     to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
     to_log log $ "#edges:                               " ++ show (sum_total num_of_edges                       $ ctxt_cfgs ctxt)
     to_log log $ "#resolved indirections:               " ++ show (num_of_resolved_indirections ctxt)
+
+    to_log log $ summarize_function_pointer_intros_short ctxt (S.unions $ ctxt_vcs ctxt)
     to_log log $ "\n\n"
 
   sum_total num_of = sum . map num_of . IM.elems
@@ -674,7 +670,7 @@ ctxt_generate_invs entry curr_invs curr_posts = do
 
   -- TODO remove
   entries <- ctxt_read_entries
-  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg ctxt RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
+  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg ctxt entry RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
   result  <- liftIO (timeout max_time $ return $! do_prop ctxt finit g 0 p') -- TODO always 0?
 
   case result of
@@ -777,6 +773,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
     -- TODO instead of once and for all, widen it
     if all ((==) Nothing) values || S.null values then do
+      -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
       to_out $ "Unresolved block " ++ show b
       return False
     else do

@@ -49,6 +49,9 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 
 
+-- | Add a function_pointer_intro to the given symbolic predicate
+add_function_pointer_intro a mid (p,vcs) = (p,S.insert (IntroFunctionPointer a mid) vcs)
+
 
 
 
@@ -86,35 +89,45 @@ read_reg ctxt r = do
 
 
 
-write_rreg :: Register -> SimpleExpr -> State (Pred,VCS) () 
-write_rreg r e = 
+is_symbolic_function_pointer ctxt (SE_Immediate a) = address_has_instruction ctxt a
+is_symbolic_function_pointer ctxt _                = False
+
+
+write_rreg :: Context -> MemWriteIdentifier -> Register -> SimpleExpr -> State (Pred,VCS) () 
+write_rreg ctxt mid r e = 
   if take 2 (show r) == "ST" then
     return ()
-  else 
+  else do
+    when (r /= RIP && is_symbolic_function_pointer ctxt e) $ do
+      modify $ add_function_pointer_intro (get_immediate_forced e) mid
     modify do_write
  where
   do_write (Predicate eqs flg muddle_status,vcs) =
     let eqs' = M.insert (SP_Reg r) (trim_expr $ simp e) eqs
         flg' = clean_flg (SP_Reg r) flg in
       (Predicate eqs' flg' muddle_status,vcs)
+
+get_immediate_forced (SE_Immediate imm) = fromIntegral imm
  
 -- | Write to a register
-write_reg :: Context -> Register -> SimpleExpr -> State (Pred,VCS) ()
-write_reg ctxt r v = do
-  if reg_size r == 8 then -- 64 bit
-    write_rreg r $ simp v
-  else if reg_size r == 4 then -- 32 bit
-    write_rreg (real_reg r) (simp $ SE_Bit 32 v)
-  else if r `elem` reg16 then do -- 16 bit 
+write_reg :: Context -> Int -> Register -> SimpleExpr -> State (Pred,VCS) ()
+write_reg ctxt i_a r v = do
+ let mid = mk_reg_write_identifier i_a r 
+     sz  = reg_size r in
+  if sz == 8 then -- 64 bit
+    write_rreg ctxt mid r $ simp v
+  else if sz == 4 then -- 32 bit
+    write_rreg ctxt mid (real_reg r) (simp $ SE_Bit 32 v)
+  else if sz == 2 then do -- 16 bit 
     let rr = real_reg r
     curr_v <- read_rreg rr
-    write_rreg rr (simp $ SE_Overwrite 16 curr_v (SE_Bit 16 v))
+    write_rreg ctxt mid rr (simp $ SE_Overwrite 16 curr_v (SE_Bit 16 v))
   else if r `elem` reg8 then do -- 8 bit low registers
     let rr = real_reg r
     curr_v <- read_rreg rr
-    write_rreg rr (simp $ SE_Overwrite 8 curr_v (SE_Bit 8 v))
+    write_rreg ctxt mid rr (simp $ SE_Overwrite 8 curr_v (SE_Bit 8 v))
   else
-    write_rreg (real_reg r) $ Bottom (FromBitMode $ srcs_of_expr ctxt v)
+    write_rreg ctxt mid (real_reg r) $ Bottom (FromBitMode $ srcs_of_expr ctxt v)
 
 
 -- * Flags 
@@ -288,8 +301,8 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
   deriving Eq
 
 
-read_from_address :: Context -> FInit -> Maybe Address -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
-read_from_address ctxt finit address a si0 = do
+read_from_address :: Context -> FInit -> Maybe Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
+read_from_address ctxt finit operand a si0 = do
   let as = map simp $ unfold_non_determinism a
   vs <- mapM read_from_address' as
   return $ join_exprs ("Read") ctxt vs
@@ -364,13 +377,16 @@ read_from_address ctxt finit address a si0 = do
       return Separated
     else if is_assertable ctxt a0 a1 then do
       rip <- read_reg ctxt RIP
-      assertion <- generate_assertion ctxt address a0
+      assertion <- generate_assertion ctxt (mk_address operand) a0
       modify $ add_assertion rip assertion si0 a1 si1
       --trace ("ASSERTION (READ@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
       return Separated
     else do
      if do_trace a0 a1 then trace ("PRECONDITION (READ): OVERLAP BETWEEN " ++ show (a0,si0,get_known_pointer_bases ctxt a0) ++ " and " ++ show (a1,si1,get_known_pointer_bases ctxt a1)) $ return Overlap else
        return Overlap
+
+  mk_address (Just (Address a)) = Just a
+  mk_address _                  = Nothing
 
   do_trace a0 a1 = a0 /= a1 && a1 /= Bottom (FromPointerBases $ S.singleton StackPointer) && (expr_is_possibly_local_pointer ctxt a0 || expr_is_possibly_local_pointer ctxt a1)
 
@@ -400,11 +416,11 @@ read_from_address ctxt finit address a si0 = do
 read_mem :: 
      Context  -- ^ The context
   -> FInit    -- ^ The function initialisation
-  -> Address  -- ^ The address of an operand of an instruction
+  -> Operand  -- ^ The address of an operand of an instruction
   -> State (Pred,VCS) SimpleExpr
-read_mem ctxt finit (SizeDir si a) = do
+read_mem ctxt finit (Address (SizeDir si a)) = do
   resolved_address <- resolve_address ctxt a
-  read_from_address ctxt finit (Just a) resolved_address si
+  read_from_address ctxt finit (Just $ Address a) resolved_address si
 
 
 
@@ -427,6 +443,9 @@ write_mem ctxt finit mid a si0 v = do
  where
   write_mem' a0 v = do
     p@(Predicate eqs flg muddle_status,vcs) <- get
+
+    when (is_symbolic_function_pointer ctxt v) $ do
+      modify $ add_function_pointer_intro (get_immediate_forced v) mid
 
     if address_is_unwritable ctxt a0 then do
       trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
@@ -472,8 +491,8 @@ write_mem ctxt finit mid a si0 v = do
      if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
        return Overlap
 
-  address (MemWriteInstruction _ addr _) = Just addr -- TODO use mids for assertions
-  address (MemWriteFunction _ _ _)       = Nothing
+  address (MemWriteInstruction _ (Address addr) _) = Just addr -- TODO use mids for assertions
+  address _                                        = Nothing
 
 
 
@@ -502,22 +521,24 @@ write_mem ctxt finit mid a si0 v = do
 read_operand :: Context -> FInit -> Operand -> State (Pred,VCS) SimpleExpr
 read_operand ctxt finit (Reg r)       = read_reg ctxt r
 read_operand ctxt finit (Immediate w) = return $ SE_Immediate w
-read_operand ctxt finit (Address a)   = read_mem ctxt finit a
+read_operand ctxt finit (Address a)   = read_mem ctxt finit $ Address a
 
 -- | Write to an operand of an instructiofinit_of_entryn
 write_operand ::
  Context                 -- ^ The context
- -> FInit               -- ^ The function initialization
+ -> FInit                -- ^ The function initialization
  -> Int                  -- ^ The address of the instruction, used to build a `MemWriteIdentifier`
  -> Operand              -- ^ The operand
  -> SimpleExpr           -- ^ The value to be written
  -> State (Pred,VCS) ()
-write_operand ctxt finit instr_a (Reg r) v                  = write_reg ctxt r v
+write_operand ctxt finit instr_a (Reg r) v                  = write_reg ctxt instr_a r v
 write_operand ctxt finit instr_a (Address (SizeDir si a)) v = do
   resolved_address <- resolve_address ctxt a
-  write_mem ctxt finit (MemWriteInstruction instr_a (SizeDir si a) resolved_address) resolved_address si v
+  write_mem ctxt finit (MemWriteInstruction instr_a (Address $ SizeDir si a) resolved_address) resolved_address si v
 write_operand ctxt finit instr_a op1 e                      = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
  
+
+mk_reg_write_identifier instr_a r = MemWriteInstruction instr_a (Reg r) (SE_StatePart $ SP_Reg r)
 
 
 -- * Stateparts 
@@ -530,11 +551,12 @@ read_sp ctxt finit (SP_Mem a si) = simp <$> read_from_address ctxt finit Nothing
 write_sp :: 
   Context                               -- ^ The context
   -> FInit                              -- ^ The function initialization
-  -> (StatePart -> MemWriteIdentifier)  -- Given a statepart, build a memwrite identifier
-  -> (StatePart,SimpleExpr)             -- The statepart and the value to be written
+  -> Int                                -- ^ The address of the instruction
+  -> (Int -> StatePart -> MemWriteIdentifier)  -- ^ Given a statepart, build a memwrite identifier
+  -> (StatePart,SimpleExpr)             -- ^ The statepart and the value to be written
   -> State (Pred,VCS) ()
-write_sp ctxt finit mk_mid (SP_Reg r,v)         = write_reg ctxt r v
-write_sp ctxt finit mk_mid (sp@(SP_Mem a si),v) = write_mem ctxt finit (mk_mid sp) a si v
+write_sp ctxt finit i_a mk_mid (sp @(SP_Reg r),v)   = write_reg ctxt i_a r v
+write_sp ctxt finit i_a mk_mid (sp@(SP_Mem a si),v) = write_mem ctxt finit (mk_mid i_a sp) a si v
 
 
 
