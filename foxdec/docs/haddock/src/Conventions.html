@@ -13,106 +13,124 @@ Description : In this file, we eumerate assumptions made on calling conventions 
 </span><span id="line-13"></span><span>
 </span><span id="line-14"></span><span>
 </span><span id="line-15"></span><span class="hs-comment">-- | A list of function names of functions that never return.</span><span>
-</span><span id="line-16"></span><span id="exiting_function_calls"><span class="annot"><span class="annottext">exiting_function_calls :: [[Char]]
-</span><a href="Conventions.html#exiting_function_calls"><span class="hs-identifier hs-var hs-var">exiting_function_calls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span>
-</span><span id="line-17"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-16"></span><span id="is_exiting_function_call"><span class="annot"><span class="annottext">is_exiting_function_call :: [Char] -&gt; Bool
+</span><a href="Conventions.html#is_exiting_function_call"><span class="hs-identifier hs-var hs-var">is_exiting_function_call</span></a></span></span><span> </span><span id="local-6989586621679207813"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207813"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679207812"><span class="annot"><span class="annottext">f' :: [Char]
+</span><a href="#local-6989586621679207812"><span class="hs-identifier hs-var hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="#local-6989586621679207811"><span class="hs-identifier hs-var">strip_GLIBC</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207813"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207812"><span class="hs-identifier hs-var">f'</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-19"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;exit&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_exit&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__exit&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;___exit&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-18"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-20"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;error&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_error&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__error&quot;</span></span><span class="hs-special">,</span><span> </span><span>
-</span><span id="line-19"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-21"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__stack_chk_fail&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;___stack_chk_fail&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-20"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-22"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__overflow&quot;</span></span><span class="hs-special">,</span><span> </span><span>
-</span><span id="line-21"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-23"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;abort&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_abort&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-22"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-24"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_fail&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-23"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-25"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;halt&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-24"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-26"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_assert_fail&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__assert_fail&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;___assert_fail&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;___assert_rtn&quot;</span></span><span class="hs-special">,</span><span>
-</span><span id="line-25"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-27"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;err&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;verr&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;errc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;verrc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;errx&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;verrx&quot;</span></span><span class="hs-special">,</span><span> </span><span>
-</span><span id="line-26"></span><span>  </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-28"></span><span>      </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_err&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_verr&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_errc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_verrc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_errx&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><span class="hs-string">&quot;_verrx&quot;</span></span><span>
-</span><span id="line-27"></span><span> </span><span class="hs-special">]</span><span>
-</span><span id="line-28"></span><span>
-</span><span id="line-29"></span><span>
-</span><span id="line-30"></span><span>
-</span><span id="line-31"></span><span>
-</span><span id="line-32"></span><span class="hs-comment">-- | Overview of sections with instructions.</span><span>
-</span><span id="line-33"></span><span id="sections_with_instructions"><span class="annot"><span class="annottext">sections_with_instructions :: [([Char], [Char])]
+</span><span class="hs-string">&quot;_verrx&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>      </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;obstack_alloc_failed_handler&quot;</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679207811"><span class="annot"><span class="annottext">strip_GLIBC :: [Char] -&gt; [Char]
+</span><a href="#local-6989586621679207811"><span class="hs-identifier hs-var hs-var">strip_GLIBC</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="Base.html#takeUntilString"><span class="hs-identifier hs-var">takeUntilString</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;@GLIBC&quot;</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Overview of sections with instructions.</span><span>
+</span><span id="line-37"></span><span id="sections_with_instructions"><span class="annot"><span class="annottext">sections_with_instructions :: [([Char], [Char])]
 </span><a href="Conventions.html#sections_with_instructions"><span class="hs-identifier hs-var hs-var">sections_with_instructions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span>
-</span><span id="line-34"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-38"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__TEXT&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__text&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- TODO ELF</span><span>
-</span><span id="line-35"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-39"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__TEXT&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__stubs&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-36"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-40"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__TEXT&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__stub_helper&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-37"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-41"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA_CONST&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__got&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-38"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-42"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__la_symbol_ptr&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-39"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-43"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__nl_symbol_ptr&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-40"></span><span>
-</span><span id="line-41"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.text&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-42"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-46"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.init&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-43"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-47"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.plt&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
-</span><span id="line-44"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-48"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;.plt.got&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.fini&quot;</span></span><span class="hs-special">)</span><span>
-</span><span id="line-45"></span><span> </span><span class="hs-special">]</span><span>
-</span><span id="line-46"></span><span>
-</span><span id="line-47"></span><span class="hs-comment">-- | Sections in the following list are assumed not to be modifiable during execution, i.e., constant.</span><span>
-</span><span id="line-48"></span><span id="section_is_unwritable"><span class="annot"><span class="annottext">section_is_unwritable :: ([Char], [Char]) -&gt; Bool
-</span><a href="Conventions.html#section_is_unwritable"><span class="hs-identifier hs-var hs-var">section_is_unwritable</span></a></span></span><span> </span><span id="local-6989586621679205100"><span class="annot"><span class="annottext">s :: ([Char], [Char])
-</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679205099"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205099"><span class="hs-identifier hs-var">segname</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679205098"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205098"><span class="hs-identifier hs-var">sect_name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span>
-</span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
+</span><span id="line-50"></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | Sections in the following list are assumed not to be modifiable during execution, i.e., constant.</span><span>
+</span><span id="line-53"></span><span id="section_is_unwritable"><span class="annot"><span class="annottext">section_is_unwritable :: ([Char], [Char]) -&gt; Bool
+</span><a href="Conventions.html#section_is_unwritable"><span class="hs-identifier hs-var hs-var">section_is_unwritable</span></a></span></span><span> </span><span id="local-6989586621679207806"><span class="annot"><span class="annottext">s :: ([Char], [Char])
+</span><a href="#local-6989586621679207806"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679207805"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207805"><span class="hs-identifier hs-var">segname</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679207804"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207804"><span class="hs-identifier hs-var">sect_name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
 forall (t :: * -&gt; *). Foldable t =&gt; t Bool -&gt; Bool
 </span><span class="hs-identifier hs-var">or</span></span><span> </span><span class="hs-special">[</span><span>
-</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679205099"><span class="hs-identifier hs-var">segname</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; Bool
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679207805"><span class="hs-identifier hs-var">segname</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__TEXT&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA_CONST&quot;</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
-</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
-</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
+</span><a href="#local-6989586621679207806"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;__DATA&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
@@ -121,17 +139,17 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-string">&quot;__const&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;.rodata&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span class="hs-special">,</span><span>
-</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
-</span><a href="#local-6989586621679205100"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">([Char], [Char])
+</span><a href="#local-6989586621679207806"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[([Char], [Char])]
 </span><a href="Conventions.html#sections_with_instructions"><span class="hs-identifier hs-var">sections_with_instructions</span></a></span><span>
-</span><span id="line-53"></span><span>  </span><span class="hs-special">]</span><span>
-</span><span id="line-54"></span><span>
-</span><span id="line-55"></span><span>
-</span><span id="line-56"></span><span>
-</span><span id="line-57"></span><span class="hs-comment">-- | A list if registers that are non-volatile, i.e., that must be preserved by a function (callee-saved)</span><span>
-</span><span id="line-58"></span><span id="callee_saved_registers"><span class="annot"><span class="annottext">callee_saved_registers :: [Register]
+</span><span id="line-58"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | A list if registers that are non-volatile, i.e., that must be preserved by a function (callee-saved)</span><span>
+</span><span id="line-63"></span><span id="callee_saved_registers"><span class="annot"><span class="annottext">callee_saved_registers :: [Register]
 </span><a href="Conventions.html#callee_saved_registers"><span class="hs-identifier hs-var hs-var">callee_saved_registers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
@@ -148,17 +166,17 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><a href="X86_Datastructures.html#YMM5"><span class="hs-identifier hs-var">YMM5</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#YMM6"><span class="hs-identifier hs-var">YMM6</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#YMM7"><span class="hs-identifier hs-var">YMM7</span></a></span><span class="hs-special">]</span><span>
-</span><span id="line-59"></span><span>
-</span><span id="line-60"></span><span>
-</span><span id="line-61"></span><span class="hs-comment">-- | A list of registers that may be used for return values</span><span>
-</span><span id="line-62"></span><span id="return_registers"><span class="annot"><span class="annottext">return_registers :: [Register]
-</span><a href="Conventions.html#return_registers"><span class="hs-identifier hs-var hs-var">return_registers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Register
-</span><a href="X86_Datastructures.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span class="hs-special">]</span><span>
-</span><span id="line-63"></span><span>
 </span><span id="line-64"></span><span>
 </span><span id="line-65"></span><span>
-</span><span id="line-66"></span><span class="hs-comment">-- | A list of registers used as parameters</span><span>
-</span><span id="line-67"></span><span id="parameter_registers"><span class="annot"><span class="annottext">parameter_registers :: [Register]
+</span><span id="line-66"></span><span class="hs-comment">-- | A list of registers that may be used for return values</span><span>
+</span><span id="line-67"></span><span id="return_registers"><span class="annot"><span class="annottext">return_registers :: [Register]
+</span><a href="Conventions.html#return_registers"><span class="hs-identifier hs-var hs-var">return_registers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Register
+</span><a href="X86_Datastructures.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | A list of registers used as parameters</span><span>
+</span><span id="line-72"></span><span id="parameter_registers"><span class="annot"><span class="annottext">parameter_registers :: [Register]
 </span><a href="Conventions.html#parameter_registers"><span class="hs-identifier hs-var hs-var">parameter_registers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
@@ -166,7 +184,7 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><a href="X86_Datastructures.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#R8"><span class="hs-identifier hs-var">R8</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86_Datastructures.html#R9"><span class="hs-identifier hs-var">R9</span></a></span><span class="hs-special">]</span><span>
-</span><span id="line-68"></span><span>
-</span><span id="line-69"></span><span>
-</span><span id="line-70"></span><span>
-</span><span id="line-71"></span></pre></body></html>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span></pre></body></html>

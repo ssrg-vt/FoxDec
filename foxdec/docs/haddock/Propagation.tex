@@ -1,0 +1,71 @@
+\haddockmoduleheading{Propagation}
+\label{module:Propagation}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module Propagation (
+    Propagator(join, tau, implies), do_prop, supremum
+  ) where\end{verbatim}}
+\haddockendheader
+
+We assume a class where we can do predicate transformation through function \haddocktt{tau},
+and we can merge two predicates through function \haddocktt{join}.
+Moreover, we assume an implementation of a function \haddocktt{implies} that implements symbolic implication.
+Given these functions, we provide a generic abstract interpretation algorithm.\par
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+class Show pred => Propagator ctxt pred where
+\end{tabular}]
+{\haddockbegindoc
+A class that allows propagation of predicates over a CFG.\par
+\haddockpremethods{}\emph{Methods}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+tau :: ctxt\\\ \ \ \ \ \ \ -> FInit -> {\char 91}Instr{\char 93} -> Maybe {\char 91}Instr{\char 93} -> pred -> (pred, Set VerificationCondition)
+\end{tabular}]
+{\haddockbegindoc
+Predicate transformation for an edge in in a CFG, over a basic blocks.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+join :: ctxt -> FInit -> pred -> pred -> pred
+\end{tabular}]
+{\haddockbegindoc
+A lattice-join\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+implies :: ctxt -> pred -> pred -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Symbolic implication\par}
+\end{haddockdesc}}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Propagator Context Pred
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+do{\char '137}prop
+\end{tabular}]
+{\haddockbegindoc
+\haddockbeginargs
+\haddockdecltt{::} & \haddockdecltt{Propagator ctxt pred} \\
+\haddockdecltt{=>} & \haddockdecltt{ctxt} & The context \\
+\haddockdecltt{->} & \haddockdecltt{FInit} & The function initialisation \\
+\haddockdecltt{->} & \haddockdecltt{CFG} & The CFG \\
+\haddockdecltt{->} & \haddockdecltt{Int} & The entry address \\
+\haddockdecltt{->} & \haddockdecltt{pred} & The initial predicate \\
+\haddockdecltt{->} & \haddockdecltt{(IntMap pred, Set VerificationCondition)} & \\
+\end{tabulary}\par
+Start propagation at the given entry address with the given initial predicate.
+ Returns a set of invariants, i.e., a mapping of instruction addresses to predicates.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+supremum :: Propagator ctxt pred => ctxt -> FInit -> {\char 91}pred{\char 93} -> pred
+\end{tabular}]
+{\haddockbegindoc
+The supremum of a list of predicates\par}
+\end{haddockdesc}

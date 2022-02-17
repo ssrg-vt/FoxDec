@@ -1,0 +1,360 @@
+\haddockmoduleheading{SimplePred}
+\label{module:SimplePred}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module SimplePred (
+    Pred(Predicate), StatePart(SP_Reg, SP_Mem),
+    SimpleExpr(Bottom,
+               SE_Immediate,
+               SE_Var,
+               SE_StatePart,
+               SE_Malloc,
+               SE_Op,
+               SE_Bit,
+               SE_SExtend,
+               SE_Overwrite),
+    FlagStatus(None, FS_CMP),
+    StateMuddleStatus(Clean, ExternalOnly, Muddled),
+    BotTyp(FromSources,
+           FromNonDeterminism,
+           FromPointerBases,
+           FromCall,
+           FromOverlap,
+           FromMemWrite,
+           FromSemantics,
+           FromBitMode,
+           FromUninitializedMemory),
+    BotSrc(Src_Var, Src_Malloc, Src_Function),
+    Operator(Div,
+             Not,
+             Minus,
+             Plus,
+             Times,
+             And,
+             Or,
+             Xor,
+             SetXX,
+             Bsr,
+             Div_Rem,
+             Shl,
+             Shr,
+             Sar,
+             Udiv,
+             Ror,
+             Rol,
+             Bswap,
+             Pextr),
+    PointerBase(Unknown,
+                StackPointer,
+                Malloc,
+                GlobalAddress,
+                PointerToSymbol),
+    is_immediate, is_mem_sp, is_reg_sp, contains_bot, contains_bot_sp,
+    all_bot_satisfy, simp, rock_bottom, trim_expr, pp_expr, pp_pred,
+    unfold_non_determinism, expr_size
+  ) where\end{verbatim}}
+\haddockendheader
+
+A datatype for symbolic predicates, tailored to storing information
+on equalities between the current values stored in state parts (lhs) 
+and constant expressions (rhs).\par
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data Pred
+\end{tabular}]
+{\haddockbegindoc
+A symbolic predicate consists of:\par
+\vbox{\begin{itemize}
+\item
+A mapping from stateparts to symbolic expressions.\par
+\item
+The status of the flags.\par
+\item
+A set of verification conditions.\par
+\item
+The \haddocktt{\haddocktt{StateMuddleStatus}}.\par
+\end{itemize}}
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{Predicate (Map StatePart SimpleExpr) FlagStatus StateMuddleStatus} & \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq Pred\\instance Ord Pred\\instance Show Pred\\instance Generic Pred\\instance Serialize Pred\\instance Propagator Context Pred\\type instance Rep Pred = D1 ('MetaData "Pred" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "Predicate" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Map StatePart SimpleExpr)) :*: (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 FlagStatus) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 StateMuddleStatus))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data StatePart
+\end{tabular}]
+{\haddockbegindoc
+A statepart is either a register or a region in memory\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{SP{\char '137}Reg Register} & A register \\
+\haddockdecltt{|} & \haddockdecltt{SP{\char '137}Mem SimpleExpr Int} & A region with a symbolic address and an immediate size. \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq StatePart\\instance Ord StatePart\\instance Show StatePart\\instance Generic StatePart\\instance Serialize StatePart\\type instance Rep StatePart = D1 ('MetaData "StatePart" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "SP{\char '137}Reg" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Register)) :+: C1 ('MetaCons "SP{\char '137}Mem" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data SimpleExpr
+\end{tabular}]
+{\haddockbegindoc
+A symbolic expression with as leafs either immediates, variables, live values of stateparts, or malloced addresses.
+ A variable is a constant representing some initial value, e.g., RDI{\char '137}0, or {\char 91}RSP{\char '137}0,8{\char 93}{\char '137}0.
+ A statepart evaluates to its current value, e.g., RDI or {\char 91}RSP,8{\char 93}.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{SE{\char '137}Immediate Word64} & An immediate word \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}Var StatePart} & A variable representing the initial value stored in the statepart (e.g., RSP0) \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}StatePart StatePart} & The value stored currently in the statepart \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}Malloc (Maybe Int) (Maybe String)} & A malloc return value with possibly an ID \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}Op Operator {\char 91}SimpleExpr{\char 93}} & Application of an \haddocktt{\haddockid{Operator}} to the list of arguments \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}Bit Int SimpleExpr} & Taking the lower bits of a value \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}SExtend Int Int SimpleExpr} & Sign extension \\
+\haddockdecltt{|} & \haddockdecltt{SE{\char '137}Overwrite Int SimpleExpr SimpleExpr} & Overwriting certain bits of a value with bits from another value \\
+\haddockdecltt{|} & \haddockdecltt{Bottom BotTyp} & Bottom (unknown value) \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq SimpleExpr\\instance Ord SimpleExpr\\instance Show SimpleExpr\\instance Generic SimpleExpr\\instance Serialize SimpleExpr\\type instance Rep SimpleExpr = D1 ('MetaData "SimpleExpr" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (((C1 ('MetaCons "SE{\char '137}Immediate" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Word64)) :+: C1 ('MetaCons "SE{\char '137}Var" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 StatePart))) :+: (C1 ('MetaCons "SE{\char '137}StatePart" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 StatePart)) :+: C1 ('MetaCons "SE{\char '137}Malloc" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe Int)) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe String))))) :+: ((C1 ('MetaCons "SE{\char '137}Op" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Operator) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 {\char 91}SimpleExpr{\char 93})) :+: C1 ('MetaCons "SE{\char '137}Bit" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr))) :+: (C1 ('MetaCons "SE{\char '137}SExtend" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int) :*: (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr))) :+: (C1 ('MetaCons "SE{\char '137}Overwrite" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int) :*: (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr))) :+: C1 ('MetaCons "Bottom" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 BotTyp))))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data FlagStatus
+\end{tabular}]
+{\haddockbegindoc
+Symbolically represent the status of all flags in the current state\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{None} & No information known, flags could have any value \\
+\haddockdecltt{|} & \haddockdecltt{FS{\char '137}CMP (Maybe Bool) Operand Operand} & The flags are set by the x86 CMP instruction applied to the given operands. \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq FlagStatus\\instance Ord FlagStatus\\instance Show FlagStatus\\instance Generic FlagStatus\\instance Serialize FlagStatus\\type instance Rep FlagStatus = D1 ('MetaData "FlagStatus" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "None" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type) :+: C1 ('MetaCons "FS{\char '137}CMP" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe Bool)) :*: (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Operand) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Operand))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data StateMuddleStatus
+\end{tabular}]
+{\haddockbegindoc
+Have functions been called by the current function?\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{Clean} & No function calls have been executed \\
+\haddockdecltt{|} & \haddockdecltt{ExternalOnly} & All function calls were to external functions \\
+\haddockdecltt{|} & \haddockdecltt{Muddled} & At least one internal function has been called \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq StateMuddleStatus\\instance Ord StateMuddleStatus\\instance Show StateMuddleStatus\\instance Generic StateMuddleStatus\\instance Serialize StateMuddleStatus\\type instance Rep StateMuddleStatus = D1 ('MetaData "StateMuddleStatus" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "Clean" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type) :+: (C1 ('MetaCons "ExternalOnly" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type) :+: C1 ('MetaCons "Muddled" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type)))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data BotTyp
+\end{tabular}]
+{\haddockbegindoc
+Bot represents an unknown (bottom) value.
+ We annotate each occurence of Bot with a BotTyp.
+ This type indicates where the bottom value originates from.
+ The latter  six are all equal, we just use them for debugging and information.
+ They indicate that the  value is unknown, but was computed using the set of sources.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{FromNonDeterminism (Set SimpleExpr)} & The expression evaluates to one of the expressions in the set \\
+\haddockdecltt{|} & \haddockdecltt{FromPointerBases (Set PointerBase)} & The expression is a pointer-computation with known base(s) \\
+\haddockdecltt{|} & \haddockdecltt{FromCall String} & Return value of a function call \\
+\haddockdecltt{|} & \haddockdecltt{FromSources (Set BotSrc)} & The expression is some computation based on sources. \\
+\haddockdecltt{|} & \haddockdecltt{FromOverlap (Set BotSrc)} & A read from two possibly overlapping regions \\
+\haddockdecltt{|} & \haddockdecltt{FromMemWrite (Set BotSrc)} & A write to two possibly overlapping regions  \\
+\haddockdecltt{|} & \haddockdecltt{FromSemantics (Set BotSrc)} & An instruction with unknown semantics \\
+\haddockdecltt{|} & \haddockdecltt{FromBitMode (Set BotSrc)} & Should not happen, but if a register writes to a registeralias with unknown bit size \\
+\haddockdecltt{|} & \haddockdecltt{FromUninitializedMemory (Set BotSrc)} & Reading from memory not written to yet \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq BotTyp\\instance Ord BotTyp\\instance Show BotTyp\\instance Generic BotTyp\\instance Serialize BotTyp\\type instance Rep BotTyp = D1 ('MetaData "BotTyp" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (((C1 ('MetaCons "FromNonDeterminism" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set SimpleExpr))) :+: C1 ('MetaCons "FromPointerBases" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set PointerBase)))) :+: (C1 ('MetaCons "FromCall" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 String)) :+: C1 ('MetaCons "FromSources" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc))))) :+: ((C1 ('MetaCons "FromOverlap" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc))) :+: C1 ('MetaCons "FromMemWrite" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc)))) :+: (C1 ('MetaCons "FromSemantics" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc))) :+: (C1 ('MetaCons "FromBitMode" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc))) :+: C1 ('MetaCons "FromUninitializedMemory" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Set BotSrc)))))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data BotSrc
+\end{tabular}]
+{\haddockbegindoc
+Sources that may be used to compute an expression. That is, the inputs to an expression.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{Src{\char '137}Var StatePart} & \\
+\haddockdecltt{|} & \haddockdecltt{Src{\char '137}Malloc (Maybe Int) (Maybe String)} & \\
+\haddockdecltt{|} & \haddockdecltt{Src{\char '137}Function String} & \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq BotSrc\\instance Ord BotSrc\\instance Show BotSrc\\instance Generic BotSrc\\instance Serialize BotSrc\\type instance Rep BotSrc = D1 ('MetaData "BotSrc" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "Src{\char '137}Var" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 StatePart)) :+: (C1 ('MetaCons "Src{\char '137}Malloc" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe Int)) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe String))) :+: C1 ('MetaCons "Src{\char '137}Function" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 String))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data Operator
+\end{tabular}]
+{\haddockbegindoc
+An operator is a pure operation over bit-vectors, annotated with the bit-size of its operands.
+ For example, \haddocktt{Plus 64} denotes 64-bit addition.
+ \haddocktt{Udiv} and \haddocktt{Times} are operators op type \haddocktt{w -> w -> w} with all words same length.
+ \haddocktt{Div} and \haddocktt{Div{\char '137}Rem} are operators of type \haddocktt{w -> w -> w -> w} performing concatenation of the first two words and then doing division/remainder.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{Minus Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Plus Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Times Int} & \\
+\haddockdecltt{|} & \haddockdecltt{And Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Or Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Xor Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Not Int} & \\
+\haddockdecltt{|} & \haddockdecltt{SetXX} & \\
+\haddockdecltt{|} & \haddockdecltt{Bsr Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Div{\char '137}Rem Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Div Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Shl Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Shr Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Sar Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Udiv Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Ror Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Rol Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Bswap Int} & \\
+\haddockdecltt{|} & \haddockdecltt{Pextr Int} & \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq Operator\\instance Ord Operator\\instance Show Operator\\instance Generic Operator\\instance Serialize Operator\\type instance Rep Operator = D1 ('MetaData "Operator" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) ((((C1 ('MetaCons "Minus" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Plus" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int))) :+: (C1 ('MetaCons "Times" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "And" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)))) :+: ((C1 ('MetaCons "Or" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Xor" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int))) :+: (C1 ('MetaCons "Not" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: (C1 ('MetaCons "SetXX" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type) :+: C1 ('MetaCons "Bsr" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)))))) :+: (((C1 ('MetaCons "Div{\char '137}Rem" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Div" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int))) :+: (C1 ('MetaCons "Shl" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: (C1 ('MetaCons "Shr" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Sar" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int))))) :+: ((C1 ('MetaCons "Udiv" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Ror" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int))) :+: (C1 ('MetaCons "Rol" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: (C1 ('MetaCons "Bswap" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)) :+: C1 ('MetaCons "Pextr" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Int)))))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data PointerBase
+\end{tabular}]
+{\haddockbegindoc
+A pointerbase is a positive addend of a symbolic expression that may represent a pointer.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{StackPointer} & The stackpointer, for \emph{local} variables \\
+\haddockdecltt{|} & \haddockdecltt{Malloc (Maybe Int) (Maybe String)} & A malloc (at the \emph{heap}) at a given address (hash is unused for now) \\
+\haddockdecltt{|} & \haddockdecltt{GlobalAddress Word64} & A \emph{global} address in the range of the sections of the binary. \\
+\haddockdecltt{|} & \haddockdecltt{PointerToSymbol Word64 String} & An address with an associated symbol. \\
+\haddockdecltt{|} & \haddockdecltt{Unknown SimpleExpr} & n expresion without identifiable pointerbase, \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Eq PointerBase\\instance Ord PointerBase\\instance Show PointerBase\\instance Generic PointerBase\\instance Serialize PointerBase\\type instance Rep PointerBase = D1 ('MetaData "PointerBase" "SimplePred" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) ((C1 ('MetaCons "StackPointer" 'PrefixI 'False) (U1 :: Type\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -> Type) :+: C1 ('MetaCons "Malloc" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe Int)) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (Maybe String)))) :+: (C1 ('MetaCons "GlobalAddress" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Word64)) :+: (C1 ('MetaCons "PointerToSymbol" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 Word64) :*: S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 String)) :+: C1 ('MetaCons "Unknown" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 SimpleExpr)))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+is{\char '137}immediate :: SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the expression is an immediate value\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+is{\char '137}mem{\char '137}sp :: StatePart -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Is the statepart memory?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+is{\char '137}reg{\char '137}sp :: StatePart -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Is the statepart a register?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+contains{\char '137}bot :: SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the expression contains Bot\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+contains{\char '137}bot{\char '137}sp :: StatePart -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the statepart contains Bot\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+all{\char '137}bot{\char '137}satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Do all occurences of Bottom satisfy the given predicate?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+simp :: SimpleExpr -> SimpleExpr
+\end{tabular}]
+{\haddockbegindoc
+Simplification of symbolic expressions. \par
+Must always produce an expression logically equivalent to the original.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+rock{\char '137}bottom :: SimpleExpr
+\end{tabular}]
+{\haddockbegindoc
+The lowest botom element\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+trim{\char '137}expr :: SimpleExpr -> SimpleExpr
+\end{tabular}]
+{\haddockbegindoc
+If the size of an expression becomes too large, we simply turn it into Bottom.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+pp{\char '137}expr :: SimpleExpr -> {\char 91}Char{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Pretty print expression, showing Bottom expressions only as Bot\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+pp{\char '137}pred :: Pred -> String
+\end{tabular}]
+{\haddockbegindoc
+Pretty print predicate, showing Bottom expressions only as Bot\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+unfold{\char '137}non{\char '137}determinism :: SimpleExpr -> {\char 91}SimpleExpr{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Unfold an expression with non-determinisism to a list of expressions.
+ Keep an eye on the produced size, as this may cause blow-up.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}size :: SimpleExpr -> Int
+\end{tabular}]
+{\haddockbegindoc
+}
+\end{haddockdesc}

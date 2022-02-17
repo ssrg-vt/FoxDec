@@ -226,7 +226,7 @@ get_relevant_precs_for ctxt p i prec =
   operand_to_statepart p _ _                               = []
 
   resolve_address_of_operand i a = do
-    write_reg ctxt RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
+    write_reg ctxt (i_addr i) RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
     resolve_address ctxt a
 
 

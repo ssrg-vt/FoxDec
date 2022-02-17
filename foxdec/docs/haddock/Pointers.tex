@@ -1,0 +1,165 @@
+\haddockmoduleheading{Pointers}
+\label{module:Pointers}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module Pointers (
+    get_pointer_bases, get_known_pointer_bases,
+    expr_highly_likely_pointer, expr_is_global_pointer,
+    expr_is_highly_likely_local_pointer,
+    expr_is_possibly_local_pointer, expr_is_global_immediate,
+    srcs_of_expr, srcs_of_exprs,
+    pointers_from_different_global_section, join_exprs, join_single,
+    pointer_bases_separate, sources_separate, necessarily_equal,
+    necessarily_equal_stateparts, necessarily_separate,
+    necessarily_separate_stateparts, necessarily_enclosed
+  ) where\end{verbatim}}
+\haddockendheader
+
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+get{\char '137}pointer{\char '137}bases :: Context -> SimpleExpr -> Set PointerBase
+\end{tabular}]
+{\haddockbegindoc
+A \haddockid{PointerBase} is a positive addend of a symbolic expression that may represent a pointer.
+ Retrieves the pointer bases from a symbolic expression.
+ They are either 1.) all known, or 2.) all unknown.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+get{\char '137}known{\char '137}pointer{\char '137}bases :: Context -> SimpleExpr -> Set PointerBase
+\end{tabular}]
+{\haddockbegindoc
+Returns the set of known pointerbases, or the empty set if none.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}highly{\char '137}likely{\char '137}pointer :: Context -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true if the expression has known pointerbases.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}is{\char '137}global{\char '137}pointer :: Context -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true if the expression has a global pointerbase.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}is{\char '137}highly{\char '137}likely{\char '137}local{\char '137}pointer :: Context -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true if the expression has a local pointerbase, and no others.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}is{\char '137}possibly{\char '137}local{\char '137}pointer :: Context -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true if the expression has a local pointerbase, but maybe other pointerbases as well.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+expr{\char '137}is{\char '137}global{\char '137}immediate :: Context -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the expression is an immediate address falling into the range of sections of the binary\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+srcs{\char '137}of{\char '137}expr :: Context -> SimpleExpr -> Set BotSrc
+\end{tabular}]
+{\haddockbegindoc
+Returns the set of sources (inputs used to compute the expression) of an expression.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+srcs{\char '137}of{\char '137}exprs :: Context -> {\char 91}SimpleExpr{\char 93} -> Set BotSrc
+\end{tabular}]
+{\haddockbegindoc
+Returns the set of sources (state parts used to compute the expression) of two expressions.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+pointers{\char '137}from{\char '137}different{\char '137}global{\char '137}section :: Context -> SimpleExpr -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the two given expressions have global pointerbases in different segments/sections of the binary.
+ We do not assume that such pointers are separate, but do assert it.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+join{\char '137}exprs :: {\char 91}Char{\char 93} -> Context -> {\char 91}SimpleExpr{\char 93} -> SimpleExpr
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+join{\char '137}single :: Context -> SimpleExpr -> SimpleExpr
+\end{tabular}]
+{\haddockbegindoc
+Abstraction for a single expression, even if the expression is concrete.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+pointer{\char '137}bases{\char '137}separate :: PointerBase -> PointerBase -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Two pointerbases are separate if they refer to completely different parts of the memory.
+ We assume Stackframe, Global address space, and Heap are separate.
+ Two different \haddocktt{malloc}'s point to different regions.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+sources{\char '137}separate :: Context -> FInit -> BotSrc -> BotSrc -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Two sources are inputs for separate pointers if, e.g., one of them is the stackpointer and the other a malloc-return-value.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+necessarily{\char '137}equal :: SimpleExpr -> SimpleExpr -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the given symbolic regions are necessarily equal.
+ For example:
+    \haddocktt{{\char 91}RSP-16,4{\char 93}} is enclosed in \haddocktt{{\char 91}RSP-16,4{\char 93}}\par
+Will return \haddocktt{False} if the expressions contain bottom.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+necessarily{\char '137}equal{\char '137}stateparts :: StatePart -> StatePart -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the given symbolic stateparts are necessarily equal.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+necessarily{\char '137}separate :: (Ord a, Num a) =>\\\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Context -> FInit -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the given symbolic regions are ncessarily separate.
+ For example:
+    \haddocktt{{\char 91}RSP-16,4{\char 93}} is separate from \haddocktt{{\char 91}RSP-12,8{\char 93}}
+    \haddocktt{{\char 91}RSP+8,4{\char 93}} is separate from \haddocktt{{\char 91}RSP,8{\char 93}}\par
+If none of the cases apply where it can be shjown arithmetically that the expressions are separate,
+ we check whether the expressions can be proven separate based on their domains (see \haddockid{separate{\char '137}pointer{\char '137}domains}).\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+necessarily{\char '137}separate{\char '137}stateparts :: Context -> FInit -> StatePart -> StatePart -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the given symbolic stateparts are necessarily separate.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+necessarily{\char '137}enclosed :: Integral a => SimpleExpr -> a -> SimpleExpr -> a -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Returns true iff the given symbolic region is necessarily enclosed in the other.
+ For example:
+    \haddocktt{{\char 91}RSP-16,4{\char 93}} is enclosed in \haddocktt{{\char 91}RSP-18,8{\char 93}}
+    \haddocktt{{\char 91}RSP+4,4{\char 93}} is enclosed in \haddocktt{{\char 91}RSP,8{\char 93}}\par
+Will return \haddocktt{False} if the expressions contain bottom.\par}
+\end{haddockdesc}

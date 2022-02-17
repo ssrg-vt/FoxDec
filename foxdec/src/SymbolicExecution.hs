@@ -223,17 +223,17 @@ functions_returning_bottom = [
 function_semantics :: Context -> Instr -> String -> State (Pred,VCS) Bool
 function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
 function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
-function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt RAX >> return True
+function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (i_addr i) RAX >> return True
 function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "strcpy"
-function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt RAX >> return True
+function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (i_addr i) RAX >> return True
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
-function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
+function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (i_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      = 
-  if f `elem` functions_returning_bottom || is_exiting_function_call f then do
-    write_reg ctxt RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
+  if f `elem` functions_returning_bottom then do  -- and exiting fucntion calls?
+    write_reg ctxt (i_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
-    write_reg ctxt RAX $ SE_Malloc (Just (i_addr i)) (Just "")
+    write_reg ctxt (i_addr i) RAX $ SE_Malloc (Just (i_addr i)) (Just "")
     return True
   else
     return False
@@ -274,7 +274,7 @@ call ctxt finit i = do
       when (not $ S.null sps) $ modify $ add_function_constraint f i_a params sps
 
       -- 3.) For all return registers (RAX,XMM0), write some unknown return value
-      forM_ return_registers (\r -> write_reg ctxt r $ Bottom $ FromCall $ function_name_of_instruction ctxt i) -- TODO flags
+      forM_ return_registers (\r -> write_reg ctxt i_a r $ Bottom $ FromCall $ function_name_of_instruction ctxt i) -- TODO flags
     else do
       -- an internal function, already verified
       sub ctxt finit i_a (Reg RSP) (Immediate 8)
@@ -284,7 +284,7 @@ call ctxt finit i = do
       let (q@(Predicate q_eqs _ _)) = supremum ctxt finit $ map fromJust postconditions
       let (vcs',q_eqs_transposed)   = partitionEithers $ map (transpose_bw ctxt finit f i_a p) $ filter (uncurry do_transfer) $ M.toList q_eqs
       put ((Predicate M.empty None Clean),S.union vcs $ S.fromList vcs')
-      mapM_ (write_sp ctxt finit mk_mid) q_eqs_transposed
+      mapM_ (write_sp ctxt finit i_a mk_mid) q_eqs_transposed
       (q_transposed@(Predicate q_eqs _ _),vcs) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
@@ -298,7 +298,7 @@ call ctxt finit i = do
     let si' = 1 
     v'     <- evalState_discard $ read_sp ctxt finit (SP_Mem a 1)
     let bot = join_single ctxt v'
-    write_sp ctxt finit mk_mid (SP_Mem a' si',bot) -- (Bottom $ FromCall f)  
+    write_sp ctxt finit (i_addr i)  mk_mid (SP_Mem a' si',bot) -- (Bottom $ FromCall f)  
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
@@ -338,17 +338,17 @@ call ctxt finit i = do
       else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
         Just (_,v') -> do
           -- the statepart was overwritten by the function, so use its new value
-          write_sp ctxt finit mk_mid (sp,v')
+          write_sp ctxt finit (i_addr i)  mk_mid (sp,v')
           return S.empty
         Nothing     -> do
           -- the statepart was possibly overwritten by the function, so use its old and new value joined
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
-          write_sp ctxt finit mk_mid (sp,join_expr ctxt v v')
+          write_sp ctxt finit (i_addr i) mk_mid (sp,join_expr ctxt v v')
           return S.empty
         
 
   -- make a memory-write-identifier: the memroy write happened during this function call
-  mk_mid = MemWriteFunction (function_name_of_instruction ctxt i) (i_addr i) 
+  mk_mid = MemWriteFunction (function_name_of_instruction ctxt i)  
 
   -- forcibly insert the statepart into ther current predicate
   -- should never be done without caution, one should always use the mem_write function
@@ -417,23 +417,23 @@ push ctxt finit i_a (Immediate imm) = do
   let si = 8
   let address = AddrMinus (AddrReg RSP) (AddrImm si)
   e1 <- resolve_address ctxt address
-  write_reg ctxt RSP e1
-  write_mem ctxt finit (MemWriteInstruction i_a address e1) e1 si (SE_Immediate imm)
+  write_reg ctxt i_a RSP e1
+  write_mem ctxt finit (MemWriteInstruction i_a (Address $ address) e1) e1 si (SE_Immediate imm)
 push ctxt finit i_a op1 = do
   e0 <- read_operand ctxt finit op1
   let si = operand_size op1
   let address = AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
-  write_reg ctxt RSP e1
-  write_mem ctxt finit (MemWriteInstruction i_a address e1) e1 si e0
+  write_reg ctxt i_a RSP e1
+  write_mem ctxt finit (MemWriteInstruction i_a (Address $ address) e1) e1 si e0
 
 pop :: Context -> FInit -> Int -> Operand -> State (Pred,VCS) ()
 pop ctxt finit i_a op1 = do
   let si = operand_size op1
-  e0 <- read_mem ctxt finit (SizeDir si (AddrReg RSP))
+  e0 <- read_mem ctxt finit (Address $ SizeDir si (AddrReg RSP))
   let address = AddrPlus (AddrReg RSP) (AddrImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
-  write_reg ctxt RSP e1
+  write_reg ctxt i_a RSP e1
   write_operand ctxt finit i_a op1 e0
 
 lea :: Context -> FInit -> Int -> Operand -> Operand -> State (Pred,VCS) ()
@@ -450,7 +450,7 @@ ret ctxt finit i_a = pop ctxt finit i_a (Reg RIP)
 
 sysret ctxt finit i_a = do
   e0 <- read_operand ctxt finit (Reg RCX)
-  write_reg ctxt RIP e0
+  write_reg ctxt i_a RIP e0
   write_flags (\_ _ -> None) (Reg RCX) (Reg RCX)
 
 jmp ctxt finit i =
@@ -1555,7 +1555,7 @@ tau_i ctxt finit i =
 tau_b :: Context -> FInit -> [Instr] -> State (Pred,VCS) ()
 tau_b ctxt finit []  = return ()
 tau_b ctxt finit (i:is) = do
-  write_reg ctxt RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
+  write_reg ctxt (i_addr i) RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
   tau_i ctxt finit i
   tau_b ctxt finit is
 
@@ -1647,13 +1647,13 @@ join_preds ctxt finit p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 
     case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
       Nothing -> 
         if is_initial sp' v' then
-          fst $ execState (write_sp ctxt finit mk_mid (sp', v')) (q,S.empty)
+          fst $ execState (write_sp ctxt finit 0 mk_mid (sp', v')) (q,S.empty)
         else
           let v = evalState (read_sp ctxt finit sp') (p,S.empty) in
-            fst $ execState (write_sp ctxt finit mk_mid (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) (q,S.empty)
+            fst $ execState (write_sp ctxt finit 0 mk_mid (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) (q,S.empty)
       Just _  -> q
 
-  mk_mid = MemWriteFunction "joining" 0 -- never used
+  mk_mid = MemWriteFunction "joining" -- never used
 
 
 -- TODO in case of bot, check whether sources of P1 are larger than P0

@@ -26,6 +26,7 @@ foxdec/examples/*/*.jpg
 foxdec/examples/*/*.dot
 foxdec/examples/*/*.thy
 foxdec/.stack-work
+foxdec/examples/*/*_x86_64
 
 *.report
 *.thy~

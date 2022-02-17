@@ -1,0 +1,74 @@
+\haddockmoduleheading{SymbolicExecution}
+\label{module:SymbolicExecution}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module SymbolicExecution (
+    tau_block, init_pred, gather_stateparts, invariant_to_finit,
+    join_finit, get_invariant
+  ) where\end{verbatim}}
+\haddockendheader
+
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+tau{\char '137}block
+\end{tabular}]
+{\haddockbegindoc
+\haddockbeginargs
+\haddockdecltt{::} & \haddockdecltt{Context} & The context \\
+\haddockdecltt{->} & \haddockdecltt{FInit} & The function intialisation \\
+\haddockdecltt{->} & \haddockdecltt{{\char 91}Instr{\char 93}} & The instructions of the basic block \\
+\haddockdecltt{->} & \haddockdecltt{Maybe {\char 91}Instr{\char 93}} & Optionally, the instructions of the next block if symbolically executing an edge in a CFG. \\
+\haddockdecltt{->} & \haddockdecltt{Pred} & The predicate to be transformed \\
+\haddockdecltt{->} & \haddockdecltt{(Pred, VCS)} & \\
+\end{tabulary}\par
+Do predicate transformation over a basic block in a CFG.
+ Given an edge in the CFG from none block to another, perform predicate transformation.
+ Parameter insts' is needed to set the flags properly. If \haddocktt{Nothing} is supplied, the flags are overapproximatively set to \haddocktt{\haddockid{None}}.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+init{\char '137}pred
+\end{tabular}]
+{\haddockbegindoc
+\haddockbeginargs
+\haddockdecltt{::} & \haddockdecltt{Invariants} & The currently available invariants \\
+\haddockdecltt{->} & \haddockdecltt{Set (NodeInfo, Pred)} & The currently known postconditions \\
+\haddockdecltt{->} & \haddockdecltt{FInit} & The function initialisation \\
+\haddockdecltt{->} & \haddockdecltt{Pred} & \\
+\end{tabulary}\par
+The initial predicate.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+gather{\char '137}stateparts
+\end{tabular}]
+{\haddockbegindoc
+\haddockbeginargs
+\haddockdecltt{::} & \haddockdecltt{FInit} & The function initialisation \\
+\haddockdecltt{->} & \haddockdecltt{Invariants} & The currently available invariants \\
+\haddockdecltt{->} & \haddockdecltt{Set (NodeInfo, Pred)} & The currently known postconditions \\
+\haddockdecltt{->} & \haddockdecltt{Set StatePart} & \\
+\end{tabulary}\par
+Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+invariant{\char '137}to{\char '137}finit :: Context -> FInit -> Pred -> FInit
+\end{tabular}]
+{\haddockbegindoc
+Convert the current invariant into a function initialisation\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+join{\char '137}finit :: Context -> FInit -> FInit -> FInit
+\end{tabular}]
+{\haddockbegindoc
+The join between two function initialisations\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+get{\char '137}invariant :: Context -> Int -> Int -> Maybe Pred
+\end{tabular}]
+{\haddockbegindoc
+Get the invariant for a given instruction address for a given function entry\par}
+\end{haddockdesc}
