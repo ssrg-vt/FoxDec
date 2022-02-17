@@ -157,7 +157,7 @@ summarize_function_pointer_intros_short ctxt vcs =
         if same == [] then
           showHex a ++ ":  " ++ show_mid fpi ++ "\n" ++ show_fpis others
         else 
-          showHex a ++ ":\n" ++ map (indent . show_mid) (fpi:same) ++ show_fpis others
+          showHex a ++ ":\n" ++ concatMap (indent . show_mid) (fpi:same) ++ show_fpis others
 
     show_mid (IntroFunctionPointer _ mid) = show mid
     indent str = "  " ++ str ++ "\n"

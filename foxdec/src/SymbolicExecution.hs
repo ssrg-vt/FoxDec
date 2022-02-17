@@ -99,6 +99,9 @@ transpose_fw_base ctxt p bs           = return bs
 
 
 -- | Convert the current invariant into a function initialisation
+--
+ -- TODO think about StackPointer
+ -- TODO transpose_bw: use finit?
 invariant_to_finit :: Context -> FInit -> Pred -> FInit
 invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
  where
@@ -107,7 +110,7 @@ invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_fin
 
   mk_finit_entry (sp,v) = 
     let bases = get_known_pointer_bases ctxt v in
-      if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then -- TODO think about StackPointer
+      if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then
         Just (sp,Bottom $ FromPointerBases bases)
       else
         Nothing
@@ -212,7 +215,6 @@ functions_returning_bottom = [
      "___stack_chk_fail", "_getopt", "_free",
      "_warn", "_warnx"
    ]
- ++ exiting_function_calls
 
 
 
@@ -227,7 +229,7 @@ function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_r
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
 function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (i_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      = 
-  if f `elem` functions_returning_bottom then do
+  if f `elem` functions_returning_bottom then do  -- and exiting fucntion calls?
     write_reg ctxt (i_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
@@ -253,7 +255,7 @@ call :: Context -> FInit -> Instr -> State (Pred,VCS) ()
 call ctxt finit i = do
   let f   = function_name_of_instruction ctxt i
   let i_a = i_addr i
-  known <- function_semantics ctxt i f
+  known <- function_semantics ctxt i $ takeUntilString "@GLIBC" f
 
   when (not known) $ do
     (p@(Predicate p_eqs _ _),_) <- get

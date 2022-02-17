@@ -1,0 +1,53 @@
+\haddockmoduleheading{Conventions}
+\label{module:Conventions}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module Conventions (
+    exiting_function_calls, sections_with_instructions,
+    section_is_unwritable, callee_saved_registers, return_registers,
+    parameter_registers
+  ) where\end{verbatim}}
+\haddockendheader
+
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+exiting{\char '137}function{\char '137}calls :: {\char 91}{\char 91}Char{\char 93}{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+A list of function names of functions that never return.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+sections{\char '137}with{\char '137}instructions :: {\char 91}({\char 91}Char{\char 93}, {\char 91}Char{\char 93}){\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Overview of sections with instructions.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+section{\char '137}is{\char '137}unwritable :: ({\char 91}Char{\char 93}, {\char 91}Char{\char 93}) -> Bool
+\end{tabular}]
+{\haddockbegindoc
+Sections in the following list are assumed not to be modifiable during execution, i.e., constant.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+callee{\char '137}saved{\char '137}registers :: {\char 91}Register{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+A list if registers that are non-volatile, i.e., that must be preserved by a function (callee-saved)\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+return{\char '137}registers :: {\char 91}Register{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+A list of registers that may be used for return values\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+parameter{\char '137}registers :: {\char 91}Register{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+A list of registers used as parameters\par}
+\end{haddockdesc}

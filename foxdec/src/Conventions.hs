@@ -13,19 +13,23 @@ import qualified Data.Map as M
 
 
 -- | A list of function names of functions that never return.
-exiting_function_calls = [
-  "exit", "_exit", "__exit", "___exit",
-  "error", "_error","__error", 
-  "__stack_chk_fail", "___stack_chk_fail",
-  "__overflow", 
-  "abort", "_abort",
-  "_fail",
-  "halt",
-  "_assert_fail", "__assert_fail", "___assert_fail", "___assert_rtn",
-  "err", "verr", "errc", "verrc", "errx", "verrx", 
-  "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx"
- ]
-
+is_exiting_function_call f =
+  let f' = strip_GLIBC f in 
+    f' `elem` [
+      "exit", "_exit", "__exit", "___exit",
+      "error", "_error","__error", 
+      "__stack_chk_fail", "___stack_chk_fail",
+      "__overflow", 
+      "abort", "_abort",
+      "_fail",
+      "halt",
+      "_assert_fail", "__assert_fail", "___assert_fail", "___assert_rtn",
+      "err", "verr", "errc", "verrc", "errx", "verrx", 
+      "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx",
+      "obstack_alloc_failed_handler"
+    ]
+ where
+  strip_GLIBC = takeUntilString "@GLIBC"
 
 
 
@@ -41,6 +45,7 @@ sections_with_instructions = [
    ("",".text"),
    ("",".init"),
    ("",".plt"),
+   ("",".plt.got"),
    ("",".fini")
  ]
 

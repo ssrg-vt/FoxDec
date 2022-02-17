@@ -15,6 +15,10 @@ module Config
 --   stderr but continue (True), or * exit with an error message (False)?
 continue_on_unknown_instruction :: Bool
 
+-- | The maximum verification time per function
+max_time_minutes :: Int
+max_time :: Int
+
 -- | The maximum number of separate concrete cases considered
 --   non-deterministically, before abstraction is applied.
 max_num_of_cases :: Int
@@ -64,6 +68,9 @@ orElse :: Maybe p -> p -> p
 
 -- | Find the index of one string in another.
 findString :: Eq a => [a] -> [a] -> Maybe Int
+
+-- | Take until the occurence of the string
+takeUntilString :: String -> String -> String
 
 -- | Strip outer parentheses from a string, if it has them.
 strip_parentheses :: [Char] -> [Char]
@@ -1272,7 +1279,7 @@ instance Data.Serialize.Serialize SimplePred.Operator
 module Conventions
 
 -- | A list of function names of functions that never return.
-exiting_function_calls :: [[Char]]
+is_exiting_function_call :: [Char] -> Bool
 
 -- | Overview of sections with instructions.
 sections_with_instructions :: [([Char], [Char])]
@@ -1363,7 +1370,8 @@ Terminal :: NodeInfo
 --   final predicate after execution of the block
 type Postconditions = Set (NodeInfo, Pred)
 
--- | Identifies where a memwrite occurred
+-- | Identifies where a memwrite occurred TODO should be generalized, is a
+--   StatePartWriteIdentifier
 data MemWriteIdentifier
 
 -- | A function with <tt>name</tt> at address <tt>i_a</tt> wrote to a
@@ -1371,7 +1379,7 @@ data MemWriteIdentifier
 MemWriteFunction :: String -> Int -> StatePart -> MemWriteIdentifier
 
 -- | An instruction wrote to an operand, resolving to an address
-MemWriteInstruction :: Int -> Address -> SimpleExpr -> MemWriteIdentifier
+MemWriteInstruction :: Int -> Operand -> SimpleExpr -> MemWriteIdentifier
 
 -- | A verification condition is either: * A precondition of the form: &gt;
 --   Precondition (a0,si0) (a1,si1) This formulates that at the initial
@@ -1393,8 +1401,11 @@ Assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> Verificatio
 -- | Function name, address, of call, with param registers
 FunctionConstraint :: String -> Int -> [(Register, SimpleExpr)] -> Set StatePart -> VerificationCondition
 
--- | A memory write for which no information was available
+-- | A write to a statepart for which no information was available
 SourcelessMemWrite :: MemWriteIdentifier -> VerificationCondition
+
+-- | A function pointer was written to a state part
+IntroFunctionPointer :: Int -> MemWriteIdentifier -> VerificationCondition
 
 -- | An acornym for a set of verification conditions
 type VCS = Set VerificationCondition
@@ -1423,11 +1434,14 @@ UnknownRetBehavior :: FReturnBehavior
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context
-Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
+Context :: IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
 
--- | <b>S</b>: mapping from addresses to bytes (data and instructions from
---   the binary/executable)
+-- | <b>S</b>: mapping from addresses to bytes (constant data and
+--   instructions from the binary/executable)
 [ctxt_dump] :: Context -> IntMap Word8
+
+-- | <b>S</b>: mapping from addresses to bytes (writable data section)
+[ctxt_data] :: Context -> IntMap Word8
 
 -- | <b>S</b>: the symbol table: a mapping of addresses to function names
 --   for external functions
@@ -1475,6 +1489,7 @@ Context :: IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> 
 -- | <b>D</b>: the verification result
 [ctxt_results] :: Context -> IntMap VerificationResult
 [ctxt_recursions] :: Context -> IntMap IntSet
+init_context :: String -> String -> Bool -> Context
 
 -- | Reading from a data section.
 --   
@@ -1494,7 +1509,7 @@ fetch_instruction :: Context -> Int -> IO (Maybe Instr)
 pp_instruction :: Context -> Instr -> String
 
 -- | Show function initialisation
-show_finit :: (Show a1, Show a2) => Map a1 a2 -> [Char]
+show_finit :: FInit -> String
 
 -- | Is the given verification condition an assertion?
 is_assertion :: VerificationCondition -> Bool
@@ -1507,6 +1522,9 @@ is_func_constraint :: VerificationCondition -> Bool
 
 -- | Is the given verification condition a sourceless memwrite?
 is_sourceless_memwrite :: VerificationCondition -> Bool
+
+-- | Is the given verification condition a function pointer introduction?
+is_introfunctionpointer :: VerificationCondition -> Bool
 
 -- | Count the number of assertions in the set of verification conditions.
 count_instructions_with_assertions :: Set VerificationCondition -> Int
@@ -1562,7 +1580,7 @@ External :: String -> ResolvedJumpTarget
 -- | An internal call to the given address
 ImmediateAddress :: Word64 -> ResolvedJumpTarget
 
--- | The set of next blocks from the given block
+-- | The set of next blocks from the given block in a CFG
 post :: CFG -> Key -> IntSet
 
 -- | Fetching an instruction list given a block ID
@@ -1646,10 +1664,10 @@ module Propagation
 class (Show pred) => Propagator ctxt pred
 
 -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-tau :: Propagator ctxt pred => ctxt -> [Instr] -> Maybe [Instr] -> pred -> (pred, Set VerificationCondition)
+tau :: Propagator ctxt pred => ctxt -> FInit -> [Instr] -> Maybe [Instr] -> pred -> (pred, Set VerificationCondition)
 
 -- | A lattice-join
-join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
+join :: Propagator ctxt pred => ctxt -> FInit -> pred -> pred -> pred
 
 -- | Symbolic implication
 implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
@@ -1657,10 +1675,10 @@ implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
 -- | Start propagation at the given entry address with the given initial
 --   predicate. Returns a set of invariants, i.e., a mapping of instruction
 --   addresses to predicates.
-do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
+do_prop :: Propagator ctxt pred => ctxt -> FInit -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
 
 -- | The supremum of a list of predicates
-supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
+supremum :: Propagator ctxt pred => ctxt -> FInit -> [pred] -> pred
 
 
 module Pointers
@@ -1703,34 +1721,7 @@ srcs_of_exprs :: Context -> [SimpleExpr] -> Set BotSrc
 --   different segments/sections of the binary. We do not assume that such
 --   pointers are separate, but do assert it.
 pointers_from_different_global_section :: Context -> SimpleExpr -> SimpleExpr -> Bool
-
--- | Returns true iff the two given expressions can be shown to be
---   separate. This means that either: * They both have known pointerbases
---   that are assumed to be separate (see <a>pointer_bases_separate</a>). *
---   They both have sources that are all separate (see
---   <a>sources_separate</a>) * One of them is an immediate and the other
---   is local.
-separate_pointer_domains :: Context -> SimpleExpr -> SimpleExpr -> Bool
-
--- | Given a set of expressions, produce an expression that resembles the
---   join of the entire set. That is, the produced expression should be
---   coarser than the disjunction of all input-expressions.
---   
---   <ol>
---   <li>First, just use non-determinism, i.e., <tt>a join b</tt> becomes
---   <tt>{a,b}</tt>. This is precise, but doesn't guarantee
---   termination.</li>
---   <li>If step 1 produces too many cases, join based on known
---   pointerbases. This requires all given expressions to have known
---   pointerbases.</li>
---   <li>If step 2 produces too many bases, or the given expressions have
---   no known pointerbases, join bsed on sources.</li>
---   <li>If step 3 produces too many sources, just produces
---   <a>rock_bottom</a>.</li>
---   </ol>
---   
---   TODO: joining immediates
-join_exprs :: String -> Context -> [SimpleExpr] -> SimpleExpr
+join_exprs :: [Char] -> Context -> [SimpleExpr] -> SimpleExpr
 
 -- | Abstraction for a single expression, even if the expression is
 --   concrete.
@@ -1744,7 +1735,7 @@ pointer_bases_separate :: PointerBase -> PointerBase -> Bool
 
 -- | Two sources are inputs for separate pointers if, e.g., one of them is
 --   the stackpointer and the other a malloc-return-value.
-sources_separate :: BotSrc -> BotSrc -> Bool
+sources_separate :: Context -> FInit -> BotSrc -> BotSrc -> Bool
 
 -- | Returns true iff the given symbolic regions are necessarily equal. For
 --   example: <tt>[RSP-16,4]</tt> is enclosed in <tt>[RSP-16,4]</tt>
@@ -1763,11 +1754,11 @@ necessarily_equal_stateparts :: StatePart -> StatePart -> Bool
 --   the expressions are separate, we check whether the expressions can be
 --   proven separate based on their domains (see
 --   <a>separate_pointer_domains</a>).
-necessarily_separate :: (Ord a, Num a) => Context -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
+necessarily_separate :: (Ord a, Num a) => Context -> FInit -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
 
 -- | Returns true iff the given symbolic stateparts are necessarily
 --   separate.
-necessarily_separate_stateparts :: Context -> StatePart -> StatePart -> Bool
+necessarily_separate_stateparts :: Context -> FInit -> StatePart -> StatePart -> Bool
 
 -- | Returns true iff the given symbolic region is necessarily enclosed in
 --   the other. For example: <tt>[RSP-16,4]</tt> is enclosed in
@@ -1786,27 +1777,27 @@ module MachineState
 read_reg :: Context -> Register -> State (Pred, VCS) SimpleExpr
 
 -- | Write to a register
-write_reg :: Context -> Register -> SimpleExpr -> State (Pred, VCS) ()
+write_reg :: Context -> Int -> Register -> SimpleExpr -> State (Pred, VCS) ()
 
 -- | Read from memory
-read_mem :: Context -> Address -> State (Pred, VCS) SimpleExpr
+read_mem :: Context -> FInit -> Operand -> State (Pred, VCS) SimpleExpr
 
 -- | Write to memory Each memory write is accomponied with a
 --   <a>MemWriteIdentifier</a> so that we can log memory writes to unknown
 --   locations.
-write_mem :: Context -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -> State (Pred, VCS) ()
+write_mem :: Context -> FInit -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -> State (Pred, VCS) ()
 
 -- | Read from an operand of an instruction
-read_operand :: Context -> Operand -> State (Pred, VCS) SimpleExpr
+read_operand :: Context -> FInit -> Operand -> State (Pred, VCS) SimpleExpr
 
--- | Write to an operand of an instruction
-write_operand :: Context -> Int -> Operand -> SimpleExpr -> State (Pred, VCS) ()
+-- | Write to an operand of an instructiofinit_of_entryn
+write_operand :: Context -> FInit -> Int -> Operand -> SimpleExpr -> State (Pred, VCS) ()
 
 -- | Read from an statepart
-read_sp :: Context -> StatePart -> State (Pred, VCS) SimpleExpr
+read_sp :: Context -> FInit -> StatePart -> State (Pred, VCS) SimpleExpr
 
 -- | Write to a statepart
-write_sp :: Context -> (StatePart -> MemWriteIdentifier) -> (StatePart, SimpleExpr) -> State (Pred, VCS) ()
+write_sp :: Context -> FInit -> Int -> (Int -> StatePart -> MemWriteIdentifier) -> (StatePart, SimpleExpr) -> State (Pred, VCS) ()
 
 -- | Returns true if a pointer is not suitable for writing to memory. This
 --   may happen if the symbolic expression provides no information, i.e.,
@@ -1832,20 +1823,22 @@ module SymbolicExecution
 --   transformation. Parameter insts' is needed to set the flags properly.
 --   If <tt>Nothing</tt> is supplied, the flags are overapproximatively set
 --   to <tt><a>None</a></tt>.
-tau_block :: Context -> [Instr] -> Maybe [Instr] -> Pred -> (Pred, VCS)
+tau_block :: Context -> FInit -> [Instr] -> Maybe [Instr] -> Pred -> (Pred, VCS)
 
 -- | The initial predicate.
 init_pred :: Invariants -> Set (NodeInfo, Pred) -> FInit -> Pred
 
 -- | Given the currently known invariants and postconditions, gather all
 --   stateparts occurring in the current function.
-gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
+gather_stateparts :: FInit -> Invariants -> Set (NodeInfo, Pred) -> Set StatePart
 
 -- | Convert the current invariant into a function initialisation
-invariant_to_finit :: Context -> Pred -> FInit
+--   
+--   TODO think about StackPointer TODO transpose_bw: use finit?
+invariant_to_finit :: Context -> FInit -> Pred -> FInit
 
 -- | The join between two function initialisations
-weaken_finit :: Context -> FInit -> FInit -> FInit
+join_finit :: Context -> FInit -> FInit -> FInit
 
 -- | Get the invariant for a given instruction address for a given function
 --   entry
@@ -1890,6 +1883,8 @@ node_info_of :: Context -> CFG -> Int -> NodeInfo
 --   <tt>a</tt> is an instruction address that may follow the current
 --   instruction, and <tt>b</tt> is a Bool indicating whether that address
 --   belongs to a <tt>call</tt>
+--   
+--   TODO the Lefts are ignored so need no to return them
 stepA :: Context -> Int -> Int -> IO (Either (Set (Instr, Int)) [(Int, Bool)])
 
 

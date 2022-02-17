@@ -82,6 +82,8 @@ mk_instr cs_instr =
       i             = Instr addr prefix m op1 op2 op3 Nothing size in
     if m == InvalidOpcode then
       error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
+    else if prefix == Just InvalidPrefix then
+      error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
     else
        i
  where

@@ -131,8 +131,6 @@ ctxt_read_dump = do
       Left err -> error $ show err
       Right syms -> return syms
 
-empty_context dirname name = 
-  Context IM.empty IM.empty [] dirname name False (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 
@@ -147,7 +145,7 @@ argsParser = Args
 
 run (Args entry_str dirname name) = do
   let entry = readHex' entry_str
-  let ctxt  = empty_context dirname name
+  let ctxt  = init_context dirname name False
   evalStateT (run_with_ctxt entry) ctxt
   
 -- Parse the command line arguments and run

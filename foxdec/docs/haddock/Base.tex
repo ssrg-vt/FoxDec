@@ -1,0 +1,172 @@
+\haddockmoduleheading{Base}
+\label{module:Base}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module Base (
+    showHex, showHex_list, showHex_set, showHex_option, readHex',
+    im_lookup, orElse, findString, strip_parentheses, bytes_to_word,
+    word_to_sint, Graph(Edges), graph_add_edges, graph_delete,
+    graph_is_parent, graph_is_vertex, graph_is_edge,
+    graph_nontrivial_scc, graph_find_next, hex_color_of_text,
+    hex_colors
+  ) where\end{verbatim}}
+\haddockendheader
+
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+showHex :: (Integral a, Show a) => a -> String
+\end{tabular}]
+{\haddockbegindoc
+Show the integer in hex.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+showHex{\char '137}list :: (Integral a, Show a) => {\char 91}a{\char 93} -> {\char 91}Char{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Show an integer list as hex-list.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+showHex{\char '137}set :: IntSet -> {\char 91}Char{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Show an integer set as hex-list.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+showHex{\char '137}option :: (Integral a, Show a) => Maybe a -> {\char 91}Char{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Show an optional integer as an optional hex.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+readHex' :: (Eq a, Num a) => String -> a
+\end{tabular}]
+{\haddockbegindoc
+Read an int from a string storing a hex.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+im{\char '137}lookup :: {\char 91}Char{\char 93} -> IntMap p -> Key -> p
+\end{tabular}]
+{\haddockbegindoc
+Lookup and produce error message if key does not exists in map.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+orElse :: Maybe p -> p -> p
+\end{tabular}]
+{\haddockbegindoc
+use a default value in case of \haddocktt{Nothing}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+findString :: Eq a => {\char 91}a{\char 93} -> {\char 91}a{\char 93} -> Maybe Int
+\end{tabular}]
+{\haddockbegindoc
+Find the index of one string in another.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+strip{\char '137}parentheses :: {\char 91}Char{\char 93} -> {\char 91}Char{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+Strip outer parentheses from a string, if it has them.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+bytes{\char '137}to{\char '137}word :: {\char 91}Word8{\char 93} -> Word64
+\end{tabular}]
+{\haddockbegindoc
+In little endian, convert a byte-list to a 64 bit word.
+ Assume the list is at most length 8.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+word{\char '137}to{\char '137}sint :: Int -> Word64 -> Int
+\end{tabular}]
+{\haddockbegindoc
+Convert first \haddocktt{n} bytes of a word to an integer.
+ Assume \haddocktt{n<8}.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+data Graph
+\end{tabular}]
+{\haddockbegindoc
+Generic graph with ints as vertices.\par
+\enspace \emph{Constructors}\par
+\haddockbeginconstrs
+\haddockdecltt{=} & \haddockdecltt{Edges (IntMap IntSet)} & \\
+\end{tabulary}\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+instance Show Graph\\instance Generic Graph\\instance Serialize Graph\\type instance Rep Graph = D1 ('MetaData "Graph" "Base" "foxdec-0.1.0.0-GvYex2zEKVAHx5Xds2Usdj" 'False) (C1 ('MetaCons "Edges" 'PrefixI 'False) (S1 ('MetaSel ('Nothing :: Maybe Symbol) 'NoSourceUnpackedness 'NoSourceStrictness 'DecidedStrict) (Rec0 (IntMap IntSet))))
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}add{\char '137}edges :: Graph -> Key -> IntSet -> Graph
+\end{tabular}]
+{\haddockbegindoc
+add edges from v to all vertices vs\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}delete :: Graph -> Key -> Graph
+\end{tabular}]
+{\haddockbegindoc
+delete all edges with v as parent or child\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}is{\char '137}parent :: Graph -> Key -> Bool
+\end{tabular}]
+{\haddockbegindoc
+is v parent of an edge?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}is{\char '137}vertex :: Graph -> Key -> Bool
+\end{tabular}]
+{\haddockbegindoc
+is v a vertex in the graph?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}is{\char '137}edge :: Graph -> Key -> Key -> Bool
+\end{tabular}]
+{\haddockbegindoc
+is (v0,v1) an edge?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}nontrivial{\char '137}scc :: Graph -> IntSet
+\end{tabular}]
+{\haddockbegindoc
+retrieve a non-trivial SCC, if any exists\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+graph{\char '137}find{\char '137}next :: Graph -> Maybe Int
+\end{tabular}]
+{\haddockbegindoc
+find next vertex to consider: either a terminal vertex (if any) or the head of an SCC\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+hex{\char '137}color{\char '137}of{\char '137}text :: String -> String
+\end{tabular}]
+{\haddockbegindoc
+decide whether text should be white or black based on background color\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+hex{\char '137}colors :: {\char 91}{\char 91}Char{\char 93}{\char 93}
+\end{tabular}]
+{\haddockbegindoc
+A list of RGB colors\par}
+\end{haddockdesc}

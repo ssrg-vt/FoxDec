@@ -35,4 +35,4 @@ foxdec/.stack-work
 *.log
 *.out
 
-temp
+temp*

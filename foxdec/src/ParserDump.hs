@@ -98,6 +98,12 @@ ignored_line =
   ))
   <|> (try (do 
     whitespaces
+    string "NOTE"
+    skipMany (noneOf "\n")
+    newline
+  ))
+  <|> (try (do 
+    whitespaces
     string "("
     skipMany (noneOf "\n")
     newline

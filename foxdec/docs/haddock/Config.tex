@@ -1,0 +1,69 @@
+\haddockmoduleheading{Config}
+\label{module:Config}
+\haddockbeginheader
+{\haddockverb\begin{verbatim}
+module Config (
+    continue_on_unknown_instruction, max_time_minutes, max_time,
+    max_num_of_cases, max_num_of_bases, max_num_of_sources,
+    max_jump_table_size, max_expr_size
+  ) where\end{verbatim}}
+\haddockendheader
+
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+continue{\char '137}on{\char '137}unknown{\char '137}instruction :: Bool
+\end{tabular}]
+{\haddockbegindoc
+When encountering an unknown instruction do we either
+   * report it to stderr but continue (True), or
+   * exit with an error message (False)?\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}time{\char '137}minutes :: Int
+\end{tabular}]
+{\haddockbegindoc
+The maximum verification time per function\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}time :: Int
+\end{tabular}]
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}num{\char '137}of{\char '137}cases :: Int
+\end{tabular}]
+{\haddockbegindoc
+The maximum number of separate concrete cases considered non-deterministically, before abstraction is applied.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}num{\char '137}of{\char '137}bases :: Int
+\end{tabular}]
+{\haddockbegindoc
+The maximum number of pointer bases a bottom-expression may have, before more asbtraction is applied.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}num{\char '137}of{\char '137}sources :: Int
+\end{tabular}]
+{\haddockbegindoc
+The maximum number of sources a bottom-expression may have, before resoring to rock-bottom.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}jump{\char '137}table{\char '137}size :: Int
+\end{tabular}]
+{\haddockbegindoc
+A coarse overapproximation of the maximum number of entries in a jump table.
+ Does not affect soundness, but if the value is set too low, then more indirections may be left unresolved.\par}
+\end{haddockdesc}
+\begin{haddockdesc}
+\item[\begin{tabular}{@{}l}
+max{\char '137}expr{\char '137}size :: Int
+\end{tabular}]
+{\haddockbegindoc
+The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
+ Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.\par}
+\end{haddockdesc}

@@ -98,6 +98,8 @@ register =
 
 --Prefixes
 parsePrefix :: [Char] -> Prefix
+parsePrefix "REPE" = REPZ
+parsePrefix "repe" = REPZ
 parsePrefix s = 
   case readsPrec 5 $ map toUpper s of
     [(m,s')] -> m

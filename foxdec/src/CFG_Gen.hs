@@ -174,7 +174,7 @@ resolve_call ctxt entry i =
  where
   next (External sym) =
     -- external function call 
-    if sym `elem` exiting_function_calls then 
+    if is_exiting_function_call sym then
       Right []
     else
       Right [(i_addr i + i_size i,True)]
@@ -306,12 +306,16 @@ node_info_of ctxt g blockId =
       i    = last (im_lookup ("D.) Block " ++ show blockId ++ " in instrs.") (cfg_instrs g) blockId) in
     if is_unresolved_indirection ctxt i then
       UnresolvedIndirection
-    else if IS.null (post g blockId) && (is_call (i_opcode i) || is_halt (i_opcode i)) then
+    else if IS.null (post g blockId) && (is_call (i_opcode i) || is_halt (i_opcode i)) || is_terminating_jump i then
         Terminal
     else
       Normal
 
-
+ where
+  is_terminating_jump i = is_jump (i_opcode i) &&
+    case resolve_jump_target ctxt i of
+      [External sym] -> is_exiting_function_call sym
+      _              -> False
 
 
 
