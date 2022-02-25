@@ -733,6 +733,8 @@ pminud ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 pminsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
+pmaxsd ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
+
 pmaxud ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 pmaxuq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
@@ -1398,6 +1400,7 @@ tau_i ctxt finit (Instr i_a _ PSUBB      (Just op1) (Just op2) _ _ _)          =
 tau_i ctxt finit (Instr i_a _ PSUBQ      (Just op1) (Just op2) _ _ _)          = psubq        ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PMULLD     (Just op1) (Just op2) _ _ _)          = pmulld       ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PMINSD     (Just op1) (Just op2) _ _ _)          = pminsd       ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PMAXSD     (Just op1) (Just op2) _ _ _)          = pmaxsd       ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PMINUD     (Just op1) (Just op2) _ _ _)          = pminud       ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PMAXUD     (Just op1) (Just op2) _ _ _)          = pmaxud       ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PMAXUQ     (Just op1) (Just op2) _ _ _)          = pmaxuq       ctxt finit i_a op1 op2

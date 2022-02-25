@@ -451,6 +451,7 @@ data Opcode = InvalidOpcode
   | PINSRD
   | PINSRQ
   | PMADDWD
+  | PMAXSD
   | PMAXSW
   | PMAXUB
   | PMAXUD
