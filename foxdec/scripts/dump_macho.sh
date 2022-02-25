@@ -34,7 +34,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   if file $1 | grep -q 'universal'; then
     if file $1 | grep -q 'x86_64'; then
       BINARY="$2_x86_64"
-      echo "$1 is a a fat (universal) binary, extracting x86_64 part to a new binary named \"$BINARY\""
+      echo "$1 is a fat (universal) binary, extracting x86_64 part to a new binary named \"$BINARY\""
       lipo -extract x86_64 -output $BINARY $1
     else
       echo "$1 is a fat (universal) binary without x86_64 architecture support."

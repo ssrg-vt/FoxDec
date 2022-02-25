@@ -109,18 +109,24 @@ invariant_to_finit ctxt finit (Predicate eqs _ _) = M.fromList $ mapMaybe mk_fin
   is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
 
   mk_finit_entry (sp,v) = 
-    let bases = get_known_pointer_bases ctxt v in
+    if is_function_pointer v then
+      Just (sp,v)
+    else let bases = get_known_pointer_bases ctxt v in
       if not (S.null bases) && not (StackPointer `S.member` bases) && S.size bases <= max_num_of_bases then
-        Just (sp,Bottom $ FromPointerBases bases)
+        Just (sp,Bottom $ FromPointerBases bases) -- NOTE: tricky, but no need for forward transposition here
       else
         Nothing
-
+  is_function_pointer (SE_Immediate a) = address_has_instruction ctxt a
+  is_function_pointer _                = False -- What if non-determinism?
 
 
 -- | The join between two function initialisations
 join_finit :: Context -> FInit -> FInit -> FInit
-join_finit ctxt = M.unionWith (join_expr ctxt) -- TODO think through with if new
-
+join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr ctxt) f0 f1
+ where
+  keep (Bottom (FromPointerBases _)) = True
+  keep (Bottom _)                    = False 
+  keep _                             = True
 
 
 
@@ -1055,6 +1061,8 @@ punpckldq ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
 punpcklbw ctxt finit i_a = mov_with_func ctxt finit i_a mk_bottom False
 
+blendvpd ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
+
 blendvps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
 
 extractps ctxt finit i_a = mov_with_func3 ctxt finit i_a mk_bottom False
@@ -1341,6 +1349,8 @@ tau_i ctxt finit (Instr i_a _ SETPO    (Just op1) Nothing    _ _ _) = setxx  ctx
 tau_i ctxt finit (Instr i_a _ XORPS     (Just op1) (Just op2) _ _ _)            = xorps      ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ MOVMSKPS  (Just op1) (Just op2) _ _ _)            = movmskps   ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ UNPCKLPS  (Just op1) (Just op2) _ _ _)            = unpcklps   ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ BLENDVPD  (Just op1) (Just op2) Nothing    _ _)   = blendvpd   ctxt finit i_a op1 op2 (Reg XMM0)
+tau_i ctxt finit (Instr i_a _ BLENDVPD  (Just op1) (Just op2) (Just op3) _ _)   = blendvpd   ctxt finit i_a op1 op2 op3
 tau_i ctxt finit (Instr i_a _ BLENDVPS  (Just op1) (Just op2) Nothing    _ _)   = blendvps   ctxt finit i_a op1 op2 (Reg XMM0)
 tau_i ctxt finit (Instr i_a _ BLENDVPS  (Just op1) (Just op2) (Just op3) _ _)   = blendvps   ctxt finit i_a op1 op2 op3
 tau_i ctxt finit (Instr i_a _ EXTRACTPS (Just op1) (Just op2) (Just op3) _ _)   = extractps  ctxt finit i_a op1 op2 op3
@@ -1680,8 +1690,9 @@ init_pred ::
   -> Pred
 init_pred curr_invs curr_posts finit = 
   let sps = S.delete (SP_Reg RIP) $ S.insert (SP_Mem (SE_Var (SP_Reg RSP)) 8) $ gather_stateparts finit curr_invs curr_posts
-      eqs = M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
+      eqs = M.union (M.filter is_immediate finit) $ M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
     Predicate eqs None Clean
+ where
 
 
 

@@ -110,6 +110,7 @@ data Opcode = InvalidOpcode
   | ANDPD
   | ANDPS
   | ARPL
+  | BLENDVPD
   | BLENDVPS
   | BOUND
   | BSF

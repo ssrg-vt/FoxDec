@@ -177,7 +177,8 @@ summarize_function_pointer_intros ctxt vcs =
 summarize_finit Nothing      = ""
 summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
  where
-  show_finit_entry (sp,v) = pp_statepart sp ++ " ~= " ++ pp_bot v
+  show_finit_entry (sp,bot@(Bottom _)) = pp_statepart sp ++ " ~= " ++ pp_bot bot
+  show_finit_entry (sp,v)              = pp_statepart sp ++ " = " ++ pp_expr v
 
 
 

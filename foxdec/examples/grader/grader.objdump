@@ -1,5 +1,5 @@
 
-grader:	file format Mach-O 64-bit x86-64
+grader-source/grader:	file format Mach-O 64-bit x86-64
 
 
 Disassembly of section __TEXT,__text:
@@ -185,7 +185,7 @@ Disassembly of section __TEXT,__text:
 100000b0d:     	sub	rsp, 0x48
 100000b11:     	mov	r14, rdi
 100000b14:     	mov	edi, 0x1000
-100000b19:     	call	0x1248 <dyld_stub_binder+0x100001d66> -- ATOF
+100000b19:     	call	0x1248 <dyld_stub_binder+0x100001d66>
 100000b1e:     	mov	qword ptr [rbp - 0x40], rax
 100000b22:     	mov	eax, 0x1
 100000b27:     	mov	qword ptr [rbp - 0x48], rax
@@ -202,7 +202,7 @@ Disassembly of section __TEXT,__text:
 100000b50:     	cmp	r12d, -0x1
 100000b54:     	je	0x1f7 <_lex+0x251>
 100000b5a:     	mov	rdi, r14
-100000b5d:     	call	0x11fe <dyld_stub_binder+0x100001d60>  -- GETC
+100000b5d:     	call	0x11fe <dyld_stub_binder+0x100001d60>
 100000b62:     	mov	r12d, eax
 100000b65:     	cmp	eax, 0xa
 100000b68:     	je	0x99 <_lex+0x107>
@@ -234,7 +234,7 @@ Disassembly of section __TEXT,__text:
 100000bc5:     	sub	rsi, -0x80
 100000bc9:     	mov	rdi, qword ptr [rbp - 0x30]
 100000bcd:     	mov	qword ptr [rbp - 0x50], rsi
-100000bd1:     	call	0x119c <dyld_stub_binder+0x100001d72> -- REALLOC
+100000bd1:     	call	0x119c <dyld_stub_binder+0x100001d72>
 100000bd6:     	jmp	0x161 <_lex+0x23c>
 100000bdb:     	nop	dword ptr [rax + rax]
 100000be0:     	lea	ecx, [r12 - 0x30]
@@ -265,7 +265,7 @@ Disassembly of section __TEXT,__text:
 100000c3f:     	cmp	ebx, 0x7
 100000c42:     	jne	0x20 <_lex+0x164>
 100000c44:     	mov	rdi, qword ptr [rbp - 0x30]
-100000c48:     	call	0x10fb <dyld_stub_binder+0x100001d48> -- ATOF
+100000c48:     	call	0x10fb <dyld_stub_binder+0x100001d48>
 100000c4d:     	cvtsd2ss	xmm0, xmm0
 100000c51:     	mov	r13d, 0x7
 100000c57:     	jmp	0xb <_lex+0x164>
@@ -279,7 +279,7 @@ Disassembly of section __TEXT,__text:
 100000c75:     	mov	rdi, qword ptr [rbp - 0x40]
 100000c79:     	mov	qword ptr [rbp - 0x58], rsi
 100000c7d:     	movss	dword ptr [rbp - 0x34], xmm0
-100000c82:     	call	0x10eb <dyld_stub_binder+0x100001d72> -- REALLOC
+100000c82:     	call	0x10eb <dyld_stub_binder+0x100001d72>
 100000c87:     	movss	xmm0, dword ptr [rbp - 0x34]
 100000c8c:     	mov	qword ptr [rbp - 0x40], rax
 100000c90:     	mov	rdx, qword ptr [rbp - 0x30]
@@ -300,7 +300,7 @@ Disassembly of section __TEXT,__text:
 100000ccb:     	cmp	r15d, 0xb
 100000ccf:     	je	0x108 <_lex+0x2dd>
 100000cd5:     	mov	edi, 0x2
-100000cda:     	call	0x1087 <dyld_stub_binder+0x100001d66> -- MALLOC
+100000cda:     	call	0x1087 <dyld_stub_binder+0x100001d66>
 100000cdf:     	mov	byte ptr [rax], r12b
 100000ce2:     	mov	r13d, 0x1
 100000ce8:     	mov	qword ptr [rbp - 0x30], rax
@@ -312,7 +312,7 @@ Disassembly of section __TEXT,__text:
 100000d01:     	mov	eax, 0x80
 100000d06:     	mov	qword ptr [rbp - 0x50], rax
 100000d0a:     	mov	edi, 0x80
-100000d0f:     	call	0x1052 <dyld_stub_binder+0x100001d66> -- MALLOC
+100000d0f:     	call	0x1052 <dyld_stub_binder+0x100001d66>
 100000d14:     	mov	byte ptr [rax], r12b
 100000d17:     	mov	ebx, 0x7
 100000d1c:     	mov	r13d, 0x1
@@ -362,7 +362,7 @@ Disassembly of section __TEXT,__text:
 100000de9:     	mov	rdi, qword ptr [rbp - 0x40]
 100000ded:     	movss	dword ptr [rbp - 0x34], xmm0
 100000df2:     	call	0xf7b <dyld_stub_binder+0x100001d72>
-100000df7:     	movss	xmm0, dword ptr [rbp - 0x34] -- REALLOC
+100000df7:     	movss	xmm0, dword ptr [rbp - 0x34]
 100000dfc:     	mov	qword ptr [rbp - 0x40], rax
 100000e00:     	shl	rbx, 0x5
 100000e04:     	mov	rcx, qword ptr [rbp - 0x40]

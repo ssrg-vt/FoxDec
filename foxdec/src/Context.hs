@@ -27,6 +27,7 @@ import Data.Word (Word8,Word64)
 import Data.List (intercalate)
 import Data.Maybe (mapMaybe,fromJust)
 
+
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 
@@ -45,8 +46,34 @@ data CFG = CFG {
  deriving (Show,Generic,Eq)
 
 
--- | Per instruction address, a set of jump targets.
-type Indirections = IM.IntMap IS.IntSet
+
+-- | A jump table
+-- Let the actual indirection be @JMP RAX@, implying jt_trgt_operand == RAX.
+-- This jump table can be implemented with inserting this instruction before the indirection:
+--
+--    MOV jt_trgt_operand, QWORD PTR [jt_address + 8*jt_index_operand]
+data JumpTable = JumpTable {
+  jt_index_operand   :: Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
+  jt_trgt_operand    :: Operand, -- ^ The operand of the jump
+  jt_table_entries   :: [Int]    -- ^ An ordered list of instruction addresses to which is jumped
+ }
+ deriving (Show,Generic,Eq)
+
+-- | Resolving the operand of a jump/call can produce one of the following.
+data ResolvedJumpTarget = 
+   Unresolved               -- ^ An indirect branch that has not been resolved yet
+ | External String          -- ^ A call to external function f
+ | ImmediateAddress Word64  -- ^ An internal call to the given address
+ deriving (Eq,Show,Generic,Ord)
+
+-- | An indirection
+data Indirection = 
+    IndirectionResolved (S.Set ResolvedJumpTarget) -- ^ An indirection that could be resolved to one or more addresses
+  | IndirectionJumpTable JumpTable                 -- ^ An indirection based on a jump table
+ deriving (Show,Generic,Eq)
+
+-- | Per instruction address, a a jump table
+type Indirections = IM.IntMap Indirection
 
 -- | Sections: segment names, section names, addresses and sizes. 
 type SectionsInfo = [(String,String,Int,Int)]
@@ -149,6 +176,9 @@ data Context = Context {
 
 instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
+instance Cereal.Serialize JumpTable
+instance Cereal.Serialize ResolvedJumpTarget
+instance Cereal.Serialize Indirection
 instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize MemWriteIdentifier
@@ -246,7 +276,10 @@ instance Show VerificationResult where
 
 instance Show MemWriteIdentifier where
   show (MemWriteFunction f a sp)       = f ++ "@" ++ showHex a ++ " WRITES TO " ++ show sp
-  show (MemWriteInstruction a operand a') = "@" ++ showHex a ++ " WRITES TO " ++ show operand ++ " == " ++ show a'
+  show (MemWriteInstruction a operand a') = "@" ++ showHex a ++ " WRITES TO " ++ show operand ++ (if add_resolved operand a' then " == " ++ show a' else "")
+   where
+    add_resolved (Reg r) (SE_StatePart (SP_Reg r')) = r /= r'
+    add_resolved _       _                          = True
 
 
 

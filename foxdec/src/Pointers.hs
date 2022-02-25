@@ -259,7 +259,7 @@ sources_separate ctxt finit src0 src1 = sources_separate' True (src0,src1)
      (_, Just StackPointer) -> True
      (Just (Malloc _ _), _) -> True
      (_, Just (Malloc _ _)) -> True
-     _                      -> if use_finit then sources_separate_by_finit finit src0 src1 else False
+     _                      -> False -- if use_finit then sources_separate_by_finit finit src0 src1 else False
 
   src_to_base (Src_Var (SP_Reg RSP))   = Just $ StackPointer
   src_to_base (Src_Malloc i h)         = Just $ Malloc i h

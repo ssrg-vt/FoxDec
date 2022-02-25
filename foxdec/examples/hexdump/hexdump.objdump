@@ -1,4 +1,4 @@
-/usr/bin/hexdump:
+hexdump_x86_64:
 (__TEXT,__text) section
 100000b6c:	push	rbp
 100000b6d:	mov	rbp, rsp

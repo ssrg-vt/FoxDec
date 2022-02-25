@@ -523,7 +523,7 @@ read_operand ctxt finit (Reg r)       = read_reg ctxt r
 read_operand ctxt finit (Immediate w) = return $ SE_Immediate w
 read_operand ctxt finit (Address a)   = read_mem ctxt finit $ Address a
 
--- | Write to an operand of an instructiofinit_of_entryn
+-- | Write to an operand of an instruction 
 write_operand ::
  Context                 -- ^ The context
  -> FInit                -- ^ The function initialization

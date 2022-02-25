@@ -91,12 +91,7 @@ address_has_symbol ctxt a =
 address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instruction ctxt a)
 
 
--- | Resolving the operand of a jump/call can produce one of the following.
-data ResolvedJumpTarget = 
-   Unresolved               -- ^ An indirect branch that has not been resolved yet
- | External String          -- ^ A call to external function f
- | ImmediateAddress Word64  -- ^ An internal call to the given address
- deriving (Eq,Show)
+
 
 -- | many operands can statically be resolved, even though technically they are indirect (relative to RIP).
 -- Examples:
@@ -150,7 +145,7 @@ resolve_jump_target ::
   -> [ResolvedJumpTarget]
 resolve_jump_target ctxt i =
   case IM.lookup (i_addr i) $ ctxt_inds ctxt of
-    Just as -> map (ImmediateAddress . fromIntegral) $ filter (not . address_is_external ctxt) $ IS.toList as -- already resolved indirection
+    Just ind -> jump_targets_of_indirection ind -- already resolved indirection
     Nothing -> 
       case operand_static_resolve ctxt i (i_op1 i) of
         Unresolved -> [Unresolved] -- unresolved indirection
@@ -163,6 +158,9 @@ resolve_jump_target ctxt i =
           case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
             Just sym -> [External sym]
             Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
+ where
+  jump_targets_of_indirection (IndirectionResolved trgts)                    = S.toList $ trgts
+  jump_targets_of_indirection (IndirectionJumpTable (JumpTable _ _ entries)) = map (ImmediateAddress . fromIntegral) entries
 
 -- | Returns true iff the instruction resolves to external targets only.
 instruction_jumps_to_external ::

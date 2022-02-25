@@ -33,7 +33,7 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import Data.Maybe (fromJust,catMaybes,mapMaybe)
-import Data.List (intercalate,delete,isInfixOf,partition)
+import Data.List (intercalate,delete,isInfixOf,partition,nub)
 import Data.Foldable
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.ByteString as BS (readFile,writeFile) 
@@ -89,9 +89,14 @@ run_with_ctxt = do
   ctxt_run_entry a = do
     -- 2.2) Start analysis at entry-address $a$
     calls <- gets ctxt_calls
-    case IM.lookup a $ calls of
-      Just _  -> do
+    has_instruction <- gets (flip address_has_instruction $ a)
+    case (IM.lookup a calls, has_instruction)  of
+      (Just _,_) -> do
         -- 2.2.1) Entry is already done, delete it and continue
+        ctxt_del_entry a
+        repeat
+      (_,False)  -> do
+        to_out $ "\n\nEntry " ++ showHex a ++ " ignored."
         ctxt_del_entry a
         repeat
       _ -> do
@@ -107,7 +112,7 @@ run_with_ctxt = do
 
         g                  <- gets (IM.lookup a . ctxt_cfgs)
         (finit,invs,posts) <- ctxt_get_curr_posts a
-        let do_repeat = curr_g /= g {-- || invs /= curr_invs --} || posts /= curr_posts
+        let do_repeat = curr_g /= g || posts /= curr_posts
         new_calls <- ctxt_get_new_calls a
 
 
@@ -433,6 +438,7 @@ ctxt_generate_end_report = do
     to_log log $ "#edges:                               " ++ show (sum_total num_of_edges                       $ ctxt_cfgs ctxt)
     to_log log $ "#resolved indirections:               " ++ show (num_of_resolved_indirections ctxt)
 
+    to_log log $ "\n\n"
     to_log log $ summarize_function_pointer_intros_short ctxt (S.unions $ ctxt_vcs ctxt)
     to_log log $ "\n\n"
 
@@ -763,32 +769,55 @@ ctxt_analyze_unresolved_indirections entry = do
     let Predicate eqs flg _ = p
 
     let values0 = evalState (try' ctxt finit g b trgt) (p,S.empty)
-    let values1 = case flagstatus_to_tries flg of
-                   Nothing      -> S.empty
-                   Just (op1,n) -> S.unions $ map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n-1]
-    let values  = S.union values0 values1
 
-    -- TODO instead of once and for all, widen it
-    if all ((==) Nothing) values || S.null values then do
-      -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
-      to_out $ "Unresolved block " ++ show b
-      return False
-    else do
-      let trgts = IS.fromList $ map fromJust $ filter ((/=) Nothing) $ S.toList values
+    if values0 /= Nothing then do -- TODO is this case needed oafter dealing with libc_start_main properly?
+      let value = fromJust values0
       to_out $ "Resolved indirection at block " ++ show b
       to_out $ "Instruction = " ++ show i
-      to_out $ "Operand " ++ show_operand' trgt ++ " evaluates to: [" ++ (intercalate "," $ map (\a -> showHex a) $ IS.toList trgts) ++ "]"
+      to_out $ "Operand " ++ show_operand' trgt ++ " evaluates to: " ++ show value
       to_out $ "Updated file: " ++ fname
-      liftIO $ appendFile fname $ showHex (i_addr i) ++ " [" ++ (intercalate "," $ map (\a -> showHex a) (IS.toList trgts)) ++ "]\n"
+      liftIO $ appendFile fname $ showHex (i_addr i) ++ " " ++ show [value] ++ "\n"
 
       inds <- gets ctxt_inds
-      let inds' = IM.insertWith IS.union (i_addr i) trgts inds
+      let inds' = IM.insert (i_addr i) (IndirectionResolved value) inds -- TODO check if already exists
       put $ ctxt { ctxt_inds = inds' }
 
       return True
+    else case flagstatus_to_tries flg of
+      Nothing      -> return False
+      Just (op1,n) -> do
+        let values1 = map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n-1]
+
+        if values1 == [] || any ((==) Nothing) values1 then do
+          -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
+          to_out $ "Unresolved block " ++ show b
+          return False
+        else if all is_jump_table_entry values1 then do
+          let trgts = map (fromIntegral . get_immediate . S.findMin . fromJust) values1
+          to_out $ "Resolved indirection at block " ++ show b
+          to_out $ "Instruction = " ++ show i
+          to_out $ "Operand " ++ show_operand' trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
+          to_out $ "Because of bounded jump table access: " ++ show flg
+          to_out $ "Updated file: " ++ fname
+          liftIO $ appendFile fname $ showHex (i_addr i) ++ " " ++ showHex_list trgts ++ "\n"
+
+          inds <- gets ctxt_inds
+          let inds' = IM.insert (i_addr i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
+          put $ ctxt { ctxt_inds = inds' }
+
+          return True
+        else
+          error $ show ("resolving:",values1)
 
   flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_jump_table_size then Just (op1,n) else Nothing
   flagstatus_to_tries _ = Nothing
+
+
+  is_jump_table_entry Nothing      = False
+  is_jump_table_entry (Just trgts) = S.size trgts == 1 && all is_immediate trgts
+  is_immediate (ImmediateAddress _) = True
+  is_immediate _                    = False
+  get_immediate (ImmediateAddress a) = a
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
@@ -800,13 +829,15 @@ ctxt_analyze_unresolved_indirections entry = do
     modify $ (tau_block ctxt finit (init $ fetch_block g blockId) Nothing . fst)
     val <- read_operand ctxt finit trgt
     case val of
-      SE_Immediate a                     -> return $ S.singleton $ Just $ fromIntegral a
-      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then S.map take_immediates es else S.singleton Nothing
-      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then S.singleton $ Just $ fromIntegral a else S.singleton Nothing
-      e                                  -> return $ S.singleton Nothing
+      SE_Immediate a                     -> return $ Just $ S.singleton $ ImmediateAddress a
+      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then Just $ S.map (mk_resolved_jump_target ctxt) es else Nothing
+      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then Just $ S.singleton $ External $ ctxt_syms ctxt IM.! (fromIntegral a) else Nothing
+      e                                  -> return $ Nothing
 
-  take_immediates (SE_Immediate a) = Just $ fromIntegral a
-  take_immediates _                = Nothing
+  mk_resolved_jump_target ctxt (SE_Immediate a)                     = ImmediateAddress a
+  mk_resolved_jump_target ctxt (SE_Var (SP_Mem (SE_Immediate a) _)) = if address_has_symbol ctxt a then External $ ctxt_syms ctxt IM.! (fromIntegral a) else error $ show ("indirections", showHex a) 
+  mk_resolved_jump_target ctxt a                                    = error $ show ("resolving", a)
+
 
 
 

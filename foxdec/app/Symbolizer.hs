@@ -54,6 +54,7 @@ main = do
       putStrLn $ bss_data_section ctxt
       putStrLn $ data_section ctxt
       putStrLn $ ro_data_section ctxt
+      putStrLn $ jump_tables ctxt
     else
       putStrLn $ "File: " ++ show (head args) ++ " does not exist."
  where
@@ -74,7 +75,7 @@ literal_string_data_section ctxt =
  where
   mk_literal_string_section (segment,section,a0,sz) = 
     let dat = map (\offset -> IM.lookup (a0+offset) $ ctxt_dump ctxt) [0..sz-1] in
-      if any ((==) Nothing) dat then
+      if any ((==) Nothing) dat || dat == [] then
         ""
       else
         intercalate "\n" $ ([section_data] ++ literal_strings segment section 0 (catMaybes dat) ++ [""])
@@ -118,7 +119,11 @@ is_bss_data_section _ = False
 
 
 data_section ctxt =
-  mk_data_section $ ctxt_data ctxt
+  let dat = ctxt_data ctxt in
+    if IM.null dat then
+      ""
+    else
+      mk_data_section dat
  where
   mk_data_section dat = intercalate "\n" $ (section_data : (data_section_label ++ ":") : (map mk_data_entry $ IM.assocs dat)) ++ [""] -- check whether contiguous 
   mk_data_entry (a,v) = "db 0" ++ showHex v ++ "h" 
@@ -133,6 +138,23 @@ ro_data_section ctxt =
   
 is_ro_data_section ("",".rodata",_,_) = True
 is_ro_data_section _ = False
+
+
+
+jump_tables ctxt = 
+  let inds = IM.toList $ ctxt_inds ctxt in
+    if inds == [] then
+      ""
+    else
+      intercalate "\n" (section_data : (concatMap mk_indirection $ IM.toList $ ctxt_inds ctxt))
+ where
+  mk_indirection (i_a,IndirectionResolved _)   = []
+  mk_indirection (i_a,IndirectionJumpTable jt) = mk_jump_table i_a jt
+
+  mk_jump_table i_a (JumpTable _ _ entries) = [intercalate "\n" (mk_label i_a : map mk_entry entries)]
+
+  mk_entry a = "dq " ++ fromJust (symbolize_immediate ctxt a)
+  mk_label i_a = jump_table_label i_a ++ ":" 
 
 
 
@@ -162,12 +184,11 @@ symbolize_block ctxt entry cfg (blockID, instrs) =
 
   filter_unnecessary_jumps instrs = (filter (not . is_jump . i_opcode) $ init instrs) ++ [last instrs]
 
-  indent str = "    " ++ str
 
   is_proper_block_end_instruction i = is_ret i || is_jump i 
 
   mk_extra_jmp =
-    case unsafePerformIO $ stepA ctxt entry (i_addr $ last instrs) of -- TODO, also TODO assumes fall trhough is last/second
+    case unsafePerformIO $ stepA ctxt entry (i_addr $ last instrs) of -- TODO, also TODO assumes fall through is last/second
       Right []        -> ""
       Right [(a,_)]   -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
       Right [_,(a,_)] -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
@@ -176,6 +197,7 @@ symbolize_block ctxt entry cfg (blockID, instrs) =
 
 block_label entry blockID = "L" ++ showHex entry ++ "_" ++ show blockID
 
+indent str = "    " ++ str
 
 
 symbolize_instr ctxt entry cfg i = 
@@ -187,12 +209,24 @@ symbolize_instr ctxt entry cfg i =
 
 
 
-
+-- TODO LIBC_START_MAIN
 symbolize_operand1_of_instr ctxt entry cfg i@(Instr i_a Nothing mnemonic op1 op2 op3 annot si) =
  case resolve_jump_target ctxt i of
    [External sym]         -> show mnemonic ++ " " ++ sym
    [ImmediateAddress imm] -> show mnemonic ++ " " ++ symbolize_address ctxt entry cfg imm
-   trgts                  -> show_nasm_instruction ctxt entry cfg  i ++ "; TARGETS: " ++ (intercalate "," $ map show_trgt trgts)
+   trgts                  -> show_jump_table ++ indent (show_nasm_instruction ctxt entry cfg  i ++ "; TARGETS: " ++ (intercalate "," $ map show_trgt $ nub trgts))
+
+ where
+  show_jump_table =
+    case IM.lookup i_a $ ctxt_inds ctxt of
+      Just (IndirectionJumpTable jt) -> mk_jump_table_instruction jt
+      _                              -> "; NO JUMP TABLE FOUND.\n"
+
+  mk_jump_table_instruction (JumpTable index_op trgt_op entries) = 
+    "MOV " ++ show trgt_op ++ ", QWORD PTR [" ++ jump_table_label i_a ++ " + 8*" ++ show index_op ++ "] ; " ++ msg ++ "\n"
+
+  msg = "inserted as implementation of the jump-table based jump below. Manually remove instructions above that originally implemented this jump table."
+
 
 show_trgt (ImmediateAddress a) = showHex a
 show_trgt Unresolved           = "Unresolved"
@@ -258,9 +292,9 @@ show_nasm_address'' a                           = show_nasm_address''' a
 is_segment_register r = r `elem` [CS,DS,ES,FS,GS,SS]
 
 show_nasm_address' ctxt entry cfg i address =
-  case rip_relative_to_immediate address of
-    Just imm -> "rel " ++ (symbolize_immediate $ fromIntegral imm)
-    Nothing  -> show_nasm_address'' address
+  case (symbolize_immediate ctxt . fromIntegral) <$> rip_relative_to_immediate address of
+    Just (Just symbolized) -> "rel " ++ symbolized
+    _                      -> show_nasm_address'' address
  where
   rip_relative_to_immediate (AddrImm imm)                          = Just $ imm
   rip_relative_to_immediate (AddrPlus (AddrReg RIP) (AddrImm imm)) = Just $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
@@ -268,18 +302,17 @@ show_nasm_address' ctxt entry cfg i address =
   rip_relative_to_immediate _                                      = Nothing
 
 
-  symbolize_immediate a =
-    (pointer_to_instruction a)
-    `orTry`
-    (symbol_from_symbol_table a)
-    `orTry`
-    (relative_to_section a)
-    `finally`
-    (show_nasm_address'' address)
-    
+symbolize_immediate :: Context -> Int -> Maybe String
+symbolize_immediate ctxt a =
+  (pointer_to_instruction a)
+  `orTry`
+  (symbol_from_symbol_table a)
+  `orTry`
+  (relative_to_section a)
+ where
   pointer_to_instruction a = 
     if address_has_instruction ctxt a then
-      uncurry block_label <$> find_block_for_instruction ctxt entry cfg i a 
+      uncurry block_label <$> find_block_for_instruction ctxt a 
     else
       Nothing
 
@@ -295,10 +328,12 @@ show_nasm_address' ctxt entry cfg i address =
       section_label segment section ++ " + " ++ show (a - a0)
 
 
-find_block_for_instruction ctxt entry cfg i a =
-  case catMaybes $ map (find_block_for_instruction_address_in_cfg a) $ IM.assocs $ ctxt_cfgs ctxt of
+find_block_for_instruction ctxt a =
+  if address_has_symbol ctxt a then
+    Nothing
+  else case catMaybes $ map (find_block_for_instruction_address_in_cfg a) $ IM.assocs $ ctxt_cfgs ctxt of
     [b] -> Just b
-    _   -> trace ("Address " ++ showHex a ++ " has instruction but no block (entry " ++ showHex entry ++ ", instruction " ++ show i ++ ")") $ Nothing
+    x   -> trace ("Address " ++ showHex a ++ " has instruction but no block") $ Nothing
   
 find_block_for_instruction_address_in_cfg a (entry,cfg) = 
   return_entry_and_blockID <$> (find (\(blockID,instrs) -> i_addr (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
@@ -313,7 +348,9 @@ show_nasm_size_directive 1  = "byte"
 show_nasm_size_directive 2  = "word"
 show_nasm_size_directive 4  = "dword"
 show_nasm_size_directive 8  = "qword"
+show_nasm_size_directive 10 = "tword"
 show_nasm_size_directive 16 = "oword"
+show_nasm_size_directive x  = error $ show ("unknown size directive", x)
 
 -- | Showing unresolved address
 show_nasm_address ctxt entry cfg i (SizeDir si a)  = show_nasm_size_directive si ++ " [" ++ show_nasm_address' ctxt entry cfg i a ++ "]"
@@ -334,6 +371,7 @@ section_label "" ".data"      = data_section_label
 section_label segment section = "L" ++ segment ++ "_" ++ section
 
 data_section_label = "L_DATASECTION"
+jump_table_label i_a = "L_JUMP_TABLE_" ++ showHex i_a
 
 
 show_nasm_opcode MOVABS = "MOV"

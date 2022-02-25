@@ -1,60 +1,57 @@
 (__TEXT,__text)
-  addr = 0x0000000100004840
-  size = 0x000000000016d5c1
+  addr = 0x0000000100003860
+  size = 0x000000000006c64b
 (__TEXT,__stubs)
-  addr = 0x0000000100171e02
-  size = 0x000000000000060c
+  addr = 0x000000010006feac
+  size = 0x0000000000000948
 (__TEXT,__stub_helper)
-  addr = 0x0000000100172410
-  size = 0x0000000000000a1a
+  addr = 0x00000001000707f4
+  size = 0x0000000000000f88
 (__TEXT,__objc_methname)
-  addr = 0x0000000100172e2a
+  addr = 0x000000010007177c
   size = 0x000000000000010f
 (__TEXT,__cstring)
-  addr = 0x0000000100172f40
-  size = 0x00000000000255b9
+  addr = 0x0000000100071890
+  size = 0x0000000000014518
 (__TEXT,__const)
-  addr = 0x0000000100198500
-  size = 0x000000000002ee30
+  addr = 0x0000000100085db0
+  size = 0x000000000001c250
 (__TEXT,__info_plist)
-  addr = 0x00000001001c7330
+  addr = 0x00000001000a2000
   size = 0x00000000000002f1
 (__TEXT,__unwind_info)
-  addr = 0x00000001001c7624
-  size = 0x0000000000001ba8
+  addr = 0x00000001000a22f4
+  size = 0x0000000000001450
 (__TEXT,__eh_frame)
-  addr = 0x00000001001c91d0
-  size = 0x0000000000002e18
+  addr = 0x00000001000a3748
+  size = 0x00000000000008b0
 (__DATA_CONST,__got)
-  addr = 0x00000001001cc000
-  size = 0x0000000000000170
-(__DATA_CONST,__mod_init_func)
-  addr = 0x00000001001cc170
-  size = 0x0000000000000008
+  addr = 0x00000001000a4000
+  size = 0x0000000000000148
 (__DATA_CONST,__const)
-  addr = 0x00000001001cc180
-  size = 0x0000000000017f40
+  addr = 0x00000001000a4150
+  size = 0x0000000000001cd0
 (__DATA_CONST,__cfstring)
-  addr = 0x00000001001e40c0
+  addr = 0x00000001000a5e20
   size = 0x0000000000000060
 (__DATA_CONST,__objc_imageinfo)
-  addr = 0x00000001001e4120
+  addr = 0x00000001000a5e80
   size = 0x0000000000000008
 (__DATA,__la_symbol_ptr)
-  addr = 0x00000001001e8000
-  size = 0x0000000000000810
+  addr = 0x00000001000a8000
+  size = 0x0000000000000c60
 (__DATA,__objc_selrefs)
-  addr = 0x00000001001e8810
+  addr = 0x00000001000a8c60
   size = 0x0000000000000060
 (__DATA,__objc_classrefs)
-  addr = 0x00000001001e8870
+  addr = 0x00000001000a8cc0
   size = 0x0000000000000020
 (__DATA,__data)
-  addr = 0x00000001001e8890
-  size = 0x00000000000059b0
+  addr = 0x00000001000a8ce0
+  size = 0x0000000000000230
 (__DATA,__bss)
-  addr = 0x00000001001ee240
-  size = 0x000000000000351c
+  addr = 0x00000001000a8f10
+  size = 0x0000000000000afc
 (__DATA,__common)
-  addr = 0x00000001001f1760
-  size = 0x00000000000024d0
+  addr = 0x00000001000a9a10
+  size = 0x00000000000024b8
