@@ -35,5 +35,6 @@ foxdec/examples/*/*_x86_64
 *.swp
 *.log
 *.out
+*.o
 
 temp*
