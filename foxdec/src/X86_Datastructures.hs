@@ -448,6 +448,7 @@ data Opcode = InvalidOpcode
   | PEXTRB
   | PEXTRD
   | PEXTRQ
+  | PINSRB
   | PINSRD
   | PINSRQ
   | PMADDWD

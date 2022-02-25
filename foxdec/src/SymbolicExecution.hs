@@ -1412,6 +1412,7 @@ tau_i ctxt finit (Instr i_a _ PSLLQ      (Just op1) (Just op2) _ _ _)          =
 tau_i ctxt finit (Instr i_a _ PSRLQ      (Just op1) (Just op2) _ _ _)          = psrlq        ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PSUBUSB    (Just op1) (Just op2) _ _ _)          = psubusb      ctxt finit i_a op1 op2
 tau_i ctxt finit (Instr i_a _ PSUBUSW    (Just op1) (Just op2) _ _ _)          = psubusw      ctxt finit i_a op1 op2
+tau_i ctxt finit (Instr i_a _ PINSRB     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt finit i_a op1 op2 op3
 tau_i ctxt finit (Instr i_a _ PINSRQ     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt finit i_a op1 op2 op3
 tau_i ctxt finit (Instr i_a _ PINSRD     (Just op1) (Just op2) (Just op3) _ _) = pinsrd       ctxt finit i_a op1 op2 op3
 tau_i ctxt finit (Instr i_a _ PEXTRB     (Just op1) (Just op2) (Just op3) _ _) = pextrb       ctxt finit i_a op1 op2 op3
