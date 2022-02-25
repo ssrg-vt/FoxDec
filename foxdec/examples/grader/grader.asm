@@ -1,1547 +1,1750 @@
-extern ___error
-extern ___sprintf_chk
-extern ___stack_chk_fail
-extern ___strncpy_chk
-extern _atof
-extern _fopen
-extern _fprintf
-extern _free
-extern _getc
-extern _malloc
-extern _printf
-extern _realloc
-extern _strcmp
-extern _strerror
-extern ___stack_chk_guard
-extern ___stderrp
-extern dyld_stub_binder
+extern free@GLIBC_2.2.5
+extern __errno_location@GLIBC_2.2.5
+extern strncpy@GLIBC_2.2.5
+extern strtod@GLIBC_2.2.5
+extern printf@GLIBC_2.2.5
+extern fprintf@GLIBC_2.2.5
+extern malloc@GLIBC_2.2.5
+extern _IO_getc@GLIBC_2.2.5
+extern realloc@GLIBC_2.2.5
+extern fopen@GLIBC_2.2.5
+extern sprintf@GLIBC_2.2.5
+extern strerror@GLIBC_2.2.5
+extern stderr@GLIBC_2.2.5
 
 
 section .text
 
 default rel
 
-; ---------------------
-; Function: 0x100000910
-; ---------------------
-; Entry 100000910; block 0; address 100000910
-L100000910_0:
-    PUSH RBP
-    MOV RBP, RSP
-    PUSH RBX
-    PUSH RAX
+global main
+
+; --------------------------------------
+; Function: __errno_location@GLIBC_2.2.5
+; --------------------------------------
+; Entry 830; block 0; address 830
+L830_0:
+    JMP __errno_location@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ----------------------------
+; Function: strtod@GLIBC_2.2.5
+; ----------------------------
+; Entry 850; block 0; address 850
+L850_0:
+    JMP strtod@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ----------------------------
+; Function: printf@GLIBC_2.2.5
+; ----------------------------
+; Entry 860; block 0; address 860
+L860_0:
+    JMP printf@GLIBC_2.2.5 wrt ..plt
+
+
+
+; -----------------------------
+; Function: fprintf@GLIBC_2.2.5
+; -----------------------------
+; Entry 870; block 0; address 870
+L870_0:
+    JMP fprintf@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ----------------------------
+; Function: malloc@GLIBC_2.2.5
+; ----------------------------
+; Entry 880; block 0; address 880
+L880_0:
+    JMP malloc@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ------------------------------
+; Function: _IO_getc@GLIBC_2.2.5
+; ------------------------------
+; Entry 890; block 0; address 890
+L890_0:
+    JMP _IO_getc@GLIBC_2.2.5 wrt ..plt
+
+
+
+; -----------------------------
+; Function: realloc@GLIBC_2.2.5
+; -----------------------------
+; Entry 8a0; block 0; address 8a0
+L8a0_0:
+    JMP realloc@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ---------------------------
+; Function: fopen@GLIBC_2.2.5
+; ---------------------------
+; Entry 8b0; block 0; address 8b0
+L8b0_0:
+    JMP fopen@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ------------------------------
+; Function: strerror@GLIBC_2.2.5
+; ------------------------------
+; Entry 8d0; block 0; address 8d0
+L8d0_0:
+    JMP strerror@GLIBC_2.2.5 wrt ..plt
+
+
+
+; ---------------
+; Function: 0x8f0
+; ---------------
+; Entry 8f0; block 0; address 8f0
+L8f0_0:
+main:
+    SUB RSP, 8
     CMP EDI, 2
-    JNE L100000910_2
-    JMP L100000910_1     ; inserted
+    JNE L8f0_2
+    JMP L8f0_1     ; inserted
 
-; Entry 100000910; block 1; address 10000091b
-L100000910_1:
+; Entry 8f0; block 1; address 8f9
+L8f0_1:
     MOV RDI, qword [RSI + 8]
-    CALL L100000980_0
-    JMP L100000910_3     ; inserted
+    CALL La80_0
+    JMP L8f0_3     ; inserted
 
-; Entry 100000910; block 2; address 10000094a
-L100000910_2:
-    MOV RAX, qword [rel ___stderrp]
-    MOV RDI, qword [RAX]
+; Entry 8f0; block 2; address 92e
+L8f0_2:
     MOV RDX, qword [RSI]
-    LEA RSI, [rel L__TEXT___cstring_0]
+    MOV RDI, qword [rel stderr@GLIBC_2.2.5]
+    LEA RSI, [rel L_.rodata + 4]
     XOR EAX, EAX
-    CALL _fprintf
-    JMP L100000910_7     ; inserted
+    CALL L870_0
+    JMP L8f0_6     ; inserted
 
-; Entry 100000910; block 3; address 100000924
-L100000910_3:
-    XOR EBX, EBX
+; Entry 8f0; block 3; address 902
+L8f0_3:
     TEST RAX, RAX
-    JE L100000910_5
-    JMP L100000910_4     ; inserted
+    JE L8f0_5
+    JMP L8f0_4     ; inserted
 
-; Entry 100000910; block 4; address 10000092b
-L100000910_4:
-    MULSS XMM0, dword [rel L__TEXT___const + 0]
-    CVTSS2SD XMM0, XMM0
-    LEA RDI, [rel L__TEXT___cstring_24]
+; Entry 8f0; block 4; address 907
+L8f0_4:
+    MULSS XMM0, dword [rel L_.rodata + 48]
+    LEA RDI, [rel L_.rodata + 28]
     MOV RSI, RAX
-    MOV AL, 1
-    CALL _printf
-    JMP L100000910_6     ; inserted
+    MOV EAX, 1
+    CVTSS2SD XMM0, XMM0
+    CALL L860_0
+    JMP L8f0_5     ; inserted
 
-; Entry 100000910; block 5; address 10000096a
-L100000910_5:
-    MOV EAX, EBX
-    ADD RSP, 8
-    POP RBX
-    POP RBP
-    RET 
-
-; Entry 100000910; block 6; address 100000948
-L100000910_6:
-    JMP L100000910_5
-
-; Entry 100000910; block 7; address 100000965
-L100000910_7:
-    MOV EBX, 4294967295
-    JMP L100000910_5     ; inserted
-
-
-
-; ---------------------
-; Function: 0x100000980
-; ---------------------
-; Entry 100000980; block 0; address 100000980
-L100000980_0:
-    PUSH RBP
-    MOV RBP, RSP
-    PUSH R15
-    PUSH R14
-    PUSH R12
-    PUSH RBX
-    SUB RSP, 16
-    MOV RBX, RDI
-    LEA RSI, [rel L__TEXT___cstring_41]
-    CALL _fopen
-    JMP L100000980_1     ; inserted
-
-; Entry 100000980; block 1; address 10000099e
-L100000980_1:
-    TEST RAX, RAX
-    JE L100000980_3
-    JMP L100000980_2     ; inserted
-
-; Entry 100000980; block 2; address 1000009a7
-L100000980_2:
-    MOV RDI, RAX
-    CALL L100000b00_0
-    JMP L100000980_4     ; inserted
-
-; Entry 100000980; block 3; address 100000a63
-L100000980_3:
-    MOV RAX, qword [rel ___stderrp]
-    MOV R15, qword [RAX]
-    CALL ___error
-    JMP L100000980_16     ; inserted
-
-; Entry 100000980; block 4; address 1000009af
-L100000980_4:
-    MOV RDI, RAX
-    CALL L100000ed0_0
-    JMP L100000980_5     ; inserted
-
-; Entry 100000980; block 5; address 1000009b7
-L100000980_5:
-    MOV RBX, RAX
-    XOR R12D, R12D
-    XORPS XMM0, XMM0
-    LEA R14, [rel L__TEXT___cstring_63]
-    LEA R15, [rel L__TEXT___cstring_71]
-    JMP L100000980_9
-
-; Entry 100000980; block 6; address 1000009d5
-L100000980_6:
-    MOV RAX, qword [RBX + 40]
-    MOV RCX, qword [RBX + 32]
-    MOV RDX, qword [RBX + 24]
-    MOV RSI, qword [RBX + 16]
-    MOV R8, qword [RBX]
-    MOV RDI, qword [RBX + 8]
-    PUSH RAX
-    PUSH RCX
-    PUSH RDX
-    PUSH RSI
-    PUSH RDI
-    PUSH R8
-    CALL L100001ae0_0
-    JMP L100000980_8     ; inserted
-
-; Entry 100000980; block 7; address 100000a4d
-L100000980_7:
-    XORPS XMM0, XMM0
-    CVTSI2SS XMM0, R12D
-    MOVSS XMM1, dword [RBP + -36]
-    DIVSS XMM1, XMM0
-    MOVAPS XMM0, XMM1
-    JMP L100000980_19
-
-; Entry 100000980; block 8; address 1000009f8
-L100000980_8:
-    ADD RSP, 48
-    MOVSS XMM1, dword [RBP + -36]
-    ADDSS XMM1, XMM0
-    MOVAPS XMM0, XMM1
-    INC R12D
-    ADD RBX, 48
-    JMP L100000980_9     ; inserted
-
-; Entry 100000980; block 9; address 100000a0f
-L100000980_9:
-    MOVSS dword [RBP + -36], XMM0
-    MOV EAX, dword [RBX + 8]
-    CMP EAX, 6
-    JNE L100000980_10
-    JMP L100000980_11     ; inserted
-
-; Entry 100000980; block 10; address 1000009d0
-L100000980_10:
-    CMP EAX, 11
-    JE L100000980_7
-    JMP L100000980_6     ; inserted
-
-; Entry 100000980; block 11; address 100000a1c
-L100000980_11:
-    MOV RAX, qword [RBX]
-    TEST RAX, RAX
-    JE L100000980_6
-    JMP L100000980_12     ; inserted
-
-; Entry 100000980; block 12; address 100000a24
-L100000980_12:
-    CMP dword [RAX + 8], 9
-    JNE L100000980_6
-    JMP L100000980_13     ; inserted
-
-; Entry 100000980; block 13; address 100000a2a
-L100000980_13:
-    MOV RDI, qword [RAX + 16]
-    MOV RSI, R15
-    CALL _strcmp
-    JMP L100000980_14     ; inserted
-
-; Entry 100000980; block 14; address 100000a36
-L100000980_14:
-    TEST EAX, EAX
-    JNE L100000980_6
-    JMP L100000980_15     ; inserted
-
-; Entry 100000980; block 15; address 100000a3a
-L100000980_15:
-    MOV RAX, qword [RBX + 40]
-    MOV R14, qword [RAX + 16]
-    ADD RBX, 48
-    MOVSS XMM0, dword [RBP + -36]
-    JMP L100000980_9
-
-; Entry 100000980; block 16; address 100000a72
-L100000980_16:
-    MOV EDI, dword [RAX]
-    CALL _strerror
-    JMP L100000980_17     ; inserted
-
-; Entry 100000980; block 17; address 100000a79
-L100000980_17:
-    LEA RSI, [rel L__TEXT___cstring_43]
-    XOR R14D, R14D
-    MOV RDI, R15
-    MOV RDX, RBX
-    MOV RCX, RAX
+; Entry 8f0; block 5; address 927
+L8f0_5:
     XOR EAX, EAX
-    CALL _fprintf
-    JMP L100000980_18     ; inserted
+    JMP L8f0_7     ; inserted
 
-; Entry 100000980; block 18; address 100000a93
-L100000980_18:
-    XORPS XMM0, XMM0
-    JMP L100000980_19     ; inserted
+; Entry 8f0; block 6; address 946
+L8f0_6:
+    OR EAX, 4294967295
+    JMP L8f0_7
 
-; Entry 100000980; block 19; address 100000a96
-L100000980_19:
-    MOV RAX, R14
-    ADD RSP, 16
-    POP RBX
-    POP R12
-    POP R14
-    POP R15
-    POP RBP
+; Entry 8f0; block 7; address 929
+L8f0_7:
+    ADD RSP, 8
     RET 
 
 
 
-; ---------------------
-; Function: 0x100000b00
-; ---------------------
-; Entry 100000b00; block 0; address 100000b00
-L100000b00_0:
+
+
+
+; ---------------
+; Function: 0xa80
+; ---------------
+; Entry a80; block 0; address a80
+La80_0:
+    PUSH R13
+    PUSH R12
+    LEA RSI, [rel L_.rodata + 60]
     PUSH RBP
-    MOV RBP, RSP
+    PUSH RBX
+    MOV RBX, RDI
+    SUB RSP, 24
+    CALL L8b0_0
+    JMP La80_1     ; inserted
+
+; Entry a80; block 1; address a99
+La80_1:
+    TEST RAX, RAX
+    JE La80_3
+    JMP La80_2     ; inserted
+
+; Entry a80; block 2; address aa2
+La80_2:
+    MOV RDI, RAX
+    CALL Lcc0_0
+    JMP La80_4     ; inserted
+
+; Entry a80; block 3; address b80
+La80_3:
+    CALL L830_0
+    JMP La80_17     ; inserted
+
+; Entry a80; block 4; address aaa
+La80_4:
+    MOV RDI, RAX
+    CALL L19d0_0
+    JMP La80_5     ; inserted
+
+; Entry a80; block 5; address ab2
+La80_5:
+    MOV EDX, dword [RAX + 8]
+    CMP EDX, 11
+    JE La80_7
+    JMP La80_6     ; inserted
+
+; Entry a80; block 6; address abe
+La80_6:
+    MOV RBX, RAX
+    PXOR XMM1, XMM1
+    LEA R12, [rel L_.rodata + 52]
+    XOR EBP, EBP
+    LEA R13, [rel L_.rodata + 82]
+    JMP La80_9
+
+; Entry a80; block 7; address bad
+La80_7:
+    PXOR XMM0, XMM0
+    LEA R12, [rel L_.rodata + 52]
+    MOVAPS XMM1, XMM0
+    JMP La80_21
+
+; Entry a80; block 8; address b04
+La80_8:
+    MOV EDX, dword [RBX + 8]
+    MOVSS XMM1, dword [RSP + 60]
+    ADD RSP, 48
+    ADDSS XMM1, XMM0
+    CMP EDX, 11
+    JE La80_10
+    JMP La80_9     ; inserted
+
+; Entry a80; block 9; address b1a
+La80_9:
+    CMP EDX, 6
+    JNE La80_11
+    JMP La80_12     ; inserted
+
+; Entry a80; block 10; address b58
+La80_10:
+    PXOR XMM0, XMM0
+    CVTSI2SS XMM0, EBP
+    JMP La80_21     ; inserted
+
+; Entry a80; block 11; address ae0
+La80_11:
+    MOVSS dword [RSP + 12], XMM1
+    PUSH qword [RBX + 40]
+    PUSH qword [RBX + 32]
+    PUSH qword [RBX + 24]
+    PUSH qword [RBX + 16]
+    ADD RBX, 48
+    PUSH qword [RBX + -40]
+    ADD EBP, 1
+    PUSH qword [RBX + -48]
+    CALL L1af0_0
+    JMP La80_8     ; inserted
+
+; Entry a80; block 12; address b1f
+La80_12:
+    MOV RDX, qword [RBX]
+    TEST RDX, RDX
+    JE La80_11
+    JMP La80_13     ; inserted
+
+; Entry a80; block 13; address b27
+La80_13:
+    CMP dword [RDX + 8], 9
+    JNE La80_11
+    JMP La80_14     ; inserted
+
+; Entry a80; block 14; address b2d
+La80_14:
+    MOV RSI, qword [RDX + 16]
+    MOV ECX, 5
+    MOV RDI, R13
+    REPZ CMPSB 
+    JNE La80_11
+    JMP La80_15     ; inserted
+
+; Entry a80; block 15; address b3d
+La80_15:
+    MOV RAX, qword [RBX + 40]
+    ADD RBX, 48
+    MOV EDX, dword [RBX + 8]
+    CMP EDX, 11
+    MOV R12, qword [RAX + 16]
+    JNE La80_9
+    JMP La80_16     ; inserted
+
+; Entry a80; block 16; address b51
+La80_16:
+    NOP dword [RAX]
+    JMP La80_10     ; inserted
+
+; Entry a80; block 17; address b85
+La80_17:
+    MOV EDI, dword [RAX]
+    CALL L8d0_0
+    JMP La80_18     ; inserted
+
+; Entry a80; block 18; address b8c
+La80_18:
+    MOV RDI, qword [rel stderr@GLIBC_2.2.5]
+    LEA RSI, [rel L_.rodata + 62]
+    MOV RCX, RAX
+    MOV RDX, RBX
+    XOR EAX, EAX
+    CALL L870_0
+    JMP La80_19     ; inserted
+
+; Entry a80; block 19; address ba7
+La80_19:
+    XOR EAX, EAX
+    XOR EDX, EDX
+    JMP La80_20
+
+; Entry a80; block 20; address b6b
+La80_20:
+    MOV dword [RSP + 12], EDX
+    MOVSS XMM0, dword [RSP + 12]
+    ADD RSP, 24
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
+    RET 
+
+; Entry a80; block 21; address b60
+La80_21:
+    MOV RAX, R12
+    DIVSS XMM1, XMM0
+    MOVD EDX, XMM1
+    JMP La80_20     ; inserted
+
+
+
+; ---------------
+; Function: 0xcc0
+; ---------------
+; Entry cc0; block 0; address cc0
+Lcc0_0:
     PUSH R15
     PUSH R14
     PUSH R13
     PUSH R12
-    PUSH RBX
-    SUB RSP, 72
-    MOV R14, RDI
-    MOV EDI, 4096
-    CALL _malloc
-    JMP L100000b00_1     ; inserted
-
-; Entry 100000b00; block 1; address 100000b1e
-L100000b00_1:
-    MOV qword [RBP + -64], RAX
-    MOV EAX, 1
-    MOV qword [RBP + -72], RAX
-    MOV EBX, 11
-    MOV EAX, 128
-    MOV qword [RBP + -80], RAX
     XOR R13D, R13D
-    MOV EAX, 128
-    MOV qword [RBP + -88], RAX
-    XOR EAX, EAX
-    MOV qword [RBP + -104], RAX
-    JMP L100000b00_7
+    PUSH RBP
+    PUSH RBX
+    MOV R12D, 11
+    XOR EBP, EBP
+    SUB RSP, 72
+    MOV qword [RSP + 8], RDI
+    MOV EDI, 4096
+    CALL L880_0
+    JMP Lcc0_1     ; inserted
 
-; Entry 100000b00; block 2; address 100000b62
-L100000b00_2:
-    MOV R12D, EAX
+; Entry cc0; block 1; address ce8
+Lcc0_1:
+    MOV qword [RSP + 24], 1
+    MOV qword [RSP + 40], RAX
+    MOV qword [RSP + 48], 128
+    MOV qword [RSP + 32], 128
+    NOP dword [RAX + RAX]
+    JMP Lcc0_8     ; inserted
+
+; Entry cc0; block 2; address d1a
+Lcc0_2:
     CMP EAX, 10
-    JE L100000b00_4
-    JMP L100000b00_3     ; inserted
+    MOV R14D, EAX
+    JE Lcc0_4
+    JMP Lcc0_3     ; inserted
 
-; Entry 100000b00; block 3; address 100000b6e
-L100000b00_3:
-    LEA ECX, [R12 + -40]
-    LEA EAX, [R12 + -65]
-    CMP ECX, 22
-    JB L100000b00_6
-    JMP L100000b00_5     ; inserted
+; Entry cc0; block 3; address d26
+Lcc0_3:
+    LEA ECX, [RAX + -65]
+    LEA EAX, [RAX + -40]
+    CMP EAX, 21
+    JBE Lcc0_6
+    JMP Lcc0_5     ; inserted
 
-; Entry 100000b00; block 4; address 100000c07
-L100000b00_4:
-    INC qword [RBP + -72]
-    MOV R12D, 10
+; Entry cc0; block 4; address fb0
+Lcc0_4:
+    ADD qword [RSP + 24], 1
     MOV R15D, 10
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_21     ; inserted
+    JMP Lcc0_37
 
-; Entry 100000b00; block 5; address 100000b7d
-L100000b00_5:
-    CMP EAX, 57
-    JA L100000b00_9
-    JMP L100000b00_6     ; inserted
+; Entry cc0; block 5; address d35
+Lcc0_5:
+    CMP ECX, 57
+    JBE Lcc0_6
+    JMP Lcc0_7     ; inserted
 
-; Entry 100000b00; block 6; address 100000b82
-L100000b00_6:
-    CMP ECX, 21
-    JA L100000b00_11
-    JMP L100000b00_10     ; inserted
+; Entry cc0; block 6; address de0
+Lcc0_6:
+    CMP EAX, 21
+    JA Lcc0_22
+    JMP Lcc0_21     ; inserted
 
-; Entry 100000b00; block 7; address 100000b5a
-L100000b00_7:
-    MOV RDI, R14
-    CALL _getc
-    JMP L100000b00_2     ; inserted
+; Entry cc0; block 7; address d3e
+Lcc0_7:
+    CMP R14D, 18446744073709551615
+    JNE Lcc0_8
+    JMP Lcc0_9     ; inserted
 
-; Entry 100000b00; block 8; address 100000d51
-L100000b00_8:
+; Entry cc0; block 8; address d10
+Lcc0_8:
+    MOV RDI, qword [RSP + 8]
+    CALL L890_0
+    JMP Lcc0_2     ; inserted
+
+; Entry cc0; block 9; address d44
+Lcc0_9:
     MOV R15D, 11
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_48     ; inserted
+    NOP word [RAX + RAX]
+    JMP Lcc0_37     ; inserted
 
-; Entry 100000b00; block 9; address 100000b50
-L100000b00_9:
-    CMP R12D, 18446744073709551615
-    JE L100000b00_8
-    JMP L100000b00_7     ; inserted
+; Entry cc0; block 10; address d5a
+Lcc0_10:
+    CMP qword [RSP + 32], RBP
+    MOVSS XMM0, dword [rel L_.rodata + 352]
+    JE Lcc0_13
+    JMP Lcc0_12     ; inserted
 
-; Entry 100000b00; block 10; address 100000b87
-L100000b00_10:
-    XOR R15D, R15D
-    LEA RDX, [rel L__TEXT___text + 1324]
-    MOVSXD RCX, dword [RDX + RCX * 4]
-    ADD RCX, RDX
-    MOV RCX, QWORD PTR [L_JUMP_TABLE_100000b98 + 8*ECX] ; inserted as implementation of the jump-table based jump below. Manually remove instructions above that originally implemented this jump table.
-    JMP RCX; TARGETS: 100000ba5,100000d65,100000d79,100000d8d,100000be0,100000da1,100000b9a,100000db5,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0,100000be0
+; Entry cc0; block 11; address e10
+Lcc0_11:
+    XOR ESI, ESI
+    MOV RDI, RBX
+    CALL L850_0
+    JMP Lcc0_31     ; inserted
 
-; Entry 100000b00; block 11; address 100000be0
-L100000b00_11:
-    LEA ECX, [R12 + -48]
-    CMP ECX, 10
-    JB L100000b00_29
-    JMP L100000b00_28     ; inserted
+; Entry cc0; block 12; address d6d
+Lcc0_12:
+    CMP R12D, 11
+    JE Lcc0_15
+    JMP Lcc0_14     ; inserted
 
-; Entry 100000b00; block 12; address 100000b9a
-L100000b00_12:
-    CMP EBX, 7
-    JNE L100000b00_7
-    JMP L100000b00_19     ; inserted
+; Entry cc0; block 13; address e30
+Lcc0_13:
+    SUB qword [RSP + 32], 18446744073709551488
+    MOV RDI, qword [RSP + 40]
+    MOVSS dword [RSP + 60], XMM0
+    MOV RAX, qword [RSP + 32]
+    MOV RSI, RAX
+    CALL L8a0_0
+    JMP Lcc0_33     ; inserted
 
-; Entry 100000b00; block 13; address 100000ba5
-L100000b00_13:
-    CMP R15D, EBX
-    JNE L100000b00_21
-    JMP L100000b00_20     ; inserted
-
-; Entry 100000b00; block 14; address 100000d65
-L100000b00_14:
-    MOV R15D, 1
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_49     ; inserted
-
-; Entry 100000b00; block 15; address 100000d79
-L100000b00_15:
-    MOV R15D, 5
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_50     ; inserted
-
-; Entry 100000b00; block 16; address 100000d8d
-L100000b00_16:
-    MOV R15D, 3
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_51     ; inserted
-
-; Entry 100000b00; block 17; address 100000da1
-L100000b00_17:
-    MOV R15D, 2
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_52     ; inserted
-
-; Entry 100000b00; block 18; address 100000db5
-L100000b00_18:
-    MOV R15D, 4
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_53     ; inserted
-
-; Entry 100000b00; block 19; address 100000b9f
-L100000b00_19:
-    MOV R15D, 7
-    JMP L100000b00_13     ; inserted
-
-; Entry 100000b00; block 20; address 100000baa
-L100000b00_20:
-    CMP EBX, 7
-    MOV RSI, qword [RBP + -80]
-    JE L100000b00_23
-    JMP L100000b00_22     ; inserted
-
-; Entry 100000b00; block 21; address 100000c1c
-L100000b00_21:
-    CMP EBX, 9
-    JNE L100000b00_32
-    JMP L100000b00_31     ; inserted
-
-; Entry 100000b00; block 22; address 100000bb3
-L100000b00_22:
-    CMP EBX, 9
-    JNE L100000b00_24
-    JMP L100000b00_23     ; inserted
-
-; Entry 100000b00; block 23; address 100000bbc
-L100000b00_23:
-    CMP R13, RSI
-    JNE L100000b00_26
-    JMP L100000b00_25     ; inserted
-
-; Entry 100000b00; block 24; address 100000c59
-L100000b00_24:
-    MOV R13D, EBX
-    MOVSS XMM0, dword [rel L__TEXT___const + 4]
-    JMP L100000b00_33     ; inserted
-
-; Entry 100000b00; block 25; address 100000bc5
-L100000b00_25:
-    SUB RSI, 18446744073709551488
-    MOV RDI, qword [RBP + -48]
-    MOV qword [RBP + -80], RSI
-    CALL _realloc
-    JMP L100000b00_27     ; inserted
-
-; Entry 100000b00; block 26; address 100000d38
-L100000b00_26:
-    MOV RAX, qword [RBP + -48]
-    JMP L100000b00_47     ; inserted
-
-; Entry 100000b00; block 27; address 100000bd6
-L100000b00_27:
-    JMP L100000b00_47
-
-; Entry 100000b00; block 28; address 100000bea
-L100000b00_28:
-    CMP EAX, 58
-    JAE L100000b00_7
-    JMP L100000b00_29     ; inserted
-
-; Entry 100000b00; block 29; address 100000bf3
-L100000b00_29:
-    XOR EAX, EAX
-    CMP ECX, 9
-    SETA AL
-    LEA R15D, [RAX + RAX + 7]
-    CMP R15D, EBX
-    JE L100000b00_20
-    JMP L100000b00_30     ; inserted
-
-; Entry 100000b00; block 30; address 100000c05
-L100000b00_30:
-    JMP L100000b00_21
-
-; Entry 100000b00; block 31; address 100000c21
-L100000b00_31:
-    MOV R13D, 8
-    MOVSS XMM0, dword [rel L__TEXT___const + 4]
-    TEST R15D, R15D
-    JE L100000b00_33
-    JMP L100000b00_32     ; inserted
-
-; Entry 100000b00; block 32; address 100000c34
-L100000b00_32:
-    MOV R13D, EBX
-    MOVSS XMM0, dword [rel L__TEXT___const + 4]
-    CMP EBX, 7
-    JNE L100000b00_33
-    JMP L100000b00_34     ; inserted
-
-; Entry 100000b00; block 33; address 100000c64
-L100000b00_33:
-    MOV RBX, qword [RBP + -104]
-    MOV RSI, qword [RBP + -88]
-    CMP RBX, RSI
-    JNE L100000b00_37
-    JMP L100000b00_36     ; inserted
-
-; Entry 100000b00; block 34; address 100000c44
-L100000b00_34:
-    MOV RDI, qword [RBP + -48]
-    CALL _atof
-    JMP L100000b00_35     ; inserted
-
-; Entry 100000b00; block 35; address 100000c4d
-L100000b00_35:
-    CVTSD2SS XMM0, XMM0
-    MOV R13D, 7
-    JMP L100000b00_33
-
-; Entry 100000b00; block 36; address 100000c71
-L100000b00_36:
-    SUB RSI, 18446744073709551488
-    MOV RDI, qword [RBP + -64]
-    MOV qword [RBP + -88], RSI
-    MOVSS dword [RBP + -52], XMM0
-    CALL _realloc
-    JMP L100000b00_38     ; inserted
-
-; Entry 100000b00; block 37; address 100000c90
-L100000b00_37:
-    MOV RDX, qword [RBP + -48]
-    CMP R13D, 11
-    JE L100000b00_40
-    JMP L100000b00_39     ; inserted
-
-; Entry 100000b00; block 38; address 100000c87
-L100000b00_38:
-    MOVSS XMM0, dword [RBP + -52]
-    MOV qword [RBP + -64], RAX
-    JMP L100000b00_37     ; inserted
-
-; Entry 100000b00; block 39; address 100000c9a
-L100000b00_39:
-    LEA RAX, [RBX + 1]
-    SHL RBX, 5
-    MOV RCX, qword [RBP + -64]
-    MOV dword [RCX + RBX], R13D
-    MOV qword [RCX + RBX + 8], RDX
-    MOVSS dword [RCX + RBX + 16], XMM0
-    MOV RDX, qword [RBP + -96]
-    MOV qword [RCX + RBX + 24], RDX
-    MOV RBX, RAX
-    JMP L100000b00_40     ; inserted
-
-; Entry 100000b00; block 40; address 100000cc1
-L100000b00_40:
-    CMP R15D, 7
-    MOV qword [RBP + -104], RBX
-    JE L100000b00_42
-    JMP L100000b00_41     ; inserted
-
-; Entry 100000b00; block 41; address 100000ccb
-L100000b00_41:
+; Entry cc0; block 14; address d77
+Lcc0_14:
+    MOV RAX, RBP
+    MOV RSI, qword [RSP + 16]
+    ADD RBP, 1
+    SHL RAX, 5
+    ADD RAX, qword [RSP + 40]
     CMP R15D, 11
-    JE L100000b00_44
-    JMP L100000b00_43     ; inserted
+    MOV dword [RAX], R12D
+    MOV qword [RAX + 8], RBX
+    MOVSS dword [RAX + 16], XMM0
+    MOV qword [RAX + 24], RSI
+    MOV RAX, qword [RSP + 24]
+    MOV qword [RSP + 16], RAX
+    JE Lcc0_17
+    JMP Lcc0_16     ; inserted
 
-; Entry 100000b00; block 42; address 100000d01
-L100000b00_42:
-    MOV EAX, 128
-    MOV qword [RBP + -80], RAX
-    MOV EDI, 128
-    CALL _malloc
-    JMP L100000b00_46     ; inserted
+; Entry cc0; block 15; address e68
+Lcc0_15:
+    MOV RAX, qword [RSP + 24]
+    CMP R15D, 11
+    MOV qword [RSP + 16], RAX
+    JNE Lcc0_16
+    JMP Lcc0_17     ; inserted
 
-; Entry 100000b00; block 43; address 100000cd5
-L100000b00_43:
+; Entry cc0; block 16; address db0
+Lcc0_16:
+    LEA EAX, [R15 + -7]
+    CMP EAX, 1
+    JBE Lcc0_19
+    JMP Lcc0_18     ; inserted
+
+; Entry cc0; block 17; address e7c
+Lcc0_17:
+    CMP RBP, qword [RSP + 32]
+    JE Lcc0_36
+    JMP Lcc0_35     ; inserted
+
+; Entry cc0; block 18; address dbd
+Lcc0_18:
     MOV EDI, 2
-    CALL _malloc
-    JMP L100000b00_45     ; inserted
-
-; Entry 100000b00; block 44; address 100000ddd
-L100000b00_44:
-    MOV RSI, qword [RBP + -88]
-    CMP RBX, RSI
-    JNE L100000b00_55
-    JMP L100000b00_54     ; inserted
-
-; Entry 100000b00; block 45; address 100000cdf
-L100000b00_45:
-    MOV byte [RAX], R12B
+    MOV R12D, R15D
     MOV R13D, 1
-    MOV qword [RBP + -48], RAX
-    MOV byte [RAX + R13], 0
-    MOV RAX, qword [RBP + -72]
-    MOV qword [RBP + -96], RAX
-    MOV EBX, R15D
-    JMP L100000b00_7
+    CALL L880_0
+    JMP Lcc0_20     ; inserted
 
-; Entry 100000b00; block 46; address 100000d14
-L100000b00_46:
-    MOV byte [RAX], R12B
-    MOV EBX, 7
+; Entry cc0; block 19; address fc8
+Lcc0_19:
+    MOV EDI, 128
+    MOV R12D, R15D
     MOV R13D, 1
-    MOV qword [RBP + -48], RAX
-    MOV byte [RAX + R13], 0
-    MOV RAX, qword [RBP + -72]
-    MOV qword [RBP + -96], RAX
-    JMP L100000b00_7
+    CALL L880_0
+    JMP Lcc0_48     ; inserted
 
-; Entry 100000b00; block 47; address 100000d3c
-L100000b00_47:
-    MOV byte [RAX + R13], R12B
-    INC R13
-    MOV qword [RBP + -48], RAX
-    MOV byte [RAX + R13], 0
-    JMP L100000b00_7
+; Entry cc0; block 20; address dd0
+Lcc0_20:
+    MOV byte [RAX], R14B
+    MOV RBX, RAX
+    JMP Lcc0_43     ; inserted
 
-; Entry 100000b00; block 48; address 100000d60
-L100000b00_48:
-    JMP L100000b00_21
+; Entry cc0; block 21; address de9
+Lcc0_21:
+    MOV R10D, EAX
+    LEA RAX, [rel L_JUMP_TABLE_df7]
+    LEA RAX, [RAX + 8*R10]
+    MOV RAX, QWORD [RAX]
+    ; MOV RAX, QWORD PTR [L_JUMP_TABLE_df7 + 8*EAX] ; inserted as implementation of the jump-table based jump below. Manually remove instructions above that originally implemented this jump table.
+    JMP RAX; TARGETS: ed8,ec8,f50,f40,f70,f30,f08,e00,f60
 
-; Entry 100000b00; block 49; address 100000d74
-L100000b00_49:
-    JMP L100000b00_21
+; Entry cc0; block 22; address f70
+Lcc0_22:
+    LEA EAX, [R14 + -48]
+    CMP EAX, 9
+    JA Lcc0_45
+    JMP Lcc0_44     ; inserted
 
-; Entry 100000b00; block 50; address 100000d88
-L100000b00_50:
-    JMP L100000b00_21
+; Entry cc0; block 23; address e00
+Lcc0_23:
+    CMP R12D, 7
+    MOV R15D, 4
+    JNE Lcc0_10
+    JMP Lcc0_11     ; inserted
 
-; Entry 100000b00; block 51; address 100000d9c
-L100000b00_51:
-    JMP L100000b00_21
+; Entry cc0; block 24; address ec8
+Lcc0_24:
+    MOV R15D, 1
+    JMP Lcc0_37
 
-; Entry 100000b00; block 52; address 100000db0
-L100000b00_52:
-    JMP L100000b00_21
+; Entry cc0; block 25; address ed8
+Lcc0_25:
+    XOR R15D, R15D
+    CMP R12D, 9
+    JNE Lcc0_37
+    JMP Lcc0_38     ; inserted
 
-; Entry 100000b00; block 53; address 100000dc4
-L100000b00_53:
-    JMP L100000b00_21
+; Entry cc0; block 26; address f08
+Lcc0_26:
+    CMP R12D, 7
+    JNE Lcc0_8
+    JMP Lcc0_40     ; inserted
 
-; Entry 100000b00; block 54; address 100000de6
-L100000b00_54:
-    INC RSI
-    MOV RDI, qword [RBP + -64]
-    MOVSS dword [RBP + -52], XMM0
-    CALL _realloc
-    JMP L100000b00_56     ; inserted
+; Entry cc0; block 27; address f30
+Lcc0_27:
+    MOV R15D, 2
+    JMP Lcc0_37
 
-; Entry 100000b00; block 55; address 100000e00
-L100000b00_55:
-    SHL RBX, 5
-    MOV RCX, qword [RBP + -64]
-    MOV dword [RCX + RBX], 11
-    MOV qword [RCX + RBX + 8], 0
-    MOVSS dword [RCX + RBX + 16], XMM0
-    MOV RAX, qword [RBP + -72]
-    MOV qword [RCX + RBX + 24], RAX
-    MOV RAX, RCX
+; Entry cc0; block 28; address f40
+Lcc0_28:
+    MOV R15D, 3
+    JMP Lcc0_37
+
+; Entry cc0; block 29; address f50
+Lcc0_29:
+    MOV R15D, 5
+    JMP Lcc0_37
+
+; Entry cc0; block 30; address f60
+Lcc0_30:
+    MOV R15D, 6
+    JMP Lcc0_37
+
+; Entry cc0; block 31; address e1a
+Lcc0_31:
+    CVTSD2SS XMM0, XMM0
+    CMP qword [RSP + 32], RBP
+    JNE Lcc0_14
+    JMP Lcc0_32     ; inserted
+
+; Entry cc0; block 32; address e29
+Lcc0_32:
+    NOP dword [RAX]
+    JMP Lcc0_13     ; inserted
+
+; Entry cc0; block 33; address e4e
+Lcc0_33:
+    CMP R12D, 11
+    MOV qword [RSP + 40], RAX
+    MOVSS XMM0, dword [RSP + 60]
+    JNE Lcc0_14
+    JMP Lcc0_34     ; inserted
+
+; Entry cc0; block 34; address e63
+Lcc0_34:
+    NOP dword [RAX + RAX]
+    JMP Lcc0_15     ; inserted
+
+; Entry cc0; block 35; address e87
+Lcc0_35:
+    SHL RBP, 5
+    ADD RBP, qword [RSP + 40]
+    MOV RAX, qword [RSP + 24]
+    MOV dword [RBP], 11
+    MOV qword [RBP + 24], RAX
+    MOVSS dword [RBP + 16], XMM0
+    MOV qword [RBP + 8], 0
+    MOV RAX, qword [RSP + 40]
     ADD RSP, 72
     POP RBX
+    POP RBP
     POP R12
     POP R13
     POP R14
     POP R15
-    POP RBP
     RET 
 
-; Entry 100000b00; block 56; address 100000df7
-L100000b00_56:
-    MOVSS XMM0, dword [RBP + -52]
-    MOV qword [RBP + -64], RAX
-    JMP L100000b00_55     ; inserted
+; Entry cc0; block 36; address 1008
+Lcc0_36:
+    MOV RDI, qword [RSP + 40]
+    LEA RSI, [RBP + 1]
+    MOVSS dword [RSP + 8], XMM0
+    CALL L8a0_0
+    JMP Lcc0_51     ; inserted
+
+; Entry cc0; block 37; address d50
+Lcc0_37:
+    CMP R12D, 7
+    JE Lcc0_11
+    JMP Lcc0_10     ; inserted
+
+; Entry cc0; block 38; address ee5
+Lcc0_38:
+    CMP qword [RSP + 32], RBP
+    MOV R12D, 8
+    MOVSS XMM0, dword [rel L_.rodata + 352]
+    JNE Lcc0_14
+    JMP Lcc0_39     ; inserted
+
+; Entry cc0; block 39; address efe
+Lcc0_39:
+    JMP Lcc0_13
+
+; Entry cc0; block 40; address f12
+Lcc0_40:
+    CMP qword [RSP + 48], R13
+    JE Lcc0_42
+    JMP Lcc0_41     ; inserted
+
+; Entry cc0; block 41; address f19
+Lcc0_41:
+    MOV byte [RBX + R13], R14B
+    ADD R13, 1
+    JMP Lcc0_43
+
+; Entry cc0; block 42; address f8f
+Lcc0_42:
+    SUB qword [RSP + 48], 18446744073709551488
+    MOV RDI, RBX
+    MOV RAX, qword [RSP + 48]
+    MOV RSI, RAX
+    CALL L8a0_0
+    JMP Lcc0_47     ; inserted
+
+; Entry cc0; block 43; address dd6
+Lcc0_43:
+    MOV byte [RBX + R13], 0
+    JMP Lcc0_8
+
+; Entry cc0; block 44; address f79
+Lcc0_44:
+    MOV R15D, 7
+    JMP Lcc0_50     ; inserted
+
+; Entry cc0; block 45; address ff0
+Lcc0_45:
+    CMP ECX, 57
+    JA Lcc0_8
+    JMP Lcc0_49     ; inserted
+
+; Entry cc0; block 46; address f88
+Lcc0_46:
+    CMP qword [RSP + 48], R13
+    JNE Lcc0_41
+    JMP Lcc0_42     ; inserted
+
+; Entry cc0; block 47; address fa5
+Lcc0_47:
+    MOV RBX, RAX
+    JMP Lcc0_41
+
+; Entry cc0; block 48; address fdb
+Lcc0_48:
+    MOV qword [RSP + 48], 128
+    MOV byte [RAX], R14B
+    MOV RBX, RAX
+    JMP Lcc0_43
+
+; Entry cc0; block 49; address ff9
+Lcc0_49:
+    MOV R15D, 9
+    JMP Lcc0_50
+
+; Entry cc0; block 50; address f7f
+Lcc0_50:
+    CMP R15D, R12D
+    JNE Lcc0_37
+    JMP Lcc0_46     ; inserted
+
+; Entry cc0; block 51; address 101c
+Lcc0_51:
+    MOVSS XMM0, dword [RSP + 8]
+    MOV qword [RSP + 40], RAX
+    JMP Lcc0_35
 
 
 
-; ---------------------
-; Function: 0x100000ed0
-; ---------------------
-; Entry 100000ed0; block 0; address 100000ed0
-L100000ed0_0:
-    PUSH RBP
-    MOV RBP, RSP
-    PUSH R15
-    PUSH R14
+; ----------------
+; Function: 0x1220
+; ----------------
+; Entry 1220; block 0; address 1220
+L1220_0:
     PUSH R13
     PUSH R12
-    PUSH RBX
-    SUB RSP, 168
-    MOV RBX, RDI
-    MOV qword [RBP + -48], 0
-    MOV EDI, 6144
-    CALL _malloc
-    JMP L100000ed0_1     ; inserted
-
-; Entry 100000ed0; block 1; address 100000ef9
-L100000ed0_1:
-    MOV ESI, 128
-    LEA R15, [RBP + -104]
-    XOR EDI, EDI
-    LEA R13, [RBP + -48]
-    LEA R12, [RBP + -200]
-    CMP RDI, RSI
-    JNE L100000ed0_3
-    JMP L100000ed0_2     ; inserted
-
-; Entry 100000ed0; block 2; address 100000f14
-L100000ed0_2:
-    NOP word [CS:RAX + RAX]
-    NOP 
-    JMP L100000ed0_16     ; inserted
-
-; Entry 100000ed0; block 3; address 100000f40
-L100000ed0_3:
-    MOV qword [RBP + -56], RSI
-    JMP L100000ed0_5     ; inserted
-
-; Entry 100000ed0; block 4; address 100000f33
-L100000ed0_4:
-    MOV RDI, R14
-    JMP L100000ed0_5
-
-; Entry 100000ed0; block 5; address 100000f44
-L100000ed0_5:
-    MOV qword [RBP + -120], RDI
-    LEA R14, [RDI + RDI * 2]
-    SHL R14, 4
-    MOV qword [RBP + -64], RAX
-    ADD R14, RAX
-    LEA RDI, [RBP + -112]
-    MOV RSI, RBX
-    MOV RDX, R13
-    CALL L100001440_0
-    JMP L100000ed0_6     ; inserted
-
-; Entry 100000ed0; block 6; address 100000f66
-L100000ed0_6:
-    NOP word [CS:RAX + RAX]
-    JMP L100000ed0_12     ; inserted
-
-; Entry 100000ed0; block 7; address 100000f85
-L100000ed0_7:
-    LEA RCX, [RAX + 1]
-    MOV qword [RBP + -48], RCX
-    SHL RAX, 5
-    MOV RCX, qword [RBX + RAX + 24]
-    MOV qword [RBP + -128], RCX
-    MOV RCX, qword [RBX + RAX + 16]
-    MOV qword [RBP + -136], RCX
-    MOV RCX, qword [RBX + RAX]
-    MOV RAX, qword [RBX + RAX + 8]
-    MOV qword [RBP + -144], RAX
-    MOV qword [RBP + -152], RCX
-    MOV RDI, R12
-    MOV RSI, RBX
-    MOV RDX, R13
-    CALL L100001440_0
-    JMP L100000ed0_9     ; inserted
-
-; Entry 100000ed0; block 8; address 100001090
-L100000ed0_8:
-    MOV RDI, qword [RBP + -120]
-    INC RDI
-    MOV RCX, qword [RBP + -72]
-    MOV qword [R14 + 40], RCX
-    MOV RCX, qword [RBP + -80]
-    MOV qword [R14 + 32], RCX
-    MOV RCX, qword [RBP + -88]
-    MOV qword [R14 + 24], RCX
-    MOV RCX, qword [RBP + -96]
-    MOV qword [R14 + 16], RCX
-    MOV RCX, qword [RBP + -112]
-    MOV RDX, qword [RBP + -104]
-    MOV qword [R14 + 8], RDX
-    MOV qword [R14], RCX
-    MOV RCX, RAX
-    SHL RCX, 5
-    CMP dword [RBX + RCX], 10
-    JNE L100000ed0_14
-    JMP L100000ed0_13     ; inserted
-
-; Entry 100000ed0; block 9; address 100000fcb
-L100000ed0_9:
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100000ed0_10     ; inserted
-
-; Entry 100000ed0; block 10; address 100000fd5
-L100000ed0_10:
-    MOV RCX, qword [RBP + -112]
-    MOV RDX, qword [RBP + -104]
-    MOV qword [RAX], RCX
-    MOV qword [RAX + 8], RDX
-    MOV RCX, qword [RBP + -96]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -88]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -80]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -72]
-    MOV qword [RAX + 40], RCX
-    MOV qword [RBP + -112], RAX
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100000ed0_11     ; inserted
-
-; Entry 100000ed0; block 11; address 100001012
-L100000ed0_11:
-    MOV RCX, qword [RBP + -160]
-    MOV qword [RAX + 40], RCX
-    MOV RCX, qword [RBP + -168]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -176]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -184]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -200]
-    MOV RDX, qword [RBP + -192]
-    MOV qword [RAX + 8], RDX
-    MOV qword [RAX], RCX
-    MOV RCX, qword [RBP + -128]
-    MOV qword [R15 + 24], RCX
-    MOV RCX, qword [RBP + -136]
-    MOV qword [R15 + 16], RCX
-    MOV RCX, qword [RBP + -152]
-    MOV RDX, qword [RBP + -144]
-    MOV qword [R15 + 8], RDX
-    MOV qword [R15], RCX
-    MOV qword [RBP + -72], RAX
-    JMP L100000ed0_12
-
-; Entry 100000ed0; block 12; address 100000f70
-L100000ed0_12:
-    MOV RAX, qword [RBP + -48]
-    MOV RCX, RAX
-    SHL RCX, 5
-    CMP dword [RBX + RCX], 6
-    JNE L100000ed0_8
-    JMP L100000ed0_7     ; inserted
-
-; Entry 100000ed0; block 13; address 1000010d3
-L100000ed0_13:
-    INC RAX
-    MOV qword [RBP + -48], RAX
-    MOV RAX, qword [RBP + -64]
-    MOV RSI, qword [RBP + -56]
-    CMP RDI, RSI
-    JNE L100000ed0_3
-    JMP L100000ed0_15     ; inserted
-
-; Entry 100000ed0; block 14; address 1000010f0
-L100000ed0_14:
-    MOV RSI, qword [RBP + -56]
-    CMP RDI, RSI
-    MOV RAX, qword [RBP + -64]
-    JNE L100000ed0_18
-    JMP L100000ed0_17     ; inserted
-
-; Entry 100000ed0; block 15; address 1000010eb
-L100000ed0_15:
-    JMP L100000ed0_16
-
-; Entry 100000ed0; block 16; address 100000f20
-L100000ed0_16:
-    SUB RSI, 18446744073709551488
-    MOV R14, RDI
-    MOV RDI, RAX
-    MOV qword [RBP + -56], RSI
-    CALL _realloc
-    JMP L100000ed0_4     ; inserted
-
-; Entry 100000ed0; block 17; address 1000010fd
-L100000ed0_17:
-    INC RSI
-    MOV RDI, RAX
-    CALL _realloc
-    JMP L100000ed0_18     ; inserted
-
-; Entry 100000ed0; block 18; address 100001108
-L100000ed0_18:
-    ADD RSP, 168
-    POP RBX
-    POP R12
-    POP R13
-    POP R14
-    POP R15
-    POP RBP
-    RET 
-
-
-
-; ---------------------
-; Function: 0x100001440
-; ---------------------
-; Entry 100001440; block 0; address 100001440
-L100001440_0:
+    MOV R12, RDX
     PUSH RBP
-    MOV RBP, RSP
-    PUSH R15
-    PUSH R14
-    PUSH R13
-    PUSH R12
     PUSH RBX
-    SUB RSP, 168
-    MOV R15, RDX
-    MOV RBX, RSI
-    MOV R14, RDI
-    CALL L100001940_0
-    JMP L100001440_1     ; inserted
-
-; Entry 100001440; block 1; address 100001462
-L100001440_1:
-    MOV RAX, qword [R15]
-    MOV RCX, RAX
-    SHL RCX, 5
-    MOV ECX, dword [RBX + RCX]
-    MOV EDX, ECX
-    AND EDX, 4294967294
-    CMP EDX, 4
-    JNE L100001440_3
-    JMP L100001440_2     ; inserted
-
-; Entry 100001440; block 2; address 10000147d
-L100001440_2:
-    LEA R13, [R14 + 8]
-    LEA R12, [RBP + -136]
-    NOP dword [RAX + RAX]
-    JMP L100001440_7     ; inserted
-
-; Entry 100001440; block 3; address 100001582
-L100001440_3:
-    AND ECX, 4294967294
-    CMP ECX, 2
-    JNE L100001440_9
-    JMP L100001440_8     ; inserted
-
-; Entry 100001440; block 4; address 1000014cc
-L100001440_4:
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_5     ; inserted
-
-; Entry 100001440; block 5; address 1000014d6
-L100001440_5:
-    MOV RCX, qword [R14]
-    MOV RDX, qword [R14 + 8]
-    MOV qword [RAX], RCX
-    MOV qword [RAX + 8], RDX
-    MOV RCX, qword [R14 + 16]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [R14 + 24]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [R14 + 32]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [R14 + 40]
-    MOV qword [RAX + 40], RCX
-    MOV qword [R14], RAX
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_6     ; inserted
-
-; Entry 100001440; block 6; address 100001511
-L100001440_6:
-    MOV RCX, qword [RBP + -96]
-    MOV qword [RAX + 40], RCX
-    MOV RCX, qword [RBP + -104]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -112]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -120]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -136]
-    MOV RDX, qword [RBP + -128]
-    MOV qword [RAX + 8], RDX
-    MOV qword [RAX], RCX
-    MOV RCX, qword [RBP + -64]
-    MOV qword [R13 + 24], RCX
-    MOV RCX, qword [RBP + -72]
-    MOV qword [R13 + 16], RCX
-    MOV RCX, qword [RBP + -88]
-    MOV RDX, qword [RBP + -80]
-    MOV qword [R13 + 8], RDX
-    MOV qword [R13], RCX
-    MOV qword [R14 + 40], RAX
-    MOV RAX, qword [R15]
-    MOV RCX, RAX
-    SHL RCX, 5
-    MOV ECX, dword [RBX + RCX]
-    MOV EDX, ECX
-    AND EDX, 4294967294
-    CMP EDX, 4
-    JE L100001440_7
-    JMP L100001440_3     ; inserted
-
-; Entry 100001440; block 7; address 100001490
-L100001440_7:
-    LEA RCX, [RAX + 1]
-    MOV qword [R15], RCX
-    SHL RAX, 5
-    MOV RCX, qword [RBX + RAX + 24]
-    MOV qword [RBP + -64], RCX
-    MOV RCX, qword [RBX + RAX + 16]
-    MOV qword [RBP + -72], RCX
-    MOV RCX, qword [RBX + RAX]
-    MOV RAX, qword [RBX + RAX + 8]
-    MOV qword [RBP + -80], RAX
-    MOV qword [RBP + -88], RCX
-    MOV RDI, R12
-    MOV RSI, RBX
-    MOV RDX, R15
-    CALL L100001940_0
-    JMP L100001440_4     ; inserted
-
-; Entry 100001440; block 8; address 10000158e
-L100001440_8:
-    LEA R12, [RBP + -80]
-    LEA RCX, [R14 + 8]
-    MOV qword [RBP + -144], RCX
-    LEA R13, [RBP + -136]
-    JMP L100001440_13
-
-; Entry 100001440; block 9; address 1000017d2
-L100001440_9:
-    MOV RAX, R14
-    ADD RSP, 168
-    POP RBX
-    POP R12
-    POP R13
-    POP R14
-    POP R15
-    POP RBP
-    RET 
-
-; Entry 100001440; block 10; address 1000016bc
-L100001440_10:
-    NOP dword [RAX]
-    JMP L100001440_19     ; inserted
-
-; Entry 100001440; block 11; address 1000015ba
-L100001440_11:
-    MOV RCX, qword [R14]
-    MOV RDX, qword [R14 + 8]
-    MOV qword [RAX], RCX
-    MOV qword [RAX + 8], RDX
-    MOV RCX, qword [R14 + 16]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [R14 + 24]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [R14 + 32]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [R14 + 40]
-    MOV qword [RAX + 40], RCX
-    MOV qword [R14], RAX
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_12     ; inserted
-
-; Entry 100001440; block 12; address 1000015f5
-L100001440_12:
-    MOV RCX, qword [RBP + -48]
-    MOV qword [RAX + 40], RCX
-    MOV RCX, qword [RBP + -56]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -64]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -72]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -88]
-    MOV RDX, qword [RBP + -80]
-    MOV qword [RAX + 8], RDX
-    MOV qword [RAX], RCX
-    MOV RCX, qword [RBP + -152]
-    MOV RSI, qword [RBP + -144]
-    MOV qword [RSI + 24], RCX
-    MOV RCX, qword [RBP + -160]
-    MOV qword [RSI + 16], RCX
-    MOV RCX, qword [RBP + -176]
-    MOV RDX, qword [RBP + -168]
-    MOV qword [RSI + 8], RDX
-    MOV qword [RSI], RCX
-    MOV qword [R14 + 40], RAX
-    MOV RAX, qword [R15]
-    MOV RCX, RAX
-    SHL RCX, 5
-    MOV ECX, dword [RBX + RCX]
-    AND ECX, 4294967294
-    CMP ECX, 2
-    JNE L100001440_9
-    JMP L100001440_13     ; inserted
-
-; Entry 100001440; block 13; address 100001673
-L100001440_13:
-    LEA RCX, [RAX + 1]
-    MOV qword [R15], RCX
-    SHL RAX, 5
-    MOV RCX, qword [RBX + RAX + 24]
-    MOV qword [RBP + -152], RCX
-    MOV RCX, qword [RBX + RAX + 16]
-    MOV qword [RBP + -160], RCX
-    MOV RCX, qword [RBX + RAX]
-    MOV RAX, qword [RBX + RAX + 8]
-    MOV qword [RBP + -168], RAX
-    MOV qword [RBP + -176], RCX
-    LEA RDI, [RBP + -88]
-    MOV RSI, RBX
-    MOV RDX, R15
-    CALL L100001940_0
-    JMP L100001440_10     ; inserted
-
-; Entry 100001440; block 14; address 1000015b0
-L100001440_14:
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_11     ; inserted
-
-; Entry 100001440; block 15; address 1000016d9
-L100001440_15:
-    LEA RCX, [RAX + 1]
-    MOV qword [R15], RCX
-    SHL RAX, 5
-    MOV RCX, qword [RBX + RAX + 24]
-    MOV qword [RBP + -184], RCX
-    MOV RCX, qword [RBX + RAX + 16]
-    MOV qword [RBP + -192], RCX
-    MOV RCX, qword [RBX + RAX]
-    MOV RAX, qword [RBX + RAX + 8]
-    MOV qword [RBP + -200], RAX
-    MOV qword [RBP + -208], RCX
-    MOV RDI, R13
-    MOV RSI, RBX
-    MOV RDX, R15
-    CALL L100001940_0
-    JMP L100001440_16     ; inserted
-
-; Entry 100001440; block 16; address 100001721
-L100001440_16:
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_17     ; inserted
-
-; Entry 100001440; block 17; address 10000172b
-L100001440_17:
-    MOV RCX, qword [RBP + -88]
-    MOV RDX, qword [RBP + -80]
-    MOV qword [RAX], RCX
-    MOV qword [RAX + 8], RDX
-    MOV RCX, qword [RBP + -72]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -64]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -56]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -48]
-    MOV qword [RAX + 40], RCX
-    MOV qword [RBP + -88], RAX
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001440_18     ; inserted
-
-; Entry 100001440; block 18; address 100001768
-L100001440_18:
-    MOV RCX, qword [RBP + -96]
-    MOV qword [RAX + 40], RCX
-    MOV RCX, qword [RBP + -104]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBP + -112]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBP + -120]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBP + -136]
-    MOV RDX, qword [RBP + -128]
-    MOV qword [RAX + 8], RDX
-    MOV qword [RAX], RCX
-    MOV RCX, qword [RBP + -184]
-    MOV qword [R12 + 24], RCX
-    MOV RCX, qword [RBP + -192]
-    MOV qword [R12 + 16], RCX
-    MOV RCX, qword [RBP + -208]
-    MOV RDX, qword [RBP + -200]
-    MOV qword [R12 + 8], RDX
-    MOV qword [R12], RCX
-    MOV qword [RBP + -48], RAX
-    JMP L100001440_19
-
-; Entry 100001440; block 19; address 1000016c0
-L100001440_19:
-    MOV RAX, qword [R15]
-    MOV RCX, RAX
-    SHL RCX, 5
-    MOV ECX, dword [RBX + RCX]
-    AND ECX, 4294967294
-    CMP ECX, 4
-    JNE L100001440_14
-    JMP L100001440_15     ; inserted
-
-
-
-; ---------------------
-; Function: 0x100001940
-; ---------------------
-; Entry 100001940; block 0; address 100001940
-L100001940_0:
-    PUSH RBP
-    MOV RBP, RSP
-    PUSH R15
-    PUSH R14
-    PUSH R12
-    PUSH RBX
-    SUB RSP, 48
-    MOV R14, RDX
+    MOV R13, RSI
     MOV RBX, RDI
-    MOV RAX, qword [rel ___stack_chk_guard]
-    MOV RAX, qword [RAX]
-    MOV qword [RBP + -40], RAX
+    SUB RSP, 56
     MOV RAX, qword [RDX]
     MOV RCX, RAX
     SHL RCX, 5
-    LEA R12, [RSI + RCX]
-    MOV ECX, dword [RSI + RCX]
-    CMP ECX, 9
-    JE L100001940_2
-    JMP L100001940_1     ; inserted
+    LEA RBP, [RSI + RCX]
+    MOV EDX, dword [RBP]
+    LEA ESI, [RDX + -7]
+    AND ESI, 4294967293
+    JE L1220_2
+    JMP L1220_1     ; inserted
 
-; Entry 100001940; block 1; address 100001979
-L100001940_1:
-    MOV R15, RSI
-    CMP ECX, 8
-    JE L100001940_4
-    JMP L100001940_3     ; inserted
+; Entry 1220; block 1; address 124c
+L1220_1:
+    CMP EDX, 8
+    JE L1220_4
+    JMP L1220_3     ; inserted
 
-; Entry 100001940; block 2; address 100001986
-L100001940_2:
-    INC RAX
-    MOV qword [R14], RAX
-    MOV qword [RBX], 0
-    MOV qword [RBX + 40], 0
-    MOV RAX, qword [R12]
-    MOV RCX, qword [R12 + 8]
-    MOV qword [RBX + 8], RAX
-    MOV qword [RBX + 16], RCX
-    MOV RAX, qword [R12 + 16]
-    MOV qword [RBX + 24], RAX
-    MOV RAX, qword [R12 + 24]
-    MOV qword [RBX + 32], RAX
-    JMP L100001940_14
+; Entry 1220; block 2; address 12a0
+L1220_2:
+    ADD RAX, 1
+    MOV qword [RDI], 0
+    MOV qword [R12], RAX
+    MOV RAX, qword [RBP + 24]
+    MOV ECX, dword [RBP]
+    MOV RDX, qword [RBP + 8]
+    MOVSS XMM0, dword [RBP + 16]
+    MOV qword [RDI + 40], 0
+    MOV qword [RDI + 32], RAX
+    MOVSS dword [RDI + 24], XMM0
+    MOV RAX, RBX
+    MOV dword [RDI + 8], ECX
+    MOV qword [RDI + 16], RDX
+    ADD RSP, 56
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
+    RET 
 
-; Entry 100001940; block 3; address 100001981
-L100001940_3:
-    CMP ECX, 7
-    JNE L100001940_5
-    JMP L100001940_2     ; inserted
+; Entry 1220; block 3; address 1255
+L1220_3:
+    TEST EDX, EDX
+    JE L1220_6
+    JMP L1220_5     ; inserted
 
-; Entry 100001940; block 4; address 1000019c3
-L100001940_4:
-    INC RAX
-    MOV qword [R14], RAX
-    JMP L100001940_5     ; inserted
+; Entry 1220; block 4; address 1398
+L1220_4:
+    MOV EDX, dword [R13 + RCX + 32]
+    ADD RAX, 1
+    MOV qword [R12], RAX
+    TEST EDX, EDX
+    JNE L1220_5
+    JMP L1220_11     ; inserted
 
-; Entry 100001940; block 5; address 1000019c9
-L100001940_5:
-    MOV RCX, RAX
-    SHL RCX, 5
-    CMP dword [R15 + RCX], 0
-    JE L100001940_7
-    JMP L100001940_6     ; inserted
-
-; Entry 100001940; block 6; address 1000019d7
-L100001940_6:
+; Entry 1220; block 5; address 125d
+L1220_5:
     MOV qword [RBX], 0
     MOV dword [RBX + 8], 11
-    MOV RAX, qword [RBP + -68]
-    MOV RCX, qword [RBP + -60]
-    MOV qword [RBX + 12], RAX
-    MOV qword [RBX + 20], RCX
-    MOV RAX, qword [RBP + -52]
-    MOV qword [RBX + 28], RAX
-    MOV EAX, dword [RBP + -44]
-    MOV dword [RBX + 36], EAX
-    JMP L100001940_13
-
-; Entry 100001940; block 7; address 100001a08
-L100001940_7:
-    INC RAX
-    MOV qword [R14], RAX
-    MOV RDI, RBX
-    MOV RSI, R15
-    MOV RDX, R14
-    CALL L100001440_0
-    JMP L100001940_8     ; inserted
-
-; Entry 100001940; block 8; address 100001a1c
-L100001940_8:
-    MOV RAX, qword [R14]
-    MOV RCX, RAX
-    SHL RCX, 5
-    CMP dword [R15 + RCX], 0
-    JE L100001940_10
-    JMP L100001940_9     ; inserted
-
-; Entry 100001940; block 9; address 100001a2d
-L100001940_9:
-    INC RAX
-    MOV qword [R14], RAX
-    JMP L100001940_11
-
-; Entry 100001940; block 10; address 100001a35
-L100001940_10:
-    MOV RAX, qword [rel ___stderrp]
-    MOV RDI, qword [RAX]
-    LEA RSI, [rel L__TEXT___cstring_235]
-    XOR EAX, EAX
-    CALL _fprintf
-    JMP L100001940_11     ; inserted
-
-; Entry 100001940; block 11; address 100001a4d
-L100001940_11:
-    MOV EDI, 48
-    CALL _malloc
-    JMP L100001940_12     ; inserted
-
-; Entry 100001940; block 12; address 100001a57
-L100001940_12:
-    MOV RCX, qword [RBX + 40]
-    MOV qword [RAX + 40], RCX
-    MOV RCX, qword [RBX + 32]
-    MOV qword [RAX + 32], RCX
-    MOV RCX, qword [RBX + 24]
-    MOV qword [RAX + 24], RCX
-    MOV RCX, qword [RBX + 16]
-    MOV qword [RAX + 16], RCX
-    MOV RCX, qword [RBX]
-    MOV RDX, qword [RBX + 8]
-    MOV qword [RAX + 8], RDX
-    MOV qword [RAX], RCX
-    MOV qword [RBX], RAX
-    MOV RAX, qword [R12 + 16]
-    MOV qword [RBX + 24], RAX
-    MOV RAX, qword [R12]
-    MOV RCX, qword [R12 + 8]
-    MOV qword [RBX + 16], RCX
-    MOV qword [RBX + 8], RAX
-    MOV RAX, qword [R12 + 24]
-    MOV qword [RBX + 32], RAX
-    JMP L100001940_13     ; inserted
-
-; Entry 100001940; block 13; address 100001aab
-L100001940_13:
-    MOV qword [RBX + 40], 0
-    JMP L100001940_14     ; inserted
-
-; Entry 100001940; block 14; address 100001ab3
-L100001940_14:
-    MOV RAX, qword [rel ___stack_chk_guard]
-    MOV RAX, qword [RAX]
-    CMP RAX, qword [RBP + -40]
-    JNE L100001940_16
-    JMP L100001940_15     ; inserted
-
-; Entry 100001940; block 15; address 100001ac3
-L100001940_15:
     MOV RAX, RBX
-    ADD RSP, 48
+    MOV qword [RBX + 16], 0
+    MOV dword [RBX + 24], 0
+    MOV qword [RBX + 32], 0
+    MOV qword [RBX + 40], 0
+    ADD RSP, 56
     POP RBX
+    POP RBP
     POP R12
+    POP R13
+    RET 
+
+; Entry 1220; block 6; address 12e8
+L1220_6:
+    ADD RAX, 1
+    MOV RDX, R12
+    MOV RDI, RSP
+    MOV qword [R12], RAX
+    MOV RSI, R13
+    CALL L15e0_0
+    JMP L1220_7     ; inserted
+
+; Entry 1220; block 7; address 12fe
+L1220_7:
+    MOV RAX, qword [R12]
+    MOV RDX, RAX
+    SHL RDX, 5
+    MOV EDX, dword [R13 + RDX]
+    TEST EDX, EDX
+    JE L1220_9
+    JMP L1220_8     ; inserted
+
+; Entry 1220; block 8; address 1316
+L1220_8:
+    ADD RAX, 1
+    MOV qword [R12], RAX
+    JMP L1220_13     ; inserted
+
+; Entry 1220; block 9; address 13b8
+L1220_9:
+    MOV RDI, qword [rel stderr@GLIBC_2.2.5]
+    LEA RSI, [rel L_.rodata + 379]
+    XOR EAX, EAX
+    CALL L870_0
+    JMP L1220_12     ; inserted
+
+; Entry 1220; block 10; address 1328
+L1220_10:
+    MOV RDX, qword [RSP]
+    MOV RDI, qword [RBP]
+    MOV RSI, qword [RBP + 8]
+    MOV RCX, qword [RBP + 16]
+    MOV qword [RBX], RAX
+    MOV qword [RAX], RDX
+    MOV RDX, qword [RSP + 8]
+    MOV qword [RBX + 8], RDI
+    MOV qword [RBX + 16], RSI
+    MOV qword [RBX + 24], RCX
+    MOV qword [RAX + 8], RDX
+    MOV RDX, qword [RSP + 16]
+    MOV qword [RAX + 16], RDX
+    MOV RDX, qword [RSP + 24]
+    MOV qword [RAX + 24], RDX
+    MOV RDX, qword [RSP + 32]
+    MOV qword [RAX + 32], RDX
+    MOV RDX, qword [RSP + 40]
+    MOV qword [RAX + 40], RDX
+    MOV RDX, qword [RBP + 24]
+    MOV RAX, RBX
+    MOV qword [RBX + 40], 0
+    MOV qword [RBX + 32], RDX
+    ADD RSP, 56
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
+    RET 
+
+; Entry 1220; block 11; address 13ad
+L1220_11:
+    JMP L1220_6
+
+; Entry 1220; block 12; address 13cd
+L1220_12:
+    JMP L1220_13
+
+; Entry 1220; block 13; address 131e
+L1220_13:
+    MOV EDI, 48
+    CALL L880_0
+    JMP L1220_10     ; inserted
+
+
+
+; ----------------
+; Function: 0x13e0
+; ----------------
+; Entry 13e0; block 0; address 13e0
+L13e0_0:
+    PUSH R15
+    PUSH R14
+    PUSH R13
+    PUSH R12
+    MOV R12, RDX
+    PUSH RBP
+    PUSH RBX
+    MOV RBP, RSI
+    SUB RSP, 168
+    MOV qword [RSP + 56], RDI
+    LEA RDI, [RSP + 64]
+    CALL L1220_0
+    JMP L13e0_1     ; inserted
+
+; Entry 13e0; block 1; address 1406
+L13e0_1:
+    MOV RAX, qword [R12]
+    MOV RCX, qword [RSP + 64]
+    MOV R13D, dword [RSP + 72]
+    MOV R14, qword [RSP + 80]
+    MOVSS XMM1, dword [RSP + 88]
+    MOV R11, qword [RSP + 96]
+    MOV RDX, RAX
+    MOV RBX, qword [RSP + 104]
+    SHL RDX, 5
+    MOV EDX, dword [RBP + RDX]
+    SUB EDX, 4
+    CMP EDX, 1
+    JA L13e0_3
+    JMP L13e0_2     ; inserted
+
+; Entry 13e0; block 2; address 1440
+L13e0_2:
+    LEA RDI, [RSP + 112]
+    MOV qword [RSP + 48], RDI
+    NOP word [RAX + RAX]
+    JMP L13e0_7     ; inserted
+
+; Entry 13e0; block 3; address 15c4
+L13e0_3:
+    MOV qword [RSP + 16], R11
+    MOVAPS XMM0, XMM1
+    MOV qword [RSP + 8], R14
+    MOV dword [RSP + 4], R13D
+    MOV R15, RCX
+    JMP L13e0_8
+
+; Entry 13e0; block 4; address 14a4
+L13e0_4:
+    MOV EDI, 48
+    CALL L880_0
+    JMP L13e0_5     ; inserted
+
+; Entry 13e0; block 5; address 14ae
+L13e0_5:
+    MOV RCX, qword [RSP + 40]
+    MOV R15, RAX
+    MOV dword [RSP + 72], R13D
+    MOVSS XMM1, dword [RSP + 36]
+    MOV R11, qword [RSP + 24]
+    MOVSS dword [RSP + 88], XMM1
+    MOV EDI, 48
+    MOV qword [RAX], RCX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [R15 + 16], R14
+    MOV qword [R15 + 32], R11
+    MOV qword [R15 + 40], RBX
+    MOV qword [R15 + 8], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [R15 + 24], RAX
+    CALL L880_0
+    JMP L13e0_6     ; inserted
+
+; Entry 13e0; block 6; address 14f7
+L13e0_6:
+    MOV RBX, RAX
+    MOV RAX, qword [RSP + 112]
+    MOV RCX, R15
+    MOVSS XMM0, dword [RSP + 32]
+    MOV R13D, dword [RSP + 4]
+    MOV R14, qword [RSP + 8]
+    MOVAPS XMM1, XMM0
+    MOV qword [RBX], RAX
+    MOV RAX, qword [RSP + 120]
+    MOV R11, qword [RSP + 16]
+    MOV qword [RBX + 8], RAX
+    MOV RAX, qword [RSP + 128]
+    MOV qword [RBX + 16], RAX
+    MOV RAX, qword [RSP + 136]
+    MOV qword [RBX + 24], RAX
+    MOV RAX, qword [RSP + 144]
+    MOV qword [RBX + 32], RAX
+    MOV RAX, qword [RSP + 152]
+    MOV qword [RBX + 40], RAX
+    MOV RAX, qword [R12]
+    MOV RSI, RAX
+    SHL RSI, 5
+    MOV ESI, dword [RBP + RSI]
+    SUB ESI, 4
+    CMP ESI, 1
+    JBE L13e0_7
+    JMP L13e0_8     ; inserted
+
+; Entry 13e0; block 7; address 1450
+L13e0_7:
+    ADD RAX, 1
+    MOV RSI, RBP
+    MOV qword [RSP + 40], RCX
+    MOV qword [R12], RAX
+    SHL RAX, 5
+    MOVSS dword [RSP + 36], XMM1
+    LEA RAX, [RBP + RAX-1]
+    MOV qword [RSP + 24], R11
+    MOV RDI, qword [RAX + 8]
+    MOV EDX, dword [RAX]
+    MOVSS XMM0, dword [RAX + 16]
+    MOV RAX, qword [RAX + 24]
+    MOVSS dword [RSP + 32], XMM0
+    MOV qword [RSP + 8], RDI
+    MOV RDI, qword [RSP + 48]
+    MOV dword [RSP + 4], EDX
+    MOV RDX, R12
+    MOV qword [RSP + 16], RAX
+    CALL L1220_0
+    JMP L13e0_4     ; inserted
+
+; Entry 13e0; block 8; address 1571
+L13e0_8:
+    MOV EAX, dword [RSP + 4]
+    MOV RDX, qword [RSP + 56]
+    MOVSS dword [RSP + 88], XMM0
+    MOV dword [RSP + 72], EAX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [RDX], R15
+    MOV qword [RDX + 40], RBX
+    MOV qword [RDX + 8], RAX
+    MOV RAX, qword [RSP + 8]
+    MOV qword [RDX + 16], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [RDX + 24], RAX
+    MOV RAX, qword [RSP + 16]
+    MOV qword [RDX + 32], RAX
+    ADD RSP, 168
+    MOV RAX, RDX
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
     POP R14
     POP R15
-    POP RBP
     RET 
 
-; Entry 100001940; block 16; address 100001ad3
-L100001940_16:
-    CALL ___stack_chk_fail
 
 
-
-; ---------------------
-; Function: 0x100001ae0
-; ---------------------
-; Entry 100001ae0; block 0; address 100001ae0
-L100001ae0_0:
-    PUSH RBP
-    MOV RBP, RSP
+; ----------------
+; Function: 0x15e0
+; ----------------
+; Entry 15e0; block 0; address 15e0
+L15e0_0:
+    PUSH R15
     PUSH R14
+    PUSH R13
+    PUSH R12
+    MOV R12, RDX
+    PUSH RBP
     PUSH RBX
-    SUB RSP, 16
-    LEA R14, [RBP + 16]
-    MOV RAX, qword [RBP + 16]
-    TEST RAX, RAX
-    JE L100001ae0_2
-    JMP L100001ae0_1     ; inserted
+    MOV RBP, RSI
+    SUB RSP, 168
+    MOV qword [RSP + 56], RDI
+    LEA RDI, [RSP + 64]
+    CALL L13e0_0
+    JMP L15e0_1     ; inserted
 
-; Entry 100001ae0; block 1; address 100001af8
-L100001ae0_1:
-    MOV RCX, qword [RAX + 40]
-    MOV RDX, qword [RAX + 32]
-    MOV RSI, qword [RAX + 24]
-    MOV RDI, qword [RAX + 16]
-    MOV RBX, qword [RAX]
-    MOV RAX, qword [RAX + 8]
-    PUSH RCX
-    PUSH RDX
-    PUSH RSI
-    PUSH RDI
-    PUSH RAX
-    PUSH RBX
-    CALL L100001ae0_0
-    JMP L100001ae0_3     ; inserted
+; Entry 15e0; block 1; address 1606
+L15e0_1:
+    MOV RAX, qword [R12]
+    MOV RCX, qword [RSP + 64]
+    MOV R13D, dword [RSP + 72]
+    MOV R14, qword [RSP + 80]
+    MOVSS XMM1, dword [RSP + 88]
+    MOV R11, qword [RSP + 96]
+    MOV RDX, RAX
+    MOV RBX, qword [RSP + 104]
+    SHL RDX, 5
+    MOV EDX, dword [RBP + RDX]
+    SUB EDX, 2
+    CMP EDX, 1
+    JA L15e0_3
+    JMP L15e0_2     ; inserted
 
-; Entry 100001ae0; block 2; address 100001b23
-L100001ae0_2:
-    MOV RAX, qword [R14 + 40]
-    TEST RAX, RAX
-    JE L100001ae0_5
-    JMP L100001ae0_4     ; inserted
+; Entry 15e0; block 2; address 1640
+L15e0_2:
+    LEA RDI, [RSP + 112]
+    MOV qword [RSP + 48], RDI
+    NOP word [RAX + RAX]
+    JMP L15e0_7     ; inserted
 
-; Entry 100001ae0; block 3; address 100001b1a
-L100001ae0_3:
-    ADD RSP, 48
-    MOVAPS XMM1, XMM0
-    JMP L100001ae0_2
-
-; Entry 100001ae0; block 4; address 100001b2c
-L100001ae0_4:
-    MOV RCX, qword [RAX + 40]
-    MOV RDX, qword [RAX + 32]
-    MOV RSI, qword [RAX + 24]
-    MOV RDI, qword [RAX + 16]
-    MOV RBX, qword [RAX]
-    MOV RAX, qword [RAX + 8]
-    PUSH RCX
-    PUSH RDX
-    PUSH RSI
-    PUSH RDI
-    PUSH RAX
-    PUSH RBX
-    MOVSS dword [RBP + -20], XMM1
-    CALL L100001ae0_0
-    JMP L100001ae0_6     ; inserted
-
-; Entry 100001ae0; block 5; address 100001b5e
-L100001ae0_5:
-    MOV EAX, dword [R14 + 8]
-    ADD EAX, 18446744073709551614
-    CMP EAX, 6
-    JA L100001ae0_8
-    JMP L100001ae0_7     ; inserted
-
-; Entry 100001ae0; block 6; address 100001b53
-L100001ae0_6:
-    MOVSS XMM1, dword [RBP + -20]
-    ADD RSP, 48
-    JMP L100001ae0_5
-
-; Entry 100001ae0; block 7; address 100001b6e
-L100001ae0_7:
-    LEA RCX, [rel L__TEXT___text + 5124]
-    MOVSXD RAX, dword [RCX + RAX * 4]
-    ADD RAX, RCX
-    MOV RAX, QWORD PTR [L_JUMP_TABLE_100001b7c + 8*EAX] ; inserted as implementation of the jump-table based jump below. Manually remove instructions above that originally implemented this jump table.
-    JMP RAX; TARGETS: 100001b7e,100001b87,100001b90,100001b99,100001ba2,100001bc1
-
-; Entry 100001ae0; block 8; address 100001d05
-L100001ae0_8:
+; Entry 15e0; block 3; address 17c4
+L15e0_3:
+    MOV qword [RSP + 16], R11
     MOVAPS XMM0, XMM1
-    ADD RSP, 16
+    MOV qword [RSP + 8], R14
+    MOV dword [RSP + 4], R13D
+    MOV R15, RCX
+    JMP L15e0_8
+
+; Entry 15e0; block 4; address 16a4
+L15e0_4:
+    MOV EDI, 48
+    CALL L880_0
+    JMP L15e0_5     ; inserted
+
+; Entry 15e0; block 5; address 16ae
+L15e0_5:
+    MOV RCX, qword [RSP + 40]
+    MOV R15, RAX
+    MOV dword [RSP + 72], R13D
+    MOVSS XMM1, dword [RSP + 36]
+    MOV R11, qword [RSP + 24]
+    MOVSS dword [RSP + 88], XMM1
+    MOV EDI, 48
+    MOV qword [RAX], RCX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [R15 + 16], R14
+    MOV qword [R15 + 32], R11
+    MOV qword [R15 + 40], RBX
+    MOV qword [R15 + 8], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [R15 + 24], RAX
+    CALL L880_0
+    JMP L15e0_6     ; inserted
+
+; Entry 15e0; block 6; address 16f7
+L15e0_6:
+    MOV RBX, RAX
+    MOV RAX, qword [RSP + 112]
+    MOV RCX, R15
+    MOVSS XMM0, dword [RSP + 32]
+    MOV R13D, dword [RSP + 4]
+    MOV R14, qword [RSP + 8]
+    MOVAPS XMM1, XMM0
+    MOV qword [RBX], RAX
+    MOV RAX, qword [RSP + 120]
+    MOV R11, qword [RSP + 16]
+    MOV qword [RBX + 8], RAX
+    MOV RAX, qword [RSP + 128]
+    MOV qword [RBX + 16], RAX
+    MOV RAX, qword [RSP + 136]
+    MOV qword [RBX + 24], RAX
+    MOV RAX, qword [RSP + 144]
+    MOV qword [RBX + 32], RAX
+    MOV RAX, qword [RSP + 152]
+    MOV qword [RBX + 40], RAX
+    MOV RAX, qword [R12]
+    MOV RSI, RAX
+    SHL RSI, 5
+    MOV ESI, dword [RBP + RSI]
+    SUB ESI, 2
+    CMP ESI, 1
+    JBE L15e0_7
+    JMP L15e0_8     ; inserted
+
+; Entry 15e0; block 7; address 1650
+L15e0_7:
+    ADD RAX, 1
+    MOV RSI, RBP
+    MOV qword [RSP + 40], RCX
+    MOV qword [R12], RAX
+    SHL RAX, 5
+    MOVSS dword [RSP + 36], XMM1
+    LEA RAX, [RBP + RAX-1]
+    MOV qword [RSP + 24], R11
+    MOV RDI, qword [RAX + 8]
+    MOV EDX, dword [RAX]
+    MOVSS XMM0, dword [RAX + 16]
+    MOV RAX, qword [RAX + 24]
+    MOVSS dword [RSP + 32], XMM0
+    MOV qword [RSP + 8], RDI
+    MOV RDI, qword [RSP + 48]
+    MOV dword [RSP + 4], EDX
+    MOV RDX, R12
+    MOV qword [RSP + 16], RAX
+    CALL L13e0_0
+    JMP L15e0_4     ; inserted
+
+; Entry 15e0; block 8; address 1771
+L15e0_8:
+    MOV EAX, dword [RSP + 4]
+    MOV RDX, qword [RSP + 56]
+    MOVSS dword [RSP + 88], XMM0
+    MOV dword [RSP + 72], EAX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [RDX], R15
+    MOV qword [RDX + 40], RBX
+    MOV qword [RDX + 8], RAX
+    MOV RAX, qword [RSP + 8]
+    MOV qword [RDX + 16], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [RDX + 24], RAX
+    MOV RAX, qword [RSP + 16]
+    MOV qword [RDX + 32], RAX
+    ADD RSP, 168
+    MOV RAX, RDX
     POP RBX
+    POP RBP
+    POP R12
+    POP R13
     POP R14
+    POP R15
+    RET 
+
+
+
+; ----------------
+; Function: 0x17e0
+; ----------------
+; Entry 17e0; block 0; address 17e0
+L17e0_0:
+    PUSH R15
+    PUSH R14
+    PUSH R13
+    PUSH R12
+    MOV R12, RDX
+    PUSH RBP
+    PUSH RBX
+    MOV RBP, RSI
+    SUB RSP, 168
+    MOV qword [RSP + 56], RDI
+    LEA RDI, [RSP + 64]
+    CALL L15e0_0
+    JMP L17e0_1     ; inserted
+
+; Entry 17e0; block 1; address 1806
+L17e0_1:
+    MOV RAX, qword [R12]
+    MOV RCX, qword [RSP + 64]
+    MOV R13D, dword [RSP + 72]
+    MOV R14, qword [RSP + 80]
+    MOVSS XMM1, dword [RSP + 88]
+    MOV R11, qword [RSP + 96]
+    MOV RDX, RAX
+    MOV RBX, qword [RSP + 104]
+    SHL RDX, 5
+    CMP dword [RBP + RDX], 6
+    JNE L17e0_3
+    JMP L17e0_2     ; inserted
+
+; Entry 17e0; block 2; address 183b
+L17e0_2:
+    LEA RDI, [RSP + 112]
+    MOV qword [RSP + 48], RDI
+    NOP dword [RAX]
+    JMP L17e0_7     ; inserted
+
+; Entry 17e0; block 3; address 19b7
+L17e0_3:
+    MOV qword [RSP + 16], R11
+    MOVAPS XMM0, XMM1
+    MOV qword [RSP + 8], R14
+    MOV dword [RSP + 4], R13D
+    MOV R15, RCX
+    JMP L17e0_8
+
+; Entry 17e0; block 4; address 189c
+L17e0_4:
+    MOV EDI, 48
+    CALL L880_0
+    JMP L17e0_5     ; inserted
+
+; Entry 17e0; block 5; address 18a6
+L17e0_5:
+    MOV RCX, qword [RSP + 40]
+    MOV R15, RAX
+    MOV dword [RSP + 72], R13D
+    MOVSS XMM1, dword [RSP + 36]
+    MOV R11, qword [RSP + 24]
+    MOVSS dword [RSP + 88], XMM1
+    MOV EDI, 48
+    MOV qword [RAX], RCX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [R15 + 16], R14
+    MOV qword [R15 + 32], R11
+    MOV qword [R15 + 40], RBX
+    MOV qword [R15 + 8], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [R15 + 24], RAX
+    CALL L880_0
+    JMP L17e0_6     ; inserted
+
+; Entry 17e0; block 6; address 18ef
+L17e0_6:
+    MOV RBX, RAX
+    MOV RAX, qword [RSP + 112]
+    MOV RCX, R15
+    MOVSS XMM0, dword [RSP + 32]
+    MOV R13D, dword [RSP + 4]
+    MOV R14, qword [RSP + 8]
+    MOVAPS XMM1, XMM0
+    MOV qword [RBX], RAX
+    MOV RAX, qword [RSP + 120]
+    MOV R11, qword [RSP + 16]
+    MOV qword [RBX + 8], RAX
+    MOV RAX, qword [RSP + 128]
+    MOV qword [RBX + 16], RAX
+    MOV RAX, qword [RSP + 136]
+    MOV qword [RBX + 24], RAX
+    MOV RAX, qword [RSP + 144]
+    MOV qword [RBX + 32], RAX
+    MOV RAX, qword [RSP + 152]
+    MOV qword [RBX + 40], RAX
+    MOV RAX, qword [R12]
+    MOV RSI, RAX
+    SHL RSI, 5
+    CMP dword [RBP + RSI], 6
+    JE L17e0_7
+    JMP L17e0_8     ; inserted
+
+; Entry 17e0; block 7; address 1848
+L17e0_7:
+    ADD RAX, 1
+    MOV RDI, qword [RSP + 48]
+    MOV qword [RSP + 40], RCX
+    MOV qword [R12], RAX
+    SHL RAX, 5
+    MOVSS dword [RSP + 36], XMM1
+    LEA RAX, [RBP + RAX-1]
+    MOV qword [RSP + 24], R11
+    MOV EDX, dword [RAX]
+    MOV RSI, qword [RAX + 8]
+    MOVSS XMM0, dword [RAX + 16]
+    MOV RAX, qword [RAX + 24]
+    MOVSS dword [RSP + 32], XMM0
+    MOV dword [RSP + 4], EDX
+    MOV qword [RSP + 8], RSI
+    MOV RDX, R12
+    MOV RSI, RBP
+    MOV qword [RSP + 16], RAX
+    CALL L15e0_0
+    JMP L17e0_4     ; inserted
+
+; Entry 17e0; block 8; address 1964
+L17e0_8:
+    MOV EAX, dword [RSP + 4]
+    MOV RDX, qword [RSP + 56]
+    MOVSS dword [RSP + 88], XMM0
+    MOV dword [RSP + 72], EAX
+    MOV RAX, qword [RSP + 72]
+    MOV qword [RDX], R15
+    MOV qword [RDX + 40], RBX
+    MOV qword [RDX + 8], RAX
+    MOV RAX, qword [RSP + 8]
+    MOV qword [RDX + 16], RAX
+    MOV RAX, qword [RSP + 88]
+    MOV qword [RDX + 24], RAX
+    MOV RAX, qword [RSP + 16]
+    MOV qword [RDX + 32], RAX
+    ADD RSP, 168
+    MOV RAX, RDX
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
+    POP R14
+    POP R15
+    RET 
+
+
+
+; ----------------
+; Function: 0x19d0
+; ----------------
+; Entry 19d0; block 0; address 19d0
+L19d0_0:
+    PUSH R15
+    PUSH R14
+    XOR R15D, R15D
+    PUSH R13
+    PUSH R12
+    MOV R12, RDI
+    PUSH RBP
+    PUSH RBX
+    MOV EDI, 6144
+    XOR EBX, EBX
+    MOV R13D, 128
+    SUB RSP, 88
+    MOV qword [RSP + 72], 0
+    CALL L880_0
+    JMP L19d0_1     ; inserted
+
+; Entry 19d0; block 1; address 19ff
+L19d0_1:
+    MOV RBP, RAX
+    LEA RAX, [RSP + 16]
+    MOV qword [RSP + 8], RAX
+    LEA RAX, [RSP + 72]
+    MOV qword [RSP], RAX
+    JMP L19d0_5
+
+; Entry 19d0; block 2; address 1a3c
+L19d0_2:
+    MOV RAX, qword [RSP + 16]
+    MOV qword [RBP + RBX], RAX
+    MOV RAX, qword [RSP + 24]
+    MOV qword [RBP + RBX + 8], RAX
+    MOV RAX, qword [RSP + 32]
+    MOV qword [RBP + RBX + 16], RAX
+    MOV RAX, qword [RSP + 40]
+    MOV qword [RBP + RBX + 24], RAX
+    MOV RAX, qword [RSP + 48]
+    MOV qword [RBP + RBX + 32], RAX
+    MOV RAX, qword [RSP + 56]
+    MOV qword [RBP + RBX + 40], RAX
+    MOV RAX, qword [RSP + 72]
+    MOV RDX, RAX
+    SHL RDX, 5
+    CMP dword [R12 + RDX], 10
+    JNE L19d0_4
+    JMP L19d0_3     ; inserted
+
+; Entry 19d0; block 3; address 1a8b
+L19d0_3:
+    ADD RAX, 1
+    CMP R13, R14
+    MOV qword [RSP + 72], RAX
+    JNE L19d0_6
+    JMP L19d0_7     ; inserted
+
+; Entry 19d0; block 4; address 1ab8
+L19d0_4:
+    CMP R13, R14
+    JE L19d0_10
+    JMP L19d0_9     ; inserted
+
+; Entry 19d0; block 5; address 1a27
+L19d0_5:
+    MOV RDX, qword [RSP]
+    MOV RDI, qword [RSP + 8]
+    MOV RSI, R12
+    LEA R14, [R15 + 1]
+    CALL L17e0_0
+    JMP L19d0_2     ; inserted
+
+; Entry 19d0; block 6; address 1a20
+L19d0_6:
+    ADD RBX, 48
+    MOV R15, R14
+    JMP L19d0_5     ; inserted
+
+; Entry 19d0; block 7; address 1a99
+L19d0_7:
+    LEA R13, [R15 + 129]
+    MOV RDI, RBP
+    MOV RSI, R13
+    CALL L8a0_0
+    JMP L19d0_8     ; inserted
+
+; Entry 19d0; block 8; address 1aab
+L19d0_8:
+    MOV RBP, RAX
+    JMP L19d0_6
+
+; Entry 19d0; block 9; address 1abd
+L19d0_9:
+    ADD RSP, 88
+    MOV RAX, RBP
+    POP RBX
+    POP RBP
+    POP R12
+    POP R13
+    POP R14
+    POP R15
+    RET 
+
+; Entry 19d0; block 10; address 1ad0
+L19d0_10:
+    LEA RSI, [R15 + 2]
+    MOV RDI, RBP
+    CALL L8a0_0
+    JMP L19d0_11     ; inserted
+
+; Entry 19d0; block 11; address 1adc
+L19d0_11:
+    MOV RBP, RAX
+    JMP L19d0_9
+
+
+
+; ----------------
+; Function: 0x1af0
+; ----------------
+; Entry 1af0; block 0; address 1af0
+L1af0_0:
+    PUSH RBP
+    PUSH RBX
+    SUB RSP, 24
+    MOV RAX, qword [RSP + 48]
+    MOV RBP, qword [RSP + 64]
+    MOV RBX, qword [RSP + 88]
+    TEST RAX, RAX
+    JE L1af0_2
+    JMP L1af0_1     ; inserted
+
+; Entry 1af0; block 1; address 1b0a
+L1af0_1:
+    PUSH qword [RAX + 40]
+    PUSH qword [RAX + 32]
+    PUSH qword [RAX + 24]
+    PUSH qword [RAX + 16]
+    PUSH qword [RAX + 8]
+    PUSH qword [RAX]
+    CALL L1af0_0
+    JMP L1af0_3     ; inserted
+
+; Entry 1af0; block 2; address 1b27
+L1af0_2:
+    TEST RBX, RBX
+    JE L1af0_5
+    JMP L1af0_4     ; inserted
+
+; Entry 1af0; block 3; address 1b20
+L1af0_3:
+    MOVAPS XMM1, XMM0
+    ADD RSP, 48
+    JMP L1af0_2     ; inserted
+
+; Entry 1af0; block 4; address 1b2c
+L1af0_4:
+    MOVSS dword [RSP + 8], XMM1
+    PUSH qword [RBX + 40]
+    PUSH qword [RBX + 32]
+    PUSH qword [RBX + 24]
+    PUSH qword [RBX + 16]
+    PUSH qword [RBX + 8]
+    PUSH qword [RBX]
+    CALL L1af0_0
+    JMP L1af0_6     ; inserted
+
+; Entry 1af0; block 5; address 1b58
+L1af0_5:
+    CMP dword [RSP + 56], 8
+    JA L1af0_8
+    JMP L1af0_7     ; inserted
+
+; Entry 1af0; block 6; address 1b48
+L1af0_6:
+    MOVSS dword [RSP + 60], XMM0
+    ADD RSP, 48
+    MOVSS XMM1, dword [RSP + 8]
+    JMP L1af0_5     ; inserted
+
+; Entry 1af0; block 7; address 1b63
+L1af0_7:
+    MOV EDX, dword [RSP + 56]
+    LEA RAX, [rel L_JUMP_TABLE_1b75]
+    LEA RAX, [RAX+8*RDX]
+    MOV RAX, QWORD [RAX]
+    
+    ;MOV RAX, QWORD PTR [L_JUMP_TABLE_1b75 + 8*DWORD PTR [RSP + 56]] ; inserted as implementation of the jump-table based jump below. Manually remove instructions above that originally implemented this jump table.
+    JMP RAX; TARGETS: 1c40,1c34,1c50,1c60,1c78,1c90,1ca8,1cd0,1b80
+
+; Entry 1af0; block 8; address 1c34
+L1af0_8:
+    ADD RSP, 24
+    POP RBX
     POP RBP
     RET 
 
-; Entry 100001ae0; block 9; address 100001b7e
-L100001ae0_9:
-    SUBSS XMM1, XMM0
-    JMP L100001ae0_8
+; Entry 1af0; block 9; address 1b80
+L1af0_9:
+    MOVZX EAX, byte [RBP]
+    CMP EAX, 115
+    JE L1af0_18
+    JMP L1af0_17     ; inserted
 
-; Entry 100001ae0; block 10; address 100001b87
-L100001ae0_10:
-    ADDSS XMM1, XMM0
-    JMP L100001ae0_8
+; Entry 1af0; block 10; address 1c40
+L1af0_10:
+    ADD RSP, 24
+    MOVAPS XMM0, XMM1
+    POP RBX
+    POP RBP
+    RET 
 
-; Entry 100001ae0; block 11; address 100001b90
-L100001ae0_11:
-    DIVSS XMM1, XMM0
-    JMP L100001ae0_8
+; Entry 1af0; block 11; address 1c50
+L1af0_11:
+    SUBSS XMM1, dword [RSP + 12]
+    ADD RSP, 24
+    POP RBX
+    POP RBP
+    MOVAPS XMM0, XMM1
+    RET 
 
-; Entry 100001ae0; block 12; address 100001b99
-L100001ae0_12:
-    MULSS XMM1, XMM0
-    JMP L100001ae0_8
+; Entry 1af0; block 12; address 1c60
+L1af0_12:
+    MOVSS XMM0, dword [RSP + 12]
+    ADD RSP, 24
+    ADDSS XMM0, XMM1
+    POP RBX
+    POP RBP
+    RET 
 
-; Entry 100001ae0; block 13; address 100001ba2
-L100001ae0_13:
-    UCOMISS XMM1, XMM0
-    XORPS XMM1, XMM1
-    JNE L100001ae0_8
-    JMP L100001ae0_15     ; inserted
+; Entry 1af0; block 13; address 1c78
+L1af0_13:
+    DIVSS XMM1, dword [RSP + 12]
+    ADD RSP, 24
+    POP RBX
+    POP RBP
+    MOVAPS XMM0, XMM1
+    RET 
 
-; Entry 100001ae0; block 14; address 100001bc1
-L100001ae0_14:
-    MOVSS XMM1, dword [R14 + 24]
-    JMP L100001ae0_8
+; Entry 1af0; block 14; address 1c90
+L1af0_14:
+    MOVSS XMM0, dword [RSP + 12]
+    ADD RSP, 24
+    MULSS XMM0, XMM1
+    POP RBX
+    POP RBP
+    RET 
 
-; Entry 100001ae0; block 15; address 100001bae
-L100001ae0_15:
-    JP L100001ae0_8
-    JMP L100001ae0_16     ; inserted
+; Entry 1af0; block 15; address 1ca8
+L1af0_15:
+    UCOMISS XMM1, dword [RSP + 12]
+    JP L1af0_25
+    JMP L1af0_24     ; inserted
 
-; Entry 100001ae0; block 16; address 100001bb4
-L100001ae0_16:
-    MOVSS XMM1, dword [rel L__TEXT___const + 8]
-    JMP L100001ae0_8
+; Entry 1af0; block 16; address 1cd0
+L1af0_16:
+    MOVSS XMM0, dword [RSP + 72]
+    ADD RSP, 24
+    POP RBX
+    POP RBP
+    RET 
+
+; Entry 1af0; block 17; address 1b8d
+L1af0_17:
+    CMP EAX, 99
+    JNE L1af0_20
+    JMP L1af0_19     ; inserted
+
+; Entry 1af0; block 18; address 1ce0
+L1af0_18:
+    CMP byte [RBP + 1], 105
+    JNE L1af0_20
+    JMP L1af0_26     ; inserted
+
+; Entry 1af0; block 19; address 1b96
+L1af0_19:
+    CMP byte [RBP + 1], 111
+    JNE L1af0_20
+    JMP L1af0_21     ; inserted
+
+; Entry 1af0; block 20; address 1d60
+L1af0_20:
+    MOV RDI, qword [rel stderr@GLIBC_2.2.5]
+    LEA RSI, [rel L_.rodata + 416]
+    MOV RDX, RBP
+    XOR EAX, EAX
+    CALL L870_0
+    JMP L1af0_29     ; inserted
+
+; Entry 1af0; block 21; address 1ba0
+L1af0_21:
+    CMP byte [RBP + 2], 115
+    JNE L1af0_20
+    JMP L1af0_22     ; inserted
+
+; Entry 1af0; block 22; address 1baa
+L1af0_22:
+    CMP byte [RBP + 3], 0
+    JNE L1af0_20
+    JMP L1af0_23     ; inserted
+
+; Entry 1af0; block 23; address 1bb4
+L1af0_23:
+    MOVAPS XMM0, XMM1
+    MOVAPS XMM3, XMM1
+    MOVAPS XMM2, XMM1
+    MULSS XMM0, XMM1
+    PXOR XMM4, XMM4
+    MULSS XMM3, XMM0
+    MULSS XMM0, dword [rel L_.rodata + 504]
+    MULSS XMM3, XMM1
+    CVTSS2SD XMM4, XMM0
+    MULSS XMM2, XMM3
+    DIVSS XMM3, dword [rel L_.rodata + 508]
+    MOVSD XMM0, qword [rel L_.rodata + 520]
+    MULSS XMM2, XMM1
+    SUBSD XMM0, XMM4
+    CVTSS2SD XMM3, XMM3
+    ADDSD XMM0, XMM3
+    MOVAPS XMM3, XMM2
+    MULSS XMM2, XMM1
+    DIVSS XMM3, dword [rel L_.rodata + 512]
+    MULSS XMM2, XMM1
+    DIVSS XMM2, dword [rel L_.rodata + 516]
+    CVTSS2SD XMM3, XMM3
+    SUBSD XMM0, XMM3
+    MOVAPD XMM3, XMM0
+    PXOR XMM0, XMM0
+    CVTSS2SD XMM0, XMM2
+    ADDSD XMM0, XMM3
+    CVTSD2SS XMM0, XMM0
+    JMP L1af0_8     ; inserted
+
+; Entry 1af0; block 24; address 1caf
+L1af0_24:
+    MOVSS XMM0, dword [rel L_.rodata + 484]
+    JE L1af0_8
+    JMP L1af0_25     ; inserted
+
+; Entry 1af0; block 25; address 1cbd
+L1af0_25:
+    PXOR XMM0, XMM0
+    JMP L1af0_8
+
+; Entry 1af0; block 26; address 1ce6
+L1af0_26:
+    CMP byte [RBP + 2], 110
+    JNE L1af0_20
+    JMP L1af0_27     ; inserted
+
+; Entry 1af0; block 27; address 1cec
+L1af0_27:
+    CMP byte [RBP + 3], 0
+    JNE L1af0_20
+    JMP L1af0_28     ; inserted
+
+; Entry 1af0; block 28; address 1cf2
+L1af0_28:
+    MOVAPS XMM0, XMM1
+    MOVAPS XMM3, XMM1
+    MOVAPS XMM2, XMM1
+    MULSS XMM0, XMM1
+    MOVAPS XMM4, XMM1
+    MULSS XMM0, XMM1
+    MULSS XMM3, XMM0
+    DIVSS XMM0, dword [rel L_.rodata + 488]
+    MULSS XMM3, XMM1
+    MULSS XMM2, XMM3
+    DIVSS XMM3, dword [rel L_.rodata + 492]
+    SUBSS XMM4, XMM0
+    MOVAPS XMM0, XMM4
+    MULSS XMM2, XMM1
+    ADDSS XMM0, XMM3
+    MOVAPS XMM3, XMM2
+    MULSS XMM2, XMM1
+    DIVSS XMM3, dword [rel L_.rodata + 496]
+    MULSS XMM1, XMM2
+    DIVSS XMM1, dword [rel L_.rodata + 500]
+    SUBSS XMM0, XMM3
+    ADDSS XMM0, XMM1
+    JMP L1af0_8
+
+; Entry 1af0; block 29; address 1d78
+L1af0_29:
+    MOVSS XMM0, dword [rel L_.rodata + 352]
+    JMP L1af0_8
 
 
 
 
-section .data
-L__TEXT___cstring_0: db `Usage: %s <input file>\n`, 0
-L__TEXT___cstring_24: db `%s scored %.02f\n`, 0
-L__TEXT___cstring_41: db `r`, 0
-L__TEXT___cstring_43: db `Cannot open %s: %s\n`, 0
-L__TEXT___cstring_63: db `Unknown`, 0
-L__TEXT___cstring_71: db `name`, 0
-L__TEXT___cstring_76: db `LEFT_PAREN`, 0
-L__TEXT___cstring_87: db `RIGHT_PAREN`, 0
-L__TEXT___cstring_99: db `MINUS`, 0
-L__TEXT___cstring_105: db `PLUS`, 0
-L__TEXT___cstring_110: db `DIVIDE`, 0
-L__TEXT___cstring_117: db `MULTIPLY`, 0
-L__TEXT___cstring_126: db `EQUALS`, 0
-L__TEXT___cstring_133: db `NUMBER`, 0
-L__TEXT___cstring_140: db `FUNCTION`, 0
-L__TEXT___cstring_149: db `IDENTIFIER`, 0
-L__TEXT___cstring_160: db `NEW_LINE`, 0
-L__TEXT___cstring_169: db `TEOF`, 0
-L__TEXT___cstring_174: db `Token %s on line %ld: "%s" %f`, 0
-L__TEXT___cstring_204: db `NULL`, 0
-L__TEXT___cstring_209: db `%f`, 0
-L__TEXT___cstring_212: db `%s(%s)`, 0
-L__TEXT___cstring_219: db `(%s)`, 0
-L__TEXT___cstring_224: db `(%s %s %s)`, 0
-L__TEXT___cstring_235: db `Expected ')' after expression`, 0
-L__TEXT___cstring_265: db `sin`, 0
-L__TEXT___cstring_269: db `cos`, 0
-L__TEXT___cstring_273: db `Function %s is not implemented\n`, 0
+
+section .bss
+L_.bss: resb 16
 
 
 section .data
@@ -1554,35 +1757,577 @@ db 00h
 db 00h
 db 00h
 db 00h
-
+db 080h
+db 030h
+db 020h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
 
 section .data
-L_JUMP_TABLE_100000b98:
-dq L100000b00_13
-dq L100000b00_14
-dq L100000b00_15
-dq L100000b00_16
-dq L100000b00_11
-dq L100000b00_17
-dq L100000b00_12
-dq L100000b00_18
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-dq L100000b00_11
-L_JUMP_TABLE_100001b7c:
-dq L100001ae0_9
-dq L100001ae0_10
-dq L100001ae0_11
-dq L100001ae0_12
-dq L100001ae0_13
-dq L100001ae0_14
+L_.rodata:
+db 01h
+db 00h
+db 02h
+db 00h
+db 055h
+db 073h
+db 061h
+db 067h
+db 065h
+db 03ah
+db 020h
+db 025h
+db 073h
+db 020h
+db 03ch
+db 069h
+db 06eh
+db 070h
+db 075h
+db 074h
+db 020h
+db 066h
+db 069h
+db 06ch
+db 065h
+db 03eh
+db 0ah
+db 00h
+db 025h
+db 073h
+db 020h
+db 073h
+db 063h
+db 06fh
+db 072h
+db 065h
+db 064h
+db 020h
+db 025h
+db 02eh
+db 030h
+db 032h
+db 066h
+db 0ah
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 0c8h
+db 042h
+db 055h
+db 06eh
+db 06bh
+db 06eh
+db 06fh
+db 077h
+db 06eh
+db 00h
+db 072h
+db 00h
+db 043h
+db 061h
+db 06eh
+db 06eh
+db 06fh
+db 074h
+db 020h
+db 06fh
+db 070h
+db 065h
+db 06eh
+db 020h
+db 025h
+db 073h
+db 03ah
+db 020h
+db 025h
+db 073h
+db 0ah
+db 00h
+db 06eh
+db 061h
+db 06dh
+db 065h
+db 00h
+db 04ch
+db 045h
+db 046h
+db 054h
+db 05fh
+db 050h
+db 041h
+db 052h
+db 045h
+db 04eh
+db 00h
+db 052h
+db 049h
+db 047h
+db 048h
+db 054h
+db 05fh
+db 050h
+db 041h
+db 052h
+db 045h
+db 04eh
+db 00h
+db 04dh
+db 049h
+db 04eh
+db 055h
+db 053h
+db 00h
+db 050h
+db 04ch
+db 055h
+db 053h
+db 00h
+db 044h
+db 049h
+db 056h
+db 049h
+db 044h
+db 045h
+db 00h
+db 04dh
+db 055h
+db 04ch
+db 054h
+db 049h
+db 050h
+db 04ch
+db 059h
+db 00h
+db 045h
+db 051h
+db 055h
+db 041h
+db 04ch
+db 053h
+db 00h
+db 04eh
+db 055h
+db 04dh
+db 042h
+db 045h
+db 052h
+db 00h
+db 046h
+db 055h
+db 04eh
+db 043h
+db 054h
+db 049h
+db 04fh
+db 04eh
+db 00h
+db 049h
+db 044h
+db 045h
+db 04eh
+db 054h
+db 049h
+db 046h
+db 049h
+db 045h
+db 052h
+db 00h
+db 04eh
+db 045h
+db 057h
+db 05fh
+db 04ch
+db 049h
+db 04eh
+db 045h
+db 00h
+db 054h
+db 045h
+db 04fh
+db 046h
+db 00h
+db 054h
+db 06fh
+db 06bh
+db 065h
+db 06eh
+db 020h
+db 025h
+db 073h
+db 020h
+db 06fh
+db 06eh
+db 020h
+db 06ch
+db 069h
+db 06eh
+db 065h
+db 020h
+db 025h
+db 06ch
+db 064h
+db 03ah
+db 020h
+db 022h
+db 025h
+db 073h
+db 022h
+db 020h
+db 025h
+db 066h
+db 00h
+db 00h
+db 038h
+db 0edh
+db 0ffh
+db 0ffh
+db 048h
+db 0edh
+db 0ffh
+db 0ffh
+db 058h
+db 0edh
+db 0ffh
+db 0ffh
+db 068h
+db 0edh
+db 0ffh
+db 0ffh
+db 078h
+db 0edh
+db 0ffh
+db 0ffh
+db 088h
+db 0edh
+db 0ffh
+db 0ffh
+db 098h
+db 0edh
+db 0ffh
+db 0ffh
+db 0a8h
+db 0edh
+db 0ffh
+db 0ffh
+db 0b8h
+db 0edh
+db 0ffh
+db 0ffh
+db 0c8h
+db 0edh
+db 0ffh
+db 0ffh
+db 028h
+db 0edh
+db 0ffh
+db 0ffh
+db 0f8h
+db 0ech
+db 0ffh
+db 0ffh
+db 0c0h
+db 0efh
+db 0ffh
+db 0ffh
+db 0b0h
+db 0efh
+db 0ffh
+db 0ffh
+db 038h
+db 0f0h
+db 0ffh
+db 0ffh
+db 028h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 018h
+db 0f0h
+db 0ffh
+db 0ffh
+db 0f0h
+db 0efh
+db 0ffh
+db 0ffh
+db 0e8h
+db 0eeh
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 058h
+db 0f0h
+db 0ffh
+db 0ffh
+db 048h
+db 0f0h
+db 0ffh
+db 0ffh
+db 00h
+db 00h
+db 0c0h
+db 07fh
+db 04eh
+db 055h
+db 04ch
+db 04ch
+db 00h
+db 025h
+db 073h
+db 028h
+db 025h
+db 073h
+db 029h
+db 00h
+db 028h
+db 025h
+db 073h
+db 020h
+db 025h
+db 073h
+db 020h
+db 025h
+db 073h
+db 029h
+db 00h
+db 045h
+db 078h
+db 070h
+db 065h
+db 063h
+db 074h
+db 065h
+db 064h
+db 020h
+db 027h
+db 029h
+db 027h
+db 020h
+db 061h
+db 066h
+db 074h
+db 065h
+db 072h
+db 020h
+db 065h
+db 078h
+db 070h
+db 072h
+db 065h
+db 073h
+db 073h
+db 069h
+db 06fh
+db 06eh
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 046h
+db 075h
+db 06eh
+db 063h
+db 074h
+db 069h
+db 06fh
+db 06eh
+db 020h
+db 025h
+db 073h
+db 020h
+db 069h
+db 073h
+db 020h
+db 06eh
+db 06fh
+db 074h
+db 020h
+db 069h
+db 06dh
+db 070h
+db 06ch
+db 065h
+db 06dh
+db 065h
+db 06eh
+db 074h
+db 065h
+db 064h
+db 0ah
+db 00h
+db 070h
+db 0fch
+db 0ffh
+db 0ffh
+db 064h
+db 0fch
+db 0ffh
+db 0ffh
+db 080h
+db 0fch
+db 0ffh
+db 0ffh
+db 090h
+db 0fch
+db 0ffh
+db 0ffh
+db 0a8h
+db 0fch
+db 0ffh
+db 0ffh
+db 0c0h
+db 0fch
+db 0ffh
+db 0ffh
+db 0d8h
+db 0fch
+db 0ffh
+db 0ffh
+db 00h
+db 0fdh
+db 0ffh
+db 0ffh
+db 0b0h
+db 0fbh
+db 0ffh
+db 0ffh
+db 00h
+db 00h
+db 080h
+db 03fh
+db 00h
+db 00h
+db 0c0h
+db 040h
+db 00h
+db 00h
+db 0f0h
+db 042h
+db 00h
+db 080h
+db 09dh
+db 045h
+db 00h
+db 030h
+db 0b1h
+db 048h
+db 00h
+db 00h
+db 00h
+db 03fh
+db 00h
+db 00h
+db 0c0h
+db 041h
+db 00h
+db 00h
+db 034h
+db 044h
+db 00h
+db 080h
+db 01dh
+db 047h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 00h
+db 0f0h
+db 03fh
+
+section .data
+L_JUMP_TABLE_df7:
+dq Lcc0_25
+dq Lcc0_24
+dq Lcc0_29
+dq Lcc0_28
+dq Lcc0_22
+dq Lcc0_27
+dq Lcc0_26
+dq Lcc0_23
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_22
+dq Lcc0_30
+L_JUMP_TABLE_1b75:
+dq L1af0_10
+dq L1af0_8
+dq L1af0_11
+dq L1af0_12
+dq L1af0_13
+dq L1af0_14
+dq L1af0_15
+dq L1af0_16
+dq L1af0_9
