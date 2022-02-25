@@ -1,15 +1,15 @@
 (__TEXT,__text)
-  addr = 0x0000000100001a60
-  size = 0x00000000001d0fb1
+  addr = 0x00000001000019d0
+  size = 0x00000000001d1031
 (__TEXT,__stubs)
-  addr = 0x00000001001d2a12
+  addr = 0x00000001001d2a02
   size = 0x0000000000000528
 (__TEXT,__stub_helper)
-  addr = 0x00000001001d2f3c
+  addr = 0x00000001001d2f2c
   size = 0x00000000000008a8
 (__TEXT,__const)
-  addr = 0x00000001001d37f0
-  size = 0x00000000000091e8
+  addr = 0x00000001001d37e0
+  size = 0x00000000000091f8
 (__TEXT,__cstring)
   addr = 0x00000001001dc9e0
   size = 0x000000000001bccb
