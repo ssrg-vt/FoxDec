@@ -431,7 +431,7 @@ ctxt_generate_end_report = do
     to_log log $ "    of which verif_error              " ++ show (num_of_verif_error                           $ ctxt_results ctxt)
     to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions                $ ctxt_cfgs ctxt)
     to_log log $ "#assertions:                          " ++ show (sum_total count_instructions_with_assertions $ ctxt_vcs  ctxt)
-    to_log log $ "unresolved indirections:              " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
+    to_log log $ "#unresolved indirections:             " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
     to_log log $ "#sourceless memwrites:                " ++ show (sum_total count_sourceless_memwrites         $ ctxt_vcs  ctxt)
     to_log log $ "#memwrites (approximation):           " ++ show (sum_total count_all_mem_writes               $ ctxt_cfgs  ctxt)
     to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
@@ -786,7 +786,7 @@ ctxt_analyze_unresolved_indirections entry = do
     else case flagstatus_to_tries flg of
       Nothing      -> return False
       Just (op1,n) -> do
-        let values1 = map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n-1]
+        let values1 = map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n]
 
         if values1 == [] || any ((==) Nothing) values1 then do
           -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
