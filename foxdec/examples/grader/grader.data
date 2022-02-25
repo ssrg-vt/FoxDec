@@ -1,2 +1,2 @@
-Contents of (__DATA,__data) section
-0000000100003070	00 00 00 00 00 00 00 00 
+Contents of .data section
+0x00203078 00000000 00000000 80302000 00000000
