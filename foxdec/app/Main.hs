@@ -854,7 +854,7 @@ argsParser = Args
   `parsedBy` optPos 0  "pdf"      `Descr` "If > 0, then generate PDFs (note: sometimes graphviz may get stuck)."
   `andBy`    optPos [] "dirname"  `Descr` "Name of directory (including ending /)"
   `andBy`    optPos [] "filename" `Descr` "Basename of file (without directory) without dot and without file-extension."
-  `andBy`    boolFlag "u"         `Descr` "Show information on usage and quit."
+  `andBy`    boolFlag "usage"     `Descr` "Show information on usage and quit."
   
 -- if the -u flag is not set, check whether a config file has been given.
 -- Read it it, if so.
@@ -872,7 +872,7 @@ run (Args generate_pdfs _ _ True) =
 usage_msg = intercalate "\n" [
   "FoxDec usage:",
   "",
-  "  foxdec $PDF $DIRNAME $BASE",
+  "  foxdec-exe $PDF $DIRNAME $BASE",
   "",
   "$PDF     = Either 0 or 1. Iff 1 then use graphviz to generate PDFs from .dot files. Note: sometimes graphviz may get stuck.",
   "$DIRNAME = Name of directory where a $BASE.dump, a $BASE.symbols and a $BASE.entry file are located.",

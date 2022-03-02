@@ -1,0 +1,365 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{fancyhdr}
+\usepackage{amssymb}
+\usepackage{color}
+\definecolor{BleuFonce}{RGB}{0,74,117}
+\usepackage{mdframed}
+\usepackage{multirow} 
+\usepackage{multicol} 
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage[absolute]{textpos} 
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{tabularx}
+\usepackage{minted}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\definecolor{lightgreen}{rgb}{0.56, 0.93, 0.56}
+\definecolor{moonstoneblue}{rgb}{0.45, 0.66, 0.76}
+
+\pagestyle{fancy}
+\renewcommand\headrulewidth{1pt}
+\usepackage{float}
+
+%\fancyfoot[L]{Virginia Tech \& Open University }
+\fancyhead[R]{}
+%\fancyhead[L]{Prénom Nom}
+
+
+
+\newcommand{\begincodebox}[1]{
+\vspace{1ex}
+\begin{tcolorbox}[
+    enhanced,
+    attach boxed title to top left={xshift=6mm,yshift=-3mm},
+    colback=moonstoneblue!20,
+    colframe=moonstoneblue,
+    colbacktitle=moonstoneblue,
+    title=#1,
+    fonttitle=\bfseries\color{black},
+    boxed title style={size=small,colframe=moonstoneblue,sharp corners},
+    sharp corners,
+]
+}
+
+\newcommand{\codeboxend}{\end{tcolorbox}\noindent}
+\newcommand{\foxdec}{\textsf{FoxDec}}
+\newcommand{\beginpar}[1]{\noindent\textsc{\textbf{#1.}}}
+
+
+
+\begin{document}
+
+\begin{titlepage}
+
+
+%\thispagestyle{empty}
+
+\newgeometry{left=6cm,bottom=2cm, top=1cm, right=1cm}
+
+\tikz[remember picture,overlay] \node[opacity=1,inner sep=0pt] at (2.2mm,-165mm){\includegraphics{SideBar.png}}; 
+
+\fontfamily{fvs}\fontseries{m}\selectfont
+
+\color{white}
+
+%%Texte vertical à gauche
+\begin{picture}(0,0)
+\put(-110,-743){\rotatebox{90}{\Huge{FoxDec User Manual}}}
+\end{picture}
+ 
+%**************************************************************
+%********************  LOGO  DE  POLYTECH  ********************
+%****** CHANGER L'IMAGE POUR UN AUTRE POLYTECH QUE SACLAY *****
+%* VOIR LES LOGOS DISPONIBLES, ET REMPLACER LE NOM CI-DESSOUS *
+%**************************************************************
+
+\vspace{-10mm} 
+\flushright 
+\begin{tabular}{cc}
+\multicolumn{1}{|m{5cm}|}{\makebox(100,100){\includegraphics[width=140px]{VT.jpeg}}} &
+\multicolumn{1}{|m{5cm}|}{\makebox(140,100){\includegraphics[width=140px]{OU.jpg}}} 
+\end{tabular}
+
+
+
+
+%*****************************************************
+%******************** TITRE **************************
+%*****************************************************
+\flushright
+\vspace{10mm} % à régler éventuellement
+\color{BleuFonce}
+\fontfamily{cmss}\fontseries{m}\fontsize{22}{26}\selectfont
+  \textbf{FoxDec}
+
+\normalsize
+\color{black}
+%*****************************************************
+
+%\fontfamily{fvs}\fontseries{m}\fontsize{8}{12}\selectfont
+
+\vspace{1.5cm}
+\normalsize
+
+\textbf{Decompilation based on Formal Methods}
+
+\vspace{15mm}
+
+dr. Freek Verbeek\\
+prof. Binoy Ravindran \\[1ex]
+\href{mailto:freek@vt.edu}{freek@vt.edu}
+
+\vspace{15mm}
+
+\textbf{Supported by the DARPA project FALCON: \\ Formal Analysis of Legacy COde domaiNs}\\
+\bigskip
+\Large {\color{BleuFonce} \textbf{User Manual}}
+\\
+\normalsize {\today}
+
+
+
+\end{titlepage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\restoregeometry
+\newpage
+
+\setcounter{page}{1} 
+
+FoxDec is a tool actively developped at Virginia Tech (US) and the Open University of the Netherlands.
+Its aim is to lift binaries to a higher level of abstraction, in such a way that formal guarantees can be provided that the lifted representation is sound with respect to the original binary.
+This document provides a user manual, further information on implementation and limitations, as well as references for further reading.
+
+\textbf{Remark:}
+\textit{
+FoxDec is evolving quickly, and new features and capabilities are actively being developped.
+Do not hesitate to contact us for questions, remarks and suggestions.
+}
+
+
+\section{User Manual with Example}
+
+
+\subsection{Download \& Installation}
+
+Up-to-date information on where to download \foxdec, and instructions for building and installation, can be found at:
+\begin{center}
+\url{https://ssrg-vt.github.io/FoxDec/#build}
+\end{center}
+
+
+\subsection{Running \foxdec~ to create \texttt{.report} file}
+
+\beginpar{Compile} As running example, we will consider the \texttt{wc} command.
+For sake of explanation, we consider a small and simple implementation instead of taking the binary as available in a standard Linux or Mac distribution\footnote{The source code of the \texttt{wc} example can be found here:\\\url{https://www.gnu.org/software/cflow/manual/html_node/Source-of-wc-command.html}}.
+First, we compile the example. 
+Go to the directory for the running example \texttt{wc\_small}.
+There, we compile the file \texttt{wc.c} to an executable \texttt{wc}.
+
+\begincodebox{Compile the running example}
+\begin{minted}[escapeinside=||,mathescape=true]{text}
+cd ./FoxDec/foxdec/examples/wc_small
+gcc wc.c -o wc
+\end{minted}
+\codeboxend
+\\
+
+\beginpar{Extract} Subsequently, we extract information from the generated binary.
+We use standard tools for this: for Linux these are \texttt{readelf} and \texttt{nm}, and for MacOs these are \texttt{otool} and \texttt{nm}.
+Two scripts are provided: \texttt{dump\_elf.sh} for Linux ELF files, and \texttt{dump\_macho.sh} MacOs MachO files.
+Their command-line usage is:
+\begin{center}
+\texttt{dump\_elf.sh \$BINARY \$NAME}
+\end{center}
+\begin{description}[style=unboxed,leftmargin=0cm,noitemsep]
+\item[\texttt{\$BINARY}]  The path to the binary, including its filename.
+\item[\texttt{\$NAME}]    Any name that clearly identifies the binary, without extensions or dots.
+\end{description}
+\begincodebox{Extract information from binary}
+\begin{minted}[escapeinside=||,mathescape=true]{text}
+../../scripts/dump_macho.sh ./wc wc
+|\makebox[1cm][r]{$\hookrightarrow$}| Created wc.dump
+|\hspace{1cm}| Created wc.data
+|\hspace{1cm} $\ldots$|
+\end{minted}
+\codeboxend
+
+
+
+\beginpar{Run FoxDec} 
+The command-line usage for FoxDec is:
+\begin{center}
+\texttt{foxdec-exe \$PDF \$DIRNAME \$NAME}
+\end{center}
+\begin{description}[style=unboxed,leftmargin=0cm,noitemsep]
+\item[\texttt{\$PDF}] Either \texttt{0} or \texttt{1}. Iff \texttt{1} then Graphviz is used to generate PDFs from .dot files. For larger examples we recommend \texttt{0}, as Graphviz may get stuck on large graphs.
+\item[\texttt{\$DIRNAME}] Name of directory where the files created above (e.g., \texttt{\$NAME.dump}) are located.
+\item[\texttt{\$NAME}]    Use the same name as previously used.
+\end{description}
+
+
+\begincodebox{Run FoxDec}
+\begin{minted}{text}
+foxdec-exe 1 ./ wc
+\end{minted}
+\codeboxend
+\\
+
+\beginpar{Observe Output} 
+At this point, \foxdec~ will have generated output concerning the \emph{control flow} of the program, the \emph{function boundaries}, it will have generated \emph{invariants} and \emph{disassembled instructions}, etc.
+All of this information is stored in a \texttt{.report} file, which can be accessed through a Haskell interface (see Section~\ref{sec:interface}).
+For sake of convenience, some of this information is also outputted in humanly readable formats.
+First, in the file \texttt{./\$NAME\_calls.pdf} an extended call graph is generated.
+Section~\ref{sec:callgraph} contains information on all the results stored in this file.
+For each function entry \texttt{\$f}, a subdirectory has been created, and a control flow graph is generated in the file \texttt{\$f/\$NAME.pdf}.
+An overview of all resolved indirections can be found in the file \texttt{\$NAME.indirections}.
+Finally, for each function entry \texttt{\$f} a log has been maintained providing information on the results per entry (file \texttt{\$f/\$NAME.log} and an overall log has been maintained in \texttt{\$NAME.log}.
+
+\begincodebox{Observe output}
+\begin{minted}{text}
+less wc.log
+less wc.indirections
+open wc_calls.pdf
+less 7c0/wc.log
+open 7c0/wc.pdf
+\end{minted}
+\codeboxend
+
+
+\subsection{Accessing information from \texttt{.report} file}
+
+All information in the generated \texttt{.report} file can be accessed through an interface.
+Implementation details on that interface, providing the exact list of functions that can be used to access the \texttt{.report} file, can be found here:
+\begin{center}
+\url{https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/VerificationReportInterface.html}
+\end{center}
+
+We have created several applications that use this interface to extract information from a \texttt{.report} file and provide output.
+The greyed out applications are currently under development.
+\\
+
+\begin{tabular}{ll} \toprule
+\textbf{Application} & \textbf{Functionality} \\ \midrule
+foxdec-disassembler-exe & Basic instruction disassembly \\
+foxdec-functions-exe    & Function Boundaries \\
+foxdec-controlflow-exe  & Control Flow\\
+foxdec-invariants-exe   & Invariants \\
+\midrule
+\textcolor{lightgray}{foxdec-isabelle-exe}     & \textcolor{lightgray}{Isabelle Code Generation}\\
+\textcolor{lightgray}{foxdec-symbolizer-exe}     & \textcolor{lightgray}{Position Independent NASM Generation}\\ \bottomrule
+\end{tabular}
+\\[1ex]
+
+\beginpar{Basic Disassembly} 
+Provides an enumeration of all instructions of all functions encountered while running \foxdec.
+\begincodebox{Basic Disassembly}
+\begin{minted}[escapeinside=||,mathescape=true]{text}
+foxdec-disassembler-exe wc.report
+|\makebox[1cm][r]{$\hookrightarrow$}| 870: XOR EBP, EBP 2
+|\hspace{1cm}| 872: MOV R9, RDX 3
+|\hspace{1cm}| 875: POP RSI 1
+|\hspace{1cm}| 876: MOV RDX, RSP 3
+|\hspace{1cm}| 879: AND RSP, 18446744073709551600 4
+|\hspace{1cm} $\ldots$|
+\end{minted}
+\codeboxend
+
+
+\beginpar{Function Boundaries} 
+Provides a coarse overview of the function boundaries of all functions encountered while running \foxdec.
+Splits the address ranges of the instructions belonging to the functions into chunks and shows their boundaries.
+\begincodebox{Function Boundaries}
+\begin{minted}[escapeinside=||,mathescape=true]{text}
+foxdec-functions-exe wc.report
+|\makebox[1cm][r]{$\hookrightarrow$}| Function entry: 9ff
+|\hspace{1cm}| 9ff-->a9b
+|\hspace{1cm}| Function entry: aa3
+|\hspace{1cm}| aa3-->b3f
+|\hspace{1cm} $\ldots$|
+\end{minted}
+\codeboxend
+
+
+
+\beginpar{Control Flow} 
+Given an instruction address, provides an overapproximative bound on the set of next instruction addresses.
+In the example below, address \texttt{0xada} may jump to two next addresses.
+\begincodebox{Control Flow}
+\begin{minted}[escapeinside=||,mathescape=true]{text}
+foxdec-controlflow-exe wc.report 0xada
+|\makebox[1cm][r]{$\hookrightarrow$}| ada --> [adc,afc]
+\end{minted}
+\codeboxend
+
+
+	
+\beginpar{Invariants} 
+Given an instruction address, produce the invariant.
+In the example below, some registers have not been modified wrt. their original value (e.g., \texttt{rcx} and \texttt{rdx}).
+The stack frame below the stack pointer stores certain values, e.g., the original value of register \texttt{rbp} and of the lower 32 bits of register \texttt{rdi}.
+The return address at the top of the stack frame has not been modified.
+Register \texttt{rax} holds an unknown value, returned by function \texttt{vfprintf}.
+\begincodebox{Invariants}
+\begin{minted}[escapeinside=!!,mathescape=true]{text}
+foxdec-invariants-exe wc.report 0x9d1
+!\makebox[1cm][r]{$\hookrightarrow$}! Invariant at address 9d1
+!\hspace{1cm}! RIP := 0x9d1
+!\hspace{1cm}! RAX := Bot[c|vfprintf@GLIBC_2.2.5|]
+!\hspace{1cm}! RCX := RSI_0
+!\hspace{1cm}! RDX := RDX_0
+!\hspace{1cm}! RDI := Bot[m|[0x202080, 8]_0|]
+!\hspace{1cm}! RSI := RSI_0
+!\hspace{1cm}! RSP := (RSP_0 - 40)
+!\hspace{1cm}! RBP := (RSP_0 - 8)
+!\hspace{1cm}! R9 := R9_0
+!\hspace{1cm}! R8 := R8_0
+!\hspace{1cm}! [RSP_0, 8] := [RSP_0, 8]_0
+!\hspace{1cm}! [(RSP_0 - 8), 8] := RBP_0
+!\hspace{1cm}! [(RSP_0 - 12), 4] := b32(RDI_0)
+!\hspace{1cm}! [(RSP_0 - 24), 8] := RSI_0
+!\hspace{1cm}! [(RSP_0 - 32), 8] := RDX_0
+!\hspace{1cm} $\ldots$!
+!\hspace{1cm}! flags set by CMP(DWORD PTR [RBP - 4],0)
+\end{minted}
+\codeboxend
+
+
+	
+
+
+
+\fontfamily{cmss}\fontseries{m}\selectfont
+
+\small
+
+
+
+
+%************************************
+\vspace{\fill} % ALIGNER EN BAS DE PAGE
+%************************************
+
+% Modifier en fonction de l'école
+%\noindent
+%\color{BleuFonce} \footnotesize 
+%Polytech Paris-Saclay \\
+%Maison de l'Ingénieur\\
+%Bâtiment 620 Université Paris-Saclay\\
+%91190 Gif-sur-Yvette, France
+
+
+\end{document}

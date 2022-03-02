@@ -53,7 +53,6 @@ ctxt_create_hoare_triples :: Context -> IO ()
 ctxt_create_hoare_triples ctxt = do
   imports <- mapM entry_to_hoare_triples $ IM.keys $ ctxt_calls ctxt
 
-  
   let dirname = ctxt_dirname ctxt
   let name    = ctxt_name ctxt
   let fname   = dirname ++ name ++ ".thy" 
@@ -71,6 +70,7 @@ ctxt_create_hoare_triples ctxt = do
     let vcs      = ctxt_vcs    ctxt IM.! entry
     let finit    = ctxt_finits ctxt IM.! entry
 
+    putStrLn $ "Generated Isabelle thy file file: " ++ fname 
     generate_isa_thy ctxt finit name entry fname g invs posts vcs
 
 
@@ -120,7 +120,7 @@ instr_to_hoare_triple ctxt finit fname all_precs all_asserts p i = do
   appendFile fname $ 
       "htriple "        ++ mk_quote htriple_name ++ "\n" ++
       " Separations \"" ++ isa_precs ++ "\"\n" ++
-      " Assertions  \"" ++ mk_isa_asserts i all_asserts ++ "\"\n" ++
+      -- " Assertions  \"" ++ mk_isa_asserts i all_asserts ++ "\"\n" ++
       " Pre   \""       ++ mk_pred_for_hoare_triple p ++ "\"\n" ++
       " Instruction \"" ++ mk_instr ctxt i ++ "\"\n" ++
       " Post  \""       ++ mk_pred_for_hoare_triple q ++ "\"\n" ++
@@ -149,7 +149,7 @@ mk_pred_for_hoare_triple (Predicate eqs _ _) =
   intercalate " ; " $ mapMaybe mk_eq_for_hoare_triple $ M.toList eqs
  where
   mk_eq_for_hoare_triple (sp,e) =
-    if contains_bot_sp sp|| sp == SP_Reg RIP then --  || (contains_bot e && not (is_return_value_of_call e)) 
+    if contains_bot_sp sp ||  contains_bot e || sp == SP_Reg RIP then --  || (contains_bot e && not (is_return_value_of_call e)) 
       Nothing
     else
       Just $ sp_to_isa sp ++ " = " ++ expr_to_isa e
@@ -251,7 +251,8 @@ mk_safe_isa_fun_name str =
 
 -- generate an isa-string for an expression
 expr_to_isa (Bottom (FromCall f)) = "bot(" ++ f ++ ")"
-expr_to_isa e@(Bottom _ )         = error "Cannot translate " ++ show e ++ " to Isabelle"
+expr_to_isa (SE_Malloc id h)      = "malloc(" ++ show id ++ ")"
+expr_to_isa e@(Bottom _ )         = error $ "Cannot translate " ++ show e ++ " to Isabelle"
 expr_to_isa (SE_Var sp)           = sp_to_isa sp ++ "_0"
 expr_to_isa (SE_Immediate i)      = if i > 2000 then "0x" ++ showHex i else show i
 expr_to_isa (SE_StatePart sp )    = sp_to_isa sp
@@ -262,10 +263,11 @@ expr_to_isa (SE_Op (Times b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (T
 expr_to_isa (SE_Op (And   b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (And   b) ++ " " ++ expr_to_isa a1)
 expr_to_isa (SE_Op (Or    b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (Or    b) ++ " " ++ expr_to_isa a1)
 expr_to_isa (SE_Op (Xor   b) [a0,a1]) = parens (expr_to_isa a0 ++ " " ++ show (Xor   b) ++ " " ++ expr_to_isa a1)
-expr_to_isa (SE_Op op as)           = show op ++ parens (intercalate "," (map expr_to_isa as))
-expr_to_isa (SE_Bit i a)            = "b" ++ show i ++ parens (expr_to_isa a)
-expr_to_isa (SE_SExtend l h a)      = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ expr_to_isa a ++ ")"
-expr_to_isa (SE_Overwrite i a b)    = "overwrite(" ++ intercalate "," [show i,expr_to_isa a,expr_to_isa b] ++ ")"
+expr_to_isa (SE_Op op as)             = show op ++ parens (intercalate "," (map expr_to_isa as))
+expr_to_isa (SE_Bit i a)              = "b" ++ show i ++ parens (expr_to_isa a)
+expr_to_isa (SE_SExtend l h a)        = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ expr_to_isa a ++ ")"
+expr_to_isa (SE_Overwrite i a b)      = "overwrite(" ++ intercalate "," [show i,expr_to_isa a,expr_to_isa b] ++ ")"
+
 
 
 sp_to_isa (SP_Reg r)    = show r

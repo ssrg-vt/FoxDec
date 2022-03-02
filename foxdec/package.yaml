@@ -87,6 +87,37 @@ executables:
     - -main-is Pkcs11
     dependencies:
     - foxdec
+  foxdec-isabelle-exe:
+    main:                Isabelle.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -main-is Isabelle
+    dependencies:
+    - foxdec
+  foxdec-functions-exe:
+    main:                Functions.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -main-is Functions 
+    dependencies:
+    - foxdec
+  foxdec-invariants-exe:
+    main:                Invariants.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -main-is Invariants 
+    dependencies:
+    - foxdec
+
 
 
 tests:
