@@ -114,6 +114,7 @@ For more information how to use the `.report` file, see its [interface][reportin
 
 
 ## Documentation<a name="docs"></a>
+The user manual can be found [here](./foxdec/docs/manual/foxdec_manual.pdf).
 Source code documentation can be found [here](https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/index.html).
 
 

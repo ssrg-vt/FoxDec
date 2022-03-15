@@ -7,7 +7,6 @@
 \usepackage{fancyhdr}
 \usepackage{amssymb}
 \usepackage{color}
-\definecolor{BleuFonce}{RGB}{0,74,117}
 \usepackage{mdframed}
 \usepackage{multirow} 
 \usepackage{multicol} 
@@ -25,9 +24,14 @@
 \usepackage{enumitem}
 \usepackage{booktabs}
 \usepackage{xcolor}
+\usepackage{subfig}
 
+
+\definecolor{BleuFonce}{RGB}{0,74,117}
 \definecolor{lightgreen}{rgb}{0.56, 0.93, 0.56}
 \definecolor{moonstoneblue}{rgb}{0.45, 0.66, 0.76}
+\definecolor{vtmaroon}{RGB}{99,0,49}
+
 
 \pagestyle{fancy}
 \renewcommand\headrulewidth{1pt}
@@ -57,6 +61,37 @@
 \newcommand{\codeboxend}{\end{tcolorbox}\noindent}
 \newcommand{\foxdec}{\textsf{FoxDec}}
 \newcommand{\beginpar}[1]{\noindent\textsc{\textbf{#1.}}}
+
+
+
+\newcounter{example}
+\NewDocumentEnvironment{example}{ O{} }
+{
+\colorlet{colexam}{vtmaroon} % Global example color
+\newtcolorbox[use counter=example]{examplebox}{%
+    % Example Frame Start
+    empty,% Empty previously set parameters
+    title={Example: #1},% use \thetcbcounter to access the example counter text
+    % Attaching a box requires an overlay
+    attach boxed title to top left,
+       % Ensures proper line breaking in longer titles
+       minipage boxed title,
+    % (boxed title style requires an overlay)
+    boxed title style={empty,size=minimal,toprule=0pt,top=4pt,left=3mm,overlay={}},
+    coltitle=colexam,fonttitle=\bfseries,
+    before=\par\medskip\noindent,parbox=false,boxsep=0pt,left=3mm,right=0mm,top=2pt,breakable,pad at break=0mm,
+       before upper=\csname @totalleftmargin\endcsname0pt, % Use instead of parbox=true. This ensures parskip is inherited by box.
+    % Handles box when it exists on one page only
+    overlay unbroken={\draw[colexam,line width=.5pt] ([xshift=-0pt]title.north west) -- ([xshift=-0pt]frame.south west); },
+    % Handles multipage box: first page
+    overlay first={\draw[colexam,line width=.5pt] ([xshift=-0pt]title.north west) -- ([xshift=-0pt]frame.south west); },
+    % Handles multipage box: middle page
+    overlay middle={\draw[colexam,line width=.5pt] ([xshift=-0pt]frame.north west) -- ([xshift=-0pt]frame.south west); },
+    % Handles multipage box: last page
+    overlay last={\draw[colexam,line width=.5pt] ([xshift=-0pt]frame.north west) -- ([xshift=-0pt]frame.south west); },%
+    }
+\begin{examplebox}}
+{\end{examplebox}\endlist}
 
 
 
@@ -118,8 +153,13 @@
 
 \vspace{15mm}
 
-dr. Freek Verbeek\\
-prof. Binoy Ravindran \\[1ex]
+\begin{tabular}{rr}
+prof. Binoy Ravindran & PI\\
+dr. Freek Verbeek & co-PI\\[1ex]
+Joshua Bockenek& PhD\\
+Daniel Spaniol& PhD\\
+\end{tabular}
+\\[1ex]
 \href{mailto:freek@vt.edu}{freek@vt.edu}
 
 \vspace{15mm}
@@ -254,7 +294,7 @@ The greyed out applications are currently under development.
 
 \begin{tabular}{ll} \toprule
 \textbf{Application} & \textbf{Functionality} \\ \midrule
-foxdec-disassembler-exe & Basic instruction disassembly \\
+foxdec-disassembler-exe & Basic Instruction Disassembly \\
 foxdec-functions-exe    & Function Boundaries \\
 foxdec-controlflow-exe  & Control Flow\\
 foxdec-invariants-exe   & Invariants \\
@@ -339,6 +379,78 @@ foxdec-invariants-exe wc.report 0x9d1
 
 
 	
+
+\newpage
+
+\section{Annotated Call Graph}\label{sec:callgraph}
+
+
+
+FoxDec produces a call graph with as vertices function entries, and an edge between two function entries if one function calls the other.
+The graph is \emph{annotated} with information on assumptions and derived invariants made during verification.
+We maintain following four categories of information.
+
+\begin{figure}[htb]
+\centering
+    \subfloat[Initialization]{
+       \includegraphics[width=0.27\textwidth]{callgraph2.png}
+    }
+    \subfloat[Function Constraints]{
+       \includegraphics[width=0.73\textwidth]{callgraph1.png}
+    }
+\caption{Examples of vertices in annotated call graph.}
+\label{fig:callgraph1}
+\end{figure}
+
+
+\begin{description}[style=unboxed,leftmargin=0cm,noitemsep,nosep]
+\item[INITIAL.] Each function is verified with a certain initialization.
+An initialization is an initial predicate such that for any path in the binary, for any state in which the given function is called, the initial predicate holds.
+The initialization typically assigns pointer-relevant information to stateparts.
+\end{description}
+\begin{example}[INITIAL]
+Figure~\ref{fig:callgraph1} contains a snippet of the annotated call graph produced using the running example.
+This initialization shows that at all times, when function with entry \texttt{1000007d0} is called, register \texttt{RDX} contains a pointer that roughly points to the global data section that contains address \texttt{100002080}. Register \texttt{RDI} contains a pointer produced by \texttt{malloc}. Register \texttt{RBP} contains a pointer to the stack frame of function entry \texttt{100000930}. The initialization does not provide exact information here, but sufficient to know that, e.g., the pointers in registers \texttt{RDX} and \texttt{RDI} point to separate regions.
+\end{example}
+
+\begin{description}[style=unboxed,leftmargin=0cm,noitemsep,nosep]
+\item[FUNCTION CONSTRAINTS.] 
+When a function is called, it may be necessary ot make assumptions over it that cannot be proven.
+For external functions, we must make basic assumptions such as calling convention adherence.
+But even an internal function may require additional assumptions: it may write above its own stack frame, and in such case assumptions must be made that the return address of the caller is not overwritten.
+All these assumptions are summarized as function constraints.
+\end{description}
+\begin{example}[FUNCTION CONSTRAINTS]
+Figure~\ref{fig:callgraph1} contains a snippet of the annotated call graph produced using the example \texttt{rop\_emporium\_ret2win/ret2win}.
+Two external functions are called (\texttt{memset} and \texttt{read}).
+Both functions are asumed to preserve the top of the stackframe of the caller (\texttt{4006e8}).
+In this example, function \texttt{read} may actually \emph{violate} the assumption: it has been provided a pointer to the stackframe of the caller in register \texttt{RSI}, and needs to write more than 32 bytes to violate the assumption.
+\end{example}
+
+
+\begin{description}[style=unboxed,leftmargin=0cm,noitemsep,nosep]
+\item[PRECONDITIONS AND ASSERTIONS.] 
+Preconditions and assertions for-mulate assumptions over separation of memory writes.
+A \emph{precondition} states that two regions in memory are separate whose addresses can be defined in terms of the initial state of the function.
+An \emph{assertion} states that two regions are separate at runtime, i.e., specifically during execution of a certain instruction.
+\end{description}
+\begin{example}[PRECONDITIONS AND ASSERTIONS]
+The following precondition:
+\begin{center}
+StackPointer of \texttt{10000298c} SEP [\texttt{10000388c}, 8]\_0
+\end{center}
+states that regions based on the stackpointer of the function with entry \texttt{10000298c} are separate from regions based on the pointer \emph{initially} stored in the global variable with address \texttt{10000388c}.
+\\
+The following assertion:
+\begin{center}
+@\texttt{100000925}: (\texttt{RDX}\_0 + $\bot$) SEP $\bot_{\mathtt{100000f5d}}$
+\end{center}
+states that when the instruction at address \texttt{100000925} is executed, the adress of a memory write resolves to the initial value of register \texttt{RDX} plus some unknown value.
+The region pointed to by that resolved address is assumed to be separate from regions based in the global data section of address \texttt{100000f5d}.
+\end{example}
+
+
+
 
 
 
