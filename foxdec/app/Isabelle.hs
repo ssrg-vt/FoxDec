@@ -68,10 +68,10 @@ ctxt_create_hoare_triples ctxt = do
     let invs     = ctxt_invs   ctxt IM.! entry
     let posts    = ctxt_posts  ctxt IM.! entry
     let vcs      = ctxt_vcs    ctxt IM.! entry
-    let finit    = ctxt_finits ctxt IM.! entry
+    let fctxt    = mk_fcontext ctxt entry
 
     putStrLn $ "Generated Isabelle thy file file: " ++ fname 
-    generate_isa_thy ctxt finit name entry fname g invs posts vcs
+    generate_isa_thy fctxt name fname g invs posts vcs
 
 
 
@@ -80,15 +80,18 @@ generate_isa_main_thy name fname imports = do
   let thy_contents = concat $ ["theory ", name, "\n  imports\n"] ++ map (\s -> "  \"" ++ s ++ "\"\n") imports ++ ["\n\nbegin\n\nend\n"]
   writeFile fname thy_contents
 
-generate_isa_thy ctxt finit name entry fname g invs posts vcs = do
+generate_isa_thy fctxt name fname g invs posts vcs = do
+  let f        = f_name fctxt
+  let entry    = f_entry fctxt
+  let finit    = f_init fctxt
   let thy_name = name ++ "_" ++ showHex entry
   -- generate header
   let header   = isa_file_header thy_name
   writeFile fname header
   -- per block, generate sets of Hoare triples
-  let all_precs   = all_preconditions ctxt finit invs posts vcs
+  let all_precs   = all_preconditions fctxt finit invs posts vcs
   let all_asserts = S.filter is_assertion vcs 
-  mapM_ (block_to_hoare_triples ctxt finit fname entry all_precs all_asserts invs) (IM.toList $ cfg_instrs g)
+  mapM_ (block_to_hoare_triples fctxt fname all_precs all_asserts invs) (IM.toList $ cfg_instrs g)
   -- generate end of file
   appendFile fname $ isa_file_end
   return $ showHex entry ++ "/" ++ thy_name
@@ -101,20 +104,21 @@ isa_file_end = "end\nend\n"
 
 
 -- Generate Hoare triples for a block of instructions
-block_to_hoare_triples ctxt finit fname entry all_precs all_asserts invs (blockId,instrs) = do
+block_to_hoare_triples fctxt fname all_precs all_asserts invs (blockId,instrs) = do
+  let entry = f_entry fctxt
   let p = im_lookup ("Block " ++ show blockId ++ " in invs") invs blockId
   appendFile fname $ mk_isa_comment $ mk_block $ "Entry = " ++ showHex entry ++ ", blockId == " ++ show blockId
   appendFile fname $ "\n"
-  foldlM (instr_to_hoare_triple ctxt finit fname all_precs all_asserts) p instrs
+  foldlM (instr_to_hoare_triple fctxt fname all_precs all_asserts) p instrs
   appendFile fname $ "\n\n"
   return ()
 
 -- Generate a single Hoare triple for an instruction with precondition p
-instr_to_hoare_triple ctxt finit fname all_precs all_asserts p i = do
+instr_to_hoare_triple fctxt fname all_precs all_asserts p i = do
   -- obtain postcondition q
-  let (q,_) = tau_block ctxt finit [i] Nothing p
+  let (q,_) = tau_block fctxt [i] Nothing p
   -- filter separations relevant for p
-  let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for ctxt p i) $ S.toList all_precs
+  let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for fctxt p i) $ S.toList all_precs
 
   let htriple_name = "ht_" ++ (showHex $ i_addr i)
   appendFile fname $ 
@@ -122,9 +126,9 @@ instr_to_hoare_triple ctxt finit fname all_precs all_asserts p i = do
       " Separations \"" ++ isa_precs ++ "\"\n" ++
       -- " Assertions  \"" ++ mk_isa_asserts i all_asserts ++ "\"\n" ++
       " Pre   \""       ++ mk_pred_for_hoare_triple p ++ "\"\n" ++
-      " Instruction \"" ++ mk_instr ctxt i ++ "\"\n" ++
+      " Instruction \"" ++ mk_instr fctxt i ++ "\"\n" ++
       " Post  \""       ++ mk_pred_for_hoare_triple q ++ "\"\n" ++
-      mk_fcs ctxt i p   ++
+      mk_fcs fctxt i p   ++
       "  by (htriple_solver seps: conjI[OF seps asserts,simplified] assms: assms)\n" ++
       "\n\n"
   return q
@@ -155,23 +159,23 @@ mk_pred_for_hoare_triple (Predicate eqs _ _) =
       Just $ sp_to_isa sp ++ " = " ++ expr_to_isa e
 
 -- generate an instruction
-mk_instr ctxt i =
-  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external ctxt i) then
-    let fname = function_name_of_instruction ctxt i
+mk_instr fctxt i =
+  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+    let fname = function_name_of_instruction (f_ctxt fctxt) i
         call  = if is_jump (i_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
       showHex (i_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (i_size i)
   else
     show i
 
 -- generate function constraints
-mk_fcs ctxt i p =
-  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external ctxt i) then
-    let fname = function_name_of_instruction ctxt i in      
-      " FunctionConstraints \"PRESERVES " ++ mk_safe_isa_fun_name fname ++ " {" ++ intercalate ";" (map sp_to_isa $ preserved_stateparts ctxt i p) ++ "}\"\n"
+mk_fcs fctxt i p =
+  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+    let fname = function_name_of_instruction (f_ctxt fctxt) i in      
+      " FunctionConstraints \"PRESERVES " ++ mk_safe_isa_fun_name fname ++ " {" ++ intercalate ";" (map sp_to_isa $ preserved_stateparts i p) ++ "}\"\n"
   else
       ""
  where
-  preserved_stateparts ctxt i (Predicate eqs _ _) =
+  preserved_stateparts i (Predicate eqs _ _) =
      [] -- TODO map fst $ filter (\(sp,v) -> not (contains_bot_sp sp) && statepart_is_preserved_after_function_call ctxt i sp v) $ M.toList eqs
 
 
@@ -187,7 +191,7 @@ all_preconditions ctxt finit invs posts vcs =
   gather_precs_from_stateparts ctxt [] = S.empty
   gather_precs_from_stateparts ctxt (sp0:sps) = S.union (S.fromList $ mapMaybe (mk_prec_from_stateparts ctxt sp0) sps) (gather_precs_from_stateparts ctxt sps)
   
-  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if necessarily_separate ctxt finit a0 si0 a1 si1 then Just (Precondition a0 si0 a1 si1) else Nothing
+  mk_prec_from_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = if necessarily_separate ctxt a0 si0 a1 si1 then Just (Precondition a0 si0 a1 si1) else Nothing
   mk_prec_from_stateparts ctxt _ _ = Nothing
 
   is_precondition_without_bot (Precondition a0 _ a1 _) = (not (contains_bot a0) && not (contains_bot a1)) -- is_return_value_of_call a0 || is_return_value_of_call a1 || 

@@ -46,6 +46,8 @@ import X86_Datastructures
 import CallGraph
 import CFG_Gen
 import SymbolicExecution
+import ControlFlow
+import Pointers
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM
@@ -136,9 +138,10 @@ ctxt_get_instruction a ctxt =
 -- An invariant is a predicate provding information over registers, memory, flags, and verification conditions.
 ctxt_get_invariant :: FunctionEntry -> InstructionAddress -> Retrieve Pred
 ctxt_get_invariant entry a ctxt =
-  case get_invariant ctxt entry a of
-    Nothing -> Left $ "Cannot retrieve invariant for function entry " ++ showHex entry ++ " and instruction address " ++ showHex a ++ " in verification report."
-    Just p  -> Right p
+  let fctxt = mk_fcontext ctxt entry in
+    case get_invariant fctxt a of
+      Nothing -> Left $ "Cannot retrieve invariant for function entry " ++ showHex entry ++ " and instruction address " ++ showHex a ++ " in verification report."
+      Just p  -> Right p
 
 -- | Retrieve all internal function calls for a given function entry
 --

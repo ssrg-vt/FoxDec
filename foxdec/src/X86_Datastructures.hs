@@ -167,6 +167,7 @@ data Opcode = InvalidOpcode
   | CMPS
   | CMPSB
   | CMPSD
+  | CMPSW
   | CMPXCHG
   | CMPXCHG16B
   | CMPXCHG8B

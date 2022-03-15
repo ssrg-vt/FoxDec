@@ -131,6 +131,15 @@ data VerificationCondition =
 type VCS = S.Set VerificationCondition
 
 
+
+-- | An abstract domain for pointers
+data PointerDomain = 
+    Domain_Bases    (S.Set PointerBase)  -- a non-empty set of bases
+  | Domain_Sources  (S.Set BotSrc)       -- a possibly empty set of sources
+  deriving (Generic,Eq,Ord)
+
+
+
 -- | A function initialisation consists of a mapping of stateparts to expressions.
 type FInit = M.Map StatePart SimpleExpr
 
@@ -183,6 +192,7 @@ instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize MemWriteIdentifier
 instance Cereal.Serialize VerificationCondition
+instance Cereal.Serialize PointerDomain
 instance Cereal.Serialize Context
 
 
@@ -259,11 +269,15 @@ pp_instruction ctxt i =
     show i
 
 
+
+instance Show PointerDomain where
+  show (Domain_Bases bs)     = show bs
+  show (Domain_Sources srcs) = show srcs
+
+
 -- | Show function initialisation
 show_finit :: FInit -> String
 show_finit finit = intercalate ", " $ (map (\(sp,e) -> show sp ++ " ~= " ++ show e) $ M.toList finit)
-
-
 
 
 

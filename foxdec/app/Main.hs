@@ -188,36 +188,37 @@ ctxt_reconsider_mutual_recursive_call = do
 
 
 ctxt_get_new_calls entry = do
-  ctxt <- get
-  let g = ctxt_cfgs ctxt IM.! entry
-  (finit_of_entry,_,_) <- ctxt_get_curr_posts entry
+  ctxt   <- get
+  fctxt  <- ctxt_mk_fcontext entry
+  let g   = ctxt_cfgs ctxt IM.! entry
 
-  return $ gather ctxt $ catMaybes $ concat $ concatMap (get_new_calls ctxt finit_of_entry) $ IM.elems $ cfg_instrs g
+  return $ gather fctxt $ catMaybes $ concat $ concatMap (get_new_calls fctxt) $ IM.elems $ cfg_instrs g
  where
-  get_new_calls ctxt finit_of_entry is = map (get_new_call ctxt finit_of_entry) is
-  get_new_call  ctxt finit_of_entry i =
+  get_new_calls fctxt is = map (get_new_call fctxt) is
+  get_new_call  fctxt i =
     if is_call (i_opcode i) then
-       map (trgt_to_finit ctxt finit_of_entry i) $ resolve_jump_target ctxt i
+       map (trgt_to_finit fctxt i) $ resolve_jump_target (f_ctxt fctxt) i
     else
       []
 
-  trgt_to_finit ctxt finit_of_entry i (ImmediateAddress trgt) =
-    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant ctxt entry $ i_addr i) of
-      (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit ctxt finit_of_entry inv)
+  trgt_to_finit fctxt i (ImmediateAddress trgt) =
+   let ctxt = f_ctxt fctxt in
+    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant fctxt $ i_addr i) of
+      (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit fctxt inv)
       (_,Just finit,Just inv)    -> do
-        let finit' = join_finit ctxt (invariant_to_finit ctxt finit_of_entry inv) finit
+        let finit' = join_finit fctxt (invariant_to_finit fctxt inv) finit
         if finit /= finit' || (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt) && not (graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt))) then
           return (fromIntegral trgt,finit') -- trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit ctxt finit_of_entry inv) ++ "\n" ++ show finit') $ 
         else
           Nothing
       (x,y,z) -> error (show (x,y,z))
-  trgt_to_finit ctxt finit_of_entry i _ = Nothing
+  trgt_to_finit ctxt i _ = Nothing
 
-  gather ctxt []         = []
-  gather ctxt [new_call] = [new_call]
-  gather ctxt ((entry',finit):new_calls) =
+  gather fctxt []         = []
+  gather fctxt [new_call] = [new_call]
+  gather fctxt ((entry',finit):new_calls) =
     let (same,others) = partition ((==) entry' . fst) new_calls in
-      (entry', foldr1 (join_finit ctxt) (finit:map snd same)) : gather ctxt others
+      (entry', foldr1 (join_finit fctxt) (finit:map snd same)) : gather fctxt others
     
 
 
@@ -259,9 +260,10 @@ ctxt_get_curr_posts entry = do
 ctxt_verify_proper_return :: Int -> StateT Context IO VerificationResult
 ctxt_verify_proper_return entry = do
   ctxt            <- get
+  fctxt           <- ctxt_mk_fcontext entry
   let vcs          = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
   (_,_,posts)     <- ctxt_get_curr_posts entry
-  all_checks      <- mapM (correct ctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
+  all_checks      <- mapM (correct fctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
 
   if S.null posts then
     return (VerificationError "time out reached")
@@ -276,19 +278,20 @@ ctxt_verify_proper_return entry = do
  where
   -- is the postcondition "correct"? 
   -- A succesfull check returns Nothing, a verification error produces a "Just err" with an error-message
-  correct :: Context -> (NodeInfo,Pred) -> StateT Context IO [Maybe String]
-  correct ctxt (_,q) = do
-    return $ runIdentity $ evalStateT (do_post_check ctxt) (q,S.empty) 
+  correct :: FContext -> (NodeInfo,Pred) -> StateT Context IO [Maybe String]
+  correct fctxt (_,q) = do
+    return $ runIdentity $ evalStateT (do_post_check fctxt) (q,S.empty) 
 
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_post_check :: Context -> State (Pred,VCS) [Maybe String]
-  do_post_check ctxt = do
-    rsp    <- read_reg ctxt RSP
-    rip    <- read_reg ctxt RIP
+  do_post_check :: FContext -> State (Pred,VCS) [Maybe String]
+  do_post_check fctxt = do
+    let f   = f_name fctxt
+    rsp    <- read_reg fctxt RSP
+    rip    <- read_reg fctxt RIP
     checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
-    return $ [rsp_check rsp, rip_check rip] ++ checks
+    return $ [rsp_check f rsp, rip_check f rip] ++ checks
 
   -- check: are all caller-saved-registers restored to their initial values?
   reg_check reg v =
@@ -298,19 +301,20 @@ ctxt_verify_proper_return entry = do
       _ -> Just $ "Verification error: " ++ show reg ++ " == " ++ show v
 
   -- check: is RSP restored to RSP_0 + 8 ?
-  rsp_check rsp =
+  rsp_check f rsp = 
     case rsp of
       -- RSP == RSP_0 + 8
-      SE_Op (Plus _)  [SE_Var (SP_Reg RSP), SE_Immediate 0x8] -> Nothing
+      SE_Op (Plus _)  [SE_Var (SP_StackPointer f'), SE_Immediate 0x8] -> if f == f' then Nothing else v_error rsp
       -- RSP == RSP_0 - 0xfffffffffffffff8
-      SE_Op (Minus _) [SE_Var (SP_Reg RSP), SE_Immediate 0xfffffffffffffff8] -> Nothing
-      _ -> Just $ "Verification error: RSP == " ++ show rsp
+      SE_Op (Minus _) [SE_Var (SP_StackPointer f'), SE_Immediate 0xfffffffffffffff8] -> if f == f' then Nothing else v_error rsp
+      _ -> v_error rsp
+  v_error rsp = Just $ "Verification error: RSP == " ++ show rsp
 
   -- check: is RIP set to the value originally stored at the top of the stack frame?
-  rip_check rip = 
+  rip_check f rip = 
     case rip of
       -- RIP == *[RSP_0,8]
-      SE_Var (SP_Mem (SE_Var (SP_Reg RSP)) 8) -> Nothing
+      SE_Var (SP_Mem (SE_Var (SP_StackPointer f)) 8) -> Nothing
       e -> Just $ "Verification error: RIP == " ++ show rip ++ "\n"
 
 
@@ -658,23 +662,29 @@ ctxt_add_invariants entry finit invs posts vcs = do
 
 
 
+ctxt_mk_fcontext :: Int -> StateT Context IO FContext
+ctxt_mk_fcontext entry = do
+  ctxt        <- get
+  return $ mk_fcontext ctxt entry
 
 ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Context IO ()
 ctxt_generate_invs entry curr_invs curr_posts = do
   -- Generate invariants
-  ctxt <- get
-  (finit,_,_) <- ctxt_get_curr_posts entry
+  ctxt  <- get
+  fctxt  <- ctxt_mk_fcontext entry
+  let finit = f_init fctxt
+
+  
   when (not $ M.null finit) $ to_out $ "Function initialisation: " ++ show_finit finit
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
-  let p       = init_pred curr_invs curr_posts finit
-
+  let p       = init_pred fctxt curr_invs curr_posts
 
   -- TODO remove
   entries <- ctxt_read_entries
-  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg ctxt entry RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
-  result  <- liftIO (timeout max_time $ return $! do_prop ctxt finit g 0 p') -- TODO always 0?
+  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg fctxt entry RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
+  result  <- liftIO (timeout max_time $ return $! do_prop fctxt g 0 p') -- TODO always 0?
 
   case result of
     Nothing         -> do
@@ -682,23 +692,26 @@ ctxt_generate_invs entry curr_invs curr_posts = do
       ctxt_add_invariants entry finit IM.empty S.empty S.empty
     Just (invs,vcs) -> do
       let blocks  = IM.keys $ cfg_blocks g
-      postss     <- catMaybes <$> mapM (get_post ctxt finit g invs) blocks
+      postss     <- catMaybes <$> mapM (get_post fctxt g invs) blocks
       let posts   = S.fromList $ map fst postss
       let vcs'    = S.unions $ map snd postss 
       ctxt_add_invariants entry finit invs posts (S.union vcs vcs')
  where
-  get_post :: Context -> FInit -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
-  get_post ctxt finit g invs b = do
+  get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
+  get_post fctxt g invs b = do
+    let ctxt = f_ctxt fctxt
     if is_end_node g b then do
-      let (q,vcs') = runIdentity $ execStateT (do_tau ctxt finit g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b, S.empty)
+      let (q,vcs') = runIdentity $ execStateT (do_tau fctxt g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b, S.empty)
       return $ Just ((node_info_of ctxt g b,q),vcs')
     else
       return $ Nothing
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_tau :: Context -> FInit -> CFG -> Int -> State (Pred,VCS) ()
-  do_tau ctxt finit g b = modify $ (tau_block ctxt finit (fetch_block g b) Nothing . fst)
+  do_tau :: FContext -> CFG -> Int -> State (Pred,VCS) ()
+  do_tau fctxt g b = modify $ (tau_block fctxt (fetch_block g b) Nothing . fst)
+
+
 
 
 
@@ -707,19 +720,20 @@ ctxt_del_entry entry = modify (\ctxt -> ctxt { ctxt_entries = graph_delete (ctxt
 
 ctxt_add_call entry verified = do
   ctxt <- get
+  fctxt <- ctxt_mk_fcontext entry
   let calls       = ctxt_calls ctxt
   let dirname     = ctxt_dirname ctxt
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".calls"
 
-  (finit,invs,posts) <- ctxt_get_curr_posts entry
+  (_,invs,posts) <- ctxt_get_curr_posts entry
   
   (ret,msg) <-
     if (any ((==) UnresolvedIndirection) $ S.map fst posts) || verified `notElem` [VerificationSuccesWithAssumptions,VerificationSuccess] then
       return (UnknownRetBehavior, "unknown.")
     else if all ((==) Terminal) $ S.map fst posts then
       return (Terminating, "always terminating.")
-    else let q = supremum ctxt finit $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
+    else let q = supremum fctxt $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
       return (ReturningWith q, "normally returning.")
 
   put $ ctxt { ctxt_calls = IM.insert entry ret $ calls }
@@ -747,6 +761,7 @@ ctxt_analyze_unresolved_indirections entry = do
   ctxt <- get
 
   (finit,invs,posts) <- ctxt_get_curr_posts entry
+  let f        = function_name_of_entry ctxt entry
   let g        =  ctxt_cfgs ctxt IM.! entry
 
   let bs = filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) $ IM.keys $ cfg_blocks g
@@ -754,11 +769,13 @@ ctxt_analyze_unresolved_indirections entry = do
     to_out $ "No unresolved indirections."
     return False
   else do
-    results <- forM bs $ try_to_resolve_indirection finit g invs
+    results <- forM bs $ try_to_resolve_indirection f g invs
     return $ not $ all not results -- prevent lazy execution
  where
-  try_to_resolve_indirection finit g invs b = do
+  try_to_resolve_indirection f g invs b = do
     ctxt <- get
+    fctxt <- ctxt_mk_fcontext entry
+
     dirname   <- gets ctxt_dirname
     name      <- gets ctxt_name
     let fname  = dirname ++ name ++ ".indirections" 
@@ -768,7 +785,7 @@ ctxt_analyze_unresolved_indirections entry = do
     let p                   = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg _ = p
 
-    let values0 = evalState (try' ctxt finit g b trgt) (p,S.empty)
+    let values0 = evalState (try' fctxt f g b trgt) (p,S.empty)
 
     if values0 /= Nothing then do -- TODO is this case needed oafter dealing with libc_start_main properly?
       let value = fromJust values0
@@ -786,7 +803,7 @@ ctxt_analyze_unresolved_indirections entry = do
     else case flagstatus_to_tries flg of
       Nothing      -> return False
       Just (op1,n) -> do
-        let values1 = map (\n -> evalState (try ctxt finit (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n]
+        let values1 = map (\n -> evalState (try fctxt f (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n]
 
         if values1 == [] || any ((==) Nothing) values1 then do
           -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
@@ -821,16 +838,17 @@ ctxt_analyze_unresolved_indirections entry = do
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
-  try ctxt finit i_a g blockId op1 trgt n = do
-    write_operand ctxt finit i_a op1 (SE_Immediate n)
-    try' ctxt finit g blockId trgt
+  try fctxt f i_a g blockId op1 trgt n = do
+    write_operand fctxt i_a op1 (SE_Immediate n)
+    try' fctxt f g blockId trgt
 
-  try' ctxt finit g blockId trgt = do
-    modify $ (tau_block ctxt finit (init $ fetch_block g blockId) Nothing . fst)
-    val <- read_operand ctxt finit trgt
+  try' fctxt f g blockId trgt = do
+    let ctxt = f_ctxt fctxt
+    modify $ (tau_block fctxt (init $ fetch_block g blockId) Nothing . fst)
+    val <- read_operand fctxt trgt
     case val of
       SE_Immediate a                     -> return $ Just $ S.singleton $ ImmediateAddress a
-      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer ctxt) es then Just $ S.map (mk_resolved_jump_target ctxt) es else Nothing
+      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer fctxt) es then Just $ S.map (mk_resolved_jump_target ctxt) es else Nothing
       SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then Just $ S.singleton $ External $ ctxt_syms ctxt IM.! (fromIntegral a) else Nothing
       e                                  -> return $ Nothing
 

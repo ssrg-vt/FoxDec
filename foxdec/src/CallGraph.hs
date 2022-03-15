@@ -29,19 +29,24 @@ pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else inter
 pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
 pp_bot e                              = pp_expr e
 
-pp_base StackPointer            = pp_expr (SE_Var $ SP_Reg RSP)
+pp_base (StackPointer f)        = "StackPointer of " ++ f
 pp_base (Malloc id h)           = pp_expr $ SE_Malloc id h
 pp_base (GlobalAddress a)       = showHex a
 pp_base (PointerToSymbol a sym) = "&" ++ sym
 pp_base (Unknown e)             = pp_expr e
 
-pp_source (Src_Var v)       = pp_expr $ SE_Var v
-pp_source (Src_Malloc id h) = pp_expr $ SE_Malloc id h
-pp_source (Src_Function f)  = f
+pp_source (Src_Var v)          = pp_expr $ SE_Var v
+pp_source (Src_StackPointer f) = "StackPointer of " ++ f
+pp_source (Src_Malloc id h)    = pp_expr $ SE_Malloc id h
+pp_source (Src_Function f)     = f
 
 
-pp_statepart (SP_Mem a si)  = "[" ++ pp_bot a ++ "," ++ show si ++ "]" 
-pp_statepart (SP_Reg r)     = show r
+pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]" 
+pp_statepart (SP_StackPointer f) = "StackPointer of " ++ f
+pp_statepart (SP_Reg r)          = show r
+
+pp_dom (Domain_Bases bs)     = intercalate "," (map pp_base $ S.toList bs)
+pp_dom (Domain_Sources srcs) = intercalate "," (map pp_source $ S.toList srcs)
 
 -- | Summarize preconditions
 summarize_preconditions get_info show_e vcs =
@@ -98,9 +103,9 @@ summarize_function_constraints_short ctxt vcs =
         showed_stack_frame  = show_stack_frame stackframe in
       intercalate "," $ filter ((/=) []) $ showed_stack_frame : map pp_statepart others
 
-  is_stack_frame (SP_Mem (SE_Op (Minus _) [SE_Var (SP_Reg RSP), SE_Immediate _]) _) = True
-  is_stack_frame (SP_Mem (SE_Var (SP_Reg RSP)) _)                                   = True
-  is_stack_frame sp                                                                 = False
+  is_stack_frame (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate _]) _) = True
+  is_stack_frame (SP_Mem (SE_Var (SP_StackPointer _)) _)                                   = True
+  is_stack_frame sp                                                                        = False
 
 
   show_stack_frame sps =
@@ -110,11 +115,11 @@ summarize_function_constraints_short ctxt vcs =
              top    = maximum $ map get_top sps in
       "[ RSP_0 - " ++ show offset ++ " TO RSP_0" ++ (if top == 0 then "" else " + " ++ show top) ++ " ]"
 
-  get_offset (SP_Mem (SE_Op (Minus _) [SE_Var (SP_Reg RSP), SE_Immediate offset]) _) = offset
-  get_offset (SP_Mem (SE_Var (SP_Reg RSP)) _)                                        = 0
+  get_offset (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate offset]) _) = offset
+  get_offset (SP_Mem (SE_Var (SP_StackPointer _)) _)                                        = 0
 
-  get_top (SP_Mem (SE_Op (Minus _) [SE_Var (SP_Reg RSP), SE_Immediate offset]) si) = si - fromIntegral offset
-  get_top (SP_Mem (SE_Var (SP_Reg RSP)) si)                                        = si
+  get_top (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate offset]) si) = si - fromIntegral offset
+  get_top (SP_Mem (SE_Var (SP_StackPointer _)) si)                                        = si
 
 summarize_function_constraints_long :: Context -> S.Set VerificationCondition -> String
 summarize_function_constraints_long ctxt vcs = 
@@ -188,12 +193,14 @@ parens str = "(" ++ str ++ ")"
 summarize_verification_conditions ctxt entry =
   let vcs        = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
       finit      = IM.lookup entry $ ctxt_finits ctxt
+      fctxt      = mk_fcontext ctxt entry
       summary    = summarize_finit finit
-                   ++ summarize_preconditions_short ctxt vcs
+                   ++ summarize_preconditions_short fctxt vcs
                    -- ++ summarize_assertions_short ctxt vcs
-                   ++ summarize_function_constraints_short ctxt vcs
+                   ++ summarize_function_constraints_short fctxt vcs
                    ++ summarize_sourceless_memwrites_short ctxt vcs
-                   ++ summarize_function_pointer_intros ctxt vcs in
+                   -- ++ summarize_function_pointer_intros ctxt vcs
+                   in
     butlast summary
  where
   butlast ""  = ""

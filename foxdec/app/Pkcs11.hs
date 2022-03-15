@@ -85,17 +85,18 @@ run_with_ctxt entry = do
   -- read the dump
   ctxt_read_dump
   ctxt <- get
+  fctxt <- ctxt_mk_fcontext entry
 
   -- generate CFG for entry
   (new_calls,g) <- liftIO $ cfg_gen ctxt entry
   -- generate invariants for the entry function
-  let p          = init_pred IM.empty S.empty M.empty
-  let (invs,vcs) = do_prop ctxt M.empty g 0 p
+  let p          = init_pred fctxt IM.empty S.empty
+  let (invs,vcs) = do_prop fctxt g 0 p
 
   case IM.toList invs of
     [(0,p)] -> do
       -- retrieve the postcondition
-      let (Predicate q_eqs _ _) = fst $ tau_block ctxt M.empty (fetch_block g 0) Nothing p
+      let (Predicate q_eqs _ _) = fst $ tau_block fctxt (fetch_block g 0) Nothing p
       -- lookup region [RDI0,8]
       case M.lookup (SP_Mem (SE_Var $ SP_Reg RDI) 8) q_eqs of
         Just (SE_Immediate a) -> read_pointer_table ctxt a
@@ -133,6 +134,10 @@ ctxt_read_dump = do
 
 
 
+ctxt_mk_fcontext :: Int -> StateT Context IO FContext
+ctxt_mk_fcontext entry = do
+  ctxt        <- get
+  return $ mk_fcontext ctxt entry
 
 
 data Args =  Args String String String

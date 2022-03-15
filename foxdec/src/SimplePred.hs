@@ -53,7 +53,7 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
 data PointerBase = 
-    StackPointer                      -- ^ The stackpointer, for /local/ variables
+    StackPointer String                 -- ^ The stack frame of the given function
   | Malloc (Maybe Int) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
   | GlobalAddress Word64              -- ^ A /global/ address in the range of the sections of the binary.
   | PointerToSymbol Word64 String     -- ^ An address with an associated symbol.
@@ -83,9 +83,10 @@ data BotTyp =
 
 -- | Sources that may be used to compute an expression. That is, the inputs to an expression.
 data BotSrc = 
-    Src_Var StatePart                       -- An initial variable, i.e., a constant
-  | Src_Malloc (Maybe Int) (Maybe String)   -- A malloced address
-  | Src_Function String                     -- A return value from a function
+    Src_Var StatePart                       -- ^ An initial variable, i.e., a constant
+  | Src_StackPointer String                 -- ^ The stack pointer of the given function
+  | Src_Malloc (Maybe Int) (Maybe String)   -- ^ A malloced address
+  | Src_Function String                     -- ^ A return value from a function
  deriving (Eq, Ord, Generic)
 
 
@@ -139,15 +140,17 @@ data SimpleExpr =
 
 -- | A statepart is either a register or a region in memory
 data StatePart =
-    SP_Reg Register          -- ^ A register
+    SP_StackPointer String   -- ^ The stack pointer of the given function
+  | SP_Reg Register          -- ^ A register
   | SP_Mem SimpleExpr Int    -- ^ A region with a symbolic address and an immediate size.
  deriving (Eq, Ord, Generic)
 
 
 instance Show BotSrc where
-  show (Src_Var sp)      = show $ SE_Var sp
-  show (Src_Malloc id h) = show $ SE_Malloc id h
-  show (Src_Function f)  = f
+  show (Src_Var sp)         = show $ SE_Var sp
+  show (Src_StackPointer f) = "RSP_" ++ f
+  show (Src_Malloc id h)    = show $ SE_Malloc id h
+  show (Src_Function f)     = f
 
 show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList srcs) ++ "|"
 
@@ -195,12 +198,14 @@ is_immediate _                = False
 
 
 -- | Is the statepart memory?
-is_mem_sp (SP_Reg _)    = False
-is_mem_sp (SP_Mem a si) = True
+is_mem_sp (SP_StackPointer _) = False
+is_mem_sp (SP_Reg _)          = False
+is_mem_sp (SP_Mem a si)       = True
 
 -- | Is the statepart a register?
-is_reg_sp (SP_Reg _)    = True
-is_reg_sp (SP_Mem a si) = False
+is_reg_sp (SP_StackPointer _) = True
+is_reg_sp (SP_Reg _)          = True
+is_reg_sp (SP_Mem a si)       = False
 
 
 -- | Returns true iff the expression contains Bot
@@ -215,8 +220,9 @@ contains_bot (SE_SExtend _ _ e)   = contains_bot e
 contains_bot (SE_Overwrite _ a b) = contains_bot a || contains_bot b
 
 -- | Returns true iff the statepart contains Bot
-contains_bot_sp (SP_Reg r)     = False
-contains_bot_sp (SP_Mem a si)  = contains_bot a
+contains_bot_sp (SP_StackPointer _) = False
+contains_bot_sp (SP_Reg r)          = False
+contains_bot_sp (SP_Mem a si)       = contains_bot a
 
 
 
@@ -235,8 +241,9 @@ map_all_bot p (SE_Bit i e)         = map_all_bot p e
 map_all_bot p (SE_SExtend _ _ e)   = map_all_bot p e
 map_all_bot p (SE_Overwrite _ a b) = S.unions [map_all_bot p a, map_all_bot p b]
 
-map_all_bot_sp p (SP_Reg r)      = S.empty
-map_all_bot_sp p (SP_Mem a si)   = map_all_bot p a
+map_all_bot_sp p (SP_StackPointer r) = S.empty
+map_all_bot_sp p (SP_Reg r)          = S.empty
+map_all_bot_sp p (SP_Mem a si)       = map_all_bot p a
 
 
 -- | Do all occurences of Bottom satisfy the given predicate?
@@ -256,8 +263,9 @@ expr_size (SE_Bit i e)         = 1 + expr_size e
 expr_size (SE_SExtend l h e)   = 1 + expr_size e
 expr_size (SE_Overwrite _ _ e) = 1 + expr_size e
 
-expr_size_sp (SP_Reg r)     = 1
-expr_size_sp (SP_Mem a si)  = 1 + expr_size a 
+expr_size_sp (SP_StackPointer _) = 1
+expr_size_sp (SP_Reg r)          = 1
+expr_size_sp (SP_Mem a si)       = 1 + expr_size a 
 
 expr_size_bottyp (FromNonDeterminism es)        = sum $ S.map expr_size es
 expr_size_bottyp (FromPointerBases bs)          = S.size bs
@@ -370,8 +378,9 @@ simp'_sp sp               = sp
 
 
 instance Show StatePart where
-  show (SP_Reg r) = show r
-  show (SP_Mem a si) = "[" ++ show a ++ ", " ++ show si ++ "]"
+  show (SP_StackPointer f) = "RSP_" ++ f
+  show (SP_Reg r)          = show r
+  show (SP_Mem a si)       = "[" ++ show a ++ ", " ++ show si ++ "]"
 
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus = 
@@ -381,7 +390,7 @@ data FlagStatus =
 
 
 instance Show PointerBase where
-  show StackPointer            = "StackPointer"
+  show (StackPointer f)        = "StackPointer_" ++ f
   show (Malloc Nothing  _)     = "malloc()"
   show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
   show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a

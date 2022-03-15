@@ -59,7 +59,7 @@ ctxt_get_inv ctxt a = do
     putStrLn $ "Address " ++ showHex a ++ " has no invariant."
   else do
     putStrLn $ "Invariant at address " ++ showHex a
-    putStrLn $ show $ supremum ctxt M.empty invs
+    putStrLn $ show invs
  where
   get_invariant_per_entry entry = do
     case ctxt_get_invariant entry a ctxt of 
