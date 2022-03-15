@@ -39,5 +39,7 @@ foxdec/docs/manual/*/*
 *.o
 *.fdb_latexmk
 *.fls
+docs/manual/*.fdb_latexmk
+docs/manual/*.fls
 
 temp*
