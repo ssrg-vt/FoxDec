@@ -135,7 +135,6 @@ static_resolve_rip_expr ctxt i f si =
 -- | Resolves the first operand of a call or jump instruction.
 -- First tries to see if the instruction is an indirection, that has already been resolved.
 -- If not, try to statically resolve the first operand using @`operand_static_resolve`@.
--- If that resolves to an external symbol @libc_start_main@, then this call is actually an indirection (and thus currently unresolved).
 -- If that resolves to an immediate value, see if that immediate value corresponds to an external function or an internal function.
 --
 -- Returns a list of @`ResolvedJumpTarget`@, since an indirection may be resolved to multiple targets.
@@ -148,13 +147,9 @@ resolve_jump_target ctxt i =
     Just ind -> jump_targets_of_indirection ind -- already resolved indirection
     Nothing -> 
       case operand_static_resolve ctxt i (i_op1 i) of
-        Unresolved -> [Unresolved] -- unresolved indirection
-        External sym ->
-          if "libc_start_main" `isInfixOf` sym then
-            [Unresolved] -- An indirection: register RDI holds the pointer of the main function
-          else
-            [External sym]
-        ImmediateAddress a  ->
+        Unresolved         -> [Unresolved] -- unresolved indirection
+        External sym       -> [External sym]
+        ImmediateAddress a ->
           case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
             Just sym -> [External sym]
             Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]

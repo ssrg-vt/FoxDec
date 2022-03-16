@@ -54,6 +54,8 @@ We use some tools that are assumed to be standard available and accessible (i.e.
 For Mac, these are `otool` and `nm`.
 
 ## How to use <a name="usage"></a>
+These are instructions for a quickstart. For more information, we refer to the [user manual](./foxdec/docs/manual/foxdec_manual.pdf).
+
 <p style="text-align: center;">
   <img style="border: 3px solid #555;" src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
 </p>

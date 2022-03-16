@@ -106,14 +106,14 @@ invariant_to_finit ctxt (Predicate eqs _ _) = M.fromList $ mapMaybe mk_finit_ent
   is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
 
   mk_finit_entry (sp,v) = 
-    if is_immediate v then
+    if is_immediate_pointer v then
       Just (sp,v)
     else case get_pointer_domain ctxt v of
       (Domain_Bases bs) -> Just (sp,Bottom $ FromPointerBases bs)  -- NOTE: no need for forward tranposition here
       _                 -> Nothing
 
-  is_pointer (SE_Immediate a) = find_section_for_address (f_ctxt ctxt) (fromIntegral a) /= Nothing
-  is_pointer _                = False -- What if non-determinism?
+  is_immediate_pointer (SE_Immediate a) = find_section_for_address (f_ctxt ctxt) (fromIntegral a) /= Nothing
+  is_immediate_pointer _                = False -- What if non-determinism?
 
 
 -- | The join between two function initialisations
@@ -217,7 +217,7 @@ functions_returning_bottom = [
      "_strcmp", "strcmp",
      "_ilogb", "_atoi",
      "___stack_chk_fail", "_getopt", "_free",
-     "_warn", "_warnx"
+     "_warn", "_warnx", "__errno_location"
    ]
 
 
@@ -233,7 +233,7 @@ function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_r
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
 function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (i_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      = 
-  if f `elem` functions_returning_bottom then do  -- and exiting fucntion calls?
+  if f `elem` functions_returning_bottom then do  -- and exiting function calls?
     write_reg ctxt (i_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
@@ -247,6 +247,27 @@ function_semantics ctxt i f                      =
 
 -- | Add a function constraint to the given symbolic predicate
 add_function_constraint f a ps sps (p,vcs) = (p,S.insert (FunctionConstraint f a ps sps) vcs)
+
+-- | Add a function_pointer_intro to the given symbolic predicate
+add_function_pointers a ptrs (p,vcs) = 
+  if not $ IS.null ptrs then
+    let (match,remainder) = S.partition belongs_to_a vcs in
+      case S.toList match of
+        []                         -> (p,S.insert (FunctionPointers a ptrs) remainder)
+        [FunctionPointers _ ptrs'] -> (p,S.insert (FunctionPointers a $ IS.union ptrs ptrs') remainder)
+  else
+    (p,vcs)
+ where
+  belongs_to_a (FunctionPointers a' _) = a == a'
+  belongs_to_a _                       = False
+
+
+
+
+get_symbolic_function_pointers ctxt (Bottom (FromNonDeterminism es)) = IS.unions $ S.map (get_symbolic_function_pointers ctxt) es
+get_symbolic_function_pointers ctxt (SE_Immediate a)                 = if address_has_instruction (f_ctxt ctxt) a then IS.singleton $ fromIntegral a else IS.empty
+get_symbolic_function_pointers ctxt _                                = IS.empty
+
 
 
 evalState_discard :: State s a -> State s a
@@ -266,8 +287,10 @@ call ctxt i = do
     sub ctxt i_a (Reg RSP) (Immediate 8)
     (p@(Predicate p_eqs _ _),_) <- get
     params <- mapMaybeM (when_is_relevant_param p_eqs) parameter_registers
-    let postconditions = map postcondition_of_jump_target $ resolve_jump_target (f_ctxt ctxt) i
+    modify $ add_function_pointers i_a (IS.unions $ map (get_symbolic_function_pointers ctxt . snd) params)
 
+
+    let postconditions = map postcondition_of_jump_target $ resolve_jump_target (f_ctxt ctxt) i
     if postconditions == [] || any ((==) Nothing) postconditions then do
       -- an external function, or a function that produced a verification error, or with unresolved indirections
 
@@ -308,10 +331,10 @@ call ctxt i = do
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
-    if not (address_is_unwritable (f_ctxt ctxt) v) && (expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v))) then -- then || is_initial (SP_Reg r) v) then
+    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then -- then || is_initial (SP_Reg r) v) then
       return $ Just (r,v)
     else
-      return Nothing
+      return $ Nothing
 
 
 

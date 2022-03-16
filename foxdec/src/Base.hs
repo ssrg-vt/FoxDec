@@ -52,6 +52,9 @@ orElse Nothing a  = a
 orElse (Just a) _ = a
 
 
+-- | create a tuple
+pair a b = (a,b)
+
 -- | Find the index of one string in another.
 findString :: (Eq a) => [a] -> [a] -> Maybe Int
 findString search str = findIndex (isPrefixOf search) (tails str)

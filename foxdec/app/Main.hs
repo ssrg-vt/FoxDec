@@ -28,6 +28,7 @@ import Pointers
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
+import Control.Monad (filterM)
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -80,8 +81,19 @@ run_with_ctxt = do
       Nothing -> do
         entries <- gets ctxt_entries
         case graph_find_next entries of
-          Nothing -> to_out $ "Done!"
+          Nothing -> ctxt_finish_repeat
           Just a  -> ctxt_run_entry a
+
+  ctxt_finish_repeat = do
+    dangling_fptrs <- ctxt_find_dangling_function_pointers
+    to_out $ "Done!"
+    when (dangling_fptrs /= []) $ do
+      to_out $ ""
+      to_out $ ""
+      to_out $ "Dangling function pointers found, which may point to function entries currently not analyzed."
+      to_out $ "These require manual analysis: if they correspond to real function entries, add them to the .entry file"
+      to_out $ show_dangling_function_pointers dangling_fptrs
+
 
 
 
@@ -148,6 +160,29 @@ run_with_ctxt = do
       ctxt_get_recursive_calls entry
       repeat
 
+
+
+ctxt_find_dangling_function_pointers :: StateT Context IO [(Int,Int)]
+ctxt_find_dangling_function_pointers = do
+  ctxt    <- get
+  let ptrs = concatMap mk_function_pointer (S.toList $ S.unions $ ctxt_vcs ctxt)
+  filterM is_dangling ptrs
+ where
+  mk_function_pointer (FunctionPointers a ptrs) = map (pair a) $ IS.toList ptrs
+  mk_function_pointer _                         = []
+
+  is_dangling (a,ptr) = do
+    calls <- gets ctxt_calls
+    return $ IM.lookup ptr calls == Nothing
+    
+    
+show_dangling_function_pointers [] = ""
+show_dangling_function_pointers ((a,fptr):fptrs) = 
+  let (match,remaining) = partition does_match fptrs in
+    "Function pointer " ++ showHex fptr ++ " introduced at " ++ showHex_list (a : map fst  match) ++ "\n" ++ show_dangling_function_pointers remaining
+ where
+  does_match (_,fptr') = fptr == fptr'
+  
 
 
 
@@ -355,7 +390,7 @@ ctxt_add_to_results entry verified = do
   to_log log $ summarize_assertions_long ctxt vcs
   to_log log $ summarize_function_constraints_long ctxt vcs
   to_log log $ summarize_sourceless_memwrites_long ctxt vcs
-  to_log log $ summarize_function_pointer_intros ctxt vcs
+  to_log log $ summarize_function_pointers ctxt vcs
 
 
   --to_log log $ "Generated invariants:" -- TODO make configurable
@@ -400,7 +435,8 @@ ctxt_generate_call_graph = do
 
 
   let g = Edges $ IM.map (calls_of_cfg ctxt) cfgs
-  liftIO $ writeFile fname $ callgraph_to_dot ctxt g
+  let fptrs = Edges $ IM.map (function_pointer_intros ctxt) cfgs
+  liftIO $ writeFile fname $ callgraph_to_dot ctxt g fptrs
 
   if do_pdfs then do
     liftIO $ callCommand $ "dot -Tpdf " ++ fname ++ " -o " ++ pdfname
@@ -443,7 +479,7 @@ ctxt_generate_end_report = do
     to_log log $ "#resolved indirections:               " ++ show (num_of_resolved_indirections ctxt)
 
     to_log log $ "\n\n"
-    to_log log $ summarize_function_pointer_intros_short ctxt (S.unions $ ctxt_vcs ctxt)
+    to_log log $ summarize_function_pointers ctxt (S.unions $ ctxt_vcs ctxt)
     to_log log $ "\n\n"
 
   sum_total num_of = sum . map num_of . IM.elems
@@ -744,17 +780,6 @@ ctxt_add_call entry verified = do
 
 
 
-operand_that_provides_jump_target ctxt i =
-   if is_call_to_libc_start_main then
-     Just $ Reg RDI
-   else
-     i_op1 i
- where
-  is_call_to_libc_start_main = is_call (i_opcode i) && 
-   (case operand_static_resolve ctxt i (i_op1 i) of
-      External sym -> "libc_start_main" `isInfixOf` sym
-      _            -> False
-   )
 
 ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool
 ctxt_analyze_unresolved_indirections entry = do
@@ -781,7 +806,7 @@ ctxt_analyze_unresolved_indirections entry = do
     let fname  = dirname ++ name ++ ".indirections" 
 
     let i                   = last (fetch_block g b)
-    let Just trgt           = operand_that_provides_jump_target ctxt i
+    let Just trgt           = i_op1 i
     let p                   = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg _ = p
 

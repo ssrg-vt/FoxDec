@@ -124,7 +124,7 @@ data VerificationCondition =
   | Assertion             SimpleExpr SimpleExpr Int SimpleExpr Int                 -- ^ Assertion:    @address, lhs SEP rhs
   | FunctionConstraint    String     Int [(Register,SimpleExpr)] (S.Set StatePart) -- ^ Function name, address, of call, with param registers
   | SourcelessMemWrite    MemWriteIdentifier                                       -- ^ A write to a statepart for which no information was available
-  | IntroFunctionPointer  Int MemWriteIdentifier                                   -- ^ A function pointer was written to a state part 
+  | FunctionPointers      Int IS.IntSet                                            -- ^ A set of function pointers passed to a function
   deriving (Generic,Eq,Ord)
 
 -- | An acornym for a set of verification conditions
@@ -275,7 +275,7 @@ instance Show PointerDomain where
   show (Domain_Sources srcs) = show srcs
 
 
--- | Show function initialisation
+-- | Show function initialisaExpr
 show_finit :: FInit -> String
 show_finit finit = intercalate ", " $ (map (\(sp,e) -> show sp ++ " ~= " ++ show e) $ M.toList finit)
 
@@ -301,7 +301,7 @@ instance Show VerificationCondition where
   show (Precondition lhs _ rhs _)      = show lhs ++ " SEP " ++ show rhs
   show (Assertion a  lhs _ rhs _)      = "@" ++ show a ++ ": " ++ show lhs ++ " SEP " ++ show rhs
   show (SourcelessMemWrite mid)        = "UNKNOWN WRITE: " ++ show mid
-  show (IntroFunctionPointer a mid)    = "Function pointer " ++ showHex a ++ "(" ++ show mid ++ ")"
+  show (FunctionPointers a ptrs)       = "@" ++ showHex a ++ ": function pointers " ++ showHex_set ptrs 
   show (FunctionConstraint f a ps sps) = f ++ "@" ++ showHex a ++ "(" ++ intercalate "," (map show_param ps) ++ ") PRESERVES " ++ (intercalate "," (map show $ S.toList sps))
    where
     show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show e)
@@ -323,8 +323,8 @@ is_sourceless_memwrite (SourcelessMemWrite _) = True
 is_sourceless_memwrite _                      = False
 
 -- | Is the given verification condition a function pointer introduction?
-is_introfunctionpointer (IntroFunctionPointer _ _) = True
-is_introfunctionpointer _                          = False
+is_functionpointers (FunctionPointers _ _) = True
+is_functionpointers _                      = False
 
 -- | Count the number of assertions in the set of verification conditions.
 count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion

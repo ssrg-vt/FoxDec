@@ -149,34 +149,13 @@ summarize_sourceless_memwrites_long ctxt vcs =
       "SOURCELESS MEM WRITES:\n" ++ (intercalate "\n" $ map show $ S.toList mws) ++ "\n"
 
 
-summarize_function_pointer_intros_short ctxt vcs =
-  let fpis = S.toList $ S.filter is_introfunctionpointer vcs in
-    if fpis == [] then
+
+summarize_function_pointers ctxt vcs =
+  let fptrs = S.filter is_functionpointers vcs in
+    if S.null fptrs then
       ""
     else
-      "FUNCTION POINTERS INTRODUCED:\n" ++ show_fpis fpis
-  where
-    show_fpis []   = ""
-    show_fpis (fpi@(IntroFunctionPointer a mid):fpis) = 
-      let (same,others) = partition (equal_address a) fpis in
-        if same == [] then
-          showHex a ++ ":  " ++ show_mid fpi ++ "\n" ++ show_fpis others
-        else 
-          showHex a ++ ":\n" ++ concatMap (indent . show_mid) (fpi:same) ++ show_fpis others
-
-    show_mid (IntroFunctionPointer _ mid) = show mid
-    indent str = "  " ++ str ++ "\n"
-        
-    equal_address a (IntroFunctionPointer a' _) = a == a'
-
-
-
-summarize_function_pointer_intros ctxt vcs =
-  let fpis = S.filter is_introfunctionpointer vcs in
-    if S.null fpis then
-      ""
-    else
-      "FUNCTION POINTERS INTRODUCED:\n" ++ (intercalate "\n" $ map show $ S.toList fpis) ++ "\n"
+      "FUNCTION POINTERS USED:\n" ++ (intercalate "\n" $ map show $ S.toList fptrs) ++ "\n"
 
 -- | Summarize function initialization
 summarize_finit Nothing      = ""
@@ -209,25 +188,38 @@ summarize_verification_conditions ctxt entry =
 
 
 
-calls_of_cfg ctxt cfg = IS.unions $ map (get_call_target ctxt) $ concat $ IM.elems $ cfg_instrs cfg
+calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cfg_instrs cfg
  where
-  get_call_target ctxt i = 
+  get_call_target i = 
     if is_call (i_opcode i) then
       IS.fromList $ concatMap get_internal_addresses $ resolve_jump_target ctxt i
     else
       IS.empty
 
 
+function_pointer_intros ctxt cfg = IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
+ where 
+  get_function_pointers_of_call i =
+    if is_call (i_opcode i) then -- TODO or jump?
+      IS.unions $ S.map (get_function_pointers $ i_addr i) $ (S.unions $ ctxt_vcs ctxt)
+    else
+      IS.empty
+
+  get_function_pointers a (FunctionPointers a' ptrs) = if a == a' then IS.filter has_been_analyzed ptrs else IS.empty
+  get_function_pointers _ _                          = IS.empty
+
+  has_been_analyzed entry = IM.lookup entry (ctxt_calls ctxt) /= Nothing
 
 
-
-callgraph_to_dot :: Context -> Graph -> String
-callgraph_to_dot ctxt (Edges es) =
+callgraph_to_dot :: Context -> Graph -> Graph -> String
+callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
  let name  = ctxt_name ctxt in
   "diGraph " ++ name ++ "{\n"
-  ++ intercalate "\n" (map node_to_dot $ IM.keys $ es)
+  ++ intercalate "\n" (map node_to_dot $ IM.keys es)
   ++ "\n\n"
-  ++ intercalate "\n" (map edge_to_dot' $ IM.assocs es)
+  ++ intercalate "\n" (map (edge_to_dot' "") $ IM.assocs es)
+  ++ "\n\n"
+  ++ intercalate "\n" (map (edge_to_dot' "[style=dotted]") $ IM.assocs fptrs)
   ++ "\n}"
  where
   node_to_dot v =
@@ -240,9 +232,8 @@ callgraph_to_dot ctxt (Edges es) =
     ++ "label=\"" ++ node_label v ++ "\""
     ++ "]"
 
-  edge_to_dot' (v,vs) = intercalate "\n" $ map (edge_to_dot'' v) $ IS.toList vs
-  
-  edge_to_dot'' v v' = "\t" ++ mk_node v ++ " -> " ++ mk_node v' 
+  edge_to_dot'  style (v,vs) = intercalate "\n" $ map (edge_to_dot'' style v) $ IS.toList vs
+  edge_to_dot'' style v v'   = "\t" ++ mk_node v ++ " -> " ++ mk_node v'  ++ " " ++ style
   
   mk_node v = ctxt_name ctxt ++ "_" ++ showHex v
 

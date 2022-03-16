@@ -49,9 +49,6 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 
 
--- | Add a function_pointer_intro to the given symbolic predicate
-add_function_pointer_intro a mid (p,vcs) = (p,S.insert (IntroFunctionPointer a mid) vcs)
-
 
 
 
@@ -89,17 +86,11 @@ read_reg ctxt r = do
 
 
 
-is_symbolic_function_pointer ctxt (SE_Immediate a) = address_has_instruction (f_ctxt ctxt) a
-is_symbolic_function_pointer ctxt _                = False
-
-
 write_rreg :: FContext -> MemWriteIdentifier -> Register -> SimpleExpr -> State (Pred,VCS) () 
 write_rreg ctxt mid r e = 
   if take 2 (show r) == "ST" then
     return ()
   else do
-    when (r /= RIP && is_symbolic_function_pointer ctxt e) $ do
-      modify $ add_function_pointer_intro (get_immediate_forced e) mid
     modify do_write
  where
   do_write (Predicate eqs flg muddle_status,vcs) =
@@ -448,9 +439,6 @@ write_mem ctxt mid a si0 v = do
  where
   write_mem' a0 v = do
     p@(Predicate eqs flg muddle_status,vcs) <- get
-
-    when (is_symbolic_function_pointer ctxt v) $ do
-      modify $ add_function_pointer_intro (get_immediate_forced v) mid
 
     if address_is_unwritable (f_ctxt ctxt) a0 then do
       trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
