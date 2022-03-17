@@ -33,12 +33,12 @@ pp_base (StackPointer f)        = "StackPointer of " ++ f
 pp_base (Malloc id h)           = pp_expr $ SE_Malloc id h
 pp_base (GlobalAddress a)       = showHex a
 pp_base (PointerToSymbol a sym) = "&" ++ sym
-pp_base (Unknown e)             = pp_expr e
 
-pp_source (Src_Var v)          = pp_expr $ SE_Var v
-pp_source (Src_StackPointer f) = "StackPointer of " ++ f
-pp_source (Src_Malloc id h)    = pp_expr $ SE_Malloc id h
-pp_source (Src_Function f)     = f
+pp_source (Src_Var v)              = pp_expr $ SE_Var v
+pp_source (Src_StackPointer f)     = "StackPointer of " ++ f
+pp_source (Src_Malloc id h)        = pp_expr $ SE_Malloc id h
+pp_source (Src_Function f)         = f
+pp_source (Src_ImmediateAddress a) = showHex a
 
 
 pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]" 

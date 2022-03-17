@@ -149,7 +149,7 @@ mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
 
 
 -- generate a predicate
-mk_pred_for_hoare_triple (Predicate eqs _ _) =
+mk_pred_for_hoare_triple (Predicate eqs _) =
   intercalate " ; " $ mapMaybe mk_eq_for_hoare_triple $ M.toList eqs
  where
   mk_eq_for_hoare_triple (sp,e) =
@@ -175,7 +175,7 @@ mk_fcs fctxt i p =
   else
       ""
  where
-  preserved_stateparts i (Predicate eqs _ _) =
+  preserved_stateparts i (Predicate eqs _) =
      [] -- TODO map fst $ filter (\(sp,v) -> not (contains_bot_sp sp) && statepart_is_preserved_after_function_call ctxt i sp v) $ M.toList eqs
 
 
@@ -185,7 +185,7 @@ mk_fcs fctxt i p =
 --   any relation between any stateparts sp0 and sp1 that are assumed to be separate (see function pointers_have_separate_bases)
 all_preconditions ctxt finit invs posts vcs =
   let precs0 = S.filter is_precondition_without_bot $ S.filter is_precondition vcs
-      precs1 = gather_precs_from_stateparts ctxt $ S.toList $ gather_stateparts finit invs posts in
+      precs1 = gather_precs_from_stateparts ctxt $ S.toList $ gather_stateparts invs posts in
     S.union precs0 precs1
  where
   gather_precs_from_stateparts ctxt [] = S.empty

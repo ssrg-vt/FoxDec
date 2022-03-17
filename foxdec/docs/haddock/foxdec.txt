@@ -66,6 +66,9 @@ im_lookup :: [Char] -> IntMap p -> Key -> p
 -- | use a default value in case of <tt>Nothing</tt>
 orElse :: Maybe p -> p -> p
 
+-- | create a tuple
+pair :: a -> b -> (a, b)
+
 -- | Find the index of one string in another.
 findString :: Eq a => [a] -> [a] -> Maybe Int
 
@@ -1031,10 +1034,9 @@ module SimplePred
 --   <li>A mapping from stateparts to symbolic expressions.</li>
 --   <li>The status of the flags.</li>
 --   <li>A set of verification conditions.</li>
---   <li>The <tt><a>StateMuddleStatus</a></tt>.</li>
 --   </ul>
 data Pred
-Predicate :: Map StatePart SimpleExpr -> FlagStatus -> StateMuddleStatus -> Pred
+Predicate :: Map StatePart SimpleExpr -> FlagStatus -> Pred
 
 -- | A statepart is either a register or a region in memory
 data StatePart
@@ -1092,18 +1094,6 @@ None :: FlagStatus
 --   operands.
 FS_CMP :: Maybe Bool -> Operand -> Operand -> FlagStatus
 
--- | Have functions been called by the current function?
-data StateMuddleStatus
-
--- | No function calls have been executed
-Clean :: StateMuddleStatus
-
--- | All function calls were to external functions
-ExternalOnly :: StateMuddleStatus
-
--- | At least one internal function has been called
-Muddled :: StateMuddleStatus
-
 -- | Bot represents an unknown (bottom) value. We annotate each occurence
 --   of Bot with a BotTyp. This type indicates where the bottom value
 --   originates from. The latter six are all equal, we just use them for
@@ -1151,6 +1141,9 @@ Src_StackPointer :: String -> BotSrc
 
 -- | A malloced address
 Src_Malloc :: Maybe Int -> Maybe String -> BotSrc
+
+-- | An immediate used in the computation of the pointer
+Src_ImmediateAddress :: Word64 -> BotSrc
 
 -- | A return value from a function
 Src_Function :: String -> BotSrc
@@ -1200,9 +1193,6 @@ GlobalAddress :: Word64 -> PointerBase
 -- | An address with an associated symbol.
 PointerToSymbol :: Word64 -> String -> PointerBase
 
--- | n expresion without identifiable pointerbase,
-Unknown :: SimpleExpr -> PointerBase
-
 -- | Returns true iff the expression is an immediate value
 is_immediate :: SimpleExpr -> Bool
 
@@ -1245,12 +1235,12 @@ pp_pred :: Pred -> String
 unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
 
 expr_size :: SimpleExpr -> Int
-instance GHC.Generics.Generic SimplePred.Operator
-instance GHC.Classes.Ord SimplePred.Operator
-instance GHC.Classes.Eq SimplePred.Operator
 instance GHC.Classes.Ord SimplePred.PointerBase
 instance GHC.Classes.Eq SimplePred.PointerBase
 instance GHC.Generics.Generic SimplePred.PointerBase
+instance GHC.Generics.Generic SimplePred.Operator
+instance GHC.Classes.Ord SimplePred.Operator
+instance GHC.Classes.Eq SimplePred.Operator
 instance GHC.Generics.Generic SimplePred.BotSrc
 instance GHC.Classes.Ord SimplePred.BotSrc
 instance GHC.Classes.Eq SimplePred.BotSrc
@@ -1266,30 +1256,25 @@ instance GHC.Classes.Eq SimplePred.StatePart
 instance GHC.Classes.Ord SimplePred.FlagStatus
 instance GHC.Classes.Eq SimplePred.FlagStatus
 instance GHC.Generics.Generic SimplePred.FlagStatus
-instance GHC.Classes.Ord SimplePred.StateMuddleStatus
-instance GHC.Show.Show SimplePred.StateMuddleStatus
-instance GHC.Classes.Eq SimplePred.StateMuddleStatus
-instance GHC.Generics.Generic SimplePred.StateMuddleStatus
 instance GHC.Classes.Ord SimplePred.Pred
 instance GHC.Classes.Eq SimplePred.Pred
 instance GHC.Generics.Generic SimplePred.Pred
 instance Data.Serialize.Serialize SimplePred.Pred
 instance GHC.Show.Show SimplePred.Pred
-instance Data.Serialize.Serialize SimplePred.StateMuddleStatus
 instance Data.Serialize.Serialize SimplePred.FlagStatus
 instance GHC.Show.Show SimplePred.FlagStatus
 instance GHC.Show.Show SimplePred.BotSrc
 instance GHC.Show.Show SimplePred.BotTyp
 instance GHC.Show.Show SimplePred.SimpleExpr
 instance GHC.Show.Show SimplePred.StatePart
-instance GHC.Show.Show SimplePred.PointerBase
-instance Data.Serialize.Serialize SimplePred.PointerBase
 instance Data.Serialize.Serialize SimplePred.BotTyp
 instance Data.Serialize.Serialize SimplePred.BotSrc
 instance Data.Serialize.Serialize SimplePred.StatePart
 instance Data.Serialize.Serialize SimplePred.SimpleExpr
 instance GHC.Show.Show SimplePred.Operator
 instance Data.Serialize.Serialize SimplePred.Operator
+instance GHC.Show.Show SimplePred.PointerBase
+instance Data.Serialize.Serialize SimplePred.PointerBase
 
 
 module Conventions
@@ -1459,8 +1444,8 @@ FunctionConstraint :: String -> Int -> [(Register, SimpleExpr)] -> Set StatePart
 -- | A write to a statepart for which no information was available
 SourcelessMemWrite :: MemWriteIdentifier -> VerificationCondition
 
--- | A function pointer was written to a state part
-IntroFunctionPointer :: Int -> MemWriteIdentifier -> VerificationCondition
+-- | A set of function pointers passed to a function
+FunctionPointers :: Int -> IntSet -> VerificationCondition
 
 -- | An acornym for a set of verification conditions
 type VCS = Set VerificationCondition
@@ -1568,7 +1553,7 @@ fetch_instruction :: Context -> Int -> IO (Maybe Instr)
 -- | Pretty printing an instruction
 pp_instruction :: Context -> Instr -> String
 
--- | Show function initialisation
+-- | Show function initialisaExpr
 show_finit :: FInit -> String
 
 -- | Is the given verification condition an assertion?
@@ -1584,7 +1569,7 @@ is_func_constraint :: VerificationCondition -> Bool
 is_sourceless_memwrite :: VerificationCondition -> Bool
 
 -- | Is the given verification condition a function pointer introduction?
-is_introfunctionpointer :: VerificationCondition -> Bool
+is_functionpointers :: VerificationCondition -> Bool
 
 -- | Count the number of assertions in the set of verification conditions.
 count_instructions_with_assertions :: Set VerificationCondition -> Int
@@ -1689,8 +1674,6 @@ operand_static_resolve :: Context -> Instr -> Maybe Operand -> ResolvedJumpTarge
 --   to see if the instruction is an indirection, that has already been
 --   resolved. If not, try to statically resolve the first operand using
 --   <tt><a>operand_static_resolve</a></tt>. If that resolves to an
---   external symbol <tt>libc_start_main</tt>, then this call is actually
---   an indirection (and thus currently unresolved). If that resolves to an
 --   immediate value, see if that immediate value corresponds to an
 --   external function or an internal function.
 --   
@@ -1775,11 +1758,6 @@ FContext :: Context -> Int -> String -> FInit -> FContext
 -- | The initialization of the current function
 [f_init] :: FContext -> FInit
 mk_fcontext :: Context -> Int -> FContext
-
--- | A <a>PointerBase</a> is a positive addend of a symbolic expression
---   that may represent a pointer. Retrieves the pointer bases from a
---   symbolic expression. They are either 1.) all known, or 2.) all
---   unknown.
 get_pointer_domain :: FContext -> SimpleExpr -> PointerDomain
 
 -- | Returns true if the expression has known pointerbases.
@@ -1809,11 +1787,8 @@ join_exprs :: [Char] -> FContext -> [SimpleExpr] -> SimpleExpr
 join_single :: FContext -> SimpleExpr -> SimpleExpr
 
 -- | Returns true iff the two given expressions can be shown to be
---   separate. This means that either: * They both have known pointerbases
---   that are assumed to be separate (see <a>pointer_bases_separate</a>). *
---   They both have sources that are all separate (see
---   <a>sources_separate</a>) * One of them is an immediate and the other
---   is local.
+--   separate. This means that either: * They both have spearate pointer
+--   domains. * One of them is an immediate and the other is local.
 separate_pointer_domains :: FContext -> Bool -> SimpleExpr -> SimpleExpr -> Bool
 pointer_bases_separate_necessarily :: FContext -> PointerBase -> PointerBase -> Bool
 pointer_bases_separate_possibly :: FContext -> PointerBase -> PointerBase -> Bool
@@ -1913,7 +1888,7 @@ init_pred :: FContext -> Invariants -> Set (NodeInfo, Pred) -> Pred
 
 -- | Given the currently known invariants and postconditions, gather all
 --   stateparts occurring in the current function.
-gather_stateparts :: FInit -> Invariants -> Set (NodeInfo, Pred) -> Set StatePart
+gather_stateparts :: Invariants -> Set (NodeInfo, Pred) -> Set StatePart
 
 -- | Convert the current invariant into a function initialisation
 invariant_to_finit :: FContext -> Pred -> FInit

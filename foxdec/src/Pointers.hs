@@ -68,7 +68,12 @@ statepart_to_finit_expr ctxt sp = M.lookup sp $ f_init ctxt
 
  
 -- * Pointer Domains
--- | A 'PointerBase' is a positive addend of a symbolic expression that may represent a pointer.
+--
+-- Turn a symbolic expression into a pointer domain: either a pointer base, or a set of sources.
+--
+-- * A 'PointerBase' is a positive addend of a symbolic expression that likely represents a pointer. It can be a stack pointer, an immediate pointer into a section, or a pointer to a known symbol.
+-- * A source is some statepart whose initial value affects the value of the pointer.
+--
 -- Retrieves the pointer bases from a symbolic expression.
 -- They are either 1.) all known, or 2.) all unknown.
 get_pointer_domain ::
@@ -101,8 +106,6 @@ get_pointer_domain ctxt e =
   get_pointer_base use_finit (SE_Malloc id hash)                  = S.singleton $ Malloc id hash
   get_pointer_base use_finit (Bottom (FromPointerBases bs))       = if S.null bs then S.empty else bs
   get_pointer_base use_finit e                                    = S.empty
-
-
 
 
   statepart_to_pointerbase :: StatePart -> S.Set PointerBase
@@ -162,7 +165,16 @@ is_malloc _            = False
 -- * Sources
 
 -- | Returns the set of sources (inputs used to compute the expression) of an expression.
-srcs_of_expr ctxt = srcs_of_expr' ctxt True
+srcs_of_expr ctxt e = 
+  let srcs       = srcs_of_expr' ctxt True e
+      known_srcs = S.filter is_known srcs in
+   if S.null known_srcs then srcs else known_srcs
+ where
+  is_known (Src_StackPointer _)     = True
+  is_known (Src_Malloc _ _)         = True
+  is_known (Src_ImmediateAddress _) = True
+  is_known _                        = False
+
 -- | Returns the set of sources (state parts used to compute the expression) of two expressions.
 srcs_of_exprs ctxt es = S.unions $ map (srcs_of_expr' ctxt True) es 
 -- | returns the set of sources of a domain, if any
@@ -179,7 +191,7 @@ srcs_of_expr' ctxt use_finit (SE_Malloc id h)             = S.singleton $ Src_Ma
 srcs_of_expr' ctxt use_finit (SE_Var (SP_StackPointer f)) = S.singleton $ Src_StackPointer f
 srcs_of_expr' ctxt True      (SE_Var sp)                  = (srcs_of_expr' ctxt False <$> statepart_to_finit_expr ctxt sp) `orElse` (S.singleton $ Src_Var sp)
 srcs_of_expr' ctxt False     (SE_Var sp)                  = S.singleton $ Src_Var sp
-srcs_of_expr' ctxt use_finit e@(SE_Immediate i)           = if expr_is_global_immediate (f_ctxt ctxt) e then S.singleton $ Src_Var $ SP_Mem e 8 else S.empty -- TODO S.empty
+srcs_of_expr' ctxt use_finit e@(SE_Immediate i)           = if expr_is_global_immediate (f_ctxt ctxt) e then S.singleton $ Src_ImmediateAddress i else S.empty
 srcs_of_expr' ctxt use_finit (SE_StatePart sp)            = S.empty 
 srcs_of_expr' ctxt use_finit (SE_Op _ es)                 = S.unions $ map (srcs_of_expr' ctxt use_finit) es
 srcs_of_expr' ctxt use_finit (SE_Bit i e)                 = srcs_of_expr' ctxt use_finit e
@@ -200,9 +212,8 @@ srcs_of_bottyp ctxt use_finit (FromCall f)                   = S.singleton $ Src
 
 -- | Returns the set of sources of the pointerbase
 srcs_of_base ctxt use_finit (StackPointer f)        = S.singleton $ Src_StackPointer f
-srcs_of_base ctxt use_finit (Unknown e)             = srcs_of_expr' ctxt use_finit e
 srcs_of_base ctxt use_finit (Malloc id h)           = S.singleton $ Src_Malloc id h
-srcs_of_base ctxt use_finit (GlobalAddress a)       = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+srcs_of_base ctxt use_finit (GlobalAddress a)       = S.singleton $ Src_ImmediateAddress a
 srcs_of_base ctxt use_finit (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
 
 
@@ -244,7 +255,6 @@ join_exprs' msg ctxt es =
           else
             trace ("Hitting max num of sources: " ++ show max_num_of_sources) rock_bottom
  where
-  rsp = Src_Var $ SP_Reg RSP
   nothing_to_empty Nothing   = S.empty
   nothing_to_empty (Just bs) = bs
 
@@ -332,9 +342,10 @@ sources_separate ctxt necc src0 src1 =
     (_, Just (Malloc _ _))     -> True
     _                          -> False
  where
-  src_to_base (Src_StackPointer f)   = Just $ StackPointer f
-  src_to_base (Src_Malloc i h)       = Just $ Malloc i h
-  src_to_base _                      = Nothing
+  src_to_base (Src_StackPointer f)     = Just $ StackPointer f
+  src_to_base (Src_Malloc i h)         = Just $ Malloc i h
+  src_to_base (Src_ImmediateAddress a) = Just $ GlobalAddress a
+  src_to_base _                        = Nothing
 
 
 
@@ -345,8 +356,7 @@ sources_separate_possibly    ctxt = sources_separate ctxt False
 
 -- | Returns true iff the two given expressions can be shown to be separate.
 -- This means that either:
---   * They both have known pointerbases that are assumed to be separate (see 'pointer_bases_separate').
---   * They both have sources that are all separate (see `sources_separate`)
+--   * They both have spearate pointer domains.
 --   * One of them is an immediate and the other is local.
 
 separate_pointer_domains ctxt necc a0 a1 =
@@ -354,7 +364,7 @@ separate_pointer_domains ctxt necc a0 a1 =
       dom1 = get_pointer_domain ctxt a1 in
   or [
     domains_separate ctxt necc dom0 dom1,
-    is_immediate a0 && expr_is_highly_likely_local_pointer ctxt a1, -- TODO test without
+    is_immediate a0 && expr_is_highly_likely_local_pointer ctxt a1,
     is_immediate a1 && expr_is_highly_likely_local_pointer ctxt a0
    ]
       

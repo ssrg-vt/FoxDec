@@ -58,11 +58,11 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 -- *  Registers
 read_rreg :: Register -> State (Pred,VCS) SimpleExpr
 read_rreg r = do
-  (Predicate eqs flg muddle_status, vcs) <- get
+  (Predicate eqs flg, vcs) <- get
   case M.lookup (SP_Reg r) eqs of
     Nothing -> do
       let var = SE_Var (SP_Reg r)
-      put $ (Predicate (M.insert (SP_Reg r) var eqs) flg muddle_status, vcs)
+      put $ (Predicate (M.insert (SP_Reg r) var eqs) flg, vcs)
       return var 
     Just e  -> return e
 
@@ -93,10 +93,10 @@ write_rreg ctxt mid r e =
   else do
     modify do_write
  where
-  do_write (Predicate eqs flg muddle_status,vcs) =
+  do_write (Predicate eqs flg,vcs) =
     let eqs' = M.insert (SP_Reg r) (trim_expr $ simp e) eqs
         flg' = clean_flg (SP_Reg r) flg in
-      (Predicate eqs' flg' muddle_status,vcs)
+      (Predicate eqs' flg',vcs)
 
 get_immediate_forced (SE_Immediate imm) = fromIntegral imm
  
@@ -321,14 +321,14 @@ read_from_address ctxt operand a si0 = do
         --trace ("READ FROM BASELESS POINTER @ " ++ show rip ++ ": " ++ show (a,si0)) $
         return rock_bottom
       else do
-        (Predicate eqs flg muddle_status,vcs) <- get
+        (Predicate eqs flg,vcs) <- get
         overlapping <- filterM (fmap not . has_separate_base a0) $ M.toList eqs
 
         let sps'      = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
         let new_eqs   = map (\sp' -> (sp',mk_uninitialized_value sp')) sps'
         if overlapping == [] then do
           let eqs'    = M.union (M.fromList new_eqs) eqs
-          put (Predicate eqs' flg muddle_status,vcs)
+          put (Predicate eqs' flg,vcs)
           let srcs      = srcs_of_exprs ctxt $ map snd new_eqs
           let bot       = Bottom (FromUninitializedMemory srcs)
           return bot 
@@ -341,7 +341,7 @@ read_from_address ctxt operand a si0 = do
       let var = SE_Var sp
       return var   
     else do
-      (Predicate eqs flg muddle_status,vcs) <- get
+      (Predicate eqs flg,vcs) <- get
       do_read a0 $ M.toList eqs
 
 
@@ -391,10 +391,10 @@ read_from_address ctxt operand a si0 = do
   do_read :: SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) SimpleExpr
   do_read a0 [] = do
     (p,vcs) <- get
-    let Predicate eqs flg muddle_status = p
+    let Predicate eqs flg = p
     let sp  = SP_Mem a0 si0
     let var = Bottom $ FromUninitializedMemory $ S.singleton (Src_Var sp)
-    put (Predicate (M.insert sp var eqs) flg muddle_status,vcs)
+    put (Predicate (M.insert sp var eqs) flg,vcs)
     return var
   do_read a0 ((SP_Reg _,_):mem)       = do_read a0 mem
   do_read a0 ((SP_Mem a1 si1,e1):mem) = do
@@ -438,7 +438,7 @@ write_mem ctxt mid a si0 v = do
   mapM_ (\a -> write_mem' a v) as -- TODO v should be bot?
  where
   write_mem' a0 v = do
-    p@(Predicate eqs flg muddle_status,vcs) <- get
+    p@(Predicate eqs flg,vcs) <- get
 
     if address_is_unwritable (f_ctxt ctxt) a0 then do
       trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
@@ -447,11 +447,11 @@ write_mem ctxt mid a si0 v = do
       modify $ add_unknown_mem_write mid
     else do
       p <- get
-      (Predicate eqs _ _,_) <- get
+      (Predicate eqs _ ,_) <- get
       eqs' <- M.fromList <$> do_write a0 si0 v (M.toList eqs)
-      (Predicate _ flg muddle_status,vcs) <- get
+      (Predicate _ flg,vcs) <- get
       let flg' = clean_flg (SP_Mem a0 si0) flg
-      put (Predicate eqs' flg' muddle_status,vcs)
+      put (Predicate eqs' flg',vcs)
 
 
   is_separate a0 si0 a1 si1 = do

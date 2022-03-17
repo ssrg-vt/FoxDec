@@ -717,10 +717,7 @@ ctxt_generate_invs entry curr_invs curr_posts = do
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
   let p       = init_pred fctxt curr_invs curr_posts
 
-  -- TODO remove
-  entries <- ctxt_read_entries
-  let p'   = if entries == [entry] then fst $ runIdentity $ execStateT (write_reg fctxt entry RSI $ SE_Malloc (Just 0) (Just "initial")) (p,S.empty) else p
-  result  <- liftIO (timeout max_time $ return $! do_prop fctxt g 0 p') -- TODO always 0?
+  result  <- liftIO (timeout max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
 
   case result of
     Nothing         -> do
@@ -805,10 +802,10 @@ ctxt_analyze_unresolved_indirections entry = do
     name      <- gets ctxt_name
     let fname  = dirname ++ name ++ ".indirections" 
 
-    let i                   = last (fetch_block g b)
-    let Just trgt           = i_op1 i
-    let p                   = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
-    let Predicate eqs flg _ = p
+    let i                 = last (fetch_block g b)
+    let Just trgt         = i_op1 i
+    let p                 = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
+    let Predicate eqs flg = p
 
     let values0 = evalState (try' fctxt f g b trgt) (p,S.empty)
 

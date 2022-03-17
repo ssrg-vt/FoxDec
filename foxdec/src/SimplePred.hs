@@ -14,7 +14,6 @@ module SimplePred (
   StatePart (..),
   SimpleExpr (..),
   FlagStatus (..),
-  StateMuddleStatus (..),
   BotTyp (..),
   BotSrc (..),
   Operator (..),
@@ -57,7 +56,6 @@ data PointerBase =
   | Malloc (Maybe Int) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
   | GlobalAddress Word64              -- ^ A /global/ address in the range of the sections of the binary.
   | PointerToSymbol Word64 String     -- ^ An address with an associated symbol.
-  | Unknown SimpleExpr                -- ^ n expresion without identifiable pointerbase,
   deriving (Generic,Eq,Ord)
 
 
@@ -71,7 +69,6 @@ data BotTyp =
     FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
   | FromPointerBases (S.Set PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
   | FromCall String                         -- ^ Return value of a function call
-
   | FromSources (S.Set BotSrc)              -- ^ The expression is some computation based on sources.
   | FromOverlap (S.Set BotSrc)              -- ^ A read from two possibly overlapping regions
   | FromMemWrite (S.Set BotSrc)             -- ^ A write to two possibly overlapping regions 
@@ -86,6 +83,7 @@ data BotSrc =
     Src_Var StatePart                       -- ^ An initial variable, i.e., a constant
   | Src_StackPointer String                 -- ^ The stack pointer of the given function
   | Src_Malloc (Maybe Int) (Maybe String)   -- ^ A malloced address
+  | Src_ImmediateAddress Word64             -- ^ An immediate used in the computation of the pointer
   | Src_Function String                     -- ^ A return value from a function
  deriving (Eq, Ord, Generic)
 
@@ -147,10 +145,11 @@ data StatePart =
 
 
 instance Show BotSrc where
-  show (Src_Var sp)         = show $ SE_Var sp
-  show (Src_StackPointer f) = "RSP_" ++ f
-  show (Src_Malloc id h)    = show $ SE_Malloc id h
-  show (Src_Function f)     = f
+  show (Src_Var sp)             = show $ SE_Var sp
+  show (Src_StackPointer f)     = "RSP_" ++ f
+  show (Src_Malloc id h)        = show $ SE_Malloc id h
+  show (Src_ImmediateAddress a) = showHex a
+  show (Src_Function f)         = f
 
 show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList srcs) ++ "|"
 
@@ -395,15 +394,8 @@ instance Show PointerBase where
   show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
   show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a
   show (PointerToSymbol a sym) = "PointerToSymbol_" ++ sym
-  show (Unknown e)             = "Unknown_" ++ show e
 
 
--- | Have functions been called by the current function?
-data StateMuddleStatus = 
-   Clean        -- ^ No function calls have been executed
- | ExternalOnly -- ^ All function calls were to external functions
- | Muddled      -- ^ At least one internal function has been called
-  deriving (Generic,Eq,Show,Ord)
 
 
 
@@ -412,8 +404,7 @@ data StateMuddleStatus =
 --   * A mapping from stateparts to symbolic expressions.
 --   * The status of the flags.
 --   * A set of verification conditions.
---   * The @"StateMuddleStatus"@.
-data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus StateMuddleStatus
+data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus
   deriving (Generic,Eq,Ord)
 
 instance Cereal.Serialize PointerBase
@@ -423,7 +414,6 @@ instance Cereal.Serialize StatePart
 instance Cereal.Serialize Operator
 instance Cereal.Serialize SimpleExpr
 instance Cereal.Serialize FlagStatus
-instance Cereal.Serialize StateMuddleStatus
 instance Cereal.Serialize Pred
 
 instance Show FlagStatus where
@@ -434,10 +424,9 @@ instance Show FlagStatus where
 
 
 instance Show Pred where
-  show (Predicate eqs flg muddle_status) =
+  show (Predicate eqs flg) =
        (intercalate "\n" $ (map (\(sp,e) -> show sp ++ " := " ++ show e) $ M.toList eqs))
     ++ (if show flg == "" then "" else "\n" ++ show flg)
-    ++ (if muddle_status == Clean then "" else "\n" ++ "(" ++ show muddle_status ++ ")")
 
 
 
@@ -446,7 +435,7 @@ pp_expr = show_expr (\_ -> "")
 
 -- | Pretty print predicate, showing Bottom expressions only as Bot
 pp_pred :: Pred -> String
-pp_pred (Predicate eqs _ muddlestatus) = (intercalate "\n" $ mapMaybe pp_pred_entry $ M.toList eqs) ++ "\n" ++ show muddlestatus
+pp_pred (Predicate eqs _) = (intercalate "\n" $ mapMaybe pp_pred_entry $ M.toList eqs)
  where
   pp_pred_entry (sp,v) =
     --if sp == SP_Reg RIP || contains_bot_sp sp then

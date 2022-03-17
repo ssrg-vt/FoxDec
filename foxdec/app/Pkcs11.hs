@@ -96,7 +96,7 @@ run_with_ctxt entry = do
   case IM.toList invs of
     [(0,p)] -> do
       -- retrieve the postcondition
-      let (Predicate q_eqs _ _) = fst $ tau_block fctxt (fetch_block g 0) Nothing p
+      let (Predicate q_eqs _ ) = fst $ tau_block fctxt (fetch_block g 0) Nothing p
       -- lookup region [RDI0,8]
       case M.lookup (SP_Mem (SE_Var $ SP_Reg RDI) 8) q_eqs of
         Just (SE_Immediate a) -> read_pointer_table ctxt a

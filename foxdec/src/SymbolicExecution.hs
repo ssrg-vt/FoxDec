@@ -92,15 +92,14 @@ transpose_fw_sp ctxt p (SP_Mem a si) = do
   return $ SP_Mem (simp a') si
 
 
-transpose_fw_base ctxt p (Unknown e) = Unknown <$> transpose_fw_e ctxt p e
-transpose_fw_base ctxt p bs          = return bs
+transpose_fw_base ctxt p bs          = return bs -- NOTE: no need for backward transposition here
 
 
 
 
 -- | Convert the current invariant into a function initialisation
 invariant_to_finit :: FContext -> Pred -> FInit
-invariant_to_finit ctxt (Predicate eqs _ _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
+invariant_to_finit ctxt (Predicate eqs _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
  where
   is_suitable_for_finit (SP_Reg r,_)    = r `notElem` [RIP,RSP]
   is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
@@ -180,17 +179,17 @@ transpose_bw_bottyp ctxt p (FromBitMode srcs)             = FromSources $ S.unio
 transpose_bw_bottyp ctxt p (FromUninitializedMemory srcs) = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
 transpose_bw_bottyp ctxt p (FromCall f)                   = FromCall f
 
-transpose_bw_src ctxt p src@(Src_Var sp)         = srcs_of_expr ctxt $ transpose_bw_e ctxt p (SE_Var sp)
-transpose_bw_src ctxt p src@(Src_StackPointer f) = S.singleton src
-transpose_bw_src ctxt p src@(Src_Malloc id h)    = S.singleton src
-transpose_bw_src ctxt p src@(Src_Function f)     = S.singleton src
+transpose_bw_src ctxt p src@(Src_Var sp)             = srcs_of_expr ctxt $ transpose_bw_e ctxt p (SE_Var sp)
+transpose_bw_src ctxt p src@(Src_StackPointer f)     = S.singleton src
+transpose_bw_src ctxt p src@(Src_Malloc id h)        = S.singleton src
+transpose_bw_src ctxt p src@(Src_Function f)         = S.singleton src
+transpose_bw_src ctxt p src@(Src_ImmediateAddress a) = S.singleton src
 
 
 transpose_bw_base ctxt p b@(StackPointer f)      = b
 transpose_bw_base ctxt p b@(GlobalAddress _)     = b
 transpose_bw_base ctxt p b@(PointerToSymbol _ _) = b
 transpose_bw_base ctxt p b@(Malloc _ _)          = b
-transpose_bw_base ctxt p b@(Unknown e)           = Unknown $ transpose_bw_e ctxt p e
 
 
 
@@ -285,7 +284,7 @@ call ctxt i = do
 
   when (not known) $ do
     sub ctxt i_a (Reg RSP) (Immediate 8)
-    (p@(Predicate p_eqs _ _),_) <- get
+    (p@(Predicate p_eqs _),_) <- get
     params <- mapMaybeM (when_is_relevant_param p_eqs) parameter_registers
     modify $ add_function_pointers i_a (IS.unions $ map (get_symbolic_function_pointers ctxt . snd) params)
 
@@ -296,7 +295,7 @@ call ctxt i = do
 
       -- 1.) for each parameter, smudge the current state
       forM_ params write_param
-      (q@(Predicate q_eqs _ _),_) <- get
+      (q@(Predicate q_eqs _),_) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
       sps <- S.unions <$> (mapM (transfer_current_statepart f' i p q True) $ M.toList p_eqs)
@@ -306,15 +305,15 @@ call ctxt i = do
       forM_ return_registers (\r -> write_reg ctxt i_a r $ Bottom $ FromCall $ f') -- TODO flags
     else do
       -- an internal function, already verified
-      (p@(Predicate p_eqs _ _),vcs) <- get
+      (p@(Predicate p_eqs _),vcs) <- get
 
       -- 1.) obtain the postcondition of the function, and do backwards transposition
       -- TODO: first transpose then supremum
-      let (q@(Predicate q_eqs _ _)) = supremum ctxt $ map fromJust postconditions
+      let (q@(Predicate q_eqs _)) = supremum ctxt $ map fromJust postconditions
       let (vcs',q_eqs_transposed)   = partitionEithers $ map (transpose_bw ctxt f' i_a p) $ filter (uncurry do_transfer) $ M.toList q_eqs
-      put ((Predicate M.empty None Clean),S.union vcs $ S.fromList vcs')
+      put ((Predicate M.empty None),S.union vcs $ S.fromList vcs')
       mapM_ (write_sp ctxt i_a mk_mid) q_eqs_transposed
-      (q_transposed@(Predicate q_eqs _ _),vcs) <- get
+      (q_transposed@(Predicate q_eqs _),vcs) <- get
 
       -- 2.) transfer stateparts that must be kept intact, and generation verification conditions if necessary
       sps <- S.unions <$> (mapM (transfer_current_statepart f' i p q_transposed False) $ M.toList p_eqs)
@@ -342,7 +341,7 @@ call ctxt i = do
   -- q provides the predicate after the function call.
   -- We transfer the statepart sp and sometimes forcibly keep its original value v, even if we could not prove that it was preserved.
   -- In those cases, we add annotations in the form of "Function Constraints".
-  transfer_current_statepart f' i p@(Predicate p_eqs _ _) q@(Predicate q_eqs _ _) is_external (sp,v) = do
+  transfer_current_statepart f' i p@(Predicate p_eqs _) q@(Predicate q_eqs _) is_external (sp,v) = do
     if sp == SP_Reg RIP then do
       -- forcibly transfer and set the value of the instruction pointer
       forced_insert_sp sp (SE_Immediate $ fromIntegral (i_addr i + i_size i))
@@ -385,8 +384,8 @@ call ctxt i = do
   -- forcibly insert the statepart into ther current predicate
   -- should never be done without caution, one should always use the mem_write function
   forced_insert_sp sp v = do
-    (p@(Predicate p_eqs flg muddlestatus),vcs) <- get
-    put (Predicate (M.insert sp v p_eqs) flg muddlestatus,vcs)
+    (p@(Predicate p_eqs flg),vcs) <- get
+    put (Predicate (M.insert sp v p_eqs) flg,vcs)
 
  
   must_be_preserved p_eqs (SP_Reg _)                              _ = True
@@ -407,10 +406,7 @@ call ctxt i = do
 
   do_transfer sp@(SP_Reg _)    v = True 
   do_transfer sp@(SP_Mem a si) v = not (any is_local_to_not_f $ srcs_of_expr ctxt a) && not (is_initial sp v)
-  --do_transfer sp@(SP_Mem (SE_Var (SP_StackPointer _))                       _) v = False
-  --do_transfer sp@(SP_Mem (SE_Op (Minus 64) [SE_Var (SP_StackPointer _), e]) _) v = contains_bot e
-  -- do_transfer sp                                                               v = not $ is_initial sp v -- (not $ contains_bot_sp sp) && (
-  --
+ 
   is_local_to_not_f (Src_StackPointer f') = f_name ctxt /= f' -- TODO keep when f' is from current SCC callgraph
   is_local_to_not_f _                     = False
 
@@ -502,8 +498,8 @@ jmp ctxt i =
 
 write_flags :: (Operand -> Operand -> FlagStatus) -> Operand -> Operand -> State (Pred,VCS) ()
 write_flags g op1 op2 = do
-  (Predicate eqs flg muddle_status,vcs) <- get
-  put (Predicate eqs (g op1 op2) muddle_status,vcs)
+  (Predicate eqs flg,vcs) <- get
+  put (Predicate eqs (g op1 op2),vcs)
 
 
 mov_with_func_op2_to_op1 :: FContext -> Int -> (SimpleExpr -> SimpleExpr) -> Operand -> Operand -> State (Pred,VCS) ()
@@ -1640,19 +1636,19 @@ tau_block ::
   -> Maybe [Instr]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
   -> Pred           -- ^ The predicate to be transformed
   -> (Pred, VCS)
-tau_block ctxt insts insts' p@(Predicate eqs flg muddle_status) = 
+tau_block ctxt insts insts' p@(Predicate eqs flg) = 
   if insts == [] then
     (p, S.empty)
   else let
-      addr                        = i_addr $ head insts
-      eqs'                        = write_rip addr eqs
-      (p'',vcs'')                 = execState (tau_b ctxt insts) $ (Predicate eqs' flg muddle_status, S.empty)
-      Predicate eqs'' flgs'' im'' = p'' in
+      addr                   = i_addr $ head insts
+      eqs'                   = write_rip addr eqs
+      (p'',vcs'')            = execState (tau_b ctxt insts) $ (Predicate eqs' flg, S.empty)
+      Predicate eqs'' flgs'' = p'' in
     case insts' of
       Nothing -> (p'', vcs'')
       Just (i':_) ->
         let addr'  = i_addr i' in
-          (Predicate (write_rip addr' eqs'') (add_jump_to_pred (last insts) i' flgs'') im'', vcs'')
+          (Predicate (write_rip addr' eqs'') (add_jump_to_pred (last insts) i' flgs''), vcs'')
  where
   write_rip addr eqs = M.insert (SP_Reg RIP) (SE_Immediate $ fromIntegral addr) eqs
 
@@ -1673,20 +1669,15 @@ join_expr' ctxt p q e0 e1 = join_exprs ("join") ctxt $ map simp [e0,e1] -- \n" +
 --
 --
 -- Assumes any statepart not currently in the state is unwritten to.
-join_muddle_status Muddled _      = Muddled
-join_muddle_status _ Muddled      = Muddled
-join_muddle_status ExternalOnly _ = ExternalOnly
-join_muddle_status _ ExternalOnly = ExternalOnly
-join_muddle_status _ _            = Clean
+
 
 temp_trace v v' sp = id -- if S.size (srcs_of_expr v'') == 0 && S.size (srcs_of_expr v) > 0 && S.size (srcs_of_expr v') > 0 then traceShow ("temp_trace",sp,v,v',v'') v'' else v''
 
 
-join_preds ctxt p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 muddle_status1) =
+join_preds ctxt p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
   let m    = M.mapWithKey mk_entry eqs0
       flg' = if flg0 == flg1 then flg0 else None
-      ms'  = join_muddle_status muddle_status0 muddle_status1
-      q    = Predicate m flg' ms' in
+      q    = Predicate m flg' in
     foldr mk_entry' q $ M.toList eqs1
  where
   mk_entry sp v = 
@@ -1717,8 +1708,8 @@ join_preds ctxt p@(Predicate eqs0 flg0 muddle_status0) p'@(Predicate eqs1 flg1 m
 
 
 -- TODO in case of bot, check whether sources of P1 are larger than P0
-implies_preds ctxt (Predicate eqs0 flg0 muddle_status0) (Predicate eqs1 flg1 muddle_status1) = 
- muddle_status0 == muddle_status1 && flg1 `elem` [None,flg0] && (all implied_by_eqs0 $ M.toList eqs1) -- && (all_sps_in_eqs1 $ M.keys eqs0)
+implies_preds ctxt (Predicate eqs0 flg0) (Predicate eqs1 flg1) = 
+ flg1 `elem` [None,flg0] && (all implied_by_eqs0 $ M.toList eqs1) -- && (all_sps_in_eqs1 $ M.keys eqs0)
  where
   implied_by_eqs0 (SP_Reg RIP, _) = True -- technicality 
   implied_by_eqs0 (sp1,Bottom _)  = True
@@ -1747,25 +1738,24 @@ init_pred ctxt curr_invs curr_posts =
       rsp0                 = SE_Var $ SP_StackPointer f
       write_stack_pointer  = M.insert (SP_Reg RSP)    $ rsp0
       write_return_address = M.insert (SP_Mem rsp0 8) $ SE_Var (SP_Mem rsp0 8)
-      sps  = S.delete (SP_Reg RIP) $ gather_stateparts finit curr_invs curr_posts
+      sps  = S.delete (SP_Reg RIP) $ gather_stateparts curr_invs curr_posts
       eqs  = write_stack_pointer $ write_return_address $ M.union finit' $ M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
-    Predicate eqs None Clean
+    Predicate eqs None
 
 
 
 get_stateparts_of_preds ps = S.unions $ map get_stateparts_of_pred $ S.toList $ ps
 
-get_stateparts_of_pred (Predicate eqs _ _) = S.filter (not . contains_bot_sp) $ M.keysSet eqs
+get_stateparts_of_pred (Predicate eqs _) = S.filter (not . contains_bot_sp) $ M.keysSet eqs
 
 
 
 -- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
 gather_stateparts ::
-  FInit                    -- ^ The function initialisation
-  -> Invariants            -- ^ The currently available invariants
+     Invariants            -- ^ The currently available invariants
   -> S.Set (NodeInfo,Pred) -- ^ The currently known postconditions
   -> S.Set StatePart
-gather_stateparts finit invs posts = S.unions [S.fromList $ M.keys finit, IM.foldrWithKey accumulate_stateparts S.empty invs, get_stateparts_of_preds (S.map snd posts)]
+gather_stateparts invs posts = S.unions [IM.foldrWithKey accumulate_stateparts S.empty invs, get_stateparts_of_preds (S.map snd posts)]
  where
   accumulate_stateparts a p sps = S.union sps (get_stateparts_of_pred p)
 
