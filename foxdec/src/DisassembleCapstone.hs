@@ -12,6 +12,7 @@ import Hapstone.Capstone
 import qualified Hapstone.Internal.Capstone as Capstone
 import Data.List
 import Data.List.Split (splitOn)
+import Data.Char (toUpper)
 import Text.ParserCombinators.Parsec
 import Data.Word (Word64,Word8)
 import Debug.Trace
@@ -89,8 +90,8 @@ mk_instr cs_instr =
  where
   parseMnemonicAndPrefix str =
     case words str of
-      [m]   -> (Nothing,parseMnemonic m)
-      [p,m] -> (Just $ parsePrefix p,parseMnemonic m)
+      [m]   -> (Nothing,read_opcode $ map toUpper m)
+      [p,m] -> (Just $ parsePrefix p,read_opcode $ map toUpper m)
 
 
 

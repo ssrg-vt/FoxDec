@@ -269,7 +269,8 @@ invalid_bottom_pointer ctxt e = not (is_immediate e) && S.null (srcs_of_expr ctx
 expr_to_mem_addresses ctxt a si =
   if not (contains_bot a) then
     [(a,si)]
-  else dom_to_mem_addresses $ get_pointer_domain ctxt a
+  else
+    dom_to_mem_addresses $ get_pointer_domain ctxt a
  where 
   dom_to_mem_addresses (Domain_Bases bs)     = map base_to_mem_address $ split_per_base $ S.toList bs
   dom_to_mem_addresses (Domain_Sources srcs) = map srcs_to_mem_address $ split_per_source $ S.toList srcs
@@ -285,7 +286,7 @@ expr_to_mem_addresses ctxt a si =
     let (separate,overlapping) = partition (pointer_bases_separate_possibly ctxt bs) bss in
       (bs:overlapping) : split_per_base separate
 
-  split_per_source [] = []
+  split_per_source [] = [] 
   split_per_source (src:srcs) =
     let (separate,overlapping) = partition (sources_separate_possibly ctxt src) srcs in
       (src:overlapping) : split_per_source separate

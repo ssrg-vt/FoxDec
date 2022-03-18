@@ -14,6 +14,7 @@ module Pointers (
    expr_is_global_immediate,
    srcs_of_expr,
    srcs_of_exprs,
+   is_known_source,
    join_exprs,
    join_single,
    separate_pointer_domains,
@@ -167,13 +168,13 @@ is_malloc _            = False
 -- | Returns the set of sources (inputs used to compute the expression) of an expression.
 srcs_of_expr ctxt e = 
   let srcs       = srcs_of_expr' ctxt True e
-      known_srcs = S.filter is_known srcs in
+      known_srcs = S.filter is_known_source srcs in
    if S.null known_srcs then srcs else known_srcs
- where
-  is_known (Src_StackPointer _)     = True
-  is_known (Src_Malloc _ _)         = True
-  is_known (Src_ImmediateAddress _) = True
-  is_known _                        = False
+
+is_known_source (Src_StackPointer _)     = True
+is_known_source (Src_Malloc _ _)         = True
+is_known_source (Src_ImmediateAddress _) = True
+is_known_source _                        = False
 
 -- | Returns the set of sources (state parts used to compute the expression) of two expressions.
 srcs_of_exprs ctxt es = S.unions $ map (srcs_of_expr' ctxt True) es 

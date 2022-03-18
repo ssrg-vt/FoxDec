@@ -101,7 +101,7 @@ transpose_fw_base ctxt p bs          = return bs -- NOTE: no need for backward t
 invariant_to_finit :: FContext -> Pred -> FInit
 invariant_to_finit ctxt (Predicate eqs _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs eqs
  where
-  is_suitable_for_finit (SP_Reg r,_)    = r `notElem` [RIP,RSP]
+  is_suitable_for_finit (SP_Reg r,_)    = r `notElem` [RIP,RSP,RBP]
   is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
 
   mk_finit_entry (sp,v) = 
