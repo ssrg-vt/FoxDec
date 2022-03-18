@@ -1024,6 +1024,8 @@ read_regname "XMM10" = XMM10
 read_regname "XMM11" = XMM11
 read_regname "XMM12" = XMM12
 read_regname "XMM13" = XMM13
+read_regname "XMM14" = XMM14
+read_regname "XMM15" = XMM15
 
 
 
