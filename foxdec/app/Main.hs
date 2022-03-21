@@ -68,7 +68,7 @@ run_with_ctxt = do
   -- 3.) generate report and call graph
   ctxt_generate_end_report
   ctxt_generate_call_graph
-  ctxt_serialize_ctxt
+  -- ctxt_serialize_ctxt
  where
   -- 2.)
   repeat = do

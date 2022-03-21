@@ -1,3 +1,6 @@
+{-# LANGUAGE Strict #-}
+
+
 {-# OPTIONS_HADDOCK hide #-}
 
 -- Parser that can be used to read section info supplied by bash script "dump_macho.sh"

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict #-}
 
 {-|
 Module      : CFG_Gen

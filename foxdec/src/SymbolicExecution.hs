@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleContexts, StrictData #-}
+{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleContexts, Strict #-}
 
 
 {-|
