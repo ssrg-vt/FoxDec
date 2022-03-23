@@ -53,6 +53,13 @@ This builds the application and generates documentation using [Haddock](https://
 We use some tools that are assumed to be standard available and accessible (i.e., added to the `PATH` environment variable). For Linux, these are `readelf` and `objdump` (latter is optional but convenient).
 For Mac, these are `otool` and `nm`.
 
+***Building with profiling***
+*(only relevant for developpers):*
+
+    stack build --profile
+    time stack exec --profile -- foxdec-exe 0 examples/tar tar +RTS -p
+    less foxdec-exe-.prof
+
 ## How to use <a name="usage"></a>
 These are instructions for a quickstart. For more information, we refer to the [user manual](./foxdec/docs/manual/foxdec_manual.pdf).
 

@@ -21,6 +21,7 @@ import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
 
+import Context
 
 isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True
@@ -69,12 +70,17 @@ section_info = do
 sections_info = do
   sis <- many section_info
   eof
-  return sis
+  let min = minimum $ map get_min_address sis
+  let max = maximum $ map get_max_address sis
+  return $ SectionsInfo sis min max
+ where
+  get_min_address (_,_,a,_)  = a
+  get_max_address (_,_,a,si) = a + si - 1
 
 -- The parse function.
 -- Takes as input a filename f and produces a list of instructions
 -- to lists of instructions.
-parse_sections  :: String -> IO (Either ParseError [(String,String,Int,Int)])
+parse_sections  :: String -> IO (Either ParseError SectionsInfo)
 parse_sections = parseFromFile sections_info
 
 

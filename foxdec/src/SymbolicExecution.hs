@@ -1642,7 +1642,7 @@ tau_block ctxt insts insts' p@(Predicate eqs flg) =
   else let
       addr                   = i_addr $ head insts
       eqs'                   = write_rip addr eqs
-      (p'',vcs'')            = execState (tau_b ctxt insts) $ (Predicate eqs' flg, S.empty)
+      (p'',vcs'')            = execState (tau_b ctxt insts) (Predicate eqs' flg, S.empty)
       Predicate eqs'' flgs'' = p'' in
     case insts' of
       Nothing -> (p'', vcs'')

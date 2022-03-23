@@ -27,7 +27,7 @@ max_num_of_bases   = 25
 
 -- | The maximum number of sources a bottom-expression may have, before resoring to rock-bottom.
 max_num_of_sources :: Int
-max_num_of_sources = 150
+max_num_of_sources = 100
 
 -- | A coarse overapproximation of the maximum number of entries in a jump table.
 -- Does not affect soundness, but if the value is set too low, then more indirections may be left unresolved.

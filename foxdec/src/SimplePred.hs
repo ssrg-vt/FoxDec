@@ -445,7 +445,7 @@ pp_pred (Predicate eqs _) = (intercalate "\n" $ mapMaybe pp_pred_entry $ M.toLis
 
 
 
--- crossProduct [[1], [2,3,4], [5]] == [[1,2,5],[1,3,5],[1,4,5]]
+-- crossProduct [[1], [2,3,4], [5,6]] == [[1,2,5],[1,3,5],[1,4,5],[1,2,6],[1,3,6],[1,4,6]]
 -- The size of a crossProduct [x_0,x_1,x_i] is the number of produced lists |x_0|*|x_1|*...*|x_i| times the size of each list i.
 crossProduct :: [[a]] -> [[a]]
 crossProduct []       = [[]]
@@ -462,5 +462,8 @@ unfold_non_determinism (SE_Op op es)                    =
     if crossProduct_size es' > max_expr_size then [rock_bottom] else map (SE_Op op) $ crossProduct es'
 unfold_non_determinism (SE_Bit b e)                     = map (SE_Bit b) $ unfold_non_determinism e
 unfold_non_determinism (SE_SExtend l h e)               = map (SE_SExtend l h) $ unfold_non_determinism e
-unfold_non_determinism (SE_Overwrite l a b)             = [ SE_Overwrite l a' b' | a' <-  unfold_non_determinism a, b' <- unfold_non_determinism b ]
+unfold_non_determinism (SE_Overwrite l a b)             = 
+  let as = unfold_non_determinism a
+      bs = unfold_non_determinism b in
+    if crossProduct_size [as,bs] > max_expr_size then [rock_bottom] else [ SE_Overwrite l a' b' | a' <- as, b' <- bs ]
 unfold_non_determinism e                                = [e]

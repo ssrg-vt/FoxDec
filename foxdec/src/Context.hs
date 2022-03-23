@@ -75,8 +75,14 @@ data Indirection =
 -- | Per instruction address, a a jump table
 type Indirections = IM.IntMap Indirection
 
--- | Sections: segment names, section names, addresses and sizes. 
-type SectionsInfo = [(String,String,Int,Int)]
+-- |  Information on the sections in the binary
+data SectionsInfo = SectionsInfo {
+  si_sections    :: [(String,String,Int,Int)], -- ^ Sections: segment names, section names, addresses and sizes.
+  si_min_address :: Int,
+  si_max_address :: Int
+ }
+ deriving (Show,Generic,Eq)
+
 
 -- | An enumeration indicating the result of verification over a function
 data VerificationResult = 
@@ -193,14 +199,16 @@ instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize MemWriteIdentifier
 instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize PointerDomain
+instance Cereal.Serialize SectionsInfo
 instance Cereal.Serialize Context
 
 
 
 -- " intialize an empty context based on the command-line parameters
 init_context dirname name generate_pdfs = 
-  let dirname' = if last dirname  == '/' then dirname else dirname ++ "/" in
-    Context IM.empty IM.empty  IM.empty [] dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
+  let dirname'       = if last dirname  == '/' then dirname else dirname ++ "/"
+      empty_sections = SectionsInfo [] 0 0 in
+    Context IM.empty IM.empty  IM.empty empty_sections dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 
@@ -225,12 +233,25 @@ read_from_datasection ctxt a si =
       Nothing
 
 
+-- | Is the immediate roughly in range to be an address?
+is_roughly_an_address ::
+   Context                              -- ^ The context
+   -> Int                               -- ^ An address
+   -> Bool 
+is_roughly_an_address ctxt a = 
+  let si = ctxt_sections ctxt in
+    a >= si_min_address si && a <= si_max_address si
+
 -- | Find a section for an address (see @`SectionsInfo`@)
 find_section_for_address ::
    Context                              -- ^ The context
    -> Int                               -- ^ An address
    -> Maybe (String, String, Int, Int)
-find_section_for_address ctxt a = find (address_in_section a) (ctxt_sections ctxt)
+find_section_for_address ctxt a = 
+  if is_roughly_an_address ctxt a then
+    find (address_in_section a) (si_sections $ ctxt_sections ctxt)
+  else
+    Nothing
  where
   address_in_section a (_,_,a0,si) = a0 <= a && a < a0 + si
 

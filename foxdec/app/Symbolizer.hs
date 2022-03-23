@@ -71,7 +71,7 @@ section_data = "section .data"
 section_bss  = "section .bss"
 
 literal_string_data_section ctxt =
-  concatMap mk_literal_string_section $ filter is_literal_string_section $ ctxt_sections ctxt
+  concatMap mk_literal_string_section $ filter is_literal_string_section $ si_sections $ ctxt_sections ctxt
  where
   mk_literal_string_section (segment,section,a0,sz) = 
     let dat = map (\offset -> IM.lookup (a0+offset) $ ctxt_dump ctxt) [0..sz-1] in
@@ -107,7 +107,7 @@ symbolize_entry ctxt entry =
 
 
 bss_data_section ctxt = 
-  concatMap mk_bss_data_section $ filter is_bss_data_section $ ctxt_sections ctxt
+  concatMap mk_bss_data_section $ filter is_bss_data_section $ si_sections $ ctxt_sections ctxt
  where
   mk_bss_data_section (segment,section,a0,sz) = section_bss ++ "\n" ++ section_label segment section ++ ": resb " ++ show sz ++ "\n\n"
   
@@ -129,7 +129,7 @@ data_section ctxt =
   mk_data_entry (a,v) = "db 0" ++ showHex v ++ "h" 
 
 ro_data_section ctxt = 
-  concatMap mk_ro_data_section $ filter is_ro_data_section $ ctxt_sections ctxt
+  concatMap mk_ro_data_section $ filter is_ro_data_section $ si_sections $ ctxt_sections ctxt
  where
   mk_ro_data_section (segment,section,a0,sz) = intercalate "\n" $ (section_data : (section_label segment section ++ ":") : (map (mk_data_entry $ fromIntegral a0) [0..sz-1])) ++ [""] 
   mk_data_entry a0 i = 

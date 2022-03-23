@@ -134,7 +134,7 @@ get_global_pointer_bases ctxt e = (S.filter is_global_ptr_base <$> get_pointer_b
 expr_is_global_pointer ctxt e = not $ S.null $ get_global_pointer_bases ctxt e
 
 -- | Returns true iff the expression is an immediate address falling into the range of sections of the binary
-expr_is_global_immediate ctxt (SE_Immediate a) = address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing
+expr_is_global_immediate ctxt (SE_Immediate a) = if is_roughly_an_address ctxt (fromIntegral a) then address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing else False
 expr_is_global_immediate ctxt _                = False
 
 -- | Returns true if the expression has a local pointerbase, and no others.

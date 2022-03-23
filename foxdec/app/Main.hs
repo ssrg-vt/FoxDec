@@ -393,8 +393,8 @@ ctxt_add_to_results entry verified = do
   to_log log $ summarize_function_pointers ctxt vcs
 
 
-  --to_log log $ "Generated invariants:" -- TODO make configurable
-  --to_log log $ show_invariants g invs
+  to_log log $ "Generated invariants:" -- TODO make configurable
+  to_log log $ show_invariants g invs
  where
   show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"
@@ -547,7 +547,7 @@ ctxt_read_syms = do
   put $ ctxt { ctxt_syms = symbols }
  where
   parse sfilename = do
-    ret0 <- parse_symbols sfilename
+    ret0 <- parse_symbols $! sfilename
     case ret0 of
       Left err -> error $ show err
       Right syms -> return syms
@@ -565,7 +565,7 @@ ctxt_read_sections = do
   put $ ctxt { ctxt_sections = sections }
  where
   parse sfilename = do
-    ret0 <- parse_sections sfilename
+    ret0 <- parse_sections $! sfilename
     case ret0 of
       Left err -> error $ show err
       Right sections -> return sections
@@ -588,7 +588,7 @@ ctxt_read_dump = do
   put $ ctxt { ctxt_dump = dump, ctxt_data = dat }
  where
   parse fname = do
-    ret0 <- parse_dump fname
+    ret0 <- parse_dump $! fname
     case ret0 of
       Left err -> error $ show err
       Right syms -> return syms
@@ -602,7 +602,7 @@ ctxt_read_entries = do
   let name    = ctxt_name ctxt
   let fname   = dirname ++ name ++ ".entry" 
 
-  liftIO $ parse fname
+  liftIO $ parse $! fname
  where
   parse filename = do
     ls <- readFile filename

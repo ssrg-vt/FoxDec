@@ -442,7 +442,7 @@ write_mem ctxt mid a si0 v = do
     p@(Predicate eqs flg,vcs) <- get
 
     if address_is_unwritable (f_ctxt ctxt) a0 then do
-      trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
+      trace ("Writing to unwritable section: " ++ show (a0,si0,p)) $ return ()
     else if invalid_bottom_pointer ctxt a0 && invalid_bottom_pointer ctxt a then do -- FORALL PATHS VS EXISTS PATH
       --error (show (a0,a,get_known_pointer_bases ctxt a0, srcs_of_expr ctxt a0, get_known_pointer_bases ctxt a, srcs_of_expr ctxt a))
       modify $ add_unknown_mem_write mid
