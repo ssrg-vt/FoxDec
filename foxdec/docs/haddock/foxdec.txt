@@ -1006,7 +1006,6 @@ instance GHC.Classes.Ord X86_Datastructures.Operand
 instance GHC.Classes.Eq X86_Datastructures.Operand
 instance GHC.Generics.Generic X86_Datastructures.Opcode
 instance GHC.Classes.Ord X86_Datastructures.Opcode
-instance GHC.Read.Read X86_Datastructures.Opcode
 instance GHC.Classes.Eq X86_Datastructures.Opcode
 instance GHC.Show.Show X86_Datastructures.Opcode
 instance GHC.Generics.Generic X86_Datastructures.Instr
@@ -1370,8 +1369,14 @@ IndirectionJumpTable :: JumpTable -> Indirection
 -- | Per instruction address, a a jump table
 type Indirections = IntMap Indirection
 
+-- | Information on the sections in the binary
+data SectionsInfo
+SectionsInfo :: [(String, String, Int, Int)] -> Int -> Int -> SectionsInfo
+
 -- | Sections: segment names, section names, addresses and sizes.
-type SectionsInfo = [(String, String, Int, Int)]
+[si_sections] :: SectionsInfo -> [(String, String, Int, Int)]
+[si_min_address] :: SectionsInfo -> Int
+[si_max_address] :: SectionsInfo -> Int
 
 -- | An enumeration indicating the result of verification over a function
 data VerificationResult
@@ -1542,6 +1547,9 @@ init_context :: String -> String -> Bool -> Context
 --   address is out-of-range.
 read_from_datasection :: Context -> Word64 -> Int -> Maybe Word64
 
+-- | Is the immediate roughly in range to be an address?
+is_roughly_an_address :: Context -> Int -> Bool
+
 -- | Find a section for an address (see <tt><a>SectionsInfo</a></tt>)
 find_section_for_address :: Context -> Int -> Maybe (String, String, Int, Int)
 
@@ -1590,6 +1598,9 @@ instance GHC.Classes.Eq Context.ResolvedJumpTarget
 instance GHC.Classes.Eq Context.Indirection
 instance GHC.Generics.Generic Context.Indirection
 instance GHC.Show.Show Context.Indirection
+instance GHC.Classes.Eq Context.SectionsInfo
+instance GHC.Generics.Generic Context.SectionsInfo
+instance GHC.Show.Show Context.SectionsInfo
 instance GHC.Generics.Generic Context.VerificationResult
 instance GHC.Classes.Eq Context.VerificationResult
 instance GHC.Classes.Ord Context.NodeInfo
@@ -1621,6 +1632,7 @@ instance GHC.Show.Show Context.MemWriteIdentifier
 instance Data.Serialize.Serialize Context.NodeInfo
 instance Data.Serialize.Serialize Context.VerificationResult
 instance GHC.Show.Show Context.VerificationResult
+instance Data.Serialize.Serialize Context.SectionsInfo
 instance Data.Serialize.Serialize Context.Indirection
 instance Data.Serialize.Serialize Context.ResolvedJumpTarget
 instance Data.Serialize.Serialize Context.JumpTable
@@ -1780,6 +1792,7 @@ srcs_of_expr :: FContext -> SimpleExpr -> Set BotSrc
 -- | Returns the set of sources (state parts used to compute the
 --   expression) of two expressions.
 srcs_of_exprs :: FContext -> [SimpleExpr] -> Set BotSrc
+is_known_source :: BotSrc -> Bool
 join_exprs :: [Char] -> FContext -> [SimpleExpr] -> SimpleExpr
 
 -- | Abstraction for a single expression, even if the expression is

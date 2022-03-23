@@ -393,8 +393,8 @@ ctxt_add_to_results entry verified = do
   to_log log $ summarize_function_pointers ctxt vcs
 
 
-  to_log log $ "Generated invariants:" -- TODO make configurable
-  to_log log $ show_invariants g invs
+  --to_log log $ "Generated invariants:" -- TODO make configurable
+  --to_log log $ show_invariants g invs
  where
   show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"

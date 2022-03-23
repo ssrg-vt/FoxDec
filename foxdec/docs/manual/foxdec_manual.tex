@@ -194,7 +194,7 @@ Do not hesitate to contact us for questions, remarks and suggestions.
 \section{User Manual with Example}
 
 
-\subsection{Download \& Installation}
+\subsection{Download, Build \& Installation}
 
 Up-to-date information on where to download \foxdec, and instructions for building and installation, can be found at:
 \begin{center}
@@ -267,7 +267,7 @@ First, in the file \texttt{./\$NAME\_calls.pdf} an extended call graph is genera
 Section~\ref{sec:callgraph} contains information on all the results stored in this file.
 For each function entry \texttt{\$f}, a subdirectory has been created, and a control flow graph is generated in the file \texttt{\$f/\$NAME.pdf}.
 An overview of all resolved indirections can be found in the file \texttt{\$NAME.indirections}.
-Finally, for each function entry \texttt{\$f} a log has been maintained providing information on the results per entry (file \texttt{\$f/\$NAME.log} and an overall log has been maintained in \texttt{\$NAME.log}.
+Finally, for each function entry \texttt{\$f} a log has been maintained providing information on the results per entry (file \texttt{\$f/\$NAME.log}) and an overall log has been maintained in \texttt{\$NAME.log}.
 
 \begincodebox{Observe output}
 \begin{minted}{text}
@@ -280,7 +280,7 @@ open 7c0/wc.pdf
 \codeboxend
 
 
-\subsection{Accessing information from \texttt{.report} file}
+\subsection{Accessing information from \texttt{.report} file}\label{sec:interface}
 
 All information in the generated \texttt{.report} file can be accessed through an interface.
 Implementation details on that interface, providing the exact list of functions that can be used to access the \texttt{.report} file, can be found here:
@@ -332,6 +332,7 @@ foxdec-functions-exe wc.report
 |\hspace{1cm} $\ldots$|
 \end{minted}
 \codeboxend
+\vspace{2ex}
 
 
 
@@ -344,6 +345,7 @@ foxdec-controlflow-exe wc.report 0xada
 |\makebox[1cm][r]{$\hookrightarrow$}| ada --> [adc,afc]
 \end{minted}
 \codeboxend
+\vspace{2ex}
 
 
 	
