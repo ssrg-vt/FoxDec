@@ -48,10 +48,10 @@
   -- Sane default: 25
   
 
-  max_num_of_sources = 100,
+  max_num_of_sources = 75,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
-  -- Sane default: 100
+  -- Sane default: 75
 
 
   max_jump_table_size = 20000,

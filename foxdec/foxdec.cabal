@@ -57,6 +57,7 @@ library
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -66,6 +67,7 @@ library
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -89,6 +91,7 @@ executable foxdec-controlflow-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -99,6 +102,7 @@ executable foxdec-controlflow-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -122,6 +126,7 @@ executable foxdec-disassembler-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -132,6 +137,7 @@ executable foxdec-disassembler-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -155,6 +161,7 @@ executable foxdec-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -165,6 +172,7 @@ executable foxdec-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -188,6 +196,7 @@ executable foxdec-functions-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -198,6 +207,7 @@ executable foxdec-functions-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -221,6 +231,7 @@ executable foxdec-invariants-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -231,6 +242,7 @@ executable foxdec-invariants-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -254,6 +266,7 @@ executable foxdec-isabelle-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -264,6 +277,7 @@ executable foxdec-isabelle-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -287,6 +301,7 @@ executable foxdec-pkcs11-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -297,6 +312,7 @@ executable foxdec-pkcs11-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -320,6 +336,7 @@ executable foxdec-symbolizer-exe
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -330,6 +347,7 @@ executable foxdec-symbolizer-exe
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
 
@@ -347,6 +365,7 @@ test-suite foxdec-test
     , bytestring
     , cereal >=0.5.8.1
     , containers
+    , dhall >=1.39
     , directory
     , extra >=1.7.9
     , foxdec
@@ -357,5 +376,6 @@ test-suite foxdec-test
     , process >=1.6.9.0
     , split >=0.2.3
     , strict
+    , text >=1.2.4
     , transformers >=0.5.6
   default-language: Haskell2010
