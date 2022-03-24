@@ -27,6 +27,8 @@ module Pointers (
    necessarily_separate,
    necessarily_separate_stateparts,
    necessarily_enclosed,
+   unfold_non_determinism,
+   trim_expr
   )
   where
 
@@ -83,15 +85,19 @@ get_pointer_domain ::
   -> PointerDomain     -- ^ A pointer domain
 get_pointer_domain ctxt e =
   let bs  = get_pointer_bases' True $ simp e in
-    if not (S.null bs) && S.size bs <= max_num_of_bases then
+    if not (S.null bs) && S.size bs <= get_max_num_of_bases then
       Domain_Bases bs
     else let srcs = srcs_of_expr ctxt e in
-      if not (S.null srcs) && S.size srcs <= max_num_of_sources then
+      if not (S.null srcs) && S.size srcs <= get_max_num_of_sources then
         Domain_Sources srcs
       else
         Domain_Sources $ S.empty
 
  where
+  get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
+  get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
+
+
   get_pointer_bases' :: Bool -> SimpleExpr -> S.Set PointerBase
   get_pointer_bases' use_finit (Bottom (FromNonDeterminism es)) = S.unions $ S.map (get_pointer_bases' use_finit) es -- TODO non-empty union?
   get_pointer_bases' use_finit (SE_Op (Plus _) es)              = S.unions $ S.map (get_pointer_bases' use_finit) $ S.fromList es
@@ -236,26 +242,30 @@ srcs_of_base ctxt use_finit (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP
 -- TODO: joining immediates
 join_exprs' :: String -> FContext -> [SimpleExpr] -> SimpleExpr
 join_exprs' msg ctxt es = 
-  let es' = S.unions $ map (S.fromList . unfold_non_determinism) es in
+  let es' = S.unions $ map (S.fromList . unfold_non_determinism ctxt) es in
     if S.size es' == 0 then
       rock_bottom
     else if S.size es' == 1 then
       head $ S.toList es'  
-    else if S.size es' <= max_num_of_cases && all (not . contains_bot) es' then
+    else if S.size es' <= get_max_num_of_cases && all (not . contains_bot) es' then
       Bottom (FromNonDeterminism es')
     else if rock_bottom `S.member` es' then
       rock_bottom
     else let bss = S.map (nothing_to_empty . get_pointer_bases ctxt) es'
              bs  = S.unions bss in
-      if S.size bs <= max_num_of_bases && all (not . S.null) bss then
+      if S.size bs <= get_max_num_of_bases && all (not . S.null) bss then
         Bottom (FromPointerBases bs)
       else
         let srcs = S.unions $ S.map (srcs_of_expr ctxt) es' in
-          if S.size srcs <= max_num_of_sources then
+          if S.size srcs <= get_max_num_of_sources then
             Bottom (FromSources srcs)
           else
-            trace ("Hitting max num of sources: " ++ show max_num_of_sources) rock_bottom
+            trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) rock_bottom
  where
+  get_max_num_of_cases   = ctxt_max_num_of_cases $ f_ctxt ctxt
+  get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
+  get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
+
   nothing_to_empty Nothing   = S.empty
   nothing_to_empty (Just bs) = bs
 
@@ -272,14 +282,17 @@ join_single :: FContext -> SimpleExpr -> SimpleExpr
 join_single ctxt e =
   case get_pointer_bases ctxt e of
     Nothing -> join_sources
-    Just bs -> if not (S.null bs) && S.size bs <= max_num_of_bases then Bottom (FromPointerBases bs) else join_sources
+    Just bs -> if not (S.null bs) && S.size bs <= get_max_num_of_bases then Bottom (FromPointerBases bs) else join_sources
  where
+  get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
+  get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
+
   join_sources =
     let srcs = srcs_of_expr ctxt e in 
-      if S.size srcs <= max_num_of_sources then
+      if S.size srcs <= get_max_num_of_sources then
         Bottom (FromSources srcs)
       else
-        trace ("Hitting max num of sources: " ++ show max_num_of_sources) rock_bottom
+        trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) rock_bottom
 
 
 
@@ -516,5 +529,41 @@ necessarily_equal_stateparts _ _ = False
 
 
 
+
+
+
+-- crossProduct [[1], [2,3,4], [5,6]] == [[1,2,5],[1,3,5],[1,4,5],[1,2,6],[1,3,6],[1,4,6]]
+-- The size of a crossProduct [x_0,x_1,x_i] is the number of produced lists |x_0|*|x_1|*...*|x_i| times the size of each list i.
+crossProduct :: [[a]] -> [[a]]
+crossProduct []       = [[]]
+crossProduct (as:ass) = [ b:bs | b <- as, bs <- crossProduct ass ]
+
+crossProduct_size x = product (length x : map length x) 
+
+-- | Unfold an expression with non-determinisism to a list of expressions.
+-- Keep an eye on the produced size, as this may cause blow-up.
+unfold_non_determinism :: FContext -> SimpleExpr -> [SimpleExpr]
+unfold_non_determinism ctxt (Bottom (FromNonDeterminism es)) = S.toList es
+unfold_non_determinism ctxt (SE_Op op es)                    = 
+  let es' = map (unfold_non_determinism ctxt) es in
+    if crossProduct_size es' > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else map (SE_Op op) $ crossProduct es'
+unfold_non_determinism ctxt (SE_Bit b e)                     = map (SE_Bit b) $ (unfold_non_determinism ctxt) e
+unfold_non_determinism ctxt (SE_SExtend l h e)               = map (SE_SExtend l h) $ (unfold_non_determinism ctxt) e
+unfold_non_determinism ctxt (SE_Overwrite l a b)             = 
+  let as = unfold_non_determinism ctxt a
+      bs = unfold_non_determinism ctxt b in
+    if crossProduct_size [as,bs] > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else [ SE_Overwrite l a' b' | a' <- as, b' <- bs ]
+unfold_non_determinism ctxt e                                = [e]
+
+
+
+-- | If the size of an expression becomes too large, we simply turn it into Bottom.
+trim_expr ctxt e =
+  if expr_size e > get_max_expr_size then 
+    traceShow ("Hitting expr_size limit of " ++ show get_max_expr_size ++ ".") rock_bottom -- Bottom (FromSources $ srcs_of_expr e)
+  else
+    e
+ where
+  get_max_expr_size = ctxt_max_expr_size $ f_ctxt ctxt
 
 

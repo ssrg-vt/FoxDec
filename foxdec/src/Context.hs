@@ -12,6 +12,7 @@ Module "VerificationReportInterface" provides functions for obtaining and interf
 module Context where
 
 import Base
+import Config
 import DisassembleCapstone
 import SimplePred
 import X86_Datastructures
@@ -29,6 +30,7 @@ import Data.Maybe (mapMaybe,fromJust)
 
 
 import GHC.Generics
+import GHC.Natural (naturalToInteger)
 import qualified Data.Serialize as Cereal hiding (get,put)
 
 
@@ -166,13 +168,13 @@ data FReturnBehavior =
 -- __D__: Information __D__ynamically updated during verification
 -------------------------------------------------------------------------------
 data Context = Context {
+   ctxt_config        :: Config,                         -- ^ __S__: the configuration file in ./config
    ctxt_dump          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (constant data and instructions from the binary/executable)
    ctxt_data          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (writable data section)
    ctxt_syms          :: IM.IntMap String,               -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
    ctxt_sections      :: SectionsInfo,                   -- ^ __S__: information on segments/section
    ctxt_dirname       :: String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
    ctxt_name          :: String,                         -- ^ __S__: the name of the binary
-   ctxt_generate_pdfs :: Bool,                           -- ^ __S__: do we call graphviz to generate PDFs from .dot files?
 
    ctxt_entries       :: Graph,                          -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
    ctxt_cfgs          :: IM.IntMap CFG,                  -- ^ __D__: the currently known control flow graphs per function entry
@@ -183,7 +185,7 @@ data Context = Context {
    ctxt_finits        :: IM.IntMap FInit,                -- ^ __D__: the currently known function initialisations
    ctxt_vcs           :: IM.IntMap VCS,                  -- ^ __D__: the verification conditions
    ctxt_results       :: IM.IntMap VerificationResult,   -- ^ __D__: the verification result
-   ctxt_recursions    :: IM.IntMap IS.IntSet
+   ctxt_recursions    :: IM.IntMap IS.IntSet             -- ^ __D__: a mapping from function entries to the set of mutually recursive functions entries they occur in
  }
  deriving Generic
 
@@ -204,15 +206,26 @@ instance Cereal.Serialize Context
 
 
 
--- " intialize an empty context based on the command-line parameters
-init_context dirname name generate_pdfs = 
+-- | intialize an empty context based on the command-line parameters
+init_context config dirname name = 
   let dirname'       = if last dirname  == '/' then dirname else dirname ++ "/"
       empty_sections = SectionsInfo [] 0 0 in
-    Context IM.empty IM.empty  IM.empty empty_sections dirname' name generate_pdfs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
+    Context config IM.empty IM.empty  IM.empty empty_sections dirname' name (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
+-- | purge the context before exporting it (may save a lot of disk space)
+purge_context  :: Context -> Context
+purge_context (Context config dump dat syms sections dirname name entries cfgs calls invs posts inds finits vcs results recursions) =
+  let keep_preconditions = store_preconditions_in_report config
+      keep_assertions    = store_assertions_in_report config
+      vcs'               = IM.filter (not . S.null) $ IM.map (purge keep_preconditions keep_assertions) vcs in
+    Context config dump dat syms sections dirname name (Edges IM.empty) cfgs calls invs posts inds finits vcs' results IM.empty
+ where
+  purge keep_preconditions keep_assertions vcs = S.filter (keep_vcs keep_preconditions keep_assertions) vcs
 
-
+  keep_vcs keep_preconditions keep_assertions (Precondition _ _ _ _)   = keep_preconditions
+  keep_vcs keep_preconditions keep_assertions (Assertion    _ _ _ _ _) = keep_assertions
+  keep_vcs keep_preconditions keep_assertions _                        = True
 
 
 
@@ -357,5 +370,30 @@ count_sourceless_memwrites = S.size . S.map (\(SourcelessMemWrite mid) -> prune 
   prune mid@(MemWriteFunction f i_a sp)               = mid
   prune mid@(MemWriteInstruction i_a addr a_resolved) = MemWriteInstruction i_a addr $ SE_Immediate 0
 
+
+
+ctxt_continue_on_unknown_instruction = continue_on_unknown_instruction . ctxt_config
+ctxt_generate_pdfs = generate_pdfs . ctxt_config
+ctxt_verbose_logs = verbose_logs . ctxt_config
+ctxt_store_preconditions_in_report = store_preconditions_in_report . ctxt_config
+ctxt_store_assertions_in_report = store_assertions_in_report . ctxt_config
+
+ctxt_max_time :: Context -> Int
+ctxt_max_time = fromIntegral . max_time . ctxt_config
+
+ctxt_max_num_of_cases :: Context -> Int
+ctxt_max_num_of_cases = fromIntegral . max_num_of_cases . ctxt_config
+
+ctxt_max_num_of_bases :: Context -> Int
+ctxt_max_num_of_bases = fromIntegral . max_num_of_bases . ctxt_config
+
+ctxt_max_num_of_sources :: Context -> Int
+ctxt_max_num_of_sources = fromIntegral . max_num_of_sources . ctxt_config
+
+ctxt_max_jump_table_size :: Context -> Int
+ctxt_max_jump_table_size = fromIntegral . max_jump_table_size . ctxt_config
+
+ctxt_max_expr_size :: Context -> Int
+ctxt_max_expr_size = fromIntegral . max_expr_size . ctxt_config
 
 

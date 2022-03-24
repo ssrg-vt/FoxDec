@@ -39,9 +39,9 @@
 </span><span id="line-39"></span><span>
 </span><span id="line-40"></span><span>
 </span><span id="line-41"></span><span id="disasm_config"><span class="annot"><span class="annottext">disasm_config :: [Word8] -&gt; a -&gt; Disassembler ()
-</span><a href="DisassembleCapstone.html#disasm_config"><span class="hs-identifier hs-var hs-var">disasm_config</span></a></span></span><span> </span><span id="local-6989586621679209800"><span class="annot"><span class="annottext">[Word8]
-</span><a href="#local-6989586621679209800"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span id="local-6989586621679209799"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679209799"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Disassembler :: forall a.
+</span><a href="DisassembleCapstone.html#disasm_config"><span class="hs-identifier hs-var hs-var">disasm_config</span></a></span></span><span> </span><span id="local-6989586621679260833"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679260833"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span id="local-6989586621679260832"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679260832"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Disassembler :: forall a.
 CsArch
 -&gt; [CsMode]
 -&gt; [Word8]
@@ -64,13 +64,13 @@ CsArch
 </span><span id="line-46"></span><span>  </span><span class="hs-comment">-- buffer to disassemble, as [Word8]</span><span>
 </span><span id="line-47"></span><span>  </span><span class="annot"><span class="annottext">buffer :: [Word8]
 </span><span class="hs-identifier hs-var">buffer</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8]
-</span><a href="#local-6989586621679209800"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">,</span><span>
+</span><a href="#local-6989586621679260833"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">,</span><span>
 </span><span id="line-48"></span><span>  </span><span class="hs-comment">-- address of first byte in the buffer, as Word64</span><span>
 </span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">addr :: Word64
 </span><span class="hs-identifier hs-var">addr</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Word64
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679209799"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span>
+</span><a href="#local-6989586621679260832"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span>
 </span><span id="line-50"></span><span>  </span><span class="hs-comment">-- number of instructions to disassemble (0 for maximum)</span><span>
 </span><span id="line-51"></span><span>  </span><span class="annot"><span class="annottext">num :: Int
 </span><span class="hs-identifier hs-var">num</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
@@ -92,28 +92,28 @@ forall a. a -&gt; Maybe a
 </span><span id="line-58"></span><span> </span><span class="hs-special">}</span><span>
 </span><span id="line-59"></span><span>
 </span><span id="line-60"></span><span id="mk_operands"><span class="annot"><span class="annottext">mk_operands :: a -&gt; [Char] -&gt; [Maybe Operand]
-</span><a href="DisassembleCapstone.html#mk_operands"><span class="hs-identifier hs-var hs-var">mk_operands</span></a></span></span><span> </span><span id="local-6989586621679209783"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679209783"><span class="hs-identifier hs-var">cs_instr</span></a></span></span><span> </span><span id="local-6989586621679209782"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209782"><span class="hs-identifier hs-var">cs_ops</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Operand) -&gt; [Int] -&gt; [Maybe Operand]
+</span><a href="DisassembleCapstone.html#mk_operands"><span class="hs-identifier hs-var hs-var">mk_operands</span></a></span></span><span> </span><span id="local-6989586621679260816"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679260816"><span class="hs-identifier hs-var">cs_instr</span></a></span></span><span> </span><span id="local-6989586621679260815"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679260815"><span class="hs-identifier hs-var">cs_ops</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Operand) -&gt; [Int] -&gt; [Maybe Operand]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Operand
-</span><a href="#local-6989586621679209781"><span class="hs-identifier hs-var">mk_operand</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260814"><span class="hs-identifier hs-var">mk_operand</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">2</span></span><span class="hs-special">]</span><span>
 </span><span id="line-61"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-62"></span><span>  </span><span id="local-6989586621679209781"><span class="annot"><span class="annottext">mk_operand :: Int -&gt; Maybe Operand
-</span><a href="#local-6989586621679209781"><span class="hs-identifier hs-var hs-var">mk_operand</span></a></span></span><span> </span><span id="local-6989586621679209780"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209780"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
-</span><span id="line-63"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209779"><span class="annot"><span class="annottext">splits :: [[Char]]
-</span><a href="#local-6989586621679209779"><span class="hs-identifier hs-var hs-var">splits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [[Char]]
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679260814"><span class="annot"><span class="annottext">mk_operand :: Int -&gt; Maybe Operand
+</span><a href="#local-6989586621679260814"><span class="hs-identifier hs-var hs-var">mk_operand</span></a></span></span><span> </span><span id="local-6989586621679260813"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260813"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679260812"><span class="annot"><span class="annottext">splits :: [[Char]]
+</span><a href="#local-6989586621679260812"><span class="hs-identifier hs-var hs-var">splits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [[Char]]
 forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [[a]]
 </span><span class="hs-identifier hs-var">splitOn</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209782"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><a href="#local-6989586621679260815"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="hs-keyword">in</span><span>
 </span><span id="line-64"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
 </span><a href="DisassembleCapstone.html#trim"><span class="hs-identifier hs-var">trim</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209782"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+</span><a href="#local-6989586621679260815"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-keyword">then</span><span>
@@ -123,21 +123,21 @@ forall a. Maybe a
 </span><span id="line-66"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; Int
 forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
 </span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
-</span><a href="#local-6989586621679209779"><span class="hs-identifier hs-var">splits</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679260812"><span class="hs-identifier hs-var">splits</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
 forall a. Ord a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209780"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">then</span><span>
+</span><a href="#local-6989586621679260813"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">then</span><span>
 </span><span id="line-67"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either ParseError Operand
-</span><a href="#local-6989586621679209775"><span class="hs-identifier hs-var">parse_operand</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either ParseError Operand)
+</span><a href="#local-6989586621679260808"><span class="hs-identifier hs-var">parse_operand</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either ParseError Operand)
 -&gt; [Char] -&gt; Either ParseError Operand
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
-</span><a href="#local-6989586621679209779"><span class="hs-identifier hs-var">splits</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; Int -&gt; [Char]
+</span><a href="#local-6989586621679260812"><span class="hs-identifier hs-var">splits</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; Int -&gt; [Char]
 forall a. [a] -&gt; Int -&gt; a
 </span><span class="hs-operator hs-var">!!</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209780"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-68"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679209773"><span class="annot"><span class="annottext">ParseError
-</span><a href="#local-6989586621679209773"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe Operand
+</span><a href="#local-6989586621679260813"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-68"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679260806"><span class="annot"><span class="annottext">ParseError
+</span><a href="#local-6989586621679260806"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe Operand
 forall a. HasCallStack =&gt; [Char] -&gt; a
 </span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;Could not parse operand &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -145,13 +145,13 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209780"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260813"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;: \&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209782"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260815"><span class="hs-identifier hs-var">cs_ops</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;\&quot; of \&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -159,22 +159,22 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679209783"><span class="hs-identifier hs-var">cs_instr</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260816"><span class="hs-identifier hs-var">cs_instr</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;\&quot;&quot;</span></span><span class="hs-special">)</span><span>
-</span><span id="line-69"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679209770"><span class="annot"><span class="annottext">Operand
-</span><a href="#local-6989586621679209770"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Operand -&gt; Maybe Operand
+</span><span id="line-69"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679260803"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679260803"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Operand -&gt; Maybe Operand
 forall a. a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Operand
-</span><a href="#local-6989586621679209770"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><a href="#local-6989586621679260803"><span class="hs-identifier hs-var">op</span></a></span><span>
 </span><span id="line-70"></span><span>      </span><span class="hs-keyword">else</span><span>
 </span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">Maybe Operand
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span>
-</span><span id="line-72"></span><span>  </span><span class="annot"><a href="#local-6989586621679209775"><span class="hs-identifier hs-type">parse_operand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="annot"><a href="X86_Datastructures.html#Operand"><span class="hs-identifier hs-type">Operand</span></a></span><span>
-</span><span id="line-73"></span><span>  </span><span id="local-6989586621679209775"><span class="annot"><span class="annottext">parse_operand :: [Char] -&gt; Either ParseError Operand
-</span><a href="#local-6989586621679209775"><span class="hs-identifier hs-var hs-var">parse_operand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parsec [Char] () Operand
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="#local-6989586621679260808"><span class="hs-identifier hs-type">parse_operand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="annot"><a href="X86_Datastructures.html#Operand"><span class="hs-identifier hs-type">Operand</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679260808"><span class="annot"><span class="annottext">parse_operand :: [Char] -&gt; Either ParseError Operand
+</span><a href="#local-6989586621679260808"><span class="hs-identifier hs-var hs-var">parse_operand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parsec [Char] () Operand
 -&gt; [Char] -&gt; [Char] -&gt; Either ParseError Operand
 forall s t a.
 Stream s Identity t =&gt;
@@ -201,46 +201,46 @@ forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
 </span><span id="line-76"></span><span>
 </span><span id="line-77"></span><span class="annot"><a href="DisassembleCapstone.html#mk_instr"><span class="hs-identifier hs-type">mk_instr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Capstone.CsInsn</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span>
 </span><span id="line-78"></span><span id="mk_instr"><span class="annot"><span class="annottext">mk_instr :: CsInsn -&gt; Instr
-</span><a href="DisassembleCapstone.html#mk_instr"><span class="hs-identifier hs-var hs-var">mk_instr</span></a></span></span><span> </span><span id="local-6989586621679209761"><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
-</span><span id="line-79"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209760"><span class="annot"><span class="annottext">addr :: Int
-</span><a href="#local-6989586621679209760"><span class="hs-identifier hs-var hs-var">addr</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+</span><a href="DisassembleCapstone.html#mk_instr"><span class="hs-identifier hs-var hs-var">mk_instr</span></a></span></span><span> </span><span id="local-6989586621679260794"><span class="annot"><span class="annottext">CsInsn
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679260793"><span class="annot"><span class="annottext">addr :: Int
+</span><a href="#local-6989586621679260793"><span class="hs-identifier hs-var hs-var">addr</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Int) -&gt; Word64 -&gt; Int
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; Word64
 </span><span class="hs-identifier hs-var hs-var">Capstone.address</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
-</span><span id="line-80"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679209758"><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209758"><span class="hs-identifier hs-var">op1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679209757"><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209757"><span class="hs-identifier hs-var">op2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679209756"><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209756"><span class="hs-identifier hs-var">op3</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char] -&gt; [Maybe Operand]
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679260791"><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260791"><span class="hs-identifier hs-var">op1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679260790"><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260790"><span class="hs-identifier hs-var">op2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679260789"><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260789"><span class="hs-identifier hs-var">op3</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char] -&gt; [Maybe Operand]
 forall a. Show a =&gt; a -&gt; [Char] -&gt; [Maybe Operand]
 </span><a href="DisassembleCapstone.html#mk_operands"><span class="hs-identifier hs-var">mk_operands</span></a></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; [Maybe Operand]) -&gt; [Char] -&gt; [Maybe Operand]
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; [Maybe Operand]) -&gt; [Char] -&gt; [Maybe Operand]
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char]
 </span><span class="hs-identifier hs-var hs-var">Capstone.opStr</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
-</span><span id="line-81"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679209754"><span class="annot"><span class="annottext">Maybe Prefix
-</span><a href="#local-6989586621679209754"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679209753"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679209753"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; (Maybe Prefix, Opcode)
-</span><a href="#local-6989586621679209752"><span class="hs-identifier hs-var">parseMnemonicAndPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; (Maybe Prefix, Opcode))
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679260787"><span class="annot"><span class="annottext">Maybe Prefix
+</span><a href="#local-6989586621679260787"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679260786"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679260786"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; (Maybe Prefix, Opcode)
+</span><a href="#local-6989586621679260785"><span class="hs-identifier hs-var">parseMnemonicAndPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; (Maybe Prefix, Opcode))
 -&gt; [Char] -&gt; (Maybe Prefix, Opcode)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char]
 </span><span class="hs-identifier hs-var hs-var">Capstone.mnemonic</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
-</span><span id="line-82"></span><span>      </span><span id="local-6989586621679209750"><span class="annot"><span class="annottext">size :: Int
-</span><a href="#local-6989586621679209750"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Int
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
+</span><span id="line-82"></span><span>      </span><span id="local-6989586621679260783"><span class="annot"><span class="annottext">size :: Int
+</span><a href="#local-6989586621679260783"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Int
 forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
 </span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">([Word8] -&gt; Int) -&gt; [Word8] -&gt; Int
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Word8]
 </span><span class="hs-identifier hs-var hs-var">Capstone.bytes</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
-</span><span id="line-83"></span><span>      </span><span id="local-6989586621679209748"><span class="annot"><span class="annottext">i :: Instr
-</span><a href="#local-6989586621679209748"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span id="local-6989586621679260781"><span class="annot"><span class="annottext">i :: Instr
+</span><a href="#local-6989586621679260781"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 -&gt; Maybe Prefix
 -&gt; Opcode
 -&gt; Maybe Operand
@@ -250,17 +250,17 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 -&gt; Int
 -&gt; Instr
 </span><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209760"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Prefix
-</span><a href="#local-6989586621679209754"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679209753"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209758"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209757"><span class="hs-identifier hs-var">op2</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
-</span><a href="#local-6989586621679209756"><span class="hs-identifier hs-var">op3</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679260793"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Prefix
+</span><a href="#local-6989586621679260787"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679260786"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260791"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260790"><span class="hs-identifier hs-var">op2</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Operand
+</span><a href="#local-6989586621679260789"><span class="hs-identifier hs-var">op3</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209750"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><a href="#local-6989586621679260783"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="hs-keyword">in</span><span>
 </span><span id="line-84"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679209753"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
+</span><a href="#local-6989586621679260786"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86_Datastructures.html#InvalidOpcode"><span class="hs-identifier hs-var">InvalidOpcode</span></a></span><span> </span><span class="hs-keyword">then</span><span>
@@ -272,7 +272,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>  </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>  </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -280,9 +280,9 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Instr -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679209748"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679260781"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-86"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Maybe Prefix
-</span><a href="#local-6989586621679209754"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Prefix -&gt; Maybe Prefix -&gt; Bool
+</span><a href="#local-6989586621679260787"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Prefix -&gt; Maybe Prefix -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Prefix -&gt; Maybe Prefix
 forall a. a -&gt; Maybe a
@@ -296,7 +296,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209761"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>  </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260794"><span class="hs-identifier hs-var">cs_instr</span></a></span><span>  </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -304,19 +304,19 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Instr -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679209748"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679260781"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-88"></span><span>    </span><span class="hs-keyword">else</span><span>
 </span><span id="line-89"></span><span>       </span><span class="annot"><span class="annottext">Instr
-</span><a href="#local-6989586621679209748"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><a href="#local-6989586621679260781"><span class="hs-identifier hs-var">i</span></a></span><span>
 </span><span id="line-90"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-91"></span><span>  </span><span id="local-6989586621679209752"><span class="annot"><span class="annottext">parseMnemonicAndPrefix :: [Char] -&gt; (Maybe Prefix, Opcode)
-</span><a href="#local-6989586621679209752"><span class="hs-identifier hs-var hs-var">parseMnemonicAndPrefix</span></a></span></span><span> </span><span id="local-6989586621679209744"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209744"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621679260785"><span class="annot"><span class="annottext">parseMnemonicAndPrefix :: [Char] -&gt; (Maybe Prefix, Opcode)
+</span><a href="#local-6989586621679260785"><span class="hs-identifier hs-var hs-var">parseMnemonicAndPrefix</span></a></span></span><span> </span><span id="local-6989586621679260777"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679260777"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-92"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
 </span><span class="hs-identifier hs-var">words</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209744"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-93"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679209742"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209742"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Prefix
+</span><a href="#local-6989586621679260777"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-93"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679260775"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679260775"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Prefix
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char] -&gt; Opcode
 </span><a href="ParserX86Instruction.html#read_opcode"><span class="hs-identifier hs-var">read_opcode</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Opcode) -&gt; [Char] -&gt; Opcode
@@ -325,38 +325,38 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
 </span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209742"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-94"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679209740"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209740"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679209739"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209739"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Prefix -&gt; Maybe Prefix
+</span><a href="#local-6989586621679260775"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679260773"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679260773"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679260772"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679260772"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Prefix -&gt; Maybe Prefix
 forall a. a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Prefix -&gt; Maybe Prefix) -&gt; Prefix -&gt; Maybe Prefix
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Prefix
 </span><a href="ParserX86Instruction.html#parsePrefix"><span class="hs-identifier hs-var">parsePrefix</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209740"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char] -&gt; Opcode
+</span><a href="#local-6989586621679260773"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char] -&gt; Opcode
 </span><a href="ParserX86Instruction.html#read_opcode"><span class="hs-identifier hs-var">read_opcode</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Opcode) -&gt; [Char] -&gt; Opcode
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; [Char] -&gt; [Char]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
 </span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679209739"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679260772"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-95"></span><span>
 </span><span id="line-96"></span><span>
 </span><span id="line-97"></span><span>
 </span><span id="line-98"></span><span class="annot"><a href="DisassembleCapstone.html#disassemble"><span class="hs-identifier hs-type">disassemble</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="X86_Datastructures.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-99"></span><span id="disassemble"><span class="annot"><span class="annottext">disassemble :: IntMap Word8 -&gt; Int -&gt; IO (Maybe Instr)
-</span><a href="DisassembleCapstone.html#disassemble"><span class="hs-identifier hs-var hs-var">disassemble</span></a></span></span><span> </span><span id="local-6989586621679209736"><span class="annot"><span class="annottext">IntMap Word8
-</span><a href="#local-6989586621679209736"><span class="hs-identifier hs-var">dump</span></a></span></span><span> </span><span id="local-6989586621679209735"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-100"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209734"><span class="annot"><span class="annottext">buffer :: [Maybe Word8]
-</span><a href="#local-6989586621679209734"><span class="hs-identifier hs-var hs-var">buffer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679209733"><span class="hs-identifier hs-var">readBuffer</span></a></span><span>
+</span><a href="DisassembleCapstone.html#disassemble"><span class="hs-identifier hs-var hs-var">disassemble</span></a></span></span><span> </span><span id="local-6989586621679260769"><span class="annot"><span class="annottext">IntMap Word8
+</span><a href="#local-6989586621679260769"><span class="hs-identifier hs-var">dump</span></a></span></span><span> </span><span id="local-6989586621679260768"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679260767"><span class="annot"><span class="annottext">buffer :: [Maybe Word8]
+</span><a href="#local-6989586621679260767"><span class="hs-identifier hs-var hs-var">buffer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
+</span><a href="#local-6989586621679260766"><span class="hs-identifier hs-var">readBuffer</span></a></span><span>
 </span><span id="line-101"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Maybe Word8] -&gt; Maybe Word8
 forall a. [a] -&gt; a
 </span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679209734"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word8 -&gt; Maybe Word8 -&gt; Bool
+</span><a href="#local-6989586621679260767"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word8 -&gt; Maybe Word8 -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8
 forall a. Maybe a
@@ -367,8 +367,8 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span>
 </span><span id="line-103"></span><span>  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-104"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679209731"><span class="annot"><span class="annottext">config :: Disassembler ()
-</span><a href="#local-6989586621679209731"><span class="hs-identifier hs-var hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Int -&gt; Disassembler ()
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679260764"><span class="annot"><span class="annottext">config :: Disassembler ()
+</span><a href="#local-6989586621679260764"><span class="hs-identifier hs-var hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Int -&gt; Disassembler ()
 forall a. Integral a =&gt; [Word8] -&gt; a -&gt; Disassembler ()
 </span><a href="DisassembleCapstone.html#disasm_config"><span class="hs-identifier hs-var">disasm_config</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe Word8 -&gt; Word8) -&gt; [Maybe Word8] -&gt; [Word8]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
@@ -383,17 +383,17 @@ forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">(/=)</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679209734"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span><span>
-</span><span id="line-105"></span><span>    </span><span id="local-6989586621679209728"><span class="annot"><span class="annottext">Either CsErr [(CsInsn, ())]
-</span><a href="#local-6989586621679209728"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Disassembler () -&gt; IO (Either CsErr [(CsInsn, ())])
+</span><a href="#local-6989586621679260767"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621679260761"><span class="annot"><span class="annottext">Either CsErr [(CsInsn, ())]
+</span><a href="#local-6989586621679260761"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Disassembler () -&gt; IO (Either CsErr [(CsInsn, ())])
 forall a. Disassembler a -&gt; IO (Either CsErr [(CsInsn, a)])
 </span><span class="hs-identifier hs-var">disasmIO</span></span><span> </span><span class="annot"><span class="annottext">Disassembler ()
-</span><a href="#local-6989586621679209731"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span>
+</span><a href="#local-6989586621679260764"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span>
 </span><span id="line-106"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either CsErr [(CsInsn, ())]
-</span><a href="#local-6989586621679209728"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-107"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679209726"><span class="annot"><span class="annottext">CsErr
-</span><a href="#local-6989586621679209726"><span class="hs-identifier hs-var">err</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (Maybe Instr)
+</span><a href="#local-6989586621679260761"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679260759"><span class="annot"><span class="annottext">CsErr
+</span><a href="#local-6989586621679260759"><span class="hs-identifier hs-var">err</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (Maybe Instr)
 forall a. HasCallStack =&gt; [Char] -&gt; a
 </span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;Error during disassembling of address &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -401,7 +401,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char]
 forall a. (Integral a, Show a) =&gt; a -&gt; [Char]
 </span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -409,9 +409,9 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CsErr -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">CsErr
-</span><a href="#local-6989586621679209726"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-108"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621679209724"><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209724"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">()
+</span><a href="#local-6989586621679260759"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621679260757"><span class="annot"><span class="annottext">CsInsn
+</span><a href="#local-6989586621679260757"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">()
 </span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Instr -&gt; IO (Maybe Instr)
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Instr -&gt; IO (Maybe Instr))
@@ -423,9 +423,9 @@ forall a. a -&gt; Maybe a
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CsInsn -&gt; Instr
 </span><a href="DisassembleCapstone.html#mk_instr"><span class="hs-identifier hs-var">mk_instr</span></a></span><span> </span><span class="annot"><span class="annottext">CsInsn
-</span><a href="#local-6989586621679209724"><span class="hs-identifier hs-var">i</span></a></span><span>
-</span><span id="line-109"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679209723"><span class="annot"><span class="annottext">[(CsInsn, ())]
-</span><a href="#local-6989586621679209723"><span class="hs-identifier hs-var">x</span></a></span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (Maybe Instr)
+</span><a href="#local-6989586621679260757"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679260756"><span class="annot"><span class="annottext">[(CsInsn, ())]
+</span><a href="#local-6989586621679260756"><span class="hs-identifier hs-var">x</span></a></span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (Maybe Instr)
 forall a. HasCallStack =&gt; [Char] -&gt; a
 </span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; IO (Maybe Instr)) -&gt; [Char] -&gt; IO (Maybe Instr)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
@@ -435,7 +435,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char]
 forall a. (Integral a, Show a) =&gt; a -&gt; [Char]
 </span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;: parsing result Capstone == &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -443,7 +443,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[(CsInsn, ())] -&gt; [Char]
 forall a. Show a =&gt; a -&gt; [Char]
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">[(CsInsn, ())]
-</span><a href="#local-6989586621679209723"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260756"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot; @ address &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -451,7 +451,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char]
 forall a. (Integral a, Show a) =&gt; a -&gt; [Char]
 </span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot; buffer == &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
@@ -463,20 +463,20 @@ forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8 -&gt; Word8
 forall a. HasCallStack =&gt; Maybe a -&gt; a
 </span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">[Maybe Word8]
-</span><a href="#local-6989586621679209734"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679260767"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-110"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-111"></span><span>  </span><span id="local-6989586621679209733"><span class="annot"><span class="annottext">readBuffer :: [Maybe Word8]
-</span><a href="#local-6989586621679209733"><span class="hs-identifier hs-var hs-var">readBuffer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Word8) -&gt; [Int] -&gt; [Maybe Word8]
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679260766"><span class="annot"><span class="annottext">readBuffer :: [Maybe Word8]
+</span><a href="#local-6989586621679260766"><span class="hs-identifier hs-var hs-var">readBuffer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Word8) -&gt; [Int] -&gt; [Maybe Word8]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
-</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679209721"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209721"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Word8 -&gt; Maybe Word8
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679260754"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260754"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Word8 -&gt; Maybe Word8
 forall a. Int -&gt; IntMap a -&gt; Maybe a
 </span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209735"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+</span><a href="#local-6989586621679260768"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679209721"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap Word8
-</span><a href="#local-6989586621679209736"><span class="hs-identifier hs-var">dump</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679260754"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap Word8
+</span><a href="#local-6989586621679260769"><span class="hs-identifier hs-var">dump</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">20</span></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- 15 == maximum instruction length</span><span>
 </span><span id="line-112"></span></pre></body></html>

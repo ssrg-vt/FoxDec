@@ -197,7 +197,7 @@ calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cf
       IS.empty
 
 
-function_pointer_intros ctxt cfg = IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
+function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
  where 
   get_function_pointers_of_call i =
     if is_call (i_opcode i) then -- TODO or jump?

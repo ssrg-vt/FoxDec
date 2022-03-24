@@ -243,10 +243,10 @@ Their command-line usage is:
 \beginpar{Run FoxDec} 
 The command-line usage for FoxDec is:
 \begin{center}
-\texttt{foxdec-exe \$PDF \$DIRNAME \$NAME}
+\texttt{foxdec-exe \$CONFIG \$DIRNAME \$NAME}
 \end{center}
 \begin{description}[style=unboxed,leftmargin=0cm,noitemsep]
-\item[\texttt{\$PDF}] Either \texttt{0} or \texttt{1}. Iff \texttt{1} then Graphviz is used to generate PDFs from .dot files. For larger examples we recommend \texttt{0}, as Graphviz may get stuck on large graphs.
+\item[\texttt{\$CONFIG}] The name of the config file. A default config file is found in: \texttt{../../config/}.
 \item[\texttt{\$DIRNAME}] Name of directory where the files created above (e.g., \texttt{\$NAME.dump}) are located.
 \item[\texttt{\$NAME}]    Use the same name as previously used.
 \end{description}
@@ -254,7 +254,7 @@ The command-line usage for FoxDec is:
 
 \begincodebox{Run FoxDec}
 \begin{minted}{text}
-foxdec-exe 1 ./ wc
+foxdec-exe ../../config/config.dhall ./ wc
 \end{minted}
 \codeboxend
 \\

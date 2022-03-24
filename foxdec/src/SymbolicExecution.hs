@@ -142,7 +142,7 @@ join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr ctxt) f0 f
 transpose_bw :: FContext -> String -> Int -> Pred -> (StatePart, SimpleExpr) -> Either VerificationCondition (StatePart, SimpleExpr)
 transpose_bw ctxt f a p (sp,v) =
   let sp' = transpose_bw_sp ctxt p sp
-      v'  = trim_expr $ simp $ transpose_bw_e ctxt p v in
+      v'  = trim_expr ctxt $ simp $ transpose_bw_e ctxt p v in
     if is_invalid sp' then
       Left $ SourcelessMemWrite $ MemWriteFunction f a sp
     else
@@ -169,7 +169,7 @@ transpose_bw_e ctxt p (SE_Overwrite i a b)             = SE_Overwrite i (transpo
 
 transpose_bw_sp ctxt p sp@(SP_Reg r)          = sp
 transpose_bw_sp ctxt p sp@(SP_StackPointer _) = sp
-transpose_bw_sp ctxt p sp@(SP_Mem a si)       = SP_Mem (trim_expr $ simp $ transpose_bw_e ctxt p a) si
+transpose_bw_sp ctxt p sp@(SP_Mem a si)       = SP_Mem (trim_expr ctxt $ simp $ transpose_bw_e ctxt p a) si
 
 transpose_bw_bottyp ctxt p (FromSources srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
 transpose_bw_bottyp ctxt p (FromOverlap srcs)             = FromSources $ S.unions $ S.map (transpose_bw_src ctxt p) srcs
@@ -309,7 +309,7 @@ call ctxt i = do
 
       -- 1.) obtain the postcondition of the function, and do backwards transposition
       -- TODO: first transpose then supremum
-      let (q@(Predicate q_eqs _)) = supremum ctxt $ map fromJust postconditions
+      let (q@(Predicate q_eqs _))   = supremum ctxt $ map fromJust postconditions
       let (vcs',q_eqs_transposed)   = partitionEithers $ map (transpose_bw ctxt f' i_a p) $ filter (uncurry do_transfer) $ M.toList q_eqs
       put ((Predicate M.empty None),S.union vcs $ S.fromList vcs')
       mapM_ (write_sp ctxt i_a mk_mid) q_eqs_transposed
@@ -326,11 +326,11 @@ call ctxt i = do
     let si' = 1 
     v'     <- evalState_discard $ read_sp ctxt (SP_Mem a 1)
     let bot = join_single ctxt v'
-    write_sp ctxt (i_addr i)  mk_mid (SP_Mem a' si',bot) -- (Bottom $ FromCall f)  
+    write_sp ctxt (i_addr i)  mk_mid (SP_Mem a' si',bot)  
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
-    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then -- then || is_initial (SP_Reg r) v) then
+    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then 
       return $ Just (r,v)
     else
       return $ Nothing
@@ -1602,7 +1602,7 @@ tau_i ctxt (Instr i_a (Just pre)  MOVSQ   (Just op1) (Just op2) _ _ _) = movsq  
 tau_i ctxt i =
   if is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
     return ()
-  else if continue_on_unknown_instruction then
+  else if ctxt_continue_on_unknown_instruction $ f_ctxt ctxt then
     trace ("Unsupported instruction: " ++ show i) $ return () 
   else
     error ("Unsupported instruction: " ++ show i)

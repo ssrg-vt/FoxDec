@@ -157,9 +157,9 @@ ctxt_get_cfg = ctxt_get ctxt_cfgs
 
 
 -- | Retrieve verification conditions for a given function entry, both as a datastructure and pretty-printed
-ctxt_get_vcs :: FunctionEntry -> Retrieve (S.Set VerificationCondition, String)
-ctxt_get_vcs entry ctxt = 
-  ctxt_get ctxt_vcs entry ctxt >>> (\vcs -> Right (vcs, summarize_verification_conditions ctxt entry))
+--ctxt_get_vcs :: FunctionEntry -> Retrieve (S.Set VerificationCondition, String)
+--ctxt_get_vcs entry ctxt = 
+--  ctxt_get ctxt_vcs entry ctxt >>> (\vcs -> Right (vcs, summarize_verification_conditions ctxt entry))
 
 
 

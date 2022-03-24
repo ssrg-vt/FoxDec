@@ -1,94 +1,67 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-
-
-{-|
-Module      : Config
-Description : Some customizable constants.
--}
-
-
-
-
-
-module Config
- where
-
-import Dhall
-import GHC.Generics
-import Data.Text (pack)
-import qualified Data.Serialize as Cereal hiding (get,put)
-
-
-
--- | A datastructure storing all configurable options
-data Config = Config { 
-  continue_on_unknown_instruction :: Bool,
+{
+  continue_on_unknown_instruction = True,
   -- ^ When encountering an unknown instruction do we either
   --   * report it to stderr but continue (True), or
   --   * exit with an error message (False)?
+  -- NOTE: this is the only configurable option that may affect soundness,
+  -- formally this should be set to False.
   -- Sane default: True
-  
-  generate_pdfs :: Bool,
+
+
+  generate_pdfs = False,
   -- ^ Do we call graphviz to generate PDFs?
   -- Set to true for small examples, false for larger ones.
-  
-  verbose_logs :: Bool,
+  -- Sane default: False 
+
+
+  verbose_logs = False,
   -- ^ Must the invariants be stored in the logs?
   -- Sane default: False 
 
-  store_preconditions_in_report :: Bool,
+
+  store_preconditions_in_report = False,
   -- ^ Must preconditions be stored in the .report file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
-  store_assertions_in_report :: Bool,
+
+  store_assertions_in_report = False,
   -- ^ Must assertions be stored in the .report file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
-  max_time :: Natural,
-  -- ^ The maximum verification time in seconds per function
-  -- Sane default: 30 minutes = 000000 * 60 * 30 = 1800000000
-  
-  max_num_of_cases :: Natural,
+
+  max_time = 1000000 * 60 * 30,
+  -- ^ The maximum verification time in microseconds per function
+  -- Sane default: 30 minutes = 1000000 * 60 * 30 = 1800000000
+
+
+  max_num_of_cases = 5,
   -- ^ The maximum number of separate concrete cases considered non-deterministically, before abstraction is applied.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 5
 
-  max_num_of_bases :: Natural,
+
+  max_num_of_bases = 25,
   -- ^ The maximum number of pointer bases a bottom-expression may have, before more asbtraction is applied.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 25
   
-  max_num_of_sources :: Natural,
+
+  max_num_of_sources = 100,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 100
 
 
-  max_jump_table_size :: Natural,
+  max_jump_table_size = 20000,
   -- ^ A coarse overapproximation of the maximum number of entries in a jump table.
   -- Does not affect soundness, but if the value is set too low, then more indirections may be left unresolved.
   -- Sane default: 20000
   
-  max_expr_size :: Natural
+
+  max_expr_size = 3000
   -- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
   -- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.
   -- Sane default: 3000
- }
- deriving (Generic, Show)
-
-
-instance FromDhall Config
-instance Cereal.Serialize Config
-
--- | Given a filename, parse a config in the Dhall language
--- See: https://dhall-lang.org
-parse_config ::
-     String    -- ^ The filename
-  -> IO Config
-parse_config = input auto . pack
-
-
+}

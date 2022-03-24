@@ -94,7 +94,7 @@ write_rreg ctxt mid r e =
     modify do_write
  where
   do_write (Predicate eqs flg,vcs) =
-    let eqs' = M.insert (SP_Reg r) (trim_expr $ simp e) eqs
+    let eqs' = M.insert (SP_Reg r) (trim_expr ctxt $ simp e) eqs
         flg' = clean_flg (SP_Reg r) flg in
       (Predicate eqs' flg',vcs)
 
@@ -302,7 +302,7 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
 
 read_from_address :: FContext -> Maybe Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
 read_from_address ctxt operand a si0 = do
-  let as = map simp $ unfold_non_determinism a
+  let as = map simp $ unfold_non_determinism ctxt a
   vs <- mapM read_from_address' as
   return $ join_exprs ("Read") ctxt vs
  where
@@ -435,14 +435,14 @@ write_mem ::
   -> SimpleExpr          -- ^ The value to be written
   -> State (Pred,VCS) ()
 write_mem ctxt mid a si0 v = do
-  let as = map simp $ unfold_non_determinism a
+  let as = map simp $ unfold_non_determinism ctxt a
   mapM_ (\a -> write_mem' a v) as -- TODO v should be bot?
  where
   write_mem' a0 v = do
     p@(Predicate eqs flg,vcs) <- get
 
     if address_is_unwritable (f_ctxt ctxt) a0 then do
-      trace ("Writing to unwritable section: " ++ show (a0,si0,p)) $ return ()
+      trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
     else if invalid_bottom_pointer ctxt a0 && invalid_bottom_pointer ctxt a then do -- FORALL PATHS VS EXISTS PATH
       --error (show (a0,a,get_known_pointer_bases ctxt a0, srcs_of_expr ctxt a0, get_known_pointer_bases ctxt a, srcs_of_expr ctxt a))
       modify $ add_unknown_mem_write mid
@@ -487,7 +487,7 @@ write_mem ctxt mid a si0 v = do
       --if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
        return Overlap
 
-  address (MemWriteInstruction _ (Address addr) _) = Just addr -- TODO use mids for assertions
+  address (MemWriteInstruction _ (Address addr) _) = Just addr
   address _                                        = Nothing
 
 
@@ -498,12 +498,12 @@ write_mem ctxt mid a si0 v = do
   do_write :: SimpleExpr -> Int -> SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) [(StatePart, SimpleExpr)]
   do_write a0 si0 v []                      =  do
     let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
-    return $ map (\sp' -> (sp', trim_expr v)) sps'
+    return $ map (\sp' -> (sp', trim_expr ctxt v)) sps'
   do_write a0 si0 v (eq@(SP_Reg _,_):mem)   = ((:) eq) <$> do_write a0 si0 v mem
   do_write a0 si0 v (eq@(SP_Mem a1 si1,e):mem) = do
     sep <- is_separate a0 si0 a1 si1
     case sep of
-      Alias     -> return $ (SP_Mem a0 si0,trim_expr v) : mem
+      Alias     -> return $ (SP_Mem a0 si0,trim_expr ctxt v) : mem
       Separated -> ((:) $ eq) <$> do_write a0 si0 v mem
       Enclosed  -> return $ (SP_Mem a1 si1,join_exprs ("write enclosure") ctxt [e,v]) : mem
       Disclosed -> do_write a0 si0 v mem

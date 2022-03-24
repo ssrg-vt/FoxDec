@@ -149,8 +149,10 @@ argsParser = Args
   `andBy`    optPos [] "filename" `Descr` "Basename of file (without directory) without dot and without file-extension."
 
 run (Args entry_str dirname name) = do
+  config <- parse_config "./config/config.dhall"
+
   let entry = readHex' entry_str
-  let ctxt  = init_context dirname name False
+  let ctxt  = init_context config dirname name
   evalStateT (run_with_ctxt entry) ctxt
   
 -- Parse the command line arguments and run

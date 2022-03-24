@@ -11,36 +11,63 @@
 
 module Config
 
+-- | A datastructure storing all configurable options
+data Config
+Config :: Bool -> Bool -> Bool -> Bool -> Bool -> Natural -> Natural -> Natural -> Natural -> Natural -> Natural -> Config
+
 -- | When encountering an unknown instruction do we either * report it to
 --   stderr but continue (True), or * exit with an error message (False)?
-continue_on_unknown_instruction :: Bool
+--   Sane default: True
+[continue_on_unknown_instruction] :: Config -> Bool
 
--- | The maximum verification time per function
-max_time_minutes :: Int
-max_time :: Int
+-- | Do we call graphviz to generate PDFs? Set to true for small examples,
+--   false for larger ones.
+[generate_pdfs] :: Config -> Bool
+
+-- | Must the invariants be stored in the logs? Sane default: False
+[verbose_logs] :: Config -> Bool
+
+-- | Must preconditions be stored in the .report file? Set to true for
+--   small examples, false for larger ones. Sane default: False
+[store_preconditions_in_report] :: Config -> Bool
+
+-- | Must assertions be stored in the .report file? Set to true for small
+--   examples, false for larger ones. Sane default: False
+[store_assertions_in_report] :: Config -> Bool
+
+-- | The maximum verification time in seconds per function Sane default: 30
+--   minutes = 000000 * 60 * 30 = 1800000000
+[max_time] :: Config -> Natural
 
 -- | The maximum number of separate concrete cases considered
---   non-deterministically, before abstraction is applied.
-max_num_of_cases :: Int
+--   non-deterministically, before abstraction is applied. Has no effect on
+--   soundness, but lower values cause more abstraction. Sane default: 5
+[max_num_of_cases] :: Config -> Natural
 
 -- | The maximum number of pointer bases a bottom-expression may have,
---   before more asbtraction is applied.
-max_num_of_bases :: Int
+--   before more asbtraction is applied. Has no effect on soundness, but
+--   lower values cause more abstraction. Sane default: 25
+[max_num_of_bases] :: Config -> Natural
+[max_num_of_sources] :: Config -> Natural
 
 -- | The maximum number of sources a bottom-expression may have, before
---   resoring to rock-bottom.
-max_num_of_sources :: Int
-
--- | A coarse overapproximation of the maximum number of entries in a jump
---   table. Does not affect soundness, but if the value is set too low,
---   then more indirections may be left unresolved.
-max_jump_table_size :: Int
+--   resorting to rock-bottom. Has no effect on soundness, but lower values
+--   cause more abstraction. Sane default: 100
+[max_jump_table_size] :: Config -> Natural
 
 -- | The maximum size of an expression (counting each operator and each
 --   leaf as 1), before a symbolic expression is abstracted to rock bottom.
 --   Does not affect soundness, but if the value is set too low, then the
---   results becomes overly overapproximative.
-max_expr_size :: Int
+--   results becomes overly overapproximative. Sane default: 3000
+[max_expr_size] :: Config -> Natural
+
+-- | Given a filename, parse a config in the Dhall language See:
+--   <a>https://dhall-lang.org</a>
+parse_config :: String -> IO Config
+instance GHC.Show.Show Config.Config
+instance GHC.Generics.Generic Config.Config
+instance Dhall.Marshal.Decode.FromDhall Config.Config
+instance Data.Serialize.Serialize Config.Config
 
 
 module Base
@@ -1219,19 +1246,11 @@ simp :: SimpleExpr -> SimpleExpr
 -- | The lowest botom element
 rock_bottom :: SimpleExpr
 
--- | If the size of an expression becomes too large, we simply turn it into
---   Bottom.
-trim_expr :: SimpleExpr -> SimpleExpr
-
 -- | Pretty print expression, showing Bottom expressions only as Bot
 pp_expr :: SimpleExpr -> [Char]
 
 -- | Pretty print predicate, showing Bottom expressions only as Bot
 pp_pred :: Pred -> String
-
--- | Unfold an expression with non-determinisism to a list of expressions.
---   Keep an eye on the produced size, as this may cause blow-up.
-unfold_non_determinism :: SimpleExpr -> [SimpleExpr]
 
 expr_size :: SimpleExpr -> Int
 instance GHC.Classes.Ord SimplePred.PointerBase
@@ -1484,7 +1503,10 @@ UnknownRetBehavior :: FReturnBehavior
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context
-Context :: IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Bool -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
+Context :: Config -> IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
+
+-- | <b>S</b>: the configuration file in ./config
+[ctxt_config] :: Context -> Config
 
 -- | <b>S</b>: mapping from addresses to bytes (constant data and
 --   instructions from the binary/executable)
@@ -1506,9 +1528,6 @@ Context :: IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> Stri
 
 -- | <b>S</b>: the name of the binary
 [ctxt_name] :: Context -> String
-
--- | <b>S</b>: do we call graphviz to generate PDFs from .dot files?
-[ctxt_generate_pdfs] :: Context -> Bool
 
 -- | <b>D</b>: a graph with an edge (e0,e1) if entry address e0 calls entry
 --   address e1, and e0 and e1 have not been verified yet
@@ -1538,8 +1557,16 @@ Context :: IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> Stri
 
 -- | <b>D</b>: the verification result
 [ctxt_results] :: Context -> IntMap VerificationResult
+
+-- | <b>D</b>: a mapping from function entries to the set of mutually
+--   recursive functions entries they occur in
 [ctxt_recursions] :: Context -> IntMap IntSet
-init_context :: String -> String -> Bool -> Context
+
+-- | intialize an empty context based on the command-line parameters
+init_context :: Config -> String -> String -> Context
+
+-- | purge the context before exporting it (may save a lot of disk space)
+purge_context :: Context -> Context
 
 -- | Reading from a data section.
 --   
@@ -1585,6 +1612,17 @@ count_instructions_with_assertions :: Set VerificationCondition -> Int
 -- | Count the number of sourceless memory writes in the set of
 --   verification conditions.
 count_sourceless_memwrites :: Set VerificationCondition -> Int
+ctxt_continue_on_unknown_instruction :: Context -> Bool
+ctxt_generate_pdfs :: Context -> Bool
+ctxt_verbose_logs :: Context -> Bool
+ctxt_store_preconditions_in_report :: Context -> Bool
+ctxt_store_assertions_in_report :: Context -> Bool
+ctxt_max_time :: Context -> Int
+ctxt_max_num_of_cases :: Context -> Int
+ctxt_max_num_of_bases :: Context -> Int
+ctxt_max_num_of_sources :: Context -> Int
+ctxt_max_jump_table_size :: Context -> Int
+ctxt_max_expr_size :: Context -> Int
 instance GHC.Classes.Eq Context.CFG
 instance GHC.Generics.Generic Context.CFG
 instance GHC.Show.Show Context.CFG
@@ -1837,6 +1875,14 @@ necessarily_separate_stateparts :: FContext -> StatePart -> StatePart -> Bool
 --   
 --   Will return <tt>False</tt> if the expressions contain bottom.
 necessarily_enclosed :: Integral a => SimpleExpr -> a -> SimpleExpr -> a -> Bool
+
+-- | Unfold an expression with non-determinisism to a list of expressions.
+--   Keep an eye on the produced size, as this may cause blow-up.
+unfold_non_determinism :: FContext -> SimpleExpr -> [SimpleExpr]
+
+-- | If the size of an expression becomes too large, we simply turn it into
+--   Bottom.
+trim_expr :: FContext -> SimpleExpr -> SimpleExpr
 
 
 -- | These functions are defined using the <tt>State (Pred,VCS)</tt> monad.

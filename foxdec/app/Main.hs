@@ -68,7 +68,7 @@ run_with_ctxt = do
   -- 3.) generate report and call graph
   ctxt_generate_end_report
   ctxt_generate_call_graph
-  -- ctxt_serialize_ctxt
+  ctxt_serialize_ctxt
  where
   -- 2.)
   repeat = do
@@ -263,7 +263,7 @@ ctxt_serialize_ctxt = do
   dirname  <- gets ctxt_dirname
   name     <- gets ctxt_name
   let fname = dirname ++ name ++ ".report" 
-  liftIO $ BS.writeFile fname $ Cereal.encode ctxt
+  liftIO $ BS.writeFile fname $ Cereal.encode $ purge_context ctxt
   to_out $ "Generated verification report: " ++ fname 
 
 
@@ -393,8 +393,9 @@ ctxt_add_to_results entry verified = do
   to_log log $ summarize_function_pointers ctxt vcs
 
 
-  --to_log log $ "Generated invariants:" -- TODO make configurable
-  --to_log log $ show_invariants g invs
+  when (ctxt_verbose_logs ctxt) $ do
+    to_log log $ "Generated invariants:"
+    to_log log $ show_invariants g invs
  where
   show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"
@@ -707,6 +708,9 @@ ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Conte
 ctxt_generate_invs entry curr_invs curr_posts = do
   -- Generate invariants
   ctxt  <- get
+  let get_max_time         = ctxt_max_time ctxt
+  let get_max_time_minutes = get_max_time `div` 60000000
+
   fctxt  <- ctxt_mk_fcontext entry
   let finit = f_init fctxt
 
@@ -717,11 +721,11 @@ ctxt_generate_invs entry curr_invs curr_posts = do
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
   let p       = init_pred fctxt curr_invs curr_posts
 
-  result  <- liftIO (timeout max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
+  result  <- liftIO (timeout get_max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
 
   case result of
     Nothing         -> do
-      to_out $ "Entry " ++ showHex entry ++ ": time out of " ++ show max_time_minutes ++ " minutes reached."
+      to_out $ "Entry " ++ showHex entry ++ ": time out of " ++ show get_max_time_minutes ++ " minutes reached."
       ctxt_add_invariants entry finit IM.empty S.empty S.empty
     Just (invs,vcs) -> do
       let blocks  = IM.keys $ cfg_blocks g
@@ -743,6 +747,8 @@ ctxt_generate_invs entry curr_invs curr_posts = do
   -- precondition (not a postcondition) of the node.
   do_tau :: FContext -> CFG -> Int -> State (Pred,VCS) ()
   do_tau fctxt g b = modify $ (tau_block fctxt (fetch_block g b) Nothing . fst)
+
+
 
 
 
@@ -797,6 +803,7 @@ ctxt_analyze_unresolved_indirections entry = do
   try_to_resolve_indirection f g invs b = do
     ctxt <- get
     fctxt <- ctxt_mk_fcontext entry
+    max_tries <- gets ctxt_max_jump_table_size
 
     dirname   <- gets ctxt_dirname
     name      <- gets ctxt_name
@@ -822,7 +829,7 @@ ctxt_analyze_unresolved_indirections entry = do
       put $ ctxt { ctxt_inds = inds' }
 
       return True
-    else case flagstatus_to_tries flg of
+    else case flagstatus_to_tries max_tries flg of
       Nothing      -> return False
       Just (op1,n) -> do
         let values1 = map (\n -> evalState (try fctxt f (i_addr i) g b op1 trgt n) (p,S.empty)) [0..n]
@@ -848,8 +855,8 @@ ctxt_analyze_unresolved_indirections entry = do
         else
           error $ show ("resolving:",values1)
 
-  flagstatus_to_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_jump_table_size then Just (op1,n) else Nothing
-  flagstatus_to_tries _ = Nothing
+  flagstatus_to_tries max_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_tries then Just (op1,n) else Nothing
+  flagstatus_to_tries max_tries _ = Nothing
 
 
   is_jump_table_entry Nothing      = False
@@ -887,40 +894,43 @@ ctxt_analyze_unresolved_indirections entry = do
 
 
 -- Command line arguments parser
-data Args =  Args Int String String Bool
+data Args =  Args String String String Bool
   deriving (Show)
 
 argsParser = Args
-  `parsedBy` optPos 0  "pdf"      `Descr` "If > 0, then generate PDFs (note: sometimes graphviz may get stuck)."
+  `parsedBy` optPos [] "config"   `Descr` "Name of config file (default: ./config/config.dhall)"
   `andBy`    optPos [] "dirname"  `Descr` "Name of directory (including ending /)"
-  `andBy`    optPos [] "filename" `Descr` "Basename of file (without directory) without dot and without file-extension."
+  `andBy`    optPos [] "filename" `Descr` "Basename of file (without directory) without dot and without file-extension"
   `andBy`    boolFlag "usage"     `Descr` "Show information on usage and quit."
   
 -- if the -u flag is not set, check whether a config file has been given.
 -- Read it it, if so.
-run (Args generate_pdfs dirname name False) =
-  case (dirname,name) of
-    ([],_) -> putStrLn "No directory name given. Use -u for information on usage."
-    (_,[]) -> putStrLn "No base-filename given. Use -u for information on usage."
-    _      -> evalStateT run_with_ctxt (init_context dirname name (generate_pdfs /= 0))
+run (Args configname dirname name False) =
+  case (configname,dirname,name) of
+    ([],_,_) -> putStrLn "No config file name given. Use -u for information on usage."
+    (_,[],_) -> putStrLn "No directory name given. Use -u for information on usage."
+    (_,_,[]) -> putStrLn "No base-filename given. Use -u for information on usage."
+    _        -> do
+      config <- parse_config configname
+      evalStateT run_with_ctxt $! init_context config dirname name
 
 -- if the -u flag is set, output the message on usage
-run (Args generate_pdfs _ _ True) =
+run (Args _ _ _ True) =
   putStrLn usage_msg 
 
 
 usage_msg = intercalate "\n" [
   "FoxDec usage:",
   "",
-  "  foxdec-exe $PDF $DIRNAME $BASE",
+  "  foxdec-exe $CONFIG $DIRNAME $BASE",
   "",
-  "$PDF     = Either 0 or 1. Iff 1 then use graphviz to generate PDFs from .dot files. Note: sometimes graphviz may get stuck.",
+  "$CONFIG  = Name of config file (default: ./config/config.dhall)",
   "$DIRNAME = Name of directory where a $BASE.dump, a $BASE.symbols and a $BASE.entry file are located.",
   "$BASE    = Base name of files, without a dot and without extension",
   "",
   "Example usage:",
   "",
-  "  foxdec 0 ../examples/du/ du",
+  "  foxdec-exe ./config/config.dhall ../examples/du/ du",
   "",
   "For information on how to generate .dump, .symbols, .sections and .entry file, see the README."
  ] 
