@@ -266,7 +266,7 @@ address_is_unwritable ctxt _ = False
 invalid_bottom_pointer ctxt e = not (is_immediate e) && S.null (srcs_of_expr ctxt e) 
 
 -- | Assuming a valid pointer (see 'invalid_bottom_pointer'), produce a list of pointers that are to be written to in the memory.
-expr_to_mem_addresses ctxt a =
+expr_to_mem_addresses ctxt a si =
   if not (contains_bot a) then
     [(a,si)]
   else
@@ -329,7 +329,7 @@ read_from_address ctxt operand a si0 = do
         (Predicate eqs flg,vcs) <- get
         overlapping <- filterM (fmap not . has_separate_base a0) $ M.toList eqs
 
-        let sps'      = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 
+        let sps'      = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0  si0
         let new_eqs   = map (\sp' -> (sp',mk_uninitialized_value sp')) sps'
         if overlapping == [] then do
           let eqs'    = M.union (M.fromList new_eqs) eqs
@@ -501,7 +501,7 @@ write_mem ctxt mid a si0 v = do
 
   do_write :: SimpleExpr -> Int -> SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) [(StatePart, SimpleExpr)]
   do_write a0 si0 v []                      =  do
-    let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0
+    let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
     return $ map (\sp' -> (sp', trim_expr ctxt v)) sps'
   do_write a0 si0 v (eq@(SP_Reg _,_):mem)   = ((:) eq) <$> do_write a0 si0 v mem
   do_write a0 si0 v (eq@(SP_Mem a1 si1,e):mem) = do
