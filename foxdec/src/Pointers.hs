@@ -369,20 +369,28 @@ sources_separate_possibly    ctxt = sources_separate ctxt False
 
 
 -- | Returns true iff the two given expressions can be shown to be separate.
--- This means that either:
---   * They both have spearate pointer domains.
---   * One of them is an immediate and the other is local.
+separate_pointer_domains ctxt necc a0 si0 a1 si1 =
+  if not necc && possibly_separate_globals then
+    True
+  else
+    let dom0 = get_pointer_domain ctxt a0
+        dom1 = get_pointer_domain ctxt a1 in
+      or [
+        domains_separate ctxt necc dom0 dom1,
+        is_immediate a0 && expr_is_highly_likely_local_pointer ctxt a1,
+        is_immediate a1 && expr_is_highly_likely_local_pointer ctxt a0
+       ]
+ where
+  possibly_separate_globals =
+    case (a0,a1) of
+      (SE_Immediate imm0,_) -> if expr_is_global_immediate (f_ctxt ctxt) a0 then below imm0 si0 (S.filter is_global_src $ srcs_of_expr ctxt a1) else False
+      (_,SE_Immediate imm1) -> if expr_is_global_immediate (f_ctxt ctxt) a1 then below imm1 si1 (S.filter is_global_src $ srcs_of_expr ctxt a0) else False
+      _                     -> False
 
-separate_pointer_domains ctxt necc a0 a1 =
-  let dom0 = get_pointer_domain ctxt a0
-      dom1 = get_pointer_domain ctxt a1 in
-  or [
-    domains_separate ctxt necc dom0 dom1,
-    is_immediate a0 && expr_is_highly_likely_local_pointer ctxt a1,
-    is_immediate a1 && expr_is_highly_likely_local_pointer ctxt a0
-   ]
-      
+  below imm si srcs = (not $ S.null srcs) && all (\(Src_ImmediateAddress imm') -> imm + fromIntegral si < imm') srcs
 
+  is_global_src (Src_ImmediateAddress _) = True
+  is_global_src _                        = False
 
 
  
@@ -435,7 +443,7 @@ necessarily_separate ctxt a0 si0 a1 si1 =
   if not (contains_bot a0) && not (contains_bot a1) then
     (a0,si0) /= (a1,si1) && sep a0 a1
   else
-    separate_pointer_domains ctxt True a0 a1
+    separate_pointer_domains ctxt True a0 si0 a1 si1
  where
   -- two immediate addresses
   sep (SE_Immediate a0)
@@ -447,7 +455,7 @@ necessarily_separate ctxt a0 si0 a1 si1 =
     if necessarily_equal v0 v1 then
       fromIntegral i0 - si0 >= fromIntegral i1 || fromIntegral i1 - si1 >= fromIntegral i0
     else
-      separate_pointer_domains ctxt True a0 a1
+      separate_pointer_domains ctxt True a0 si0 a1 si1
 
 
   -- v0 - i0 |x| v0 + i1 <==> True
@@ -456,13 +464,13 @@ necessarily_separate ctxt a0 si0 a1 si1 =
     if necessarily_equal v0 v1 then
       True
     else
-      separate_pointer_domains ctxt True a0 a1
+      separate_pointer_domains ctxt True a0 si0 a1 si1
   sep (SE_Op (Plus  _) [v0, SE_Immediate i0])
       (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
     if necessarily_equal v0 v1 then
       True
     else
-      separate_pointer_domains ctxt True a0 a1
+      separate_pointer_domains ctxt True a0 si0 a1 si1
 
 
   -- v0 - i0 |x| v0 <==> i0 >= si0
@@ -471,13 +479,13 @@ necessarily_separate ctxt a0 si0 a1 si1 =
     if necessarily_equal v0 v1 then
       fromIntegral i0 >= si0 
     else
-      separate_pointer_domains ctxt True a0 a1
+      separate_pointer_domains ctxt True a0 si0 a1 si1
   sep v0
       (SE_Op (Minus _) [v1, SE_Immediate i1]) = 
     if necessarily_equal v0 v1 then
       fromIntegral i1 >= si1
     else
-      separate_pointer_domains ctxt True a0 a1 
+      separate_pointer_domains ctxt True a0 si0 a1 si1 
 
   -- v0 + i0 |x| v0 + i1 <==> v0 + i0 + si0 <= v0 + i1 || v0 + i1 + si1 <= v0 + i0 <==> i0+si0 <= i1 || i1+si1 <= i0
   sep (SE_Op (Plus _) [v0, SE_Immediate i0])
@@ -485,7 +493,7 @@ necessarily_separate ctxt a0 si0 a1 si1 =
     if necessarily_equal v0 v1 then
       fromIntegral i0 + si0 <= fromIntegral i1 || fromIntegral i1 + si1 <= fromIntegral i0
     else
-      separate_pointer_domains ctxt True a0 a1 
+      separate_pointer_domains ctxt True a0 si0 a1 si1 
 
 
   -- v0 + i0 |x| v0 <==> i0 >= si1
@@ -494,16 +502,16 @@ necessarily_separate ctxt a0 si0 a1 si1 =
     if necessarily_equal v0 v1 then
       fromIntegral i0 >= si1
     else
-      separate_pointer_domains ctxt True a0 a1 
+      separate_pointer_domains ctxt True a0 si0 a1 si1 
   sep v1
       (SE_Op (Plus _) [v0,SE_Immediate i0]) =
     if necessarily_equal v0 v1 then
       fromIntegral i0 >= si1
     else
-      separate_pointer_domains ctxt True a0 a1 
+      separate_pointer_domains ctxt True a0 si0 a1 si1 
 
   -- remainder
-  sep a0 a1 = separate_pointer_domains ctxt True a0 a1
+  sep a0 a1 = separate_pointer_domains ctxt True a0 si0 a1 si1
 
 
 -- | Returns true iff the given symbolic stateparts are necessarily separate.

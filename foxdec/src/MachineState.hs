@@ -185,14 +185,14 @@ add_precondition a0 si0 a1 si1 (p,vcs)   = (p,S.insert (Precondition a0 si0 a1 s
 -- 4. If one pointer is the return value of a call, and the other is different, we assert separation.
 --
 --
-is_assertable ctxt a0 a1 =
+is_assertable ctxt a0 si0 a1 si1 =
   let srcs0       = srcs_of_expr ctxt a0
       srcs1       = srcs_of_expr ctxt a1
       is_local0 q = q is_stackpointer_src srcs0
       is_local1 q = q is_stackpointer_src srcs1 in
     or [
       --any (uncurry $ sources_separate_possibly ctxt) [(s0,s1) | s0 <- S.toList srcs0, s1 <- S.toList srcs1],
-      separate_pointer_domains ctxt False a0 a1,
+      separate_pointer_domains ctxt False a0 si0 a1 si1,
       --is_local0 all && not (S.null srcs1) && not (is_local1 any),
       -- is_local1 all && not (S.null srcs0) && not (is_local0 any),
 
@@ -266,12 +266,16 @@ address_is_unwritable ctxt _ = False
 invalid_bottom_pointer ctxt e = not (is_immediate e) && S.null (srcs_of_expr ctxt e) 
 
 -- | Assuming a valid pointer (see 'invalid_bottom_pointer'), produce a list of pointers that are to be written to in the memory.
-expr_to_mem_addresses ctxt a si =
+expr_to_mem_addresses ctxt a =
   if not (contains_bot a) then
     [(a,si)]
   else
-    dom_to_mem_addresses $ get_pointer_domain ctxt a
+    let addresses = dom_to_mem_addresses $ get_pointer_domain ctxt a in
+      addresses
  where 
+  is_global (Src_ImmediateAddress _) = True
+  is_global _ = False
+
   dom_to_mem_addresses (Domain_Bases bs)     = map base_to_mem_address $ split_per_base $ S.toList bs
   dom_to_mem_addresses (Domain_Sources srcs) = map srcs_to_mem_address $ split_per_source $ S.toList srcs
 
@@ -325,7 +329,7 @@ read_from_address ctxt operand a si0 = do
         (Predicate eqs flg,vcs) <- get
         overlapping <- filterM (fmap not . has_separate_base a0) $ M.toList eqs
 
-        let sps'      = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
+        let sps'      = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 
         let new_eqs   = map (\sp' -> (sp',mk_uninitialized_value sp')) sps'
         if overlapping == [] then do
           let eqs'    = M.union (M.fromList new_eqs) eqs
@@ -373,7 +377,7 @@ read_from_address ctxt operand a si0 = do
       --trace ("PRECONDITION (READ): SEPARATION BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
       modify $ add_precondition a0 si0 a1 si1
       return Separated
-    else if is_assertable ctxt a0 a1 then do
+    else if is_assertable ctxt a0 si0 a1 si1 then do
       rip <- read_reg ctxt RIP
       assertion <- generate_assertion ctxt (mk_address operand) a0
       modify $ add_assertion rip assertion si0 a1 si1
@@ -381,12 +385,12 @@ read_from_address ctxt operand a si0 = do
       return Separated
     else do
      --if do_trace a0 a1 then trace ("PRECONDITION (READ): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
-      return Overlap
+     return Overlap
 
   mk_address (Just (Address a)) = Just a
   mk_address _                  = Nothing
 
-  do_trace a0 a1 = srcs_of_expr ctxt a0 /= srcs_of_expr ctxt a1 
+  do_trace a0 a1 = True--srcs_of_expr ctxt a0 /= srcs_of_expr ctxt a1 
 
 
   do_read :: SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) SimpleExpr
@@ -471,7 +475,7 @@ write_mem ctxt mid a si0 v = do
       --trace ("PRECONDITION (WRITE): SEPARATION BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1))
       modify $ add_precondition a0 si0 a1 si1
       return Separated
-    else if is_assertable ctxt a0 a1 then do
+    else if is_assertable ctxt a0 si0 a1 si1 then do
       assertion <- generate_assertion ctxt (address mid) a0
       rip <- read_reg ctxt RIP
       modify $ add_assertion rip assertion si0 a1 si1
@@ -485,19 +489,19 @@ write_mem ctxt mid a si0 v = do
       return Separated
     else
       --if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
-       return Overlap
+      return Overlap
 
   address (MemWriteInstruction _ (Address addr) _) = Just addr
   address _                                        = Nothing
 
 
 
-  do_trace a0 a1 = srcs_of_expr ctxt a0 /= srcs_of_expr ctxt a1 
+  do_trace a0 a1 = True -- srcs_of_expr ctxt a0 /= srcs_of_expr ctxt a1 
 
 
   do_write :: SimpleExpr -> Int -> SimpleExpr -> [(StatePart, SimpleExpr)] -> State (Pred,VCS) [(StatePart, SimpleExpr)]
   do_write a0 si0 v []                      =  do
-    let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0 si0
+    let sps'  = map (uncurry SP_Mem) $ expr_to_mem_addresses ctxt a0
     return $ map (\sp' -> (sp', trim_expr ctxt v)) sps'
   do_write a0 si0 v (eq@(SP_Reg _,_):mem)   = ((:) eq) <$> do_write a0 si0 v mem
   do_write a0 si0 v (eq@(SP_Mem a1 si1,e):mem) = do
