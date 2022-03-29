@@ -1,0 +1,27 @@
+(,.init)
+  addr = 0x0000000000019000
+  size = 0x00001b
+(,.plt)
+  addr = 0x0000000000019020
+  size = 0x001510
+(,.plt.got)
+  addr = 0x000000000001a530
+  size = 0x000070
+(,.text)
+  addr = 0x000000000001baa0
+  size = 0x0e8f3a
+(,.rodata)
+  addr = 0x0000000000105000
+  size = 0x0289a4
+(,.got)
+  addr = 0x0000000000167f60
+  size = 0x0000a0
+(,.got.plt)
+  addr = 0x0000000000168000
+  size = 0x000a98
+(,.data)
+  addr = 0x0000000000168aa0
+  size = 0x005fc8
+(,.bss)
+  addr = 0x000000000016ea80
+  size = 0x004e08
