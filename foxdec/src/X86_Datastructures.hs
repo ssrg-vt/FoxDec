@@ -591,6 +591,7 @@ data Opcode = InvalidOpcode
   | STMXCSR
   | STOS
   | STOSD
+  | STOSQ
   | STR
   | SUB
   | SUBPD

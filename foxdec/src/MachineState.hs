@@ -94,7 +94,7 @@ write_rreg ctxt mid r e =
     modify do_write
  where
   do_write (Predicate eqs flg,vcs) =
-    let eqs' = M.insert (SP_Reg r) (trim_expr ctxt $ simp e) eqs
+    let eqs' = M.insert (SP_Reg r) (trim_expr ctxt e) eqs
         flg' = clean_flg (SP_Reg r) flg in
       (Predicate eqs' flg',vcs)
 

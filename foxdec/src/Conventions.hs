@@ -15,7 +15,7 @@ import Debug.Trace
 
 -- | A list of function names of functions that never return.
 is_exiting_function_call f =
-  let f' = traceShow ("funciotnname",f) $ strip_PLT $ strip_GLIBC f in 
+  let f' = strip_GLIBC f in 
     f' `elem` [
       "exit", "_exit", "__exit", "___exit",
       "error", "_error","__error", 
@@ -31,7 +31,6 @@ is_exiting_function_call f =
     ]
  where
   strip_GLIBC = takeUntilString "@GLIBC"
-  strip_PLT   = takeUntilString "@plt"
 
 
 

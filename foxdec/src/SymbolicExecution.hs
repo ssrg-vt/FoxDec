@@ -215,7 +215,7 @@ functions_returning_bottom = [
      "_btowc", "btowc", "mbtowc", "_mbtowc", "_mbrtowc", "mbrtowc", "_atof", "atof",
      "_strcmp", "strcmp",
      "_ilogb", "_atoi",
-     "___stack_chk_fail", "_getopt", "_free",
+     "_getopt", "_free",
      "_warn", "_warnx", "__errno_location"
    ]
 
@@ -532,6 +532,8 @@ mov_with_func3 ctxt i_a f do_write_flags op1 op2 op3 = do
 
 nop ctxt i_a = return ()
 
+endbr64 ctxt i_a = return ()
+
 ud2 ctxt i_a = return ()
 
 hlt ctxt i_a = return ()
@@ -615,6 +617,8 @@ test ctxt i_a = write_flags (\_ _ -> None) --TODO needed?
 ucomisd ctxt i_a = write_flags (\_ _ -> None)
 
 ucomiss ctxt i_a = write_flags (\_ _ -> None)
+
+comiss ctxt i_a = write_flags (\_ _ -> None)
 
 inc :: FContext -> Int -> Operand -> State (Pred,VCS) ()
 inc ctxt i_a op1 = do
@@ -1311,9 +1315,10 @@ tau_i ctxt (Instr i_a _ DEC      (Just op1) _          _ _ _) = dec    ctxt i_a 
 tau_i ctxt (Instr i_a _ SHL      (Just op1) (Just op2) _ _ _) = shl    ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ SHL      (Just op1) Nothing    _ _ _) = shl    ctxt i_a op1 (Immediate 1)
 
-tau_i ctxt (Instr i_a _ NOP      _          _          _ _ _) = nop    ctxt i_a
-tau_i ctxt (Instr i_a _ UD2      _          _          _ _ _) = ud2    ctxt i_a
-tau_i ctxt (Instr i_a _ HLT      _          _          _ _ _) = hlt    ctxt i_a
+tau_i ctxt (Instr i_a _ NOP      _          _          _ _ _) = nop     ctxt i_a
+tau_i ctxt (Instr i_a _ ENDBR64  _          _          _ _ _) = endbr64 ctxt i_a
+tau_i ctxt (Instr i_a _ UD2      _          _          _ _ _) = ud2     ctxt i_a
+tau_i ctxt (Instr i_a _ HLT      _          _          _ _ _) = hlt     ctxt i_a
 
 tau_i ctxt (Instr i_a _ WAIT     _          _          _ _ _) = wait    ctxt i_a
 tau_i ctxt (Instr i_a _ MFENCE   _          _          _ _ _) = mfence  ctxt i_a
@@ -1468,6 +1473,7 @@ tau_i ctxt (Instr i_a _ DIVSS    (Just op1) (Just op2) _ _ _) = divss    ctxt i_
 tau_i ctxt (Instr i_a _ MULSS    (Just op1) (Just op2) _ _ _) = mulss    ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ ROUNDSS  (Just op1) (Just op2) _ _ _) = roundss  ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ UCOMISS  (Just op1) (Just op2) _ _ _) = ucomiss  ctxt i_a op1 op2
+tau_i ctxt (Instr i_a _ COMISS   (Just op1) (Just op2) _ _ _) = comiss   ctxt i_a op1 op2
 
 tau_i ctxt (Instr i_a _ SUBSD    (Just op1) (Just op2) _ _ _) = subsd    ctxt i_a op1 op2
 tau_i ctxt (Instr i_a _ ADDSD    (Just op1) (Just op2) _ _ _) = addsd    ctxt i_a op1 op2

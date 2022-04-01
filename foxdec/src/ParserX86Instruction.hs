@@ -818,6 +818,7 @@ read_opcode "STI" = STI
 read_opcode "STMXCSR" = STMXCSR
 read_opcode "STOS" = STOS
 read_opcode "STOSD" = STOSD
+read_opcode "STOSQ" = STOSQ
 read_opcode "STR" = STR
 read_opcode "SUB" = SUB
 read_opcode "SUBPD" = SUBPD

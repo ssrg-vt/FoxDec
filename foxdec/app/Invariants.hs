@@ -25,7 +25,7 @@ import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.Exit (die)
 
-usage_msg = "Usage:\n\n  foxdec-disassembler-exe NAME.report ADDRESS\n\nHere NAME refers to the NAME used when running foxdec-exe and ADDRESS is a hexadecimal address prefixed with 0x.\nRun this program from the same directory foxdec-exe was run."
+usage_msg = "Usage:\n\n  foxdec-invariants-exe NAME.report ADDRESS\n\nHere NAME refers to the NAME used when running foxdec-exe and ADDRESS is a hexadecimal address prefixed with 0x.\nRun this program from the same directory foxdec-exe was run."
 
 -- | Read in first command-line argument, check whether it is a .report file.
 -- Read the file, and use the "VerificationReportInterface" to get an overview of the instructions.

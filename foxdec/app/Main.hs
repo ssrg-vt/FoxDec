@@ -323,8 +323,8 @@ ctxt_verify_proper_return entry = do
   do_post_check :: FContext -> State (Pred,VCS) [Maybe String]
   do_post_check fctxt = do
     let f   = f_name fctxt
-    rsp    <- read_reg fctxt RSP
-    rip    <- read_reg fctxt RIP
+    rsp    <- simp <$> read_reg fctxt RSP
+    rip    <- simp <$> read_reg fctxt RIP
     checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
     return $ [rsp_check f rsp, rip_check f rip] ++ checks
 

@@ -7,6 +7,7 @@ import Base
 import SimplePred
 import Context
 import X86_Datastructures
+import CallGraph
 import VerificationReportInterface
 
 import qualified Data.Map as M
@@ -28,7 +29,7 @@ import System.Environment (getArgs)
 main = do
   args <- getArgs
   if args == [] then
-    putStrLn $ "Usage:\n\n  foxdec-disassembler-exe NAME.report\n\nHere NAME refers to the NAME used when running foxdec-exe.\nRun this program from the same directory foxdec-exe was run."
+    putStrLn $ "Usage:\n\n  foxdec-functions-exe NAME.report\n\nHere NAME refers to the NAME used when running foxdec-exe.\nRun this program from the same directory foxdec-exe was run."
   else do
     exists <- doesFileExist $ head args
     if exists then do
@@ -44,16 +45,21 @@ ctxt_functions ctxt = do
   mapM_ ctxt_function entries
  where
   ctxt_function entry = do
-    cfg <- retrieve_io $ ctxt_get_cfg entry ctxt
+    cfg   <- retrieve_io $ ctxt_get_cfg entry ctxt
+    let finit = ctxt_get_function_init entry ctxt
     let addresses = concat $ IM.elems $ cfg_blocks cfg
 
-    putStrLn $ "Function entry: " ++ showHex entry
-    putStrLn $ intercalate "\n" $ map show_chunk $ mk_consecutive_chunks addresses
+    putStrLn $ "FUNCTION ENTRY: " ++ showHex entry
+    putStrLn $ "BOUNDARY: " ++ (intercalate "\n" $ map show_chunk $ mk_consecutive_chunks addresses)
+    show_lr_finit finit
     putStrLn $ ""
 
-  show_chunk [i]   = showHex i
+  show_chunk [i]   = showHex i ++ " (single instruction)"
   show_chunk chunk = showHex (head chunk) ++ "-->" ++ showHex (last chunk)
 
+  show_lr_finit (Right finit) = do
+    putStrLn $ summarize_finit $ Just finit
+  show_lr_finit _ = return ()
 
 
 

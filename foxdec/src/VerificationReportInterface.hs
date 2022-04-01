@@ -36,6 +36,8 @@ module VerificationReportInterface
     ctxt_get_invariant,
     ctxt_get_internal_function_calls,
     ctxt_get_cfg,
+    ctxt_get_function_init,
+    ctxt_get_postcondition
   )
 where
 
@@ -154,6 +156,16 @@ ctxt_get_internal_function_calls entry ctxt =
 -- | Retrieve a CFG for a given function entry
 ctxt_get_cfg :: FunctionEntry -> Retrieve CFG
 ctxt_get_cfg = ctxt_get ctxt_cfgs
+
+
+-- | Retrieve a function initialization for a given function entry
+ctxt_get_function_init :: FunctionEntry -> Retrieve FInit
+ctxt_get_function_init = ctxt_get ctxt_finits
+
+
+-- | Retrieve a function initialization for a given function entry
+ctxt_get_postcondition :: FunctionEntry -> Retrieve FReturnBehavior
+ctxt_get_postcondition = ctxt_get ctxt_calls
 
 
 -- | Retrieve verification conditions for a given function entry, both as a datastructure and pretty-printed

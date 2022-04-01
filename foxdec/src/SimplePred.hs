@@ -337,8 +337,6 @@ simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [SE_Immediate i1, e1]
 simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
 simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Plus  b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
 
-
-
 simp' (SE_Op (Minus b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Plus b)  [simp' e,SE_Immediate (-i)] else SE_Op (Minus b) [simp' e,SE_Immediate i]
 simp' (SE_Op (Plus  b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Minus b) [simp' e,SE_Immediate (-i)] else SE_Op (Plus  b) [simp' e,SE_Immediate i]
 
