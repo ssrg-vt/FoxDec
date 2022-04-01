@@ -7,6 +7,9 @@
 (,.plt.got)
   addr = 0x000000000001a530
   size = 0x000070
+(,.plt.sec)
+  addr = 0x000000000001a5a0
+  size = 0x001500
 (,.text)
   addr = 0x000000000001baa0
   size = 0x0e8f3a
