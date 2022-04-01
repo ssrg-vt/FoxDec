@@ -1,0 +1,803 @@
+FUNCTION ENTRY: 5560
+BOUNDARY: 5560-->5564
+INITIAL:
+RCX ~= StackPointer of 0xb100
+RDI ~= StackPointer of 0xc770
+RSI = 0x17d18
+R13 ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0xc770
+
+
+FUNCTION ENTRY: 5570
+BOUNDARY: 5570-->5574
+INITIAL:
+RCX ~= 21d40
+RSI = 0x1f0e2
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5580
+BOUNDARY: 5580-->5584
+INITIAL:
+RDI ~= StackPointer of 0x5a80,25600,25640,25680
+
+
+FUNCTION ENTRY: 5590
+BOUNDARY: 5590-->5594
+
+
+FUNCTION ENTRY: 55a0
+BOUNDARY: 55a0-->55a4
+
+
+FUNCTION ENTRY: 55b0
+BOUNDARY: 55b0-->55b4
+INITIAL:
+RDX = 0x9df0
+RSI ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 55c0
+BOUNDARY: 55c0-->55c4
+INITIAL:
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 55d0
+BOUNDARY: 55d0-->55d4
+INITIAL:
+RCX ~= StackPointer of 0x15f90,StackPointer of 0x16190,StackPointer of 0xb310
+
+
+FUNCTION ENTRY: 55e0
+BOUNDARY: 55e0-->55e4
+
+
+FUNCTION ENTRY: 55f0
+BOUNDARY: 55f0-->55f4
+INITIAL:
+R14 ~= StackPointer of 0x10b60,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5600
+BOUNDARY: 5600-->5604
+
+
+FUNCTION ENTRY: 5610
+BOUNDARY: 5610-->5614
+INITIAL:
+RDX = 0x1d098
+R14 = 0x25ce0
+R12 = 0x25e20
+
+
+FUNCTION ENTRY: 5620
+BOUNDARY: 5620-->5624
+INITIAL:
+RDX ~= Bot
+RSI ~= Bot
+
+
+FUNCTION ENTRY: 5630
+BOUNDARY: 5630-->5634
+INITIAL:
+RAX ~= malloc@5904()
+RCX ~= malloc@5904()
+RDI ~= StackPointer of 0x12140
+R14 ~= StackPointer of 0x12140
+R12 ~= StackPointer of 0x12140
+
+
+FUNCTION ENTRY: 5640
+BOUNDARY: 5640-->5644
+INITIAL:
+RBX ~= StackPointer of 0x13bf0
+RCX ~= StackPointer of 0x13bf0
+RSI ~= StackPointer of 0x13bf0
+R14 ~= StackPointer of 0x13bf0
+R8 ~= StackPointer of 0x13bf0
+
+
+FUNCTION ENTRY: 5650
+BOUNDARY: 5650-->5654
+INITIAL:
+RSI ~= StackPointer of 0x13bf0,StackPointer of 0x5a80,StackPointer of 0xc930,StackPointer of 0xce20,StackPointer of 0xd590
+
+
+FUNCTION ENTRY: 5670
+BOUNDARY: 5670-->5674
+
+
+FUNCTION ENTRY: 5680
+BOUNDARY: 5680-->5684
+
+
+FUNCTION ENTRY: 5690
+BOUNDARY: 5690-->5694
+
+
+FUNCTION ENTRY: 56a0
+BOUNDARY: 56a0-->56a4
+INITIAL:
+RBX = 0x1ea64
+RCX ~= 21d40
+RDX = 0x1c6a0
+R13 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 56e0
+BOUNDARY: 56e0-->56e4
+INITIAL:
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 56f0
+BOUNDARY: 56f0-->56f4
+INITIAL:
+RCX ~= StackPointer of 0x140d0
+RSI ~= StackPointer of 0x140d0
+R15 ~= StackPointer of 0x140d0
+R9 ~= StackPointer of 0x140d0
+
+
+FUNCTION ENTRY: 5700
+BOUNDARY: 5700-->5704
+INITIAL:
+RSI ~= Bot
+
+
+FUNCTION ENTRY: 5710
+BOUNDARY: 5710-->5714
+INITIAL:
+RDX ~= StackPointer of 0xe580
+RDI ~= malloc@5794()
+R15 ~= malloc@5794()
+R14 ~= StackPointer of 0xe580
+
+
+FUNCTION ENTRY: 5720
+BOUNDARY: 5720-->5724
+INITIAL:
+RDI ~= StackPointer of 0x12140,StackPointer of 0x12bb0,StackPointer of 0xb8b0
+
+
+FUNCTION ENTRY: 5730
+BOUNDARY: 5730-->5734
+
+
+FUNCTION ENTRY: 5740
+BOUNDARY: 5740-->5744
+INITIAL:
+RSI ~= Bot
+
+
+FUNCTION ENTRY: 5750
+BOUNDARY: 5750-->5754
+INITIAL:
+RDI ~= StackPointer of 0x9bf0,StackPointer of 0xaa50,StackPointer of 0xd9a0
+R13 ~= StackPointer of 0x9bf0,StackPointer of 0xaa50,StackPointer of 0xd9a0
+
+
+FUNCTION ENTRY: 5760
+BOUNDARY: 5760-->5764
+INITIAL:
+RDI ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5770
+BOUNDARY: 5770-->5774
+INITIAL:
+RDI ~= StackPointer of 0x14f70
+R13 ~= StackPointer of 0x14f70
+R12 ~= StackPointer of 0x14f70
+
+
+FUNCTION ENTRY: 5790
+BOUNDARY: 5790-->5794
+
+
+FUNCTION ENTRY: 57a0
+BOUNDARY: 57a0-->57a4
+
+
+FUNCTION ENTRY: 57b0
+BOUNDARY: 57b0-->57b4
+INITIAL:
+RDI ~= StackPointer of 0x13bf0,StackPointer of 0x140d0,StackPointer of 0x5a80,260a0
+
+
+FUNCTION ENTRY: 57c0
+BOUNDARY: 57c0-->57c4
+INITIAL:
+R14 ~= StackPointer of 0x10b60,StackPointer of 0x14680,malloc@5794()
+
+
+FUNCTION ENTRY: 57e0
+BOUNDARY: 57e0-->57e4
+INITIAL:
+R13 ~= StackPointer of 0x16290
+R12 ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 57f0
+BOUNDARY: 57f0-->57f4
+INITIAL:
+RDX ~= StackPointer of 0xe580
+RDI ~= StackPointer of 0xe580
+R15 ~= malloc@5794()
+R14 ~= StackPointer of 0xe580
+
+
+FUNCTION ENTRY: 5800
+BOUNDARY: 5800-->5804
+INITIAL:
+RDI ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5830
+BOUNDARY: 5830-->5834
+INITIAL:
+RDX = 0x1aaf0
+R13 ~= malloc@5794()
+
+
+FUNCTION ENTRY: 5840
+BOUNDARY: 5840-->5844
+
+
+FUNCTION ENTRY: 5850
+BOUNDARY: 5850-->5854
+
+
+FUNCTION ENTRY: 5860
+BOUNDARY: 5860-->5864
+INITIAL:
+R13 ~= StackPointer of 0x14f70,StackPointer of 0x16290
+R12 ~= StackPointer of 0x14f70,StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 5880
+BOUNDARY: 5880-->5884
+INITIAL:
+RDX ~= StackPointer of 0x12140,StackPointer of 0x12bb0,StackPointer of 0xb8b0
+RDI ~= StackPointer of 0x12140,StackPointer of 0x12bb0,StackPointer of 0xb8b0
+RSI ~= StackPointer of 0x12140,StackPointer of 0x12bb0,StackPointer of 0xb8b0
+R12 ~= StackPointer of 0x12140,StackPointer of 0x12bb0,StackPointer of 0xb8b0
+
+
+FUNCTION ENTRY: 58a0
+BOUNDARY: 58a0-->58a4
+
+
+FUNCTION ENTRY: 58c0
+BOUNDARY: 58c0-->58c4
+
+
+FUNCTION ENTRY: 58d0
+BOUNDARY: 58d0-->58d4
+INITIAL:
+RSI ~= StackPointer of 0x16290
+R13 ~= StackPointer of 0x16290
+R12 ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 58e0
+BOUNDARY: 58e0-->58e4
+INITIAL:
+RDX ~= StackPointer of 0x16290
+R13 ~= StackPointer of 0x16290
+R12 ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 58f0
+BOUNDARY: 58f0-->58f4
+
+
+FUNCTION ENTRY: 5900
+BOUNDARY: 5900-->5904
+
+
+FUNCTION ENTRY: 5910
+BOUNDARY: 5910-->5914
+INITIAL:
+RAX ~= malloc@5794(),malloc@5844()
+
+
+FUNCTION ENTRY: 5920
+BOUNDARY: 5920-->5924
+
+
+FUNCTION ENTRY: 5930
+BOUNDARY: 5930-->5934
+INITIAL:
+RBX = 0x1ea64
+RCX ~= 21d40,25f00
+RSI = 0x17fa9
+R13 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5940
+BOUNDARY: 5940-->5944
+INITIAL:
+RDX = 0x1d098
+R14 = 0x25ce0
+R12 = 0x25e20
+
+
+FUNCTION ENTRY: 5960
+BOUNDARY: 5960-->5964
+INITIAL:
+RBX = 0x1ea64
+RCX ~= 21d40
+R13 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 5980
+BOUNDARY: 5980-->5984
+
+
+FUNCTION ENTRY: 5990
+BOUNDARY: 5990-->5994
+
+
+FUNCTION ENTRY: 59a0
+BOUNDARY: 59a0-->59a4
+
+
+FUNCTION ENTRY: 59b0
+BOUNDARY: 59b0-->59b4
+
+
+FUNCTION ENTRY: 59d0
+BOUNDARY: 59d0-->59d4
+
+
+FUNCTION ENTRY: 5a00
+BOUNDARY: 5a00-->5a04
+
+
+FUNCTION ENTRY: 5a10
+BOUNDARY: 5a10-->5a14
+INITIAL:
+RDX ~= StackPointer of 0x16290
+R13 ~= StackPointer of 0x16290
+R12 ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 5a20
+BOUNDARY: 5a20-->5a24
+
+
+FUNCTION ENTRY: 5a40
+BOUNDARY: 5a40-->5a44
+
+
+FUNCTION ENTRY: 5a60
+BOUNDARY: 5a60-->5a64
+INITIAL:
+RBX ~= 21d40
+RDX ~= StackPointer of 0x159e0
+R15 = 0x1efe8
+R12 ~= StackPointer of 0x159e0
+
+
+FUNCTION ENTRY: 5a70
+BOUNDARY: 5a70-->5a74
+
+
+FUNCTION ENTRY: 5a80
+BOUNDARY: 5a80-->8d51
+
+
+FUNCTION ENTRY: 8d60
+BOUNDARY: 8d60-->8d8e
+
+
+FUNCTION ENTRY: 8e50
+BOUNDARY: 8e50-->9132
+
+
+FUNCTION ENTRY: 9140
+BOUNDARY: 9140-->9187
+
+
+FUNCTION ENTRY: 9190
+BOUNDARY: 9190-->91b2
+INITIAL:
+RSI ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 91c0
+BOUNDARY: 91c0-->92fa
+INITIAL:
+RSI ~= StackPointer of 0x11b90,StackPointer of 0x12e40,StackPointer of 0x5a80,StackPointer of 0x9300,StackPointer of 0xa400
+
+
+FUNCTION ENTRY: 9300
+BOUNDARY: 9300-->93cf
+INITIAL:
+R8 ~= StackPointer of 0x12900,StackPointer of 0xaa50,StackPointer of 0xd9a0,26120
+
+
+FUNCTION ENTRY: 93e0
+BOUNDARY: 93e0-->94ea
+
+
+FUNCTION ENTRY: 94f0
+BOUNDARY: 94f0-->9819
+
+
+FUNCTION ENTRY: 9820
+BOUNDARY: 9820-->9baa
+
+
+FUNCTION ENTRY: 9bb0
+BOUNDARY: 59b0-->59b4
+9bb0-->9bde
+
+
+FUNCTION ENTRY: 9bf0
+BOUNDARY: 9bf0-->9de2
+
+
+FUNCTION ENTRY: 9df0
+BOUNDARY: 9df0-->a2bc
+
+
+FUNCTION ENTRY: a2d0
+BOUNDARY: a2d0-->a3ad
+INITIAL:
+RSI ~= StackPointer of 0x12bb0,StackPointer of 0xb8b0
+
+
+FUNCTION ENTRY: a3c0
+BOUNDARY: a3c0-->a3f6
+
+
+FUNCTION ENTRY: a400
+BOUNDARY: a400-->aa48
+INITIAL:
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: aa50
+BOUNDARY: aa50-->b0f8
+INITIAL:
+RSI ~= StackPointer of 0x9bf0
+
+
+FUNCTION ENTRY: b100
+BOUNDARY: b100-->b254
+
+
+FUNCTION ENTRY: b260
+BOUNDARY: 5960-->5964
+b260-->b2fe
+INITIAL:
+RBX = 0x1ea64
+R13 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: b310
+BOUNDARY: b310-->b335
+16190-->16289
+
+
+FUNCTION ENTRY: b340
+BOUNDARY: b340-->b3d1
+
+
+FUNCTION ENTRY: b3e0
+BOUNDARY: b3e0-->b471
+
+
+FUNCTION ENTRY: b480
+BOUNDARY: b480-->b511
+
+
+FUNCTION ENTRY: b520
+BOUNDARY: b520-->b642
+INITIAL:
+RDX ~= StackPointer of 0x11b90,StackPointer of 0x140d0
+
+
+FUNCTION ENTRY: b650
+BOUNDARY: b650-->b772
+INITIAL:
+RDX ~= StackPointer of 0x11b90
+
+
+FUNCTION ENTRY: b780
+BOUNDARY: b780-->b8a2
+INITIAL:
+RDX ~= StackPointer of 0xb8b0,StackPointer of 0xe9f0
+R13 ~= StackPointer of 0xb8b0,StackPointer of 0xe9f0
+
+
+FUNCTION ENTRY: b8b0
+BOUNDARY: b8b0-->bd05
+
+
+FUNCTION ENTRY: bd10
+BOUNDARY: bd10-->be32
+
+
+FUNCTION ENTRY: be40
+BOUNDARY: be40-->bec9
+
+
+FUNCTION ENTRY: bed0
+BOUNDARY: bed0-->bf59
+
+
+FUNCTION ENTRY: bf60
+BOUNDARY: bf60-->bfe9
+
+
+FUNCTION ENTRY: bff0
+BOUNDARY: bff0-->c079
+INITIAL:
+R15 ~= malloc@5794()
+R14 ~= StackPointer of 0xe580,malloc@5794()
+R13 ~= StackPointer of 0xe580
+
+
+FUNCTION ENTRY: c080
+BOUNDARY: c080-->c109
+INITIAL:
+R15 ~= malloc@5794()
+R14 ~= StackPointer of 0xe580,malloc@5794()
+R13 ~= StackPointer of 0xe580
+
+
+FUNCTION ENTRY: c110
+BOUNDARY: c110-->c1e1
+
+
+FUNCTION ENTRY: c1f0
+BOUNDARY: c1f0-->c39b
+INITIAL:
+RAX ~= StackPointer of 0xd9a0
+
+
+FUNCTION ENTRY: c3a0
+BOUNDARY: c3a0-->c768
+INITIAL:
+R15 ~= StackPointer of 0x12900
+R14 ~= StackPointer of 0x12900
+
+
+FUNCTION ENTRY: c770
+BOUNDARY: c770-->c80f
+INITIAL:
+RDX ~= StackPointer of 0x5a80
+R13 ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: c820
+BOUNDARY: c820-->c922
+INITIAL:
+RSI ~= StackPointer of 0x10580,StackPointer of 0xc930,StackPointer of 0xce20,StackPointer of 0xd590
+
+
+FUNCTION ENTRY: c930
+BOUNDARY: c930-->ce0e
+
+
+FUNCTION ENTRY: ce20
+BOUNDARY: ce20-->d582
+
+
+FUNCTION ENTRY: d590
+BOUNDARY: d590-->d878
+INITIAL:
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: d880
+BOUNDARY: d880-->d992
+
+
+FUNCTION ENTRY: d9a0
+BOUNDARY: d9a0-->e56e
+INITIAL:
+RSI ~= StackPointer of 0xaa50
+R8 ~= StackPointer of 0xaa50,malloc@5794()
+
+
+FUNCTION ENTRY: e580
+BOUNDARY: e580-->e9e9
+
+
+FUNCTION ENTRY: e9f0
+BOUNDARY: e9f0-->edc3
+ee86-->f074
+f1ed-->f4da
+f4f0-->f506
+f521-->f59d
+f5b2-->f5f6
+f628-->f62b
+f713-->f852
+f86f-->f87e
+f8a0-->ffed
+10020-->10049
+10081-->101ea
+1020c-->1024a
+10267-->102a8
+102d9-->102eb
+10481-->104ad
+10534-->10576
+
+
+FUNCTION ENTRY: 10580
+BOUNDARY: 10580-->10b51
+INITIAL:
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 10b60
+BOUNDARY: 10b60-->11b82
+INITIAL:
+RDX ~= StackPointer of 0x11b90,StackPointer of 0x12e40,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 11b90
+BOUNDARY: 11b90-->1212f
+
+
+FUNCTION ENTRY: 12140
+BOUNDARY: 12140-->128f3
+
+
+FUNCTION ENTRY: 12900
+BOUNDARY: 12900-->12ba9
+
+
+FUNCTION ENTRY: 12bb0
+BOUNDARY: 12bb0-->12e2d
+
+
+FUNCTION ENTRY: 12e40
+BOUNDARY: 12e40-->137c3
+
+
+FUNCTION ENTRY: 137d0
+BOUNDARY: 137d0-->13be3
+INITIAL:
+RCX ~= StackPointer of 0x13bf0,StackPointer of 0x140d0
+RDX ~= StackPointer of 0x13bf0,StackPointer of 0x140d0
+R8 ~= StackPointer of 0x13bf0,StackPointer of 0x140d0
+
+
+FUNCTION ENTRY: 13bf0
+BOUNDARY: 13bf0-->140c7
+
+
+FUNCTION ENTRY: 140d0
+BOUNDARY: 140d0-->1466c
+
+
+FUNCTION ENTRY: 14680
+BOUNDARY: 14680-->14c0f
+
+
+FUNCTION ENTRY: 14c20
+BOUNDARY: 14c20-->14f60
+INITIAL:
+R12 ~= StackPointer of 0x14f70,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 14f70
+BOUNDARY: 14f70-->150b8
+INITIAL:
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 159e0
+BOUNDARY: 159e0-->15bd1
+INITIAL:
+RDX = 0x25340
+RDI = 0x18440
+RSI ~= 21d40
+
+
+FUNCTION ENTRY: 15f90
+BOUNDARY: 15f90-->16085
+
+
+FUNCTION ENTRY: 16190
+BOUNDARY: 16190-->16289
+INITIAL:
+RDI = 0x1cc00
+R12 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 16290
+BOUNDARY: 16290-->16512
+INITIAL:
+RDI ~= StackPointer of 0x5a80,StackPointer of 0x9820
+
+
+FUNCTION ENTRY: 16520
+BOUNDARY: 5680-->5684
+16520-->16583
+INITIAL:
+RBX = 0x1ea64
+RCX ~= 21d40
+RDX = 0x1c6a0
+R13 ~= StackPointer of 0x5a80
+R8 ~= StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 16590
+BOUNDARY: 16590-->165e5
+
+
+FUNCTION ENTRY: 165f0
+BOUNDARY: 165f0-->1675f
+INITIAL:
+RDX ~= StackPointer of 0x12e40,1c6a0
+RSI ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+R13 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+R8 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 16770
+BOUNDARY: 5810-->5814
+16770-->16779
+INITIAL:
+RAX ~= malloc@5794()
+RDX ~= StackPointer of 0x12e40,1c6a0
+R13 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+R12 ~= malloc@5794()
+R8 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 16780
+BOUNDARY: 59e0-->59e4
+16780-->16784
+INITIAL:
+R13 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+R12 ~= malloc@5794()
+R8 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 16790
+BOUNDARY: 5a50-->5a54
+16790-->16794
+INITIAL:
+RDX ~= StackPointer of 0x12e40,1c6a0
+R13 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+R12 ~= malloc@5794()
+R8 ~= StackPointer of 0x12e40,StackPointer of 0x5a80
+
+
+FUNCTION ENTRY: 167a0
+BOUNDARY: 5870-->5874
+167a0-->167a4
+
+
+FUNCTION ENTRY: 167b0
+BOUNDARY: 167b0-->16831
+INITIAL:
+RDI = 0x258c0
+R12 = 0x176c8
+
+
+FUNCTION ENTRY: 16840
+BOUNDARY: 16840-->168a9
+INITIAL:
+RDI ~= StackPointer of 0x5a80
+R14 ~= StackPointer of 0x5a80
+R12 ~= StackPointer of 0x5a80
+
+
