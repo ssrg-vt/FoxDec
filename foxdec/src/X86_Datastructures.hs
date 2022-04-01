@@ -31,7 +31,7 @@ data Instr = Instr {
 instance Cereal.Serialize Instr
 
 -- | Instruction prefixes
-data Prefix = InvalidPrefix | REP | REPZ | LOCK | BND
+data Prefix = InvalidPrefix | REP | REPZ | REPNE | LOCK | BND
   deriving (Show,Eq,Ord,Read,Generic)
 
 instance Cereal.Serialize Prefix
@@ -397,6 +397,7 @@ data Opcode = InvalidOpcode
   | MOVNTQ
   | MOVQ
   | MOVS
+  | MOVSB
   | MOVSD
   | MOVSLDUP
   | MOVSS
@@ -590,6 +591,7 @@ data Opcode = InvalidOpcode
   | STI
   | STMXCSR
   | STOS
+  | STOSB
   | STOSD
   | STOSQ
   | STR
