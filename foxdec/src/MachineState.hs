@@ -29,6 +29,7 @@ import SimplePred
 import Context
 import Conventions
 import X86_Datastructures
+import Generic_Datastructures
 import ControlFlow
 import Pointers
 
@@ -101,7 +102,7 @@ write_rreg ctxt mid r e =
 get_immediate_forced (SE_Immediate imm) = fromIntegral imm
  
 -- | Write to a register
-write_reg :: FContext -> Int -> Register -> SimpleExpr -> State (Pred,VCS) ()
+write_reg :: FContext -> Word64 -> Register -> SimpleExpr -> State (Pred,VCS) ()
 write_reg ctxt i_a r v = do
  let mid = mk_reg_write_identifier i_a r 
      sz  = reg_size r in
@@ -134,9 +135,10 @@ clean_flg sp (FS_CMP b op1 op2) = do
   else
     FS_CMP b op1 op2
  where
-  is_tainted (Reg r)       = sp == SP_Reg (real_reg r)
-  is_tainted (Immediate _) = False
-  is_tainted (Address a)   =
+  is_tainted (Storage r)          = sp == SP_Reg (real_reg r)
+  is_tainted (Immediate _)        = False
+  is_tainted (EffectiveAddress _) = True -- TODO
+  is_tainted (Memory a si)        =
     case sp of
       SP_Mem _ _ -> True
       _          -> False
@@ -148,22 +150,21 @@ clean_flg sp (FS_CMP b op1 op2) = do
 -- * Memory 
 
 -- | Given the address of an operand of an instruction, resolve it given the current state.
-resolve_address :: FContext -> Address -> State (Pred,VCS) SimpleExpr
-resolve_address ctxt (AddrReg r)       = read_reg ctxt r
-resolve_address ctxt (AddrImm i)       = return $ SE_Immediate $ fromIntegral i
-resolve_address ctxt (AddrMinus a0 a1) = do
+resolve_address :: FContext -> X86_Address -> State (Pred,VCS) SimpleExpr
+resolve_address ctxt (AddressStorage r) = read_reg ctxt r
+resolve_address ctxt (AddressImm i)     = return $ SE_Immediate $ fromIntegral i
+resolve_address ctxt (AddressMinus a0 a1) = do
   ra0 <- resolve_address ctxt a0 
   ra1 <- resolve_address ctxt a1
   return $ simp $ SE_Op (Minus 64) [ra0,ra1]
-resolve_address ctxt (AddrPlus a0 a1) = do
+resolve_address ctxt (AddressPlus a0 a1) = do
   ra0 <- resolve_address ctxt a0 
   ra1 <- resolve_address ctxt a1
   return $ simp $ SE_Op (Plus 64) [ra0,ra1]
-resolve_address ctxt (AddrTimes a0 a1) = do
+resolve_address ctxt (AddressTimes a0 a1) = do
   ra0 <- resolve_address ctxt a0 
   ra1 <- resolve_address ctxt a1
   return $ simp $ SE_Op (Times 64) [ra0,ra1]
-resolve_address ctxt (SizeDir _ a) = resolve_address ctxt a
 
 
 -- | Can we assume that the two given symbolic addresses are separate, and add a precondition?
@@ -219,31 +220,22 @@ add_assertion rip a0 si0 a1 si1 (p,vcs)  = (p,S.insert (Assertion rip a0 si0 a1 
 
 
 
-generate_assertion :: FContext -> Maybe Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
-generate_assertion ctxt Nothing a0           = return a0
-generate_assertion ctxt (Just (AddrReg r)) _ = do
-  p <- get
-  v <- read_reg ctxt r
-  a <- do
-    --if contains_bot v then
-    --  return $ SE_StatePart $ SP_Reg r
-    --else
-      return $ v
-  return $ a
-generate_assertion ctxt (Just (AddrImm i))       _ = return $ SE_Immediate $ fromIntegral i
-generate_assertion ctxt (Just (AddrMinus a0 a1)) x = do
+generate_assertion :: FContext -> Maybe X86_Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
+generate_assertion ctxt Nothing a0                    = return a0
+generate_assertion ctxt (Just (AddressStorage r)) _   = read_reg ctxt r
+generate_assertion ctxt (Just (AddressImm i))       _ = return $ SE_Immediate $ fromIntegral i
+generate_assertion ctxt (Just (AddressMinus a0 a1)) x = do
   v0 <- generate_assertion ctxt (Just a0) x
   v1 <- generate_assertion ctxt (Just a1) x
   return $ simp $ SE_Op (Minus 64) [v0,v1]
-generate_assertion ctxt (Just (AddrPlus a0 a1) ) x = do
+generate_assertion ctxt (Just (AddressPlus a0 a1) ) x = do
   v0 <- generate_assertion ctxt (Just a0) x
   v1 <- generate_assertion ctxt (Just a1) x
   return $ simp $ SE_Op (Plus 64) [v0,v1]
-generate_assertion ctxt (Just (AddrTimes a0 a1)) x = do
+generate_assertion ctxt (Just (AddressTimes a0 a1)) x = do
   v0 <- generate_assertion ctxt (Just a0) x
   v1 <- generate_assertion ctxt (Just a1) x
   return $ simp $ SE_Op (Times 64) [v0,v1]
-generate_assertion ctxt (Just (SizeDir _ a))     x = generate_assertion ctxt (Just a) x
   
 
 
@@ -304,7 +296,7 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
   deriving Eq
 
 
-read_from_address :: FContext -> Maybe Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
+read_from_address :: FContext -> Maybe X86_Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
 read_from_address ctxt operand a si0 = do
   let as = map simp $ unfold_non_determinism ctxt a
   vs <- mapM read_from_address' as
@@ -387,8 +379,8 @@ read_from_address ctxt operand a si0 = do
      --if do_trace a0 a1 then trace ("PRECONDITION (READ): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
      return Overlap
 
-  mk_address (Just (Address a)) = Just a
-  mk_address _                  = Nothing
+  mk_address (Just (Memory a si)) = Just a
+  mk_address _                    = Nothing
 
   do_trace a0 a1 = True--srcs_of_expr ctxt a0 /= srcs_of_expr ctxt a1 
 
@@ -417,12 +409,12 @@ read_from_address ctxt operand a si0 = do
 
 -- | Read from memory
 read_mem :: 
-     FContext  -- ^ The context
-  -> Operand  -- ^ The address of an operand of an instruction
+     FContext     -- ^ The context
+  -> X86_Operand  -- ^ The address of an operand of an instruction
   -> State (Pred,VCS) SimpleExpr
-read_mem ctxt (Address (SizeDir si a)) = do
+read_mem ctxt (Memory a si) = do
   resolved_address <- resolve_address ctxt a
-  read_from_address ctxt (Just $ Address a) resolved_address si
+  read_from_address ctxt (Just $ Memory a si) resolved_address si
 
 
 
@@ -491,8 +483,8 @@ write_mem ctxt mid a si0 v = do
       --if do_trace a0 a1 then trace ("PRECONDITION (WRITE): OVERLAP BETWEEN " ++ show (a0,si0) ++ " and " ++ show (a1,si1)) $ return Overlap else
       return Overlap
 
-  address (MemWriteInstruction _ (Address addr) _) = Just addr
-  address _                                        = Nothing
+  address (MemWriteInstruction _ (Memory addr si) _) = Just addr
+  address _                                          = Nothing
 
 
 
@@ -519,26 +511,27 @@ write_mem ctxt mid a si0 v = do
 
 -- * Operands  
 -- | Read from an operand of an instruction
-read_operand :: FContext -> Operand -> State (Pred,VCS) SimpleExpr
-read_operand ctxt (Reg r)       = read_reg ctxt r
-read_operand ctxt (Immediate w) = return $ SE_Immediate w
-read_operand ctxt (Address a)   = read_mem ctxt $ Address a
+read_operand :: FContext -> X86_Operand -> State (Pred,VCS) SimpleExpr
+read_operand ctxt (Storage r)          = read_reg ctxt r
+read_operand ctxt (Immediate w)        = return $ SE_Immediate w
+read_operand ctxt (EffectiveAddress a) = resolve_address ctxt a
+read_operand ctxt (Memory a si)        = read_mem ctxt $ Memory a si
 
 -- | Write to an operand of an instruction 
 write_operand ::
- FContext                 -- ^ The context
- -> Int                  -- ^ The address of the instruction, used to build a `MemWriteIdentifier`
- -> Operand              -- ^ The operand
+ FContext                -- ^ The context
+ -> Word64               -- ^ The address of the instruction, used to build a `MemWriteIdentifier`
+ -> X86_Operand          -- ^ The operand
  -> SimpleExpr           -- ^ The value to be written
  -> State (Pred,VCS) ()
-write_operand ctxt instr_a (Reg r) v                  = write_reg ctxt instr_a r v
-write_operand ctxt instr_a (Address (SizeDir si a)) v = do
+write_operand ctxt instr_a (Storage r)   v = write_reg ctxt instr_a r v
+write_operand ctxt instr_a (Memory a si) v = do
   resolved_address <- resolve_address ctxt a
-  write_mem ctxt (MemWriteInstruction instr_a (Address $ SizeDir si a) resolved_address) resolved_address si v
+  write_mem ctxt (MemWriteInstruction instr_a (Memory a si) resolved_address) resolved_address si v
 write_operand ctxt instr_a op1 e                      = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
  
 
-mk_reg_write_identifier instr_a r = MemWriteInstruction instr_a (Reg r) (SE_StatePart $ SP_Reg r)
+mk_reg_write_identifier instr_a r = MemWriteInstruction instr_a (Storage r) (SE_StatePart $ SP_Reg r)
 
 
 -- * Stateparts 
@@ -549,10 +542,10 @@ read_sp ctxt (SP_Mem a si)       = simp <$> read_from_address ctxt Nothing a si
 
 -- | Write to a statepart
 write_sp :: 
-  FContext                               -- ^ The context
-  -> Int                                -- ^ The address of the instruction
-  -> (Int -> StatePart -> MemWriteIdentifier)  -- ^ Given a statepart, build a memwrite identifier
-  -> (StatePart,SimpleExpr)             -- ^ The statepart and the value to be written
+  FContext                                        -- ^ The context
+  -> Word64                                       -- ^ The address of the instruction
+  -> (Word64 -> StatePart -> MemWriteIdentifier)  -- ^ Given a statepart, build a memwrite identifier
+  -> (StatePart,SimpleExpr)                       -- ^ The statepart and the value to be written
   -> State (Pred,VCS) ()
 write_sp ctxt i_a mk_mid (sp @(SP_Reg r),v)   = write_reg ctxt i_a r v
 write_sp ctxt i_a mk_mid (sp@(SP_Mem a si),v) = write_mem ctxt (mk_mid i_a sp) a si v

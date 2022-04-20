@@ -3,6 +3,7 @@
 
 module DisassembleCapstone where
 
+import Generic_Datastructures
 import ParserX86Instruction
 import X86_Datastructures
 import Base
@@ -17,7 +18,7 @@ import Text.ParserCombinators.Parsec
 import Data.Word (Word64,Word8)
 import Debug.Trace
 import qualified Data.IntMap as IM
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust,catMaybes)
 
 
 
@@ -69,18 +70,18 @@ mk_operands cs_instr cs_ops = map mk_operand [0,1,2]
           Right op -> Just op
       else
         Nothing
-  parse_operand :: String -> Either ParseError Operand
+  parse_operand :: String -> Either ParseError X86_Operand
   parse_operand = parse operand "" . trim
 
 trim = dropWhileEnd isWhiteSpace . dropWhile isWhiteSpace
 
-mk_instr :: Capstone.CsInsn -> Instr
+mk_instr :: Capstone.CsInsn -> X86_Instruction
 mk_instr cs_instr =
-  let addr          = fromIntegral $ Capstone.address cs_instr
-      [op1,op2,op3] = mk_operands cs_instr $ Capstone.opStr cs_instr
+  let addr          = AddressWord64 $ Capstone.address cs_instr
+      ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
-      i             = Instr addr prefix m op1 op2 op3 Nothing size in
+      i             = Instruction addr prefix m (catMaybes ops) (Just size) in
     if m == InvalidOpcode then
       error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
     else if prefix == Just InvalidPrefix then
@@ -95,7 +96,7 @@ mk_instr cs_instr =
 
 
 
-disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe Instr)
+disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe X86_Instruction)
 disassemble dump a = do
   let buffer = readBuffer
   if head buffer == Nothing then 

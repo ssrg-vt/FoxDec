@@ -8,6 +8,7 @@ import Base
 import SimplePred
 import Context
 import X86_Datastructures
+import Generic_Datastructures
 import SymbolicExecution
 import MachineState
 import ControlFlow
@@ -120,7 +121,7 @@ instr_to_hoare_triple fctxt fname all_precs all_asserts p i = do
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for fctxt p i) $ S.toList all_precs
 
-  let htriple_name = "ht_" ++ (showHex $ i_addr i)
+  let htriple_name = "ht_" ++ (showHex $ instr_addr i)
   appendFile fname $ 
       "htriple "        ++ mk_quote htriple_name ++ "\n" ++
       " Separations \"" ++ isa_precs ++ "\"\n" ++
@@ -142,7 +143,7 @@ mk_isa_preconditions precs = intercalate "; " $ map mk_isa_precondition $ S.toLi
 mk_isa_precondition (Precondition a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
    
 mk_isa_asserts i all_asserts = 
-  let a'      = fromIntegral (i_addr i + i_size i)
+  let a'      = instr_addr i + fromIntegral (instr_size i)
       asserts = S.filter (\(Assertion a _ _ _ _) -> a == SE_Immediate a') all_asserts in
     intercalate "; " (map mk_assertion $ S.toList asserts)
 mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1   
@@ -160,16 +161,16 @@ mk_pred_for_hoare_triple (Predicate eqs _) =
 
 -- generate an instruction
 mk_instr fctxt i =
-  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if is_call (instr_opcode i) || (is_jump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i
-        call  = if is_jump (i_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
-      showHex (i_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (i_size i)
+        call  = if is_jump (instr_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
+      showHex (instr_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (instr_size i)
   else
     show i
 
 -- generate function constraints
 mk_fcs fctxt i p =
-  if is_call (i_opcode i) || (is_jump (i_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if is_call (instr_opcode i) || (is_jump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i in      
       " FunctionConstraints \"PRESERVES " ++ mk_safe_isa_fun_name fname ++ " {" ++ intercalate ";" (map sp_to_isa $ preserved_stateparts i p) ++ "}\"\n"
   else
@@ -217,20 +218,20 @@ get_relevant_precs_for ctxt p i prec =
       []
 
   instruction_to_stateparts p i = 
-    let operands = [i_op1 i,i_op2 i,i_op3 i] ++ map Just (extra_operands i) in
+    let operands = [instr_op1 i,instr_op2 i,instr_op3 i] ++ map Just (extra_operands i) in
       concatMap (operand_to_statepart p i) operands
 
   extra_operands i =
-    case i_opcode i of 
-      PUSH -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral $ operand_size (fromJust $ i_op1 i))) ]
-      POP  -> [Address $ SizeDir (operand_size (fromJust $ i_op1 i)) (AddrPlus (AddrReg RSP) (AddrImm $ operand_size (fromJust $ i_op1 i)))  ]
+    case instr_opcode i of 
+      PUSH -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size (fromJust $ instr_op1 i))) (operand_size (fromJust $ instr_op1 i)) ]
+      POP  -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size (fromJust $ instr_op1 i))) (operand_size (fromJust $ instr_op1 i)) ]
       _    -> []
 
-  operand_to_statepart p i (Just (Address (SizeDir si a))) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
-  operand_to_statepart p _ _                               = []
+  operand_to_statepart p i (Just (Memory a si)) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
+  operand_to_statepart p _ _                    = []
 
   resolve_address_of_operand i a = do
-    write_reg ctxt (i_addr i) RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
+    write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
     resolve_address ctxt a
 
 

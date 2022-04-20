@@ -18,6 +18,7 @@
 
 module ParserX86Instruction where
 
+import Generic_Datastructures
 import X86_Datastructures
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
@@ -122,9 +123,9 @@ prefix =
 -- Then, it can be an expression with address_term as terms at the leaves.
 -- Address terms are immediates or registers. Address operands are '+', '-' or '*'.
 address_term =
- (register <&> AddrReg)
+ (register <&> AddressStorage)
  <|>
- (int <&>  AddrImm)
+ (int <&>  AddressImm)
 
 size_directive = 
       (try (string "ymmword ptr" >> return 32))
@@ -161,9 +162,9 @@ addr_expr0 =
     whitespaces
     a1 <- addr_expr0
     case symbol of
-      '+' -> return $ AddrPlus a0 a1
-      ':' -> return $ AddrPlus a0 a1
-      '-' -> return $ AddrMinus a0 a1
+      '+' -> return $ AddressPlus a0 a1
+      ':' -> return $ AddressPlus a0 a1
+      '-' -> return $ AddressMinus a0 a1
   ))
   <|>
   addr_expr1
@@ -186,7 +187,7 @@ addr_expr1 =
     symbol <- char '*'
     whitespaces
     a1 <- addr_expr1
-    return $ AddrTimes a0 a1
+    return $ AddressTimes a0 a1
   ))
   <|>
   address_term
@@ -214,8 +215,8 @@ op_address =
     whitespaces
     s <- size_directive
     whitespaces
-    Address a <- op_address
-    return $ Address $ SizeDir s a
+    EffectiveAddress a <- op_address
+    return $ Memory a s
   ))
   <|> (try (do
     whitespaces
@@ -224,8 +225,8 @@ op_address =
     a <- address_expr_inner
     whitespaces
     char ']'
-    return $ Address a
-  ))
+    return $ EffectiveAddress a
+  )) 
   <|> (try (do
     whitespaces
     r <- register
@@ -234,13 +235,12 @@ op_address =
     whitespaces
     a <- address_expr_inner
     whitespaces
-    return $ Address $ AddrPlus (AddrReg r) a
+    return $ EffectiveAddress $ AddressPlus (AddressStorage r) a
   ))
-
 
 -- Operands
 op_reg = do
-  register <&> Reg
+  register <&> Storage
 
 op_immediate = try (do
   sign <- option "+" (string "-")
@@ -312,7 +312,7 @@ instruction = do
   skipMany comment
   whitespaces--}
   skipMany newline
-  return $ Instr addr p m op1 op2 op3 Nothing 0
+  return $ Instruction (AddressWord64 addr) p m (catMaybes [op1,op2,op3]) Nothing
 
 
 

@@ -11,24 +11,34 @@ import Data.List
 import Data.Word (Word64)
 import Base
 import qualified Data.Map as M
+import Generic_Datastructures
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 
+-- | An x86 instruction
+-- labels are integers, storages are registers, the annotation is the instruction size
+type X86_Instruction = Instruction AddressWord64 Register Prefix Opcode Int
+type X86_Operand     = GenericOperand Register
+type X86_Address     = GenericAddress Register
 
--- | An instruction
-data Instr = Instr {
-  i_addr :: Int,                 -- ^ address
-  i_prefix :: Maybe Prefix,      -- ^ prefix, e.g., lock or repz
-  i_opcode :: Opcode,            -- ^ opcode/mnemonic
-  i_op1 :: Maybe Operand,        -- ^ optional: operand
-  i_op2 :: Maybe Operand,        -- ^ optional: operand
-  i_op3 :: Maybe Operand,        -- ^ optional: operand
-  i_annot :: Maybe String,       -- ^ optional: annotation, e.g., \"\<malloc\@plt + 10\>\"
-  i_size :: Int                  -- ^ size of instruction
- }
- deriving (Eq,Ord, Generic)
 
-instance Cereal.Serialize Instr
+
+instr_size :: X86_Instruction -> Int
+instr_size i = instr_annot i `orElse` 0
+
+instr_addr :: X86_Instruction -> Word64
+instr_addr (Instruction (AddressWord64 a) _ _ _ _) = a
+
+instr_op1 (Instruction (AddressWord64 a) _ _ (op1:_) _) = Just op1
+instr_op1 (Instruction (AddressWord64 a) _ _ _       _) = Nothing
+
+instr_op2 (Instruction (AddressWord64 a) _ _ (_:op2:_) _) = Just op2
+instr_op2 (Instruction (AddressWord64 a) _ _ _         _) = Nothing
+
+instr_op3 (Instruction (AddressWord64 a) _ _ (_:_:op3:_) _) = Just op3
+instr_op3 (Instruction (AddressWord64 a) _ _ _           _) = Nothing
+
+
 
 -- | Instruction prefixes
 data Prefix = InvalidPrefix | REP | REPZ | REPNE | LOCK | BND
@@ -68,26 +78,9 @@ instance Cereal.Serialize Register
 data Flag = ZF | CF | SF | OF | PF | InvalidFlag
   deriving (Show,Eq,Ord)
 
--- | An unresolved address, within the operand of an instruction.
-data Address =
-    AddrReg Register           -- ^ Reading a pointer from a register
-  | AddrImm Int                -- ^ Immediate address
-  | AddrMinus Address Address  -- ^ Minus
-  | AddrPlus Address Address   -- ^ Plus
-  | AddrTimes Address Address  -- ^ Times
-  | SizeDir Int Address        -- ^ Size directive, e.g., qword ptr, in bytes
-  deriving (Eq,Ord,Generic)
 
-instance Cereal.Serialize Address
 
--- | Operands of an instruction
-data Operand =
-    Address Address          -- ^ Unresolved addresses
-  | Reg Register             -- ^ Registers
-  | Immediate Word64         -- ^ Immediates
-  deriving (Eq,Ord,Generic)
 
-instance Cereal.Serialize Operand
 
 -- | Opcodes / mnemonics
 data Opcode = InvalidOpcode
@@ -684,80 +677,18 @@ data Opcode = InvalidOpcode
   deriving (Show, Eq, Ord, Generic)
 
 
-
-
 instance Cereal.Serialize Opcode
 
 
--- | Showing unresolved address (inner part within a ptr[...])
-show_address' (AddrReg r) = show r
-show_address' (AddrImm i) = show i
-show_address' (AddrMinus a0 a1) = show_address' a0 ++ " - " ++ show_address' a1
-show_address' (AddrPlus a0 a1) = show_address' a0 ++ " + " ++ show_address' a1
-show_address' (AddrTimes a0 a1) = show_address' a0 ++ " * " ++ show_address' a1
-show_address' (SizeDir si a) = show_address' a
-
--- | Showing unresolved address
-show_address (SizeDir si a) = show_size_directive si ++ " [" ++ show_address' a ++ "]"
-show_address a = "[" ++ show_address' a ++ "]"
-
--- | Showing a size directive
-show_size_directive 1  = "BYTE PTR"
-show_size_directive 2  = "WORD PTR"
-show_size_directive 4  = "DWORD PTR"
-show_size_directive 8  = "QWORD PTR"
-show_size_directive 16 = "XMMWORD PTR"
-show_size_directive 32 = "YMMWORD PTR"
-show_size_directive si = show (si*8) ++ " PTR"
-
--- | Showing an operand
-show_operand' (Address a) = show_address a
-show_operand' (Reg r) = show r
-show_operand' (Immediate i) = show i
-
--- | Showing an optional operand
-show_operand Nothing = ""
-show_operand (Just op) = show op
-
--- | Showing an optional annotation
-show_annot Nothing = ""
-show_annot (Just s) = " <" ++ s ++ ">"
-
--- | Showing an optional prefix
-show_prefix Nothing = ""
-show_prefix (Just p) = show p ++ " "
-
--- | Showing an instruction
-show_instruction (Instr addr pre opcode op1 op2 op3 annot size) =
-     showHex addr ++ ": "
-  ++ show_prefix pre
-  ++ show opcode
-  ++ " "
-  ++ show_operand op1
-  ++ show_operand2 op2
-  ++ show_operand2 op3
-  ++ show_annot annot
-  ++ " " ++ show size
- where
-  show_operand2 Nothing = ""
-  show_operand2 (Just op) = ", " ++ show op
-
-instance Show Address 
- where show = show_address'
-
-instance Show Operand 
- where show = show_operand'
-
-instance Show Instr
- where show = show_instruction
 
 
 
 -- | The size of the operand, in bytes
-operand_size :: Operand -> Int
-operand_size (Reg r) = reg_size r
-operand_size (Address (SizeDir si _)) = si 
-operand_size (Immediate _) = 8
+operand_size :: X86_Operand -> Int
+operand_size (Storage r)          = reg_size r
+operand_size (Memory _ si)        = si 
+operand_size (EffectiveAddress _) = 8
+operand_size (Immediate _)        = 8
 
 -- | Returns true iff m is the mnemonic of a conditional jump
 is_cond_jump m = m `elem` [JO, JNO, JS, JNS, JE, JZ, JNE, JNZ, JB, JNAE, JC, JNB, JAE, JNC, JBE, JNA, JA, JNBE, JL, JNGE, JGE, JNL, JLE, JNG, JG, JNLE, JP, JPE, JNP, JPO, JCXZ, JECXZ, JRCXZ] 

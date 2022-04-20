@@ -23,6 +23,8 @@ import Conventions
 import SCC
 import SymbolicExecution
 import ControlFlow
+import Generic_Datastructures
+import X86_Datastructures
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -33,7 +35,6 @@ import Data.Maybe (fromJust)
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.Word (Word64)
-import X86_Datastructures
 import Control.Monad ((>=>))
 import Debug.Trace
 import Numeric (readHex)
@@ -123,7 +124,7 @@ add_edge a0 a1 is_call_a0 g =
 
 
 
-init_cfg a = CFG { cfg_blocks = IM.singleton 0 [a], cfg_edges = IM.empty, cfg_addr_to_blockID = IM.singleton a 0, cfg_fresh = 1, cfg_instrs = IM.empty }
+init_cfg a = CFG { cfg_blocks = IM.singleton 0 [fromIntegral a], cfg_edges = IM.empty, cfg_addr_to_blockID = IM.singleton (fromIntegral a) 0, cfg_fresh = 1, cfg_instrs = IM.empty }
 
 
 is_consecutive a b []      = False
@@ -163,7 +164,7 @@ is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctx
 resolve_call ctxt entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
-      Right [(i_addr i + i_size i,True)] -- Right []
+      Right [(fromIntegral (instr_addr i) + instr_size i,True)] -- Right []
     else 
       let nexts          = map next resolved_addresses
           (lefts,rights) = partitionEithers nexts in
@@ -177,7 +178,7 @@ resolve_call ctxt entry i =
     if is_exiting_function_call sym then
       Right []
     else
-      Right [(i_addr i + i_size i,True)]
+      Right [(fromIntegral (instr_addr i) + instr_size i,True)]
   next (ImmediateAddress a') =
     -- call to an immediate address
     if not $ is_new_function_call_to_be_analyzed ctxt (fromIntegral a') then
@@ -187,10 +188,10 @@ resolve_call ctxt entry i =
         Right []
       else
         -- verified and returning
-        Right [(i_addr i + i_size i,True)]
+        Right [(fromIntegral (instr_addr i) + instr_size i,True)]
     else if graph_is_edge (ctxt_entries ctxt) entry (fromIntegral a') then
       -- recursion
-      Right [(i_addr i + i_size i,True)]
+      Right [(fromIntegral (instr_addr i) + instr_size i,True)]
     else
       -- new function, stop CFG generation here
       Left [fromIntegral a']
@@ -210,29 +211,29 @@ stepA ::
      Context -- ^ The context
   -> Int     -- ^ The entry address
   -> Int     -- ^ The instruction address
-  -> IO (Either (S.Set (Instr,Int)) [(Int,Bool)])
+  -> IO (Either (S.Set (X86_Instruction,Int)) [(Int,Bool)])
 stepA ctxt entry a = do
   instr <- fetch_instruction ctxt a
   case instr of
     Nothing -> return $ Right [] -- error $ "Cannot find instruction at addres: " ++ showHex a
     Just i -> 
-      if is_halt (i_opcode i) then
+      if is_halt (instr_opcode i) then
         return $ Right []
-      else if is_jump (i_opcode i) then
+      else if is_jump (instr_opcode i) then
         return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
-      else if is_cond_jump $ i_opcode i then
-        return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + i_size i]
-      else if is_call $ i_opcode i then
+      else if is_cond_jump $ instr_opcode i then
+        return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + instr_size i]
+      else if is_call $ instr_opcode i then
         return $ resolve_call ctxt entry i
-      else if is_ret (i_opcode i) then
+      else if is_ret (instr_opcode i) then
         return $ Right []
       else
-        return $ Right [(a + i_size i,False)]
+        return $ Right [(a + instr_size i,False)]
 
 
 
 
-mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (Instr,Int) -> IO (S.Set (Instr,Int),CFG) 
+mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86_Instruction,Int) -> IO (S.Set (X86_Instruction,Int),CFG) 
 mk_graph ctxt entry bag g new_calls =
   case S.minView bag of
     Nothing -> return $ (new_calls,g)
@@ -240,7 +241,7 @@ mk_graph ctxt entry bag g new_calls =
       if is_edge g a0 a1 then 
         mk_graph ctxt entry bag g new_calls
       else do
-        let g' = add_edge a0 a1 is_call_a0 g
+        let g' = add_edge (fromIntegral a0) (fromIntegral a1) is_call_a0 g
         nxt <- stepA ctxt entry a1
         case nxt of
           Left new_calls' -> do
@@ -267,9 +268,9 @@ cfg_add_instrs ctxt g = do
 -- The set of new entry points are function entries called by the current function, but for which we do not know yet whether they terminate or not.
 -- If a CFG is returned, then all function calls in that CFG have already been analyzed.
 cfg_gen ::
-  Context -- ^ The context
-  -> Int  -- ^ The entry point of the function
-  -> IO (S.Set (Instr,Int),CFG)
+  Context    -- ^ The context
+  -> Int     -- ^ The entry point of the function
+  -> IO (S.Set (X86_Instruction,Int),CFG)
 cfg_gen ctxt entry = do
  let g           = init_cfg entry
  nxt            <- stepA ctxt entry entry
@@ -289,7 +290,7 @@ is_end_node ::
   -> Bool
 is_end_node g b = IS.null $ post g b
 
-is_unresolved_indirection ctxt i = (is_call (i_opcode i) || is_jump (i_opcode i) || is_cond_jump (i_opcode i))
+is_unresolved_indirection ctxt i = (is_call (instr_opcode i) || is_jump (instr_opcode i) || is_cond_jump (instr_opcode i))
                    && (any ((==) Unresolved) $ resolve_jump_target ctxt i)
 
 
@@ -306,13 +307,13 @@ node_info_of ctxt g blockId =
       i    = last (im_lookup ("D.) Block " ++ show blockId ++ " in instrs.") (cfg_instrs g) blockId) in
     if is_unresolved_indirection ctxt i then
       UnresolvedIndirection
-    else if IS.null (post g blockId) && (is_call (i_opcode i) || is_halt (i_opcode i)) || is_terminating_jump i then
+    else if IS.null (post g blockId) && (is_call (instr_opcode i) || is_halt (instr_opcode i)) || is_terminating_jump i then
         Terminal
     else
       Normal
 
  where
-  is_terminating_jump i = is_jump (i_opcode i) &&
+  is_terminating_jump i = is_jump (instr_opcode i) &&
     case resolve_jump_target ctxt i of
       [External sym] -> is_exiting_function_call sym
       _              -> False

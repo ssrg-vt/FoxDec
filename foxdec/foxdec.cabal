@@ -33,6 +33,7 @@ library
       ControlFlow
       Conventions
       DisassembleCapstone
+      Generic_Datastructures
       MachineState
       ParserCalls
       ParserDump
@@ -45,6 +46,7 @@ library
       SCC
       SimplePred
       SymbolicExecution
+      Transformations
       VerificationReportInterface
       X86_Datastructures
   other-modules:
@@ -59,6 +61,7 @@ library
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , hapstone >=0.2.0.1 && <=0.2.0.1
     , mtl
@@ -82,6 +85,7 @@ executable foxdec-controlflow-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -94,6 +98,7 @@ executable foxdec-controlflow-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -118,6 +123,7 @@ executable foxdec-disassembler-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -130,6 +136,7 @@ executable foxdec-disassembler-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -154,6 +161,7 @@ executable foxdec-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -166,6 +174,7 @@ executable foxdec-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -190,6 +199,7 @@ executable foxdec-functions-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -202,6 +212,7 @@ executable foxdec-functions-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -226,6 +237,7 @@ executable foxdec-invariants-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -238,6 +250,7 @@ executable foxdec-invariants-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -262,6 +275,7 @@ executable foxdec-isabelle-exe
       Pkcs11
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -274,6 +288,7 @@ executable foxdec-isabelle-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -298,6 +313,7 @@ executable foxdec-pkcs11-exe
       Main
       Postconditions
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -310,6 +326,7 @@ executable foxdec-pkcs11-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -334,6 +351,7 @@ executable foxdec-postconditions-exe
       Main
       Pkcs11
       Symbolizer
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -346,6 +364,7 @@ executable foxdec-postconditions-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -370,6 +389,7 @@ executable foxdec-symbolizer-exe
       Main
       Pkcs11
       Postconditions
+      Transformer
       Paths_foxdec
   hs-source-dirs:
       app
@@ -382,6 +402,45 @@ executable foxdec-symbolizer-exe
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
+    , extra >=1.7.9
+    , foxdec
+    , hapstone >=0.2.0.1 && <=0.2.0.1
+    , mtl
+    , parsec >=3.1
+    , parsec-numbers >=0.1
+    , process >=1.6.9.0
+    , split >=0.2.3
+    , strict
+    , text >=1.2.4
+    , transformers >=0.5.6
+  default-language: Haskell2010
+
+executable foxdec-transformer-exe
+  main-is: Transformer.hs
+  other-modules:
+      ControlFlowResolver
+      Disassembler
+      Functions
+      Invariants
+      Isabelle
+      Main
+      Pkcs11
+      Postconditions
+      Symbolizer
+      Paths_foxdec
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Transformer
+  build-depends:
+      argparser >=0.3.4
+    , base >=4.7 && <5
+    , bytestring
+    , cereal >=0.5.8.1
+    , containers
+    , dhall >=1.39
+    , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -411,6 +470,7 @@ test-suite foxdec-test
     , containers
     , dhall >=1.39
     , directory
+    , dom-lt >=0.2.3
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1

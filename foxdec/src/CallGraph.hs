@@ -10,6 +10,7 @@ import Base
 import Context
 import SimplePred
 import X86_Datastructures
+import Generic_Datastructures
 import MachineState
 import ControlFlow
 import Pointers
@@ -191,7 +192,7 @@ summarize_verification_conditions ctxt entry =
 calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cfg_instrs cfg
  where
   get_call_target i = 
-    if is_call (i_opcode i) then
+    if is_call (instr_opcode i) then
       IS.fromList $ concatMap get_internal_addresses $ resolve_jump_target ctxt i
     else
       IS.empty
@@ -200,8 +201,8 @@ calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cf
 function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
  where 
   get_function_pointers_of_call i =
-    if is_call (i_opcode i) then -- TODO or jump?
-      IS.unions $ S.map (get_function_pointers $ i_addr i) $ (S.unions $ ctxt_vcs ctxt)
+    if is_call (instr_opcode i) then -- TODO or jump?
+      IS.unions $ S.map (get_function_pointers $ instr_addr i) $ (S.unions $ ctxt_vcs ctxt)
     else
       IS.empty
 

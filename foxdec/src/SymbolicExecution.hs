@@ -3,7 +3,7 @@
 
 {-|
 Module      : SimplePred
-Description : Symbolic execution of sequential lists of instructions of type @"Instr"@ on predicates of type @"Pred"@.
+Description : Symbolic execution of sequential lists of instructions of type @"X86_Instruction"@ on predicates of type @"Pred"@.
 -}
 
 module SymbolicExecution (
@@ -22,6 +22,7 @@ import Context
 import MachineState
 import Propagation
 import X86_Datastructures
+import Generic_Datastructures
 import Conventions
 import ControlFlow
 import Pointers
@@ -139,7 +140,7 @@ join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr ctxt) f0 f
 --
 -- Transposing this equality produces:
 --   *[RSP0-40,8] == 10
-transpose_bw :: FContext -> String -> Int -> Pred -> (StatePart, SimpleExpr) -> Either VerificationCondition (StatePart, SimpleExpr)
+transpose_bw :: FContext -> String -> Word64 -> Pred -> (StatePart, SimpleExpr) -> Either VerificationCondition (StatePart, SimpleExpr)
 transpose_bw ctxt f a p (sp,v) =
   let sp' = transpose_bw_sp ctxt p sp
       v'  = trim_expr ctxt $ simp $ transpose_bw_e ctxt p v in
@@ -223,20 +224,20 @@ functions_returning_bottom = [
 
 -- | Executes semantics for some external functions.
 -- Returns true iff the string corresponds to a known external function, and the semantics were applied.
-function_semantics :: FContext -> Instr -> String -> State (Pred,VCS) Bool
+function_semantics :: FContext -> X86_Instruction -> String -> State (Pred,VCS) Bool
 function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
 function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
-function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (i_addr i) RAX >> return True
+function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
 function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "strcpy"
-function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (i_addr i) RAX >> return True
+function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
-function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (i_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
+function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (instr_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      = 
   if f `elem` functions_returning_bottom then do  -- and exiting function calls?
-    write_reg ctxt (i_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
+    write_reg ctxt (instr_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True 
   else if f `elem` functions_returning_fresh_pointers then do
-    write_reg ctxt (i_addr i) RAX $ SE_Malloc (Just (i_addr i)) (Just "")
+    write_reg ctxt (instr_addr i) RAX $ SE_Malloc (Just (instr_addr i)) (Just "")
     return True
   else
     return False
@@ -275,15 +276,15 @@ evalState_discard ma = do
   return $ evalState ma s 
 
 -- | Symbolically execute a function call
-call :: FContext -> Instr -> State (Pred,VCS) ()
+call :: FContext -> X86_Instruction -> State (Pred,VCS) ()
 call ctxt i = do
   let f  = f_name ctxt
   let f' = function_name_of_instruction (f_ctxt ctxt) i
-  let i_a = i_addr i
+  let i_a = instr_addr i
   known <- function_semantics ctxt i $ takeUntilString "@GLIBC" f'
 
   when (not known) $ do
-    sub ctxt i_a (Reg RSP) (Immediate 8)
+    sub ctxt i_a (Storage RSP) (Immediate 8)
     (p@(Predicate p_eqs _),_) <- get
     params <- mapMaybeM (when_is_relevant_param p_eqs) parameter_registers
     modify $ add_function_pointers i_a (IS.unions $ map (get_symbolic_function_pointers ctxt . snd) params)
@@ -326,7 +327,7 @@ call ctxt i = do
     let si' = 1 
     v'     <- evalState_discard $ read_sp ctxt (SP_Mem a 1)
     let bot = join_single ctxt v'
-    write_sp ctxt (i_addr i)  mk_mid (SP_Mem a' si',bot)  
+    write_sp ctxt (instr_addr i)  mk_mid (SP_Mem a' si',bot)  
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
@@ -344,7 +345,7 @@ call ctxt i = do
   transfer_current_statepart f' i p@(Predicate p_eqs _) q@(Predicate q_eqs _) is_external (sp,v) = do
     if sp == SP_Reg RIP then do
       -- forcibly transfer and set the value of the instruction pointer
-      forced_insert_sp sp (SE_Immediate $ fromIntegral (i_addr i + i_size i))
+      forced_insert_sp sp (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
       return S.empty
     else if all (necessarily_separate_stateparts ctxt sp) $ M.keys q_eqs then do
       -- if the function did not write to the statepart, transfer it without annotations
@@ -369,12 +370,12 @@ call ctxt i = do
       else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
         Just (_,v') -> do
           -- the statepart was overwritten by the function, so use its new value
-          write_sp ctxt (i_addr i) mk_mid (sp,v')
+          write_sp ctxt (instr_addr i) mk_mid (sp,v')
           return S.empty
         Nothing     -> do
           -- the statepart was possibly overwritten by the function, so use its old and new value joined
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
-          write_sp ctxt (i_addr i) mk_mid (sp,join_expr ctxt v v')
+          write_sp ctxt (instr_addr i) mk_mid (sp,join_expr ctxt v v')
           return S.empty
         
 
@@ -446,83 +447,83 @@ is_initial sp v = v == SE_Var sp
 
 
 -- | Instruction semantics
-push :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+push :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 push ctxt i_a (Immediate imm) = do
   let si = 8
-  let address = AddrMinus (AddrReg RSP) (AddrImm si)
+  let address = AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt i_a RSP e1
-  write_mem ctxt (MemWriteInstruction i_a (Address $ address) e1) e1 si (SE_Immediate imm)
+  write_mem ctxt (MemWriteInstruction i_a (Memory address si) e1) e1 si (SE_Immediate imm)
 push ctxt i_a op1 = do
   e0 <- read_operand ctxt op1
   let si = operand_size op1
-  let address = AddrMinus (AddrReg RSP) (AddrImm $ fromIntegral si)
+  let address = AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt i_a RSP e1
-  write_mem ctxt (MemWriteInstruction i_a (Address $ address) e1) e1 si e0
+  write_mem ctxt (MemWriteInstruction i_a (Memory address si) e1) e1 si e0
 
-pop :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+pop :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 pop ctxt i_a op1 = do
   let si = operand_size op1
-  e0 <- read_mem ctxt (Address $ SizeDir si (AddrReg RSP))
-  let address = AddrPlus (AddrReg RSP) (AddrImm $ fromIntegral si)
+  e0 <- read_mem ctxt (Memory (AddressStorage RSP) si)
+  let address = AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt i_a RSP e1
   write_operand ctxt i_a op1 e0
 
-lea :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
-lea ctxt i_a op1 (Address a) = do
+lea :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+lea ctxt i_a op1 (EffectiveAddress a) = do
   e <- resolve_address ctxt a
   write_operand ctxt i_a op1 e
 
 
-leave :: FContext -> Int -> State (Pred,VCS) ()
-leave ctxt i_a = mov ctxt i_a (Reg RSP) (Reg RBP) >> pop ctxt i_a (Reg RBP)
+leave :: FContext -> Word64 -> State (Pred,VCS) ()
+leave ctxt i_a = mov ctxt i_a (Storage RSP) (Storage RBP) >> pop ctxt i_a (Storage RBP)
 
 
-ret ctxt i_a = pop ctxt i_a (Reg RIP)
+ret ctxt i_a = pop ctxt i_a (Storage RIP)
 
 sysret ctxt i_a = do
-  e0 <- read_operand ctxt (Reg RCX)
+  e0 <- read_operand ctxt (Storage RCX)
   write_reg ctxt i_a RIP e0
-  write_flags (\_ _ -> None) (Reg RCX) (Reg RCX)
+  write_flags (\_ _ -> None) (Storage RCX) (Storage RCX)
 
 jmp ctxt i =
   if instruction_jumps_to_external (f_ctxt ctxt) i then
     -- A jump to an external symbol is treated as a function call and implicit RET
-    call ctxt i >> ret ctxt (i_addr i)
+    call ctxt i >> ret ctxt (fromIntegral $ instr_addr i)
   else
     return ()
 
 
 
-write_flags :: (Operand -> Operand -> FlagStatus) -> Operand -> Operand -> State (Pred,VCS) ()
+write_flags :: (X86_Operand -> X86_Operand -> FlagStatus) -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 write_flags g op1 op2 = do
   (Predicate eqs flg,vcs) <- get
   put (Predicate eqs (g op1 op2),vcs)
 
 
-mov_with_func_op2_to_op1 :: FContext -> Int -> (SimpleExpr -> SimpleExpr) -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func_op2_to_op1 :: FContext -> Word64 -> (SimpleExpr -> SimpleExpr) -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 mov_with_func_op2_to_op1 ctxt i_a f op1 op2 = do
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (f e1)
 
 mk_bottom ctxt es = Bottom $ FromSemantics $ S.unions (map (srcs_of_expr ctxt) es)
 
-mov_with_func1 :: FContext -> Int -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> State (Pred,VCS) ()
+mov_with_func1 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> State (Pred,VCS) ()
 mov_with_func1 ctxt i_a f do_write_flags op1 = do
   e0 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (f ctxt [e0])
   when do_write_flags (write_flags (\_ _ -> None) op1 op1)
 
-mov_with_func :: FContext -> Int -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 mov_with_func ctxt i_a f do_write_flags op1 op2 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (f ctxt [e0,e1])
   when do_write_flags (write_flags (\_ _ -> None) op1 op2)
 
-mov_with_func3 :: FContext -> Int -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+mov_with_func3 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 mov_with_func3 ctxt i_a f do_write_flags op1 op2 op3 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
@@ -596,7 +597,7 @@ cmov ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 $ join_exprs ("cmov") ctxt [e0,e1]
 
-xchg :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+xchg :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 xchg ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -620,26 +621,26 @@ ucomiss ctxt i_a = write_flags (\_ _ -> None)
 
 comiss ctxt i_a = write_flags (\_ _ -> None)
 
-inc :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+inc :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 inc ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (SE_Op (Plus (8 * operand_size op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-dec :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+dec :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 dec ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (SE_Op (Minus (8 * operand_size op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-or' :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+or' :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 or' ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (SE_Op (Or (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-and' :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+and' :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 and' ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -647,7 +648,7 @@ and' ctxt i_a op1 op2 = do
   write_flags (\_ _ -> None) op1 op2
 
 
-not' :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+not' :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 not' ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (SE_Op (Not (8 * operand_size op1)) [e1])
@@ -718,7 +719,7 @@ divsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 roundsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
-bt :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+bt :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 bt ctxt i_a op1 op2 = do
   write_flags (\_ _ -> None) op1 op2
 
@@ -795,8 +796,8 @@ cvttpd2dq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 cvtdq2pd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
-is_st_reg_operand (Reg r) = take 2 (show r) == "ST"
-is_st_reg_operand _       = False
+is_st_reg_operand (Storage r) = take 2 (show r) == "ST"
+is_st_reg_operand _           = False
 
 fst' ctxt i_a op1 =
   if is_st_reg_operand op1 then
@@ -875,7 +876,7 @@ fisttp ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
 
 idiv ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True
 
-div1 :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+div1 :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 div1 ctxt i_a op1 = do
   let srcs = case operand_size op1 of
                8 -> [RDX,RAX]
@@ -883,38 +884,38 @@ div1 ctxt i_a op1 = do
                2 -> [DX,AX]
                1 -> [AH,AL]
   e1 <- read_operand ctxt op1
-  src0 <- read_operand ctxt (Reg $ srcs !! 0)
-  src1 <- read_operand ctxt (Reg $ srcs !! 1)
+  src0 <- read_operand ctxt (Storage $ srcs !! 0)
+  src1 <- read_operand ctxt (Storage $ srcs !! 1)
   
-  write_operand ctxt i_a (Reg $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
-  write_operand ctxt i_a (Reg $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
 
-cdq :: FContext -> Int -> State (Pred,VCS) ()
+cdq :: FContext -> Word64 -> State (Pred,VCS) ()
 cdq ctxt i_a = do
-  e1 <- read_operand ctxt (Reg EAX)
-  write_operand ctxt i_a (Reg EDX) (mk_bottom ctxt [e1])
+  e1 <- read_operand ctxt (Storage EAX)
+  write_operand ctxt i_a (Storage EDX) (mk_bottom ctxt [e1])
 
-cqo :: FContext -> Int -> State (Pred,VCS) ()
+cqo :: FContext -> Word64 -> State (Pred,VCS) ()
 cqo ctxt i_a = do
-  e1 <- read_operand ctxt (Reg RAX)
-  write_operand ctxt i_a (Reg RDX) (mk_bottom ctxt [e1])
+  e1 <- read_operand ctxt (Storage RAX)
+  write_operand ctxt i_a (Storage RDX) (mk_bottom ctxt [e1])
 
-cdqe :: FContext -> Int -> State (Pred,VCS) ()
+cdqe :: FContext -> Word64 -> State (Pred,VCS) ()
 cdqe ctxt i_a = do
-  e1 <- read_operand ctxt (Reg EAX)
-  write_operand ctxt i_a (Reg RAX) (SE_SExtend 32 64 e1)
+  e1 <- read_operand ctxt (Storage EAX)
+  write_operand ctxt i_a (Storage RAX) (SE_SExtend 32 64 e1)
 
-cbw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Reg AX)
+cbw ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Storage AX)
 
-cwde ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Reg EAX)
-
-
+cwde ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Storage EAX)
 
 
 
-shl :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+
+
+shl :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 shl ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
@@ -925,7 +926,7 @@ shl ctxt i_a op1 op2 = do
   write_operand ctxt i_a op1 (SE_Op (Shl (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-shr :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+shr :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 shr ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (SE_Op (Udiv (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
@@ -948,14 +949,14 @@ shld ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
 shrd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
 
 
-rol :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+rol :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 rol ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 $ SE_Op (Rol (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
   write_flags (\_ _ -> None) op1 op2
 rol ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
 
-ror :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+ror :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 ror ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 $ SE_Op (Ror (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
@@ -963,14 +964,14 @@ ror ctxt i_a op1 op2@(Immediate i) = do
 ror ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
 
 {-
-adc :: FContext -> Operand -> Operand -> State (Pred,VCS) ()
+adc :: FContext -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 adc ctxt op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt op1 $ SE_Binop "adc" [e1,e2]
   write_flags (\_ _ -> None) op1 op2
 
-sbb :: FContext -> Operand -> Operand -> State (Pred,VCS) ()
+sbb :: FContext -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 sbb ctxt op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -985,7 +986,7 @@ mul1 ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True --TODO
 
 mul2 ctxt i_a = mov_with_func ctxt i_a mk_bottom True --TODO 
 
-imul1 :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+imul1 :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 imul1 ctxt i_a op1 = do
   let srcs = case operand_size op1 of
                8 -> [RDX,RAX]
@@ -993,21 +994,21 @@ imul1 ctxt i_a op1 = do
                2 -> [DX,AX]
                1 -> [AH,AL]
   e1 <- read_operand ctxt op1
-  src0 <- read_operand ctxt (Reg $ srcs !! 0)
-  src1 <- read_operand ctxt (Reg $ srcs !! 1)
+  src0 <- read_operand ctxt (Storage $ srcs !! 0)
+  src1 <- read_operand ctxt (Storage $ srcs !! 1)
   
-  write_operand ctxt i_a (Reg $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
-  write_operand ctxt i_a (Reg $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
+  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
-imul2 :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+imul2 :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 imul2 ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-imul3 :: FContext -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+imul3 :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 imul3 ctxt i_a op0 op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -1016,27 +1017,27 @@ imul3 ctxt i_a op0 op1 op2 = do
 
 
 
-bswap :: FContext -> Int -> Operand -> State (Pred,VCS) ()
+bswap :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
 bswap ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   write_operand ctxt i_a op1 $ SE_Op (Bswap (8 * operand_size op1)) [e1]
   write_flags (\_ _ -> None) op1 op1
 
-pextrb :: FContext -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrb :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 pextrb ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op0 (SE_Op (Pextr 8) [e0,e1,e2])
 
-pextrd :: FContext -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrd :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 pextrd ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op0 (SE_Op (Pextr 32) [e0,e1,e2])
 
-pextrq :: FContext -> Int -> Operand -> Operand -> Operand -> State (Pred,VCS) ()
+pextrq :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 pextrq ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
@@ -1115,7 +1116,7 @@ cli ctxt i_a = return ()
 
 clts ctxt i_a = return ()
 
-cpuid ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
+cpuid ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Storage RAX)
 
 invpcid ctxt i_a = return ()
 
@@ -1128,18 +1129,18 @@ lldt ctxt i_a = return ()
 ltr ctxt i_a = return ()
 
 rdmsr ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RAX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RDX)
 
 wrmsr ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RAX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RDX)
 
 rdtsc ctxt i_a = do
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RAX)
-  mov_with_func1 ctxt i_a mk_bottom False (Reg RDX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RAX)
+  mov_with_func1 ctxt i_a mk_bottom False (Storage RDX)
 
-swapgs ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg GS)
+swapgs ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Storage GS)
 
 xsetbv ctxt i_a = return ()
 
@@ -1147,9 +1148,9 @@ xsaveopt ctxt i_a = return ()
 
 xrstor ctxt i_a = return ()
 
-wrfsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg FS)
+wrfsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Storage FS)
 
-wrgsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Reg GS)
+wrgsbase ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False (Storage GS)
 
 vinsertf128 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
 
@@ -1216,7 +1217,7 @@ movhlps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 vmovhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 
-xadd :: FContext -> Int -> Operand -> Operand -> State (Pred,VCS) ()
+xadd :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
 xadd ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -1237,376 +1238,376 @@ cmpsd ctxt i_a pre = mov_with_func ctxt i_a mk_bottom True
 
 
 
-tau_i :: FContext -> Instr -> State (Pred,VCS) ()
-tau_i ctxt (Instr i_a _ PUSH     (Just op1) _          _ _ _)   = push   ctxt i_a op1
-tau_i ctxt (Instr i_a _ POP      (Just op1) _          _ _ _)   = pop    ctxt i_a op1
-tau_i ctxt (Instr i_a _ LEA      (Just op1) (Just op2) _ _ _)   = lea    ctxt i_a op1 op2
+tau_i :: FContext -> X86_Instruction -> State (Pred,VCS) ()
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PUSH     [op1]     _)   = push   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ POP      [op1]     _)   = pop    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ LEA      [op1,op2] _)   = lea    ctxt i_a op1 op2
 
-tau_i ctxt i@(Instr i_a _ CALL     _          _          _ _ _) = call   ctxt i
-tau_i ctxt   (Instr i_a _ RET      _          _          _ _ _) = ret    ctxt i_a 
-tau_i ctxt   (Instr i_a _ IRETQ    _          _          _ _ _) = ret    ctxt i_a 
-tau_i ctxt   (Instr i_a _ SYSRET   _          _          _ _ _) = sysret ctxt i_a
-tau_i ctxt i@(Instr i_a _ JMP      (Just op1) _          _ _ _) = jmp    ctxt i
-tau_i ctxt   (Instr i_a _ LEAVE    _          _          _ _ _) = leave  ctxt i_a
+tau_i ctxt i@(Instruction (AddressWord64 i_a) _ CALL     _          _) = call   ctxt i
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ RET      _          _) = ret    ctxt i_a 
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ IRETQ    _          _) = ret    ctxt i_a 
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ SYSRET   _          _) = sysret ctxt i_a
+tau_i ctxt i@(Instruction (AddressWord64 i_a) _ JMP      [op1]      _) = jmp    ctxt i
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ LEAVE    _          _) = leave  ctxt i_a
 
-tau_i ctxt (Instr i_a _       MOV      (Just op1) (Just op2) _ _ _) = mov    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVZX    (Just op1) (Just op2) _ _ _) = movzx  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVSX    (Just op1) (Just op2) _ _ _) = movsx  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVSXD   (Just op1) (Just op2) _ _ _) = movsxd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVAPS   (Just op1) (Just op2) _ _ _) = movaps ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVAPD   (Just op1) (Just op2) _ _ _) = movapd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVABS   (Just op1) (Just op2) _ _ _) = movabs ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVUPD   (Just op1) (Just op2) _ _ _) = movupd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVUPS   (Just op1) (Just op2) _ _ _) = movups ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVDQU   (Just op1) (Just op2) _ _ _) = movdqu ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVDQA   (Just op1) (Just op2) _ _ _) = movdqa ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVD     (Just op1) (Just op2) _ _ _) = movd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVQ     (Just op1) (Just op2) _ _ _) = movq   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVLPD   (Just op1) (Just op2) _ _ _) = movlpd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       MOVLPS   (Just op1) (Just op2) _ _ _) = movlps ctxt i_a op1 op2
-tau_i ctxt (Instr i_a Nothing MOVSD    (Just op1) (Just op2) _ _ _) = movsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a Nothing MOVSS    (Just op1) (Just op2) _ _ _) = movss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVD    (Just op1) (Just op2) _ _ _) = vmovd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVAPD  (Just op1) (Just op2) _ _ _) = vmovapd ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _       VMOVAPS  (Just op1) (Just op2) _ _ _) = vmovaps ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOV      [op1,op2] _) = mov    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVZX    [op1,op2] _) = movzx  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVSX    [op1,op2] _) = movsx  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVSXD   [op1,op2] _) = movsxd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVAPS   [op1,op2] _) = movaps ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVAPD   [op1,op2] _) = movapd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVABS   [op1,op2] _) = movabs ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVUPD   [op1,op2] _) = movupd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVUPS   [op1,op2] _) = movups ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVDQU   [op1,op2] _) = movdqu ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVDQA   [op1,op2] _) = movdqa ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVD     [op1,op2] _) = movd   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVQ     [op1,op2] _) = movq   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVLPD   [op1,op2] _) = movlpd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       MOVLPS   [op1,op2] _) = movlps ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) Nothing MOVSD    [op1,op2] _) = movsd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) Nothing MOVSS    [op1,op2] _) = movss  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       VMOVD    [op1,op2] _) = vmovd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       VMOVAPD  [op1,op2] _) = vmovapd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _       VMOVAPS  [op1,op2] _) = vmovaps ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a _ CMOVO    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNO   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVS    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNS   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVE    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVZ    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNZ   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVB    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNAE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVC    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNB   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVAE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNC   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVBE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNA   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVA    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNBE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVL    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNGE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVG    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVGE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNL   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVLE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNG   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNLE  (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVP    (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVPE   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVNP   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMOVPO   (Just op1) (Just op2) _ _ _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVO    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNO   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVS    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNS   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVE    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVZ    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNZ   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVB    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNAE  [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVC    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNB   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVAE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNC   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVBE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNA   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVA    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNBE  [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVL    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNGE  [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVG    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVGE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNL   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVLE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNG   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNLE  [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVP    [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVPE   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVNP   [op1,op2] _) = cmov   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMOVPO   [op1,op2] _) = cmov   ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a _ CDQ      Nothing    _          _ _ _) = cdq    ctxt i_a
-tau_i ctxt (Instr i_a _ CDQE     Nothing    _          _ _ _) = cdqe   ctxt i_a
-tau_i ctxt (Instr i_a _ CQO      Nothing    _          _ _ _) = cqo    ctxt i_a
-tau_i ctxt (Instr i_a _ CBW      Nothing    _          _ _ _) = cbw    ctxt i_a
-tau_i ctxt (Instr i_a _ CWDE     Nothing    _          _ _ _) = cwde   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CDQ      []        _) = cdq    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CDQE     []        _) = cdqe   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CQO      []        _) = cqo    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CBW      []        _) = cbw    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CWDE     []        _) = cwde   ctxt i_a
 
-tau_i ctxt (Instr i_a _ ADD      (Just op1) (Just op2) _ _ _) = add    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SUB      (Just op1) (Just op2) _ _ _) = sub    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ NEG      (Just op1) Nothing    _ _ _) = neg    ctxt i_a op1
-tau_i ctxt (Instr i_a _ INC      (Just op1) _          _ _ _) = inc    ctxt i_a op1
-tau_i ctxt (Instr i_a _ DEC      (Just op1) _          _ _ _) = dec    ctxt i_a op1
-tau_i ctxt (Instr i_a _ SHL      (Just op1) (Just op2) _ _ _) = shl    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHL      (Just op1) Nothing    _ _ _) = shl    ctxt i_a op1 (Immediate 1)
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ADD      [op1,op2] _) = add    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SUB      [op1,op2] _) = sub    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ NEG      [op1]     _) = neg    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ INC      [op1]     _) = inc    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ DEC      [op1]     _) = dec    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHL      [op1,op2] _) = shl    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHL      [op1]     _) = shl    ctxt i_a op1 (Immediate 1)
 
-tau_i ctxt (Instr i_a _ NOP      _          _          _ _ _) = nop     ctxt i_a
-tau_i ctxt (Instr i_a _ ENDBR64  _          _          _ _ _) = endbr64 ctxt i_a
-tau_i ctxt (Instr i_a _ UD2      _          _          _ _ _) = ud2     ctxt i_a
-tau_i ctxt (Instr i_a _ HLT      _          _          _ _ _) = hlt     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ NOP      _         _) = nop     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ENDBR64  _         _) = endbr64 ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ UD2      _         _) = ud2     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ HLT      _         _) = hlt     ctxt i_a
 
-tau_i ctxt (Instr i_a _ WAIT     _          _          _ _ _) = wait    ctxt i_a
-tau_i ctxt (Instr i_a _ MFENCE   _          _          _ _ _) = mfence  ctxt i_a
-tau_i ctxt (Instr i_a _ CLFLUSH  _          _          _ _ _) = clflush ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ WAIT     _         _) = wait    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MFENCE   _         _) = mfence  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CLFLUSH  _         _) = clflush ctxt i_a
 
-tau_i ctxt (Instr i_a _ ADC      (Just op1) (Just op2) _ _ _)          = adc    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SBB      (Just op1) (Just op2) _ _ _)          = sbb    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROL      (Just op1) (Just op2) _ _ _)          = rol    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROR      (Just op1) (Just op2) _ _ _)          = ror    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHR      (Just op1) (Just op2) _ _ _)          = shr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SHR      (Just op1) Nothing    _ _ _)          = shr    ctxt i_a op1 (Immediate 1)
-tau_i ctxt (Instr i_a _ SAR      (Just op1) (Just op2) _ _ _)          = sar    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SAR      (Just op1) Nothing    _ _ _)          = sar    ctxt i_a op1 (Immediate 1)
-tau_i ctxt (Instr i_a _ MUL      (Just op1) Nothing    _ _ _)          = mul1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ MUL      (Just op1) (Just op2) Nothing _ _)    = mul2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) Nothing    _ _ _)          = imul1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) (Just op2) Nothing _ _)    = imul2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ IMUL     (Just op1) (Just op2) (Just op3) _ _) = imul3  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ IDIV     (Just op1) Nothing    _ _ _)          = idiv   ctxt i_a op1
-tau_i ctxt (Instr i_a _ DIV      (Just op1) Nothing    _ _ _)          = div1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ SHLD     (Just op1) (Just op2) (Just op3) _ _) = shld ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ SHRD     (Just op1) (Just op2) (Just op3) _ _) = shrd ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ADC      [op1,op2] _)          = adc    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SBB      [op1,op2] _)          = sbb    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ROL      [op1,op2] _)          = rol    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ROR      [op1,op2] _)          = ror    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHR      [op1,op2] _)          = shr    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHR      [op1]     _)          = shr    ctxt i_a op1 (Immediate 1)
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SAR      [op1,op2] _)          = sar    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SAR      [op1]     _)          = sar    ctxt i_a op1 (Immediate 1)
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MUL      [op1]     _)          = mul1  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MUL      [op1,op2] _)          = mul2  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ IMUL     [op1]     _)          = imul1  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ IMUL     [op1,op2] _)          = imul2  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ IMUL     [op1,op2,op3] _)      = imul3  ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ IDIV     [op1]     _)          = idiv   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ DIV      [op1]     _)          = div1   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHLD     [op1,op2,op3] _)      = shld ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHRD     [op1,op2,op3] _)      = shrd ctxt i_a op1 op2 op3
 
-tau_i ctxt (Instr i_a _ CMP      (Just op1) (Just op2) _ _ _) = cmp    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ TEST     (Just op1) (Just op2) _ _ _) = test   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMP      [op1,op2] _) = cmp    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ TEST     [op1,op2] _) = test   ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a _ XOR      (Just op1) (Just op2) _ _ _) = xor    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ OR       (Just op1) (Just op2) _ _ _) = or'    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ AND      (Just op1) (Just op2) _ _ _) = and'   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ NOT      (Just op1) _          _ _ _) = not'   ctxt i_a op1
-tau_i ctxt (Instr i_a _ BT       (Just op1) (Just op2) _ _ _) = bt     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTC      (Just op1) (Just op2) _ _ _) = btc    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTR      (Just op1) (Just op2) _ _ _) = btr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSR      (Just op1) (Just op2) _ _ _) = bsr    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSF      (Just op1) (Just op2) _ _ _) = bsf    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BTS      (Just op1) (Just op2) _ _ _) = bts    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BSWAP    (Just op1) _          _ _ _) = bswap  ctxt i_a op1
-
-
-
-tau_i ctxt (Instr i_a _ SETO     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNO    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETS     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNS    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETE     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETZ     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNZ    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETB     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNAE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETC     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNB    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETAE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNC    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETBE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNA    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETA     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNBE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETL     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNGE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETGE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNL    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETLE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNG    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETG     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNLE   (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETP     (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETPE    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETNP    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-tau_i ctxt (Instr i_a _ SETPO    (Just op1) Nothing    _ _ _) = setxx  ctxt i_a op1
-
-
-tau_i ctxt (Instr i_a _ XORPS     (Just op1) (Just op2) _ _ _)            = xorps      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVMSKPS  (Just op1) (Just op2) _ _ _)            = movmskps   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UNPCKLPS  (Just op1) (Just op2) _ _ _)            = unpcklps   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ BLENDVPD  (Just op1) (Just op2) Nothing    _ _)   = blendvpd   ctxt i_a op1 op2 (Reg XMM0)
-tau_i ctxt (Instr i_a _ BLENDVPD  (Just op1) (Just op2) (Just op3) _ _)   = blendvpd   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) Nothing    _ _)   = blendvps   ctxt i_a op1 op2 (Reg XMM0)
-tau_i ctxt (Instr i_a _ BLENDVPS  (Just op1) (Just op2) (Just op3) _ _)   = blendvps   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ EXTRACTPS (Just op1) (Just op2) (Just op3) _ _)   = extractps  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ SHUFPS    (Just op1) (Just op2) (Just op3) _ _)   = shufps     ctxt i_a op1 op2 op3
-
-
-tau_i ctxt (Instr i_a _ XORPD    (Just op1) (Just op2) _ _ _) = xorpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ANDPD    (Just op1) (Just op2) _ _ _) = andpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ANDNPD   (Just op1) (Just op2) _ _ _) = andnpd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ORPD     (Just op1) (Just op2) _ _ _) = orpd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ SUBPD    (Just op1) (Just op2) _ _ _) = subpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDPD    (Just op1) (Just op2) _ _ _) = addpd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ HADDPD   (Just op1) (Just op2) _ _ _) = haddpd   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVMSKPD (Just op1) (Just op2) _ _ _) = movmskpd   ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ POR        (Just op1) (Just op2) _ _ _)          = por          ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PAND       (Just op1) (Just op2) _ _ _)          = pand         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PANDN      (Just op1) (Just op2) _ _ _)          = pandn        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PXOR       (Just op1) (Just op2) _ _ _)          = pxor         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPOR       (Just op1) (Just op2) _ _ _)          = vpor         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPAND      (Just op1) (Just op2) _ _ _)          = vpand        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPANDN     (Just op1) (Just op2) _ _ _)          = vpandn       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPXOR      (Just op1) (Just op2) _ _ _)          = vpxor        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PTEST      (Just op1) (Just op2) _ _ _)          = ptest        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLQDQ (Just op1) (Just op2) _ _ _)          = punpcklqdq   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLBW  (Just op1) (Just op2) _ _ _)          = punpcklbw    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PUNPCKLDQ  (Just op1) (Just op2) _ _ _)          = punpckldq    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVSXDQ   (Just op1) (Just op2) _ _ _)          = pmovsxdq     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVZXDQ   (Just op1) (Just op2) _ _ _)          = pmovzxdq     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVSXBD   (Just op1) (Just op2) _ _ _)          = pmovsxbd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMOVZXBD   (Just op1) (Just op2) _ _ _)          = pmovzxbd     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSHUFB     (Just op1) (Just op2) _ _ _)          = pshufb       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSHUFD     (Just op1) (Just op2) _ _ _)          = pshufd       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPSHUFB    (Just op1) (Just op2) _ _ _)          = vpshufb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ VPSHUFD    (Just op1) (Just op2) _ _ _)          = vpshufd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPEQB    (Just op1) (Just op2) _ _ _)          = pcmpeqb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPEQD    (Just op1) (Just op2) _ _ _)          = pcmpeqd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPGTB    (Just op1) (Just op2) _ _ _)          = pcmpgtb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PCMPGTD    (Just op1) (Just op2) _ _ _)          = pcmpgtd      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDD      (Just op1) (Just op2) _ _ _)          = paddd        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDB      (Just op1) (Just op2) _ _ _)          = paddb        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PADDQ      (Just op1) (Just op2) _ _ _)          = paddq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBD      (Just op1) (Just op2) _ _ _)          = psubd        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBB      (Just op1) (Just op2) _ _ _)          = psubb        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBQ      (Just op1) (Just op2) _ _ _)          = psubq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMULLD     (Just op1) (Just op2) _ _ _)          = pmulld       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMINSD     (Just op1) (Just op2) _ _ _)          = pminsd       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMAXSD     (Just op1) (Just op2) _ _ _)          = pmaxsd       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMINUD     (Just op1) (Just op2) _ _ _)          = pminud       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMAXUD     (Just op1) (Just op2) _ _ _)          = pmaxud       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PMAXUQ     (Just op1) (Just op2) _ _ _)          = pmaxuq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLD      (Just op1) (Just op2) _ _ _)          = psrld        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLW      (Just op1) (Just op2) _ _ _)          = psrlw        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLDQ     (Just op1) (Just op2) _ _ _)          = psrldq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSLLDQ     (Just op1) (Just op2) _ _ _)          = pslldq       ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSLLQ      (Just op1) (Just op2) _ _ _)          = psllq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSRLQ      (Just op1) (Just op2) _ _ _)          = psrlq        ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBUSB    (Just op1) (Just op2) _ _ _)          = psubusb      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PSUBUSW    (Just op1) (Just op2) _ _ _)          = psubusw      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PINSRB     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PINSRQ     (Just op1) (Just op2) (Just op3) _ _) = pinsrq       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PINSRD     (Just op1) (Just op2) (Just op3) _ _) = pinsrd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRB     (Just op1) (Just op2) (Just op3) _ _) = pextrb       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRD     (Just op1) (Just op2) (Just op3) _ _) = pextrd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PEXTRQ     (Just op1) (Just op2) (Just op3) _ _) = pextrq       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PSHUFLW    (Just op1) (Just op2) (Just op3) _ _) = pshuflw      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PCLMULQDQ  (Just op1) (Just op2) (Just op3) _ _) = pclmulqdq    ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PACKSSDW   (Just op1) (Just op2) _ _ _)          = packssdw     ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ PACKSSWB   (Just op1) (Just op2) _ _ _)          = packsswb     ctxt i_a op1 op2
-
-
-tau_i ctxt (Instr i_a _ SUBSS    (Just op1) (Just op2) _ _ _) = subss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDSS    (Just op1) (Just op2) _ _ _) = addss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ DIVSS    (Just op1) (Just op2) _ _ _) = divss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MULSS    (Just op1) (Just op2) _ _ _) = mulss    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROUNDSS  (Just op1) (Just op2) _ _ _) = roundss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UCOMISS  (Just op1) (Just op2) _ _ _) = ucomiss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ COMISS   (Just op1) (Just op2) _ _ _) = comiss   ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ SUBSD    (Just op1) (Just op2) _ _ _) = subsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ADDSD    (Just op1) (Just op2) _ _ _) = addsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ DIVSD    (Just op1) (Just op2) _ _ _) = divsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MULSD    (Just op1) (Just op2) _ _ _) = mulsd    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ ROUNDSD  (Just op1) (Just op2) _ _ _) = roundsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ UCOMISD  (Just op1) (Just op2) _ _ _) = ucomisd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPLTSD  (Just op1) (Just op2) _ _ _) = cmpltsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPEQSD  (Just op1) (Just op2) _ _ _) = cmpeqsd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CMPNEQSD (Just op1) (Just op2) _ _ _) = cmpneqsd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XOR      [op1,op2] _) = xor    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ OR       [op1,op2] _) = or'    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ AND      [op1,op2] _) = and'   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ NOT      [op1]     _) = not'   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BT       [op1,op2] _) = bt     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BTC      [op1,op2] _) = btc    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BTR      [op1,op2] _) = btr    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BSR      [op1,op2] _) = bsr    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BSF      [op1,op2] _) = bsf    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BTS      [op1,op2] _) = bts    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BSWAP    [op1]     _) = bswap  ctxt i_a op1
 
 
 
-tau_i ctxt (Instr i_a _ CVTSS2SD  (Just op1) (Just op2) _ _ _) = cvtss2sd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSI2SS  (Just op1) (Just op2) _ _ _) = cvtsi2ss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSI2SD  (Just op1) (Just op2) _ _ _) = cvtsi2sd  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTSD2SS  (Just op1) (Just op2) _ _ _) = cvtsd2ss  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTSS2SI (Just op1) (Just op2) _ _ _) = cvttss2si ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTSD2SI (Just op1) (Just op2) _ _ _) = cvttsd2si ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTTPD2DQ (Just op1) (Just op2) _ _ _) = cvttpd2dq ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ CVTDQ2PD  (Just op1) (Just op2) _ _ _) = cvtdq2pd  ctxt i_a op1 op2
-
-tau_i ctxt (Instr i_a _ FST      (Just op1) _          _ _ _)  = fst'     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FSTP     (Just op1) _          _ _ _)  = fstp     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FINIT    _          _          _ _ _)  = finit'   ctxt i_a
-tau_i ctxt (Instr i_a _ FNINIT   _          _          _ _ _)  = fninit   ctxt i_a
-tau_i ctxt (Instr i_a _ FNSTCW   (Just op1) _          _ _ _)  = fnstcw   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FSTCW    (Just op1) _          _ _ _)  = fstcw    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FLD      (Just op1) _          _ _ _)  = fld      ctxt i_a op1
-tau_i ctxt (Instr i_a _ FLD1     Nothing    _          _ _ _)  = fld1     ctxt i_a
-tau_i ctxt (Instr i_a _ FLDZ     Nothing    _          _ _ _)  = fldz     ctxt i_a
-tau_i ctxt (Instr i_a _ FILD     (Just op1) Nothing    _ _ _)  = fild     ctxt i_a op1
-tau_i ctxt (Instr i_a _ FUCOM    _          _          _ _ _)  = fucom    ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMI   _          _          _ _ _)  = fucomi   ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMIP  _          _          _ _ _)  = fucomip  ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMP   _          _          _ _ _)  = fucomp   ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMPI  _          _          _ _ _)  = fucompi  ctxt i_a
-tau_i ctxt (Instr i_a _ FUCOMPP  _          _          _ _ _)  = fucompp  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVB   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVBE  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVE   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNE  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVU   _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNU  _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FCMOVNBE _          _          _ _ _)  = fcmovxx  ctxt i_a
-tau_i ctxt (Instr i_a _ FADD     (Just op1) Nothing    _ _ _)  = fadd1    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FADD     (Just op1) (Just op2) _ _ _)  = fadd2    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FMUL     (Just op1) Nothing    _ _ _)  = fmul1    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FMUL     (Just op1) (Just op2) _ _ _)  = fmul2    ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FMULP    (Just op1) Nothing    _ _ _)  = fmulp1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FMULP    (Just op1) (Just op2) _ _ _)  = fmulp2   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FDIVR    (Just op1) Nothing    _ _ _)  = fdivr1   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FDIVR    (Just op1) (Just op2) _ _ _)  = fdivr2   ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FDIVRP   (Just op1) Nothing    _ _ _)  = fdivrp1  ctxt i_a op1
-tau_i ctxt (Instr i_a _ FDIVRP   (Just op1) (Just op2) _ _ _)  = fdivrp2  ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ FISUB    (Just op1) Nothing    _ _ _)  = fisub    ctxt i_a op1
-tau_i ctxt (Instr i_a _ FISTTP   (Just op1) Nothing    _ _ _)  = fisttp   ctxt i_a op1
-tau_i ctxt (Instr i_a _ FXCH     (Just op1) _          _ _ _)  = fxch     ctxt i_a
-tau_i ctxt (Instr i_a _ FCHS     Nothing    _          _ _ _)  = fchs     ctxt i_a
-tau_i ctxt (Instr i_a _ EMMS     Nothing    _          _ _ _)  = emms     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETO     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNO    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETS     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNS    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETE     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETZ     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNZ    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETB     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNAE   [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETC     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNB    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETAE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNC    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETBE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNA    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETA     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNBE   [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETL     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNGE   [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETGE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNL    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETLE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNG    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETG     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNLE   [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETP     [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETPE    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETNP    [op1] _) = setxx  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SETPO    [op1] _) = setxx  ctxt i_a op1
 
 
-tau_i ctxt (Instr i_a _ VINSERTF128  (Just op1) (Just op2) (Just op3) _ _)  = vinsertf128  ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VEXTRACTI128 (Just op1) (Just op2) (Just op3) _ _)  = vextractf128 ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VEXTRACTF128 (Just op1) (Just op2) (Just op3) _ _)  = vextracti128 ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPERM2F128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2f128   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPERM2I128   (Just op1) (Just op2) (Just op3) _ _)  = vperm2i128   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPALIGNR     (Just op1) (Just op2) (Just op3) _ _)  = vpalignr     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ PALIGNR      (Just op1) (Just op2) (Just op3) _ _)  = palignr      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSHUFPD      (Just op1) (Just op2) (Just op3) _ _)  = vshufpd      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSHUFPS      (Just op1) (Just op2) (Just op3) _ _)  = vshufps      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VADDPD       (Just op1) (Just op2) (Just op3) _ _)  = vaddpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VADDPS       (Just op1) (Just op2) (Just op3) _ _)  = vaddps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSUBPD       (Just op1) (Just op2) (Just op3) _ _)  = vsubpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VSUBPS       (Just op1) (Just op2) (Just op3) _ _)  = vsubps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMULPD       (Just op1) (Just op2) (Just op3) _ _)  = vmulpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMULPS       (Just op1) (Just op2) (Just op3) _ _)  = vmulps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VXORPD       (Just op1) (Just op2) (Just op3) _ _)  = vxorpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VXORPS       (Just op1) (Just op2) (Just op3) _ _)  = vxorps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPD       (Just op1) (Just op2) (Just op3) _ _)  = vandpd       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VANDPS       (Just op1) (Just op2) (Just op3) _ _)  = vandps       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVDQA      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqa      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVDQU      (Just op1) (Just op2) (Just op3) _ _)  = vmovdqu      ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VMOVLHPS     (Just op1) (Just op2) (Just op3) _ _)  = vmovlhps     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPUNPCKHWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpckhwd   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPUNPCKLWD   (Just op1) (Just op2) (Just op3) _ _)  = vpunpcklwd   ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VZEROUPPER   Nothing    _          _ _ _)           = vzeroupper   ctxt i_a
-tau_i ctxt (Instr i_a _ VPCMPEQB     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqb     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPCMPEQW     (Just op1) (Just op2) (Just op3) _ _)  = vpcmpeqw     ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ VPSLLW       (Just op1) (Just op2) (Just op3) _ _)  = vpsllw       ctxt i_a op1 op2 op3
-tau_i ctxt (Instr i_a _ MOVHPS       (Just op1) (Just op2) Nothing _ _)     = movhps       ctxt i_a op1 op2 
-tau_i ctxt (Instr i_a _ MOVHLPS      (Just op1) (Just op2) Nothing _ _)     = movhlps      ctxt i_a op1 op2
-tau_i ctxt (Instr i_a _ MOVLHPS      (Just op1) (Just op2) Nothing _ _)     = movlhps      ctxt i_a op1 op2 
-tau_i ctxt (Instr i_a _ VMOVHPS      (Just op1) (Just op2) Nothing _ _)     = vmovhps      ctxt i_a op1 op2 
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XORPS     [op1,op2] _)            = xorps      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVMSKPS  [op1,op2] _)            = movmskps   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ UNPCKLPS  [op1,op2] _)            = unpcklps   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BLENDVPD  [op1,op2]    _)   = blendvpd   ctxt i_a op1 op2 (Storage XMM0)
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BLENDVPD  [op1,op2,op3] _)   = blendvpd   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BLENDVPS  [op1,op2]    _)   = blendvps   ctxt i_a op1 op2 (Storage XMM0)
+tau_i ctxt (Instruction (AddressWord64 i_a) _ BLENDVPS  [op1,op2,op3] _)   = blendvps   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ EXTRACTPS [op1,op2,op3] _)   = extractps  ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SHUFPS    [op1,op2,op3] _)   = shufps     ctxt i_a op1 op2 op3
 
 
-tau_i ctxt (Instr i_a _ CPUID    Nothing    _          _ _ _)  = cpuid    ctxt i_a
-tau_i ctxt (Instr i_a _ RDMSR    Nothing    _          _ _ _)  = rdmsr    ctxt i_a
-tau_i ctxt (Instr i_a _ WRMSR    Nothing    _          _ _ _)  = wrmsr    ctxt i_a
-tau_i ctxt (Instr i_a _ RDTSC    Nothing    _          _ _ _)  = rdtsc    ctxt i_a
-tau_i ctxt (Instr i_a _ IN       (Just op1) _          _ _ _)  = x86_in   ctxt i_a op1
-tau_i ctxt (Instr i_a _ OUT      (Just op1) _          _ _ _)  = x86_out  ctxt i_a op1
-tau_i ctxt (Instr i_a _ CLI      Nothing    _          _ _ _)  = cli      ctxt i_a
-tau_i ctxt (Instr i_a _ CLTS     Nothing    _          _ _ _)  = clts     ctxt i_a
-tau_i ctxt (Instr i_a _ INVPCID  _          _          _ _ _)  = invpcid  ctxt i_a
-tau_i ctxt (Instr i_a _ LGDT     _          _          _ _ _)  = lgdt     ctxt i_a
-tau_i ctxt (Instr i_a _ LIDT     _          _          _ _ _)  = lidt     ctxt i_a
-tau_i ctxt (Instr i_a _ LLDT     _          _          _ _ _)  = lldt     ctxt i_a
-tau_i ctxt (Instr i_a _ LTR      _          _          _ _ _)  = ltr      ctxt i_a
-tau_i ctxt (Instr i_a _ SWAPGS   _          _          _ _ _)  = swapgs   ctxt i_a
-tau_i ctxt (Instr i_a _ XSETBV   _          _          _ _ _)  = xsetbv   ctxt i_a
-tau_i ctxt (Instr i_a _ XSAVEOPT _          _          _ _ _)  = xsaveopt ctxt i_a
-tau_i ctxt (Instr i_a _ XRSTOR   _          _          _ _ _)  = xrstor   ctxt i_a
-tau_i ctxt (Instr i_a _ WRFSBASE _          _          _ _ _)  = wrfsbase ctxt i_a
-tau_i ctxt (Instr i_a _ WRGSBASE _          _          _ _ _)  = wrgsbase ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XORPD    [op1,op2] _) = xorpd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ANDPD    [op1,op2] _) = andpd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ANDNPD   [op1,op2] _) = andnpd   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ORPD     [op1,op2] _) = orpd     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SUBPD    [op1,op2] _) = subpd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ADDPD    [op1,op2] _) = addpd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ HADDPD   [op1,op2] _) = haddpd   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVMSKPD [op1,op2] _) = movmskpd   ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a pre CMPS     (Just op1) (Just op2) _ _ _) = cmps      ctxt i_a pre op1 op2
-tau_i ctxt (Instr i_a pre CMPSB    (Just op1) (Just op2) _ _ _) = cmpsb     ctxt i_a pre op1 op2
-tau_i ctxt (Instr i_a pre CMPSW    (Just op1) (Just op2) _ _ _) = cmpsw     ctxt i_a pre op1 op2
-tau_i ctxt (Instr i_a pre CMPSD    (Just op1) (Just op2) _ _ _) = cmpsw     ctxt i_a pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ POR        [op1,op2] _)          = por          ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PAND       [op1,op2] _)          = pand         ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PANDN      [op1,op2] _)          = pandn        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PXOR       [op1,op2] _)          = pxor         ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPOR       [op1,op2] _)          = vpor         ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPAND      [op1,op2] _)          = vpand        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPANDN     [op1,op2] _)          = vpandn       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPXOR      [op1,op2] _)          = vpxor        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PTEST      [op1,op2] _)          = ptest        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PUNPCKLQDQ [op1,op2] _)          = punpcklqdq   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PUNPCKLBW  [op1,op2] _)          = punpcklbw    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PUNPCKLDQ  [op1,op2] _)          = punpckldq    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVSXDQ   [op1,op2] _)          = pmovsxdq     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVZXDQ   [op1,op2] _)          = pmovzxdq     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVSXBD   [op1,op2] _)          = pmovsxbd     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVZXBD   [op1,op2] _)          = pmovzxbd     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFB     [op1,op2] _)          = pshufb       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFD     [op1,op2] _)          = pshufd       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSHUFB    [op1,op2] _)          = vpshufb      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSHUFD    [op1,op2] _)          = vpshufd      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PCMPEQB    [op1,op2] _)          = pcmpeqb      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PCMPEQD    [op1,op2] _)          = pcmpeqd      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PCMPGTB    [op1,op2] _)          = pcmpgtb      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PCMPGTD    [op1,op2] _)          = pcmpgtd      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PADDD      [op1,op2] _)          = paddd        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PADDB      [op1,op2] _)          = paddb        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PADDQ      [op1,op2] _)          = paddq        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSUBD      [op1,op2] _)          = psubd        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSUBB      [op1,op2] _)          = psubb        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSUBQ      [op1,op2] _)          = psubq        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMULLD     [op1,op2] _)          = pmulld       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMINSD     [op1,op2] _)          = pminsd       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMAXSD     [op1,op2] _)          = pmaxsd       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMINUD     [op1,op2] _)          = pminud       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMAXUD     [op1,op2] _)          = pmaxud       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PMAXUQ     [op1,op2] _)          = pmaxuq       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSRLD      [op1,op2] _)          = psrld        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSRLW      [op1,op2] _)          = psrlw        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSRLDQ     [op1,op2] _)          = psrldq       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSLLDQ     [op1,op2] _)          = pslldq       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSLLQ      [op1,op2] _)          = psllq        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSRLQ      [op1,op2] _)          = psrlq        ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSUBUSB    [op1,op2] _)          = psubusb      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSUBUSW    [op1,op2] _)          = psubusw      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PINSRB     [op1,op2,op3] _) = pinsrq       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PINSRQ     [op1,op2,op3] _) = pinsrq       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PINSRD     [op1,op2,op3] _) = pinsrd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PEXTRB     [op1,op2,op3] _) = pextrb       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PEXTRD     [op1,op2,op3] _) = pextrd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PEXTRQ     [op1,op2,op3] _) = pextrq       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFLW    [op1,op2,op3] _) = pshuflw      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PCLMULQDQ  [op1,op2,op3] _) = pclmulqdq    ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PACKSSDW   [op1,op2] _)          = packssdw     ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PACKSSWB   [op1,op2] _)          = packsswb     ctxt i_a op1 op2
+
+
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SUBSS    [op1,op2] _) = subss    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ADDSS    [op1,op2] _) = addss    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ DIVSS    [op1,op2] _) = divss    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MULSS    [op1,op2] _) = mulss    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ROUNDSS  [op1,op2] _) = roundss  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ UCOMISS  [op1,op2] _) = ucomiss  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ COMISS   [op1,op2] _) = comiss   ctxt i_a op1 op2
+
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SUBSD    [op1,op2] _) = subsd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ADDSD    [op1,op2] _) = addsd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ DIVSD    [op1,op2] _) = divsd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MULSD    [op1,op2] _) = mulsd    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ ROUNDSD  [op1,op2] _) = roundsd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ UCOMISD  [op1,op2] _) = ucomisd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPLTSD  [op1,op2] _) = cmpltsd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPEQSD  [op1,op2] _) = cmpeqsd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPNEQSD [op1,op2] _) = cmpneqsd ctxt i_a op1 op2
 
 
 
-tau_i ctxt (Instr i_a Nothing     XCHG (Just op1) (Just op2) _ _ _)    = xchg         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a (Just LOCK) XADD    (Just op1) (Just op2) _ _ _) = xadd         ctxt i_a op1 op2
-tau_i ctxt (Instr i_a (Just LOCK) CMPXCHG (Just op1) (Just op2) _ _ _) = cmpxchg      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTSS2SD  [op1,op2] _) = cvtss2sd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTSI2SS  [op1,op2] _) = cvtsi2ss  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTSI2SD  [op1,op2] _) = cvtsi2sd  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTSD2SS  [op1,op2] _) = cvtsd2ss  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTTSS2SI [op1,op2] _) = cvttss2si ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTTSD2SI [op1,op2] _) = cvttsd2si ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTTPD2DQ [op1,op2] _) = cvttpd2dq ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CVTDQ2PD  [op1,op2] _) = cvtdq2pd  ctxt i_a op1 op2
 
-tau_i ctxt (Instr i_a (Just pre)  MOVSD   (Just op1) (Just op2) _ _ _) = movsd_string ctxt pre op1 op2
-tau_i ctxt (Instr i_a (Just pre)  MOVSQ   (Just op1) (Just op2) _ _ _) = movsq        ctxt pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FST      [op1]      _)  = fst'     ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FSTP     [op1]      _)  = fstp     ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FINIT    _          _)  = finit'   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FNINIT   _          _)  = fninit   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FNSTCW   [op1]      _)  = fnstcw   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FSTCW    [op1]      _)  = fstcw    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FLD      [op1]      _)  = fld      ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FLD1     []         _)  = fld1     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FLDZ     []         _)  = fldz     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FILD     [op1]      _)  = fild     ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOM    _          _)  = fucom    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOMI   _          _)  = fucomi   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOMIP  _          _)  = fucomip  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOMP   _          _)  = fucomp   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOMPI  _          _)  = fucompi  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FUCOMPP  _          _)  = fucompp  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVB   _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVBE  _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVE   _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVNE  _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVU   _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVNU  _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCMOVNBE _          _)  = fcmovxx  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FADD     [op1]      _)  = fadd1    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FADD     [op1,op2]  _)  = fadd2    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FMUL     [op1]      _)  = fmul1    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FMUL     [op1,op2]  _)  = fmul2    ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FMULP    [op1]      _)  = fmulp1   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FMULP    [op1,op2]  _)  = fmulp2   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FDIVR    [op1]      _)  = fdivr1   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FDIVR    [op1,op2]  _)  = fdivr2   ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FDIVRP   [op1]      _)  = fdivrp1  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FDIVRP   [op1,op2]  _)  = fdivrp2  ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FISUB    [op1]      _)  = fisub    ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FISTTP   [op1]      _)  = fisttp   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FXCH     [op1]      _)  = fxch     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ FCHS     []         _)  = fchs     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ EMMS     []         _)  = emms     ctxt i_a
+
+
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VINSERTF128  [op1,op2,op3] _)  = vinsertf128  ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VEXTRACTI128 [op1,op2,op3] _)  = vextractf128 ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VEXTRACTF128 [op1,op2,op3] _)  = vextracti128 ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPERM2F128   [op1,op2,op3] _)  = vperm2f128   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPERM2I128   [op1,op2,op3] _)  = vperm2i128   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPALIGNR     [op1,op2,op3] _)  = vpalignr     ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PALIGNR      [op1,op2,op3] _)  = palignr      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VANDPS       [op1,op2,op3] _)  = vandps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VSHUFPD      [op1,op2,op3] _)  = vshufpd      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VSHUFPS      [op1,op2,op3] _)  = vshufps      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VADDPD       [op1,op2,op3] _)  = vaddpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VADDPS       [op1,op2,op3] _)  = vaddps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VSUBPD       [op1,op2,op3] _)  = vsubpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VSUBPS       [op1,op2,op3] _)  = vsubps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMULPD       [op1,op2,op3] _)  = vmulpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMULPS       [op1,op2,op3] _)  = vmulps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VXORPD       [op1,op2,op3] _)  = vxorpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VXORPS       [op1,op2,op3] _)  = vxorps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VANDPD       [op1,op2,op3] _)  = vandpd       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VANDPS       [op1,op2,op3] _)  = vandps       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVDQA      [op1,op2,op3] _)  = vmovdqa      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVDQU      [op1,op2,op3] _)  = vmovdqu      ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVLHPS     [op1,op2,op3] _)  = vmovlhps     ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPUNPCKHWD   [op1,op2,op3] _)  = vpunpckhwd   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPUNPCKLWD   [op1,op2,op3] _)  = vpunpcklwd   ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VZEROUPPER   []            _)  = vzeroupper   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPCMPEQB     [op1,op2,op3] _)  = vpcmpeqb     ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPCMPEQW     [op1,op2,op3] _)  = vpcmpeqw     ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSLLW       [op1,op2,op3] _)  = vpsllw       ctxt i_a op1 op2 op3
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVHPS       [op1,op2] _)      = movhps       ctxt i_a op1 op2 
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVHLPS      [op1,op2] _)      = movhlps      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVLHPS      [op1,op2] _)      = movlhps      ctxt i_a op1 op2 
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVHPS      [op1,op2] _)      = vmovhps      ctxt i_a op1 op2 
+
+
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CPUID    []         _)  = cpuid    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ RDMSR    []         _)  = rdmsr    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ WRMSR    []         _)  = wrmsr    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ RDTSC    []         _)  = rdtsc    ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ IN       [op1]      _)  = x86_in   ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ OUT      [op1]      _)  = x86_out  ctxt i_a op1
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CLI      []         _)  = cli      ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CLTS     []         _)  = clts     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ INVPCID  _          _)  = invpcid  ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ LGDT     _          _)  = lgdt     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ LIDT     _          _)  = lidt     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ LLDT     _          _)  = lldt     ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ LTR      _          _)  = ltr      ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ SWAPGS   _          _)  = swapgs   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XSETBV   _          _)  = xsetbv   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XSAVEOPT _          _)  = xsaveopt ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ XRSTOR   _          _)  = xrstor   ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ WRFSBASE _          _)  = wrfsbase ctxt i_a
+tau_i ctxt (Instruction (AddressWord64 i_a) _ WRGSBASE _          _)  = wrgsbase ctxt i_a
+
+tau_i ctxt (Instruction (AddressWord64 i_a) pre CMPS     [op1,op2] _) = cmps      ctxt i_a pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) pre CMPSB    [op1,op2] _) = cmpsb     ctxt i_a pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) pre CMPSW    [op1,op2] _) = cmpsw     ctxt i_a pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) pre CMPSD    [op1,op2] _) = cmpsw     ctxt i_a pre op1 op2
+
+
+
+tau_i ctxt (Instruction (AddressWord64 i_a) Nothing     XCHG    [op1,op2] _) = xchg         ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) (Just LOCK) XADD    [op1,op2] _) = xadd         ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) (Just LOCK) CMPXCHG [op1,op2] _) = cmpxchg      ctxt i_a op1 op2
+
+tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSD   [op1,op2] _) = movsd_string ctxt pre op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSQ   [op1,op2] _) = movsq        ctxt pre op1 op2
 
 tau_i ctxt i =
-  if is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
+  if is_jump (instr_opcode i) || is_cond_jump (instr_opcode i) then
     return ()
   else if ctxt_continue_on_unknown_instruction $ f_ctxt ctxt then
     trace ("Unsupported instruction: " ++ show i) $ return () 
@@ -1615,20 +1616,20 @@ tau_i ctxt i =
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.
-tau_b :: FContext -> [Instr] -> State (Pred,VCS) ()
+tau_b :: FContext -> [X86_Instruction] -> State (Pred,VCS) ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
-  write_reg ctxt (i_addr i) RIP (SE_Immediate $ fromIntegral $ i_addr i + i_size i)
+  write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
   tau_i ctxt i
   tau_b ctxt is
 
 
 
 -- TODO JE, other JMP aboves and JUMP lesses
-add_jump_to_pred :: Instr -> Instr -> FlagStatus -> FlagStatus
-add_jump_to_pred i0@(Instr _ _ JA (Just (Immediate trgt)) _ _ _ _) i1 flg =
+add_jump_to_pred :: X86_Instruction -> X86_Instruction -> FlagStatus -> FlagStatus
+add_jump_to_pred i0@(Instruction _ _ JA [Immediate trgt] _) i1 flg =
   case flg of
-    FS_CMP b o1 o2 -> if i_addr i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
+    FS_CMP b o1 o2 -> if instr_addr i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
     _ -> flg
 add_jump_to_pred i0 i1 flg = flg
 
@@ -1637,23 +1638,23 @@ add_jump_to_pred i0 i1 flg = flg
 -- Given an edge in the CFG from none block to another, perform predicate transformation.
 -- Parameter insts' is needed to set the flags properly. If @Nothing@ is supplied, the flags are overapproximatively set to @`None`@.
 tau_block ::
-  FContext           -- ^ The context
-  -> [Instr]        -- ^ The instructions of the basic block
-  -> Maybe [Instr]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
-  -> Pred           -- ^ The predicate to be transformed
+  FContext                    -- ^ The context
+  -> [X86_Instruction]        -- ^ The instructions of the basic block
+  -> Maybe [X86_Instruction]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
+  -> Pred                     -- ^ The predicate to be transformed
   -> (Pred, VCS)
 tau_block ctxt insts insts' p@(Predicate eqs flg) = 
   if insts == [] then
     (p, S.empty)
   else let
-      addr                   = i_addr $ head insts
+      addr                   = instr_addr $ head insts
       eqs'                   = write_rip addr eqs
       (p'',vcs'')            = execState (tau_b ctxt insts) (Predicate eqs' flg, S.empty)
       Predicate eqs'' flgs'' = p'' in
     case insts' of
       Nothing -> (p'', vcs'')
       Just (i':_) ->
-        let addr'  = i_addr i' in
+        let addr'  = instr_addr i' in
           (Predicate (write_rip addr' eqs'') (add_jump_to_pred (last insts) i' flgs''), vcs'')
  where
   write_rip addr eqs = M.insert (SP_Reg RIP) (SE_Immediate $ fromIntegral addr) eqs
@@ -1784,7 +1785,7 @@ get_invariant fctxt a = do
   p         <- IM.lookup blockId invs
   instrs    <- IM.lookup blockId $ cfg_instrs g
 
-  return $ fst $ tau_block fctxt (takeWhile (\i -> i_addr i /= a) instrs) Nothing p
+  return $ fst $ tau_block fctxt (takeWhile (\i -> fromIntegral (instr_addr i) /= a) instrs) Nothing p
 
 
 

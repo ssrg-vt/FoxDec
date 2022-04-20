@@ -50,10 +50,10 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
 data PointerBase = 
-    StackPointer String                 -- ^ The stack frame of the given function
-  | Malloc (Maybe Int) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
-  | GlobalAddress Word64              -- ^ A /global/ address in the range of the sections of the binary.
-  | PointerToSymbol Word64 String     -- ^ An address with an associated symbol.
+    StackPointer String                  -- ^ The stack frame of the given function
+  | Malloc (Maybe Word64) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
+  | GlobalAddress Word64                 -- ^ A /global/ address in the range of the sections of the binary.
+  | PointerToSymbol Word64 String        -- ^ An address with an associated symbol.
   deriving (Generic,Eq,Ord)
 
 
@@ -78,11 +78,11 @@ data BotTyp =
 
 -- | Sources that may be used to compute an expression. That is, the inputs to an expression.
 data BotSrc = 
-    Src_Var StatePart                       -- ^ An initial variable, i.e., a constant
-  | Src_StackPointer String                 -- ^ The stack pointer of the given function
-  | Src_Malloc (Maybe Int) (Maybe String)   -- ^ A malloced address
-  | Src_ImmediateAddress Word64             -- ^ An immediate used in the computation of the pointer
-  | Src_Function String                     -- ^ A return value from a function
+    Src_Var StatePart                        -- ^ An initial variable, i.e., a constant
+  | Src_StackPointer String                  -- ^ The stack pointer of the given function
+  | Src_Malloc (Maybe Word64) (Maybe String) -- ^ A malloced address
+  | Src_ImmediateAddress Word64              -- ^ An immediate used in the computation of the pointer
+  | Src_Function String                      -- ^ A return value from a function
  deriving (Eq, Ord, Generic)
 
 
@@ -123,15 +123,15 @@ instance Show Operator where
 -- A variable is a constant representing some initial value, e.g., RDI_0, or [RSP_0,8]_0.
 -- A statepart evaluates to its current value, e.g., RDI or [RSP,8].
 data SimpleExpr =
-    SE_Immediate Word64                     -- ^ An immediate word
-  | SE_Var       StatePart                  -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
-  | SE_StatePart StatePart                  -- ^ The value stored currently in the statepart
-  | SE_Malloc    (Maybe Int) (Maybe String) -- ^ A malloc return value with possibly an ID
-  | SE_Op        Operator [SimpleExpr]      -- ^ Application of an @`Operator`@ to the list of arguments
-  | SE_Bit       Int SimpleExpr             -- ^ Taking the lower bits of a value
-  | SE_SExtend   Int Int SimpleExpr         -- ^ Sign extension
-  | SE_Overwrite Int SimpleExpr SimpleExpr  -- ^ Overwriting certain bits of a value with bits from another value
-  | Bottom       BotTyp                     -- ^ Bottom (unknown value)
+    SE_Immediate Word64                        -- ^ An immediate word
+  | SE_Var       StatePart                     -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
+  | SE_StatePart StatePart                     -- ^ The value stored currently in the statepart
+  | SE_Malloc    (Maybe Word64) (Maybe String) -- ^ A malloc return value with possibly an ID
+  | SE_Op        Operator [SimpleExpr]         -- ^ Application of an @`Operator`@ to the list of arguments
+  | SE_Bit       Int SimpleExpr                -- ^ Taking the lower bits of a value
+  | SE_SExtend   Int Int SimpleExpr            -- ^ Sign extension
+  | SE_Overwrite Int SimpleExpr SimpleExpr     -- ^ Overwriting certain bits of a value with bits from another value
+  | Bottom       BotTyp                        -- ^ Bottom (unknown value)
  deriving (Eq, Ord, Generic)
 
 -- | A statepart is either a register or a region in memory
@@ -372,8 +372,8 @@ instance Show StatePart where
 
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus = 
-    None                                 -- ^ No information known, flags could have any value
-  | FS_CMP (Maybe Bool) Operand Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
+    None                                         -- ^ No information known, flags could have any value
+  | FS_CMP (Maybe Bool) X86_Operand X86_Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
   deriving (Generic,Eq,Ord)
 
 
@@ -407,9 +407,9 @@ instance Cereal.Serialize Pred
 
 instance Show FlagStatus where
  show None = ""
- show (FS_CMP Nothing      op1 op2) = "flags set by CMP(" ++ show_operand' op1 ++ "," ++ show_operand' op2 ++ ")"
- show (FS_CMP (Just True)  op1 op2) = show_operand' op1 ++ " < " ++ show_operand' op2
- show (FS_CMP (Just False) op1 op2) = show_operand' op1 ++ " >= " ++ show_operand' op2
+ show (FS_CMP Nothing      op1 op2) = "flags set by CMP(" ++ show op1 ++ "," ++ show op2 ++ ")"
+ show (FS_CMP (Just True)  op1 op2) = show op1 ++ " < " ++ show op2
+ show (FS_CMP (Just False) op1 op2) = show op1 ++ " >= " ++ show op2
 
 
 instance Show Pred where

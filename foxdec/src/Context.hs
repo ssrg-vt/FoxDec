@@ -15,6 +15,7 @@ import Base
 import Config
 import DisassembleCapstone
 import SimplePred
+import Generic_Datastructures
 import X86_Datastructures
 
 import qualified Data.Map as M
@@ -39,11 +40,11 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 -- A blockID (represented as an @Int@) is a unique identifier of a basic block.
 -- We store basic blocks twice: once as addresses, and once as instructions.
 data CFG = CFG {
-  cfg_blocks :: IM.IntMap [Int],        -- ^ A mapping of blockIDs to instruction addresses
-  cfg_edges  :: IM.IntMap (IS.IntSet),  -- ^ A mapping of blockIDs to sets of blocKIDs
-  cfg_addr_to_blockID :: IM.IntMap Int, -- ^ A mapping of instruction addresses to blockIDs
-  cfg_fresh :: Int,                     -- ^ A fresh blockID
-  cfg_instrs :: IM.IntMap [Instr]       -- ^ A mapping of blockIDs to lists of disassembled instructions.
+  cfg_blocks :: IM.IntMap [Int],            -- ^ A mapping of blockIDs to instruction addresses
+  cfg_edges  :: IM.IntMap (IS.IntSet),      -- ^ A mapping of blockIDs to sets of blocKIDs
+  cfg_addr_to_blockID :: IM.IntMap Int,     -- ^ A mapping of instruction addresses to blockIDs
+  cfg_fresh :: Int,                         -- ^ A fresh blockID
+  cfg_instrs :: IM.IntMap [X86_Instruction] -- ^ A mapping of blockIDs to lists of disassembled instructions.
  }
  deriving (Show,Generic,Eq)
 
@@ -55,9 +56,9 @@ data CFG = CFG {
 --
 --    MOV jt_trgt_operand, QWORD PTR [jt_address + 8*jt_index_operand]
 data JumpTable = JumpTable {
-  jt_index_operand   :: Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
-  jt_trgt_operand    :: Operand, -- ^ The operand of the jump
-  jt_table_entries   :: [Int]    -- ^ An ordered list of instruction addresses to which is jumped
+  jt_index_operand   :: X86_Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
+  jt_trgt_operand    :: X86_Operand, -- ^ The operand of the jump
+  jt_table_entries   :: [Int]        -- ^ An ordered list of instruction addresses to which is jumped
  }
  deriving (Show,Generic,Eq)
 
@@ -113,8 +114,8 @@ type Postconditions = S.Set (NodeInfo,Pred)
 -- | Identifies where a memwrite occurred
 -- TODO should be generalized, is a StatePartWriteIdentifier
 data MemWriteIdentifier =
-   MemWriteFunction String Int StatePart      -- ^ A function with @name@ at address @i_a@ wrote to a statepart
- | MemWriteInstruction Int Operand SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
+   MemWriteFunction String Word64 StatePart          -- ^ A function with @name@ at address @i_a@ wrote to a statepart
+ | MemWriteInstruction Word64 X86_Operand SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
   deriving (Generic,Eq,Ord)
 
 -- |  A verification condition is either:
@@ -128,11 +129,11 @@ data MemWriteIdentifier =
 -- >    FunctionConstraint foo [(RDI, v0), (RSI, v1), ...]   { sp0,sp1,... }
 -- This formulates that a function call to function foo with values v0, v1, ... stored in the registers should not overwrite certain state parts.
 data VerificationCondition =
-    Precondition          SimpleExpr Int SimpleExpr Int                            -- ^ Precondition:           lhs SEP rhs
-  | Assertion             SimpleExpr SimpleExpr Int SimpleExpr Int                 -- ^ Assertion:    @address, lhs SEP rhs
-  | FunctionConstraint    String     Int [(Register,SimpleExpr)] (S.Set StatePart) -- ^ Function name, address, of call, with param registers
-  | SourcelessMemWrite    MemWriteIdentifier                                       -- ^ A write to a statepart for which no information was available
-  | FunctionPointers      Int IS.IntSet                                            -- ^ A set of function pointers passed to a function
+    Precondition          SimpleExpr Int SimpleExpr Int                           -- ^ Precondition:           lhs SEP rhs
+  | Assertion             SimpleExpr SimpleExpr Int SimpleExpr Int                -- ^ Assertion:    @address, lhs SEP rhs
+  | FunctionConstraint    String Word64 [(Register,SimpleExpr)] (S.Set StatePart) -- ^ Function name, address, of call, with param registers
+  | SourcelessMemWrite    MemWriteIdentifier                                      -- ^ A write to a statepart for which no information was available
+  | FunctionPointers      Word64 IS.IntSet                                        -- ^ A set of function pointers passed to a function
   deriving (Generic,Eq,Ord)
 
 -- | An acornym for a set of verification conditions
@@ -279,7 +280,7 @@ find_section_for_address ctxt a =
 fetch_instruction :: 
   Context              -- ^ The context
   -> Int               -- ^ An address
-  -> IO (Maybe Instr)
+  -> IO (Maybe X86_Instruction)
 fetch_instruction ctxt a = do
   let dump = ctxt_dump ctxt
   disassemble dump a
@@ -287,13 +288,13 @@ fetch_instruction ctxt a = do
 
 -- | Pretty printing an instruction
 pp_instruction ::
-  Context   -- ^ The context
-  -> Instr  -- ^ An instruction
+  Context             -- ^ The context
+  -> X86_Instruction  -- ^ An instruction
   -> String
 pp_instruction ctxt i =
-  if is_call (i_opcode i) then
+  if is_call (instr_opcode i) then
     show i ++
-      case i_op1 i of
+      case instr_op1 i of
         Just (Immediate imm) -> 
           case IM.lookup (fromIntegral imm) $ ctxt_syms ctxt of
             Nothing  -> " (0x" ++ showHex imm ++ ")"
@@ -326,8 +327,8 @@ instance Show MemWriteIdentifier where
   show (MemWriteFunction f a sp)       = f ++ "@" ++ showHex a ++ " WRITES TO " ++ show sp
   show (MemWriteInstruction a operand a') = "@" ++ showHex a ++ " WRITES TO " ++ show operand ++ (if add_resolved operand a' then " == " ++ show a' else "")
    where
-    add_resolved (Reg r) (SE_StatePart (SP_Reg r')) = r /= r'
-    add_resolved _       _                          = True
+    add_resolved (Storage r) (SE_StatePart (SP_Reg r')) = r /= r'
+    add_resolved _           _                          = True
 
 
 

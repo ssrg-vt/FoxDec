@@ -7,6 +7,7 @@ import Base
 import CFG_Gen
 import Context
 import X86_Datastructures
+import Generic_Datastructures
 import VerificationReportInterface
 import ControlFlow
 
@@ -175,20 +176,20 @@ symbolize_cfg ctxt entry cfg =
 symbolize_block ctxt entry cfg (blockID, instrs) = 
   intercalate "\n" $ block_header : symbolyzed_block
  where
-  block_header = comment $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (i_addr $ head instrs)
+  block_header = comment $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (instr_addr $ head instrs)
   symbolyzed_block = [block_label'] ++ block_body ++ [block_end]
 
   block_label' = block_label entry blockID ++ ":"
   block_body   = map (indent . symbolize_instr ctxt entry cfg) $ filter_unnecessary_jumps instrs
-  block_end    = if instrs == [] || is_proper_block_end_instruction (i_opcode $ last instrs) then "" else mk_extra_jmp
+  block_end    = if instrs == [] || is_proper_block_end_instruction (instr_opcode $ last instrs) then "" else mk_extra_jmp
 
-  filter_unnecessary_jumps instrs = (filter (not . is_jump . i_opcode) $ init instrs) ++ [last instrs]
+  filter_unnecessary_jumps instrs = (filter (not . is_jump . instr_opcode) $ init instrs) ++ [last instrs]
 
 
   is_proper_block_end_instruction i = is_ret i || is_jump i 
 
   mk_extra_jmp =
-    case unsafePerformIO $ stepA ctxt entry (i_addr $ last instrs) of -- TODO, also TODO assumes fall through is last/second
+    case unsafePerformIO $ stepA ctxt entry (fromIntegral $ instr_addr $ last instrs) of -- TODO, also TODO assumes fall through is last/second
       Right []        -> ""
       Right [(a,_)]   -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
       Right [_,(a,_)] -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
@@ -201,7 +202,7 @@ indent str = "    " ++ str
 
 
 symbolize_instr ctxt entry cfg i = 
-  if is_call (i_opcode i) || is_jump (i_opcode i) || is_cond_jump (i_opcode i) then
+  if is_call (instr_opcode i) || is_jump (instr_opcode i) || is_cond_jump (instr_opcode i) then
     symbolize_operand1_of_instr ctxt entry cfg i
   else
     show_nasm_instruction ctxt entry cfg  i
@@ -210,7 +211,7 @@ symbolize_instr ctxt entry cfg i =
 
 
 -- TODO LIBC_START_MAIN
-symbolize_operand1_of_instr ctxt entry cfg i@(Instr i_a Nothing mnemonic op1 op2 op3 annot si) =
+symbolize_operand1_of_instr ctxt entry cfg i@(Instruction (AddressWord64 i_a) Nothing mnemonic ops annot) =
  case resolve_jump_target ctxt i of
    [External sym]         -> show mnemonic ++ " " ++ sym
    [ImmediateAddress imm] -> show mnemonic ++ " " ++ symbolize_address ctxt entry cfg imm
@@ -218,7 +219,7 @@ symbolize_operand1_of_instr ctxt entry cfg i@(Instr i_a Nothing mnemonic op1 op2
 
  where
   show_jump_table =
-    case IM.lookup i_a $ ctxt_inds ctxt of
+    case IM.lookup (fromIntegral i_a) $ ctxt_inds ctxt of
       Just (IndirectionJumpTable jt) -> mk_jump_table_instruction jt
       _                              -> "; NO JUMP TABLE FOUND.\n"
 
@@ -245,7 +246,7 @@ symbolize_address ctxt entry cfg imm =
   -- search for a block in the current cfg that starts at @imm@, and if found, make a label for it
   label_in_current_cfg = ((block_label entry . fst) <$> find block_starts_at (IM.toList $ cfg_instrs cfg))
 
-  block_starts_at (blockId, instrs) = instrs /= [] && i_addr (head instrs) == fromIntegral imm
+  block_starts_at (blockId, instrs) = instrs /= [] && instr_addr (head instrs) == fromIntegral imm
 
 
 
@@ -269,42 +270,42 @@ finally (Just a) _ = a
 -- | Showing unresolved address (inner part within a ptr[...])
 --
 -- Always of form [ seg: reg + reg*scale + number ]
-show_nasm_address''' (AddrReg r) = show r
-show_nasm_address''' (AddrImm i) = show i
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrImm i))  = show r ++ " + " ++ show i
-show_nasm_address''' (AddrMinus (AddrReg r) (AddrImm i)) = show r ++ " + " ++ show (0 -i)
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrReg r1)) = show r ++ " + " ++ show r1
-show_nasm_address''' (AddrPlus (AddrPlus (AddrReg r) (AddrReg r1)) (AddrImm i)) = show r ++ " + " ++ show r1 ++ " + " ++ show i
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrPlus (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ " + " ++ show i
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrMinus (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ show (0-1)
-show_nasm_address''' (AddrPlus (AddrTimes (AddrReg r) (AddrImm i)) (AddrImm i1)) = show r ++ " * " ++ show i ++ " * " ++ show i1
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrTimes (AddrReg r1) (AddrImm i))) = show r ++ " + " ++ show r1 ++ " * " ++ show i
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrPlus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show i1
-show_nasm_address''' (AddrPlus (AddrReg r) (AddrMinus (AddrTimes (AddrReg r1) (AddrImm i)) (AddrImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show (0-i1)
-show_nasm_address''' (AddrTimes (AddrReg r) (AddrImm i))  = show r ++ " * " ++ show i
+show_nasm_address''' (AddressStorage r) = show r
+show_nasm_address''' (AddressImm i) = show i
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressImm i))  = show r ++ " + " ++ show i
+show_nasm_address''' (AddressMinus (AddressStorage r) (AddressImm i)) = show r ++ " + " ++ show (0 -i)
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressStorage r1)) = show r ++ " + " ++ show r1
+show_nasm_address''' (AddressPlus (AddressPlus (AddressStorage r) (AddressStorage r1)) (AddressImm i)) = show r ++ " + " ++ show r1 ++ " + " ++ show i
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressPlus (AddressStorage r1) (AddressImm i))) = show r ++ " + " ++ show r1 ++ " + " ++ show i
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressMinus (AddressStorage r1) (AddressImm i))) = show r ++ " + " ++ show r1 ++ show (0-1)
+show_nasm_address''' (AddressPlus (AddressTimes (AddressStorage r) (AddressImm i)) (AddressImm i1)) = show r ++ " * " ++ show i ++ " * " ++ show i1
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressTimes (AddressStorage r1) (AddressImm i))) = show r ++ " + " ++ show r1 ++ " * " ++ show i
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressPlus (AddressTimes (AddressStorage r1) (AddressImm i)) (AddressImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show i1
+show_nasm_address''' (AddressPlus (AddressStorage r) (AddressMinus (AddressTimes (AddressStorage r1) (AddressImm i)) (AddressImm i1))) = show r ++ " + " ++ show r1 ++ " * " ++ show i ++ " + " ++ show (0-i1)
+show_nasm_address''' (AddressTimes (AddressStorage r) (AddressImm i))  = show r ++ " * " ++ show i
 show_nasm_address''' a           = error $ "TODO: " ++ show a
 
 
 
-show_nasm_address'' a@(AddrPlus (AddrReg r) a') = if is_segment_register r then show r ++ ":" ++ show_nasm_address''' a' else show_nasm_address''' a 
-show_nasm_address'' a                           = show_nasm_address''' a
+show_nasm_address'' a@(AddressPlus (AddressStorage r) a') = if is_segment_register r then show r ++ ":" ++ show_nasm_address''' a' else show_nasm_address''' a 
+show_nasm_address'' a                                     = show_nasm_address''' a
 
 is_segment_register r = r `elem` [CS,DS,ES,FS,GS,SS]
 
-show_nasm_address' ctxt entry cfg i address =
+show_nasm_address ctxt entry cfg i address =
   case (symbolize_immediate ctxt . fromIntegral) <$> rip_relative_to_immediate address of
     Just (Just symbolized) -> "rel " ++ symbolized
     _                      -> show_nasm_address'' address
  where
-  rip_relative_to_immediate (AddrImm imm)                          = Just $ imm
-  rip_relative_to_immediate (AddrPlus (AddrReg RIP) (AddrImm imm)) = Just $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
-  rip_relative_to_immediate (AddrPlus (AddrImm imm) (AddrReg RIP)) = Just $ fromIntegral (i_addr i) + fromIntegral (i_size i) + fromIntegral imm
+  rip_relative_to_immediate (AddressImm imm)                          = Just $ imm
+  rip_relative_to_immediate (AddressPlus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (instr_addr i) + fromIntegral (instr_size i) + fromIntegral imm
+  rip_relative_to_immediate (AddressPlus (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (instr_addr i) + fromIntegral (instr_size i) + fromIntegral imm
   rip_relative_to_immediate _                                      = Nothing
 
 
 symbolize_immediate :: Context -> Int -> Maybe String
 symbolize_immediate ctxt a =
-  (pointer_to_instruction a)
+  (pointer_to_instruction $ fromIntegral a)
   `orTry`
   (symbol_from_symbol_table a)
   `orTry`
@@ -336,7 +337,7 @@ find_block_for_instruction ctxt a =
     x   -> trace ("Address " ++ showHex a ++ " has instruction but no block") $ Nothing
   
 find_block_for_instruction_address_in_cfg a (entry,cfg) = 
-  return_entry_and_blockID <$> (find (\(blockID,instrs) -> i_addr (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
+  return_entry_and_blockID <$> (find (\(blockID,instrs) -> instr_addr (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
  where
   return_entry_and_blockID (blockID,instrs) = (entry,blockID)
 
@@ -352,19 +353,12 @@ show_nasm_size_directive 10 = "tword"
 show_nasm_size_directive 16 = "oword"
 show_nasm_size_directive x  = error $ show ("unknown size directive", x)
 
--- | Showing unresolved address
-show_nasm_address ctxt entry cfg i (SizeDir si a)  = show_nasm_size_directive si ++ " [" ++ show_nasm_address' ctxt entry cfg i a ++ "]"
-show_nasm_address ctxt entry cfg i a                = "[" ++ show_nasm_address' ctxt entry cfg i a ++ "]"
-
 
 -- | Showing an operand
-show_nasm_operand' ctxt entry cfg  i (Address a)     = show_nasm_address ctxt entry cfg  i a
-show_nasm_operand' ctxt entry cfg  i (Reg r)         = show r
-show_nasm_operand' ctxt entry cfg  i (Immediate imm) = show imm
-
--- | Showing an optional operand
-show_nasm_operand ctxt entry cfg  i Nothing   = ""
-show_nasm_operand ctxt entry cfg  i (Just op) = show_nasm_operand' ctxt entry cfg  i op
+show_nasm_operand ctxt entry cfg i (Memory a si)        = show_nasm_size_directive si ++ " [" ++ show_nasm_address ctxt entry cfg i a ++ "]"
+show_nasm_operand ctxt entry cfg i (EffectiveAddress a) = "[" ++ show_nasm_address ctxt entry cfg i a ++ "]"
+show_nasm_operand ctxt entry cfg i (Storage r)          = show r
+show_nasm_operand ctxt entry cfg i (Immediate imm)      = show imm
 
 
 section_label "" ".data"      = data_section_label
@@ -377,17 +371,11 @@ jump_table_label i_a = "L_JUMP_TABLE_" ++ showHex i_a
 show_nasm_opcode MOVABS = "MOV"
 show_nasm_opcode opcode = show opcode
 
-show_nasm_instruction ctxt entry cfg  i@(Instr addr pre opcode op1 op2 op3 annot size) =
-     show_prefix pre
+show_nasm_instruction ctxt entry cfg  i@(Instruction addr pre opcode ops annot) =
+     show pre
   ++ show_nasm_opcode opcode
   ++ " "
-  ++ show_nasm_operand ctxt entry cfg  i op1
-  ++ show_nasm_operand2 op2
-  ++ show_nasm_operand2 op3
- where
-  show_nasm_operand2 Nothing = ""
-  show_nasm_operand2 (Just op) = ", " ++ show_nasm_operand ctxt entry cfg  i (Just op)
-
+  ++ intercalate ", "  (map (show_nasm_operand ctxt entry cfg i) ops)
 
 
 

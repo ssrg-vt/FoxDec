@@ -35,7 +35,7 @@ import Debug.Trace
 -- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
   -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-  tau     :: ctxt -> [Instr] -> Maybe [Instr] -> pred -> (pred,S.Set VerificationCondition)
+  tau     :: ctxt -> [X86_Instruction] -> Maybe [X86_Instruction] -> pred -> (pred,S.Set VerificationCondition)
   -- | A lattice-join
   join    :: ctxt -> pred -> pred -> pred
   -- | Symbolic implication

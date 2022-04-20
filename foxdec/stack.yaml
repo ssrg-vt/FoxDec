@@ -43,6 +43,7 @@ packages:
 extra-deps:
 - argparser-0.3.4@sha256:f277e6d568e88f0698a0ce1f2dc719d90717ffe99c8622302f65389f2a8ed01c,1952
 - hapstone-0.2.0.1@sha256:56408898dece7c6360d6bd0ca943c428d811f1cbe7d1070ce69cd4382df5cc54,2824
+- dom-lt-0.2.3@sha256:89f17bbeb0d23f5a46fe7099b81cc9b4b5df32aadb5080fc171c874aafc802c0,1850
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

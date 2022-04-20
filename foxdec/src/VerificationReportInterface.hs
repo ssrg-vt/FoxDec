@@ -129,7 +129,7 @@ ctxt_get_indirections = Right . ctxt_inds
 
 
 -- | Retrieve instruction for a given instruction address, both as datastructure and pretty-printed
-ctxt_get_instruction :: InstructionAddress -> Retrieve (Instr,String)
+ctxt_get_instruction :: InstructionAddress -> Retrieve (X86_Instruction,String)
 ctxt_get_instruction a ctxt =
   case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
     Nothing -> Left $ "Could not disassemble instruction at address: " ++ showHex a
