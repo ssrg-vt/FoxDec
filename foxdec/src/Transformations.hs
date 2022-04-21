@@ -52,13 +52,17 @@ import           Data.Maybe                     ( fromJust
                                                 , isNothing
                                                 )
 import qualified Data.Set                      as S
-import           Data.Void                      ( Void )
+import           Data.Text                      ( Text )
+import           Data.Void                      ( Void
+                                                , absurd
+                                                )
 import           Data.Word                      ( Word64 )
 import           Debug.Trace                    ( )
 
 
-
-
+--------------------------------------------------------------------------------
+-- DATA
+--------------------------------------------------------------------------------
 
 -- | A generic statement
 data Statement label storage prefix opcode annotation special =
@@ -67,32 +71,53 @@ data Statement label storage prefix opcode annotation special =
 
 data Program label storage prefix opcode annotation special = Program
   { program_basic_blocks
-      :: IM.IntMap [Statement label storage prefix opcode annotation special]
-  ,  -- ^ A mapping from blockIDs to lists of statements
-    program_controlfow :: G.Rooted                                                               -- ^ A graph based on integers (blockIDs)
+      :: IM.IntMap [Statement label storage prefix opcode annotation special]-- ^ A mapping from blockIDs to lists of statements
+  , program_controlfow :: G.Rooted -- ^ A graph based on integers (blockIDs)
   }
 
-
-type L0 = Program AddressWord64 Register Prefix Opcode Int Void -- labels are words, storage locations are registers, there are no special instructions
-
-
--- For L1, storages are registers combined with index sets
-data L1_Storage = L1_Storage Register IS.IntSet
+data SsaVar = SsaVar
+  { ssa_name  :: Int
+  , ssa_index :: Int
+  , ssa_debug :: String
+  }
   deriving Eq
-type L1 = Program AddressWord64 L1_Storage Prefix Opcode Int Void
-type L1_Operand = GenericOperand L1_Storage
-type L1_Instruction = Instruction AddressWord64 L1_Storage Prefix Opcode Int
-type L1_Statement = Statement AddressWord64 L1_Storage Prefix Opcode Int Void
-type L1_Blocks = IM.IntMap [L1_Statement]
+data MutVar = MutVar
+  { mut_name  :: Int
+  , mut_debug :: String
+  }
+  deriving Eq
+data Phi arg = Phi
+  { phi_numPredecessors :: Int
+  , phi_arguments       :: [arg]
+  }
+  deriving Eq
 
+type X86_Label = AddressWord64
+type X86_Storage = Register
+type X86_Special = Void
+type X86_Statement
+  = Statement X86_Label X86_Storage Prefix Opcode Int X86_Special
+type X86_Program = Program X86_Label X86_Storage Prefix Opcode Int X86_Special -- labels are words, storage locations are registers, there are no special instructions
 
+type PreSSA_Label = AddressWord64
+data PreSSA_Storage = PreSSA_SsaVar SsaVar | PreSSA_MutVar MutVar deriving Eq
+data PreSSA_Special = PreSSA_Phi (Phi PreSSA_Storage)
+  deriving Eq
+type PreSSA_Statement
+  = Statement PreSSA_Label PreSSA_Storage Prefix Opcode Int PreSSA_Special
+type PreSSA_Program
+  = Program PreSSA_Label PreSSA_Storage Prefix Opcode Int PreSSA_Special
+
+--------------------------------------------------------------------------------
+-- PARSING
+--------------------------------------------------------------------------------
 
 
 -- | From a context stored in a .report file, retrieve an L0 program for a given function entry.
 obtain_L0_program
   :: Context -- ^ The context
   -> Int     -- ^ The function entry of interest
-  -> L0
+  -> X86_Program
 obtain_L0_program ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
   Just cfg -> cfg_to_L0 cfg
   Nothing  -> error $ "Function entry " ++ showHex entry ++ " does not exist."
@@ -110,6 +135,10 @@ obtain_L0_program ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
 
   singleton a = [a]
 
+
+--------------------------------------------------------------------------------
+-- OPERATIONS
+--------------------------------------------------------------------------------
 
 -- map two functions over a program, transforming regular instructions and special instructions
 mapP
@@ -151,10 +180,13 @@ mapI transform_storage (Instruction label prefix mnemonic ops annot) =
     AddressTimes (mapI_address a0) (mapI_address a1)
 
 
+--------------------------------------------------------------------------------
+-- CANONICALIZE
+--------------------------------------------------------------------------------
 
 
 -- | Transformation: make the dataflows explicit
-l0_to_l0_explicitize_dataflow :: L0 -> L0
+l0_to_l0_explicitize_dataflow :: X86_Program -> X86_Program
 l0_to_l0_explicitize_dataflow = mapP explicitize id
  where
   -- PUSH
@@ -201,19 +233,25 @@ l0_to_l0_explicitize_dataflow = mapP explicitize id
   explicitize i = i
 
 
+--------------------------------------------------------------------------------
+-- REG2VAR
+--------------------------------------------------------------------------------
 
 
 -- transform an L0 instruction into an L1 instruction, trivially, by adding an empty set of indices
 l0_instruction_to_l1_instruction = mapI l0_storage_to_l1_storage
-  where l0_storage_to_l1_storage r = L1_Storage r IS.empty
+ where
+  l0_storage_to_l1_storage r = PreSSA_MutVar (MutVar (fromEnum r) (show r))
 
 
 -- | Trivial L0 to L1 translation by adding empty sets of indices
-l0_to_l1 :: L0 -> L1
-l0_to_l1 = mapP (map l0_instruction_to_l1_instruction) id
+l0_to_l1 :: X86_Program -> PreSSA_Program
+l0_to_l1 = mapP (map l0_instruction_to_l1_instruction) absurd
 
 
-
+--------------------------------------------------------------------------------
+-- SSA
+--------------------------------------------------------------------------------
 
 
 
@@ -348,12 +386,6 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode, Show anno
     show_edge (a, as) = showHex a ++ " --> " ++ showHex_set as
 
 
-instance Show L1_Storage where
-  show (L1_Storage r is) =
-    show r
-      ++ (if IS.null is
-           then ""
-           else if IS.size is == 1
-             then "_" ++ show (IS.findMin is)
-             else show (IS.toList is)
-         )
+instance Show PreSSA_Storage where
+  show (PreSSA_SsaVar (SsaVar _ idx debug)) = show debug ++ "_" ++ show idx
+  show (PreSSA_MutVar (MutVar _ debug    )) = show debug
