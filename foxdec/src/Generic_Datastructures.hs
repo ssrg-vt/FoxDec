@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 
 {-|
 Module      : Generic_Datastructures
@@ -7,11 +9,11 @@ Description : Datastructures for storing x86-64 instructions.
 
 module Generic_Datastructures where
 
-import Data.List
+import Data.List ( intercalate )
 import Data.Word (Word64)
-import Base
+import Base ( showHex )
 import qualified Data.Map as M
-import GHC.Generics
+import GHC.Generics ( Generic )
 import qualified Data.Serialize as Cereal hiding (get,put)
 
 
@@ -40,16 +42,13 @@ data Instruction label storage prefix opcode annotation = Instruction {
   instr_prefix :: Maybe prefix,             -- ^ optional: prefix, e.g., lock or repz
   instr_opcode :: opcode,                   -- ^ opcode/mnemonic
   instr_ops    :: [GenericOperand storage], -- ^ operands, possibly empty
-  instr_annot  :: Maybe annotation          -- ^ optional: an annotation, such as the instruciton size
+  instr_annot  :: Maybe annotation          -- ^ optional: an annotation, such as the instruction size
  }
   deriving (Eq,Ord,Generic)
 
 
--- | An empty type, but a showable instance can be derived
-newtype Void = Void Void
-
 -- | A type for encapsulating an immediate (allows to always show hex)
-data AddressWord64 = AddressWord64 Word64
+newtype AddressWord64 = AddressWord64 Word64
   deriving (Eq,Ord,Generic)
 
 
@@ -57,7 +56,7 @@ data AddressWord64 = AddressWord64 Word64
 instance Cereal.Serialize AddressWord64
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericAddress storage)
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericOperand storage)
-instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize prefix, Cereal.Serialize opcode, Cereal.Serialize annotation) => 
+instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize prefix, Cereal.Serialize opcode, Cereal.Serialize annotation) =>
          Cereal.Serialize (Instruction label storage prefix opcode annotation)
 
 
@@ -89,11 +88,11 @@ show_size_directive 32 = "YMMWORD PTR"
 show_size_directive si = show (si*8) ++ " PTR"
 
 instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annotation) => Show (Instruction label storage prefix opcode annotation) where
-  show (Instruction label prefix opcode ops annot) = 
-    show label ++ ": " ++ 
+  show (Instruction label prefix opcode ops annot) =
+    show label ++ ": " ++
     show_prefix prefix ++
     show opcode ++ " " ++
-    (intercalate ", " $ map show ops) ++
+    intercalate ", " (map show ops) ++
     show_annot annot
    where
     show_prefix Nothing    = ""
@@ -104,7 +103,3 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annot
 
 instance Show AddressWord64 where
   show (AddressWord64 a) = showHex a
-
-instance Show Void where
-  show (Void _) = "void"
-
