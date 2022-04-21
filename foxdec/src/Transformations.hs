@@ -95,6 +95,7 @@ data Phi arg = Phi
 type X86_Label = AddressWord64
 type X86_Storage = Register
 type X86_Special = Void
+type X86_Instruction = Instruction X86_Label X86_Storage Prefix Opcode Int
 type X86_Statement
   = Statement X86_Label X86_Storage Prefix Opcode Int X86_Special
 type X86_Program = Program X86_Label X86_Storage Prefix Opcode Int X86_Special -- labels are words, storage locations are registers, there are no special instructions
@@ -103,6 +104,8 @@ type PreSSA_Label = AddressWord64
 data PreSSA_Storage = PreSSA_SsaVar SsaVar | PreSSA_MutVar MutVar deriving Eq
 data PreSSA_Special = PreSSA_Phi (Phi PreSSA_Storage)
   deriving Eq
+type PreSSA_Instruction
+  = Instruction PreSSA_Label PreSSA_Storage Prefix Opcode Int
 type PreSSA_Statement
   = Statement PreSSA_Label PreSSA_Storage Prefix Opcode Int PreSSA_Special
 type PreSSA_Program
@@ -237,22 +240,20 @@ l0_to_l0_explicitize_dataflow = mapP explicitize id
 -- REG2VAR
 --------------------------------------------------------------------------------
 
+-- | Replaces all registers by variables.
+-- | Here, every register is replaced by a mutable variable.
+reg2var :: X86_Program -> PreSSA_Program
+reg2var = mapP (map reg2var_instr) absurd
 
--- transform an L0 instruction into an L1 instruction, trivially, by adding an empty set of indices
-l0_instruction_to_l1_instruction = mapI l0_storage_to_l1_storage
- where
-  l0_storage_to_l1_storage r = PreSSA_MutVar (MutVar (fromEnum r) (show r))
+reg2var_instr :: X86_Instruction -> PreSSA_Instruction
+reg2var_instr = mapI reg2var_storage
 
-
--- | Trivial L0 to L1 translation by adding empty sets of indices
-l0_to_l1 :: X86_Program -> PreSSA_Program
-l0_to_l1 = mapP (map l0_instruction_to_l1_instruction) absurd
-
+reg2var_storage :: X86_Storage -> PreSSA_Storage
+reg2var_storage reg = PreSSA_MutVar (MutVar (fromEnum reg) (show reg))
 
 --------------------------------------------------------------------------------
 -- SSA
 --------------------------------------------------------------------------------
-
 
 
 {--
