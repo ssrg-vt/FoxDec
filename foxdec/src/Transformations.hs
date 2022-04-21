@@ -7,28 +7,54 @@ Description : Various transformations for assembly dialects.
 
 module Transformations where
 
-import           Base                       (showHex, showHex_set)
-import           Context                    (CFG (cfg_blocks, cfg_edges, cfg_instrs),
-                                             Context (ctxt_cfgs))
-import           Generic_Datastructures     (AddressWord64,
-                                             GenericAddress (AddressImm, AddressMinus, AddressPlus, AddressStorage, AddressTimes),
-                                             GenericOperand (..),
-                                             Instruction (Instruction))
-import           X86_Datastructures         (Opcode (ADD, IMUL, MOV, POP, PUSH, SUB, XCHG),
-                                             Prefix, Register (RAX, RDX, RSP),
-                                             operand_size)
+import           Base                           ( showHex
+                                                , showHex_set
+                                                )
+import           Context                        ( CFG
+                                                  ( cfg_blocks
+                                                  , cfg_edges
+                                                  , cfg_instrs
+                                                  )
+                                                , Context(ctxt_cfgs)
+                                                )
+import           Generic_Datastructures         ( AddressWord64
+                                                , GenericAddress
+                                                  ( AddressImm
+                                                  , AddressMinus
+                                                  , AddressPlus
+                                                  , AddressStorage
+                                                  , AddressTimes
+                                                  )
+                                                , GenericOperand(..)
+                                                , Instruction(Instruction)
+                                                )
+import           X86_Datastructures             ( Opcode
+                                                  ( ADD
+                                                  , IMUL
+                                                  , MOV
+                                                  , POP
+                                                  , PUSH
+                                                  , SUB
+                                                  , XCHG
+                                                  )
+                                                , Prefix
+                                                , Register(RAX, RDX, RSP)
+                                                , operand_size
+                                                )
 
-import           Control.Monad.State.Strict ()
-import qualified Data.Graph.Dom             as G
-import qualified Data.IntMap                as IM
-import qualified Data.IntSet                as IS
-import           Data.List                  (intercalate)
-import qualified Data.Map                   as M
-import           Data.Maybe                 (fromJust, isNothing)
-import qualified Data.Set                   as S
-import           Data.Void                  (Void)
-import           Data.Word                  (Word64)
-import           Debug.Trace                ()
+import           Control.Monad.State.Strict     ( )
+import qualified Data.Graph.Dom                as G
+import qualified Data.IntMap                   as IM
+import qualified Data.IntSet                   as IS
+import           Data.List                      ( intercalate )
+import qualified Data.Map                      as M
+import           Data.Maybe                     ( fromJust
+                                                , isNothing
+                                                )
+import qualified Data.Set                      as S
+import           Data.Void                      ( Void )
+import           Data.Word                      ( Word64 )
+import           Debug.Trace                    ( )
 
 
 
@@ -39,35 +65,37 @@ data Statement label storage prefix opcode annotation special =
     Stmt_Instruction [Instruction label storage prefix opcode annotation] -- ^ A non-empty list of normal instructions
   | Stmt_Special special
 
-data Program label storage prefix opcode annotation special = Program {
-  program_basic_blocks :: IM.IntMap [Statement label storage prefix opcode annotation special],  -- ^ A mapping from blockIDs to lists of statements
-  program_controlfow   :: G.Rooted                                                               -- ^ A graph based on integers (blockIDs)
- }
+data Program label storage prefix opcode annotation special = Program
+  { program_basic_blocks
+      :: IM.IntMap [Statement label storage prefix opcode annotation special]
+  ,  -- ^ A mapping from blockIDs to lists of statements
+    program_controlfow :: G.Rooted                                                               -- ^ A graph based on integers (blockIDs)
+  }
 
 
 type L0 = Program AddressWord64 Register Prefix Opcode Int Void -- labels are words, storage locations are registers, there are no special instructions
 
 
 -- For L1, storages are registers combined with index sets
-data L1_Storage     = L1_Storage Register IS.IntSet deriving (Eq)
-type L1             = Program AddressWord64 L1_Storage Prefix Opcode Int Void
-type L1_Operand     = GenericOperand L1_Storage
+data L1_Storage = L1_Storage Register IS.IntSet
+  deriving Eq
+type L1 = Program AddressWord64 L1_Storage Prefix Opcode Int Void
+type L1_Operand = GenericOperand L1_Storage
 type L1_Instruction = Instruction AddressWord64 L1_Storage Prefix Opcode Int
-type L1_Statement   = Statement AddressWord64 L1_Storage Prefix Opcode Int Void
-type L1_Blocks      = IM.IntMap [L1_Statement]
+type L1_Statement = Statement AddressWord64 L1_Storage Prefix Opcode Int Void
+type L1_Blocks = IM.IntMap [L1_Statement]
 
 
 
 
 -- | From a context stored in a .report file, retrieve an L0 program for a given function entry.
-obtain_L0_program ::
-     Context -- ^ The context
+obtain_L0_program
+  :: Context -- ^ The context
   -> Int     -- ^ The function entry of interest
   -> L0
-obtain_L0_program ctxt entry =
-  case IM.lookup entry $ ctxt_cfgs ctxt of
-    Just cfg -> cfg_to_L0 cfg
-    Nothing  -> error $ "Function entry " ++ showHex entry ++ " does not exist."
+obtain_L0_program ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
+  Just cfg -> cfg_to_L0 cfg
+  Nothing  -> error $ "Function entry " ++ showHex entry ++ " does not exist."
  where
   -- convert a CFG to L0
   -- add edges for all terminal blocks to an empty set of successors
@@ -75,8 +103,8 @@ obtain_L0_program ctxt entry =
     let blocks    = IM.map (map (Stmt_Instruction . singleton)) $ cfg_instrs cfg
         edges     = cfg_edges cfg
         terminals = filter (is_terminal_block cfg) $ IM.keys (cfg_blocks cfg)
-        edges'    = IM.fromList $ map (,IS.empty) terminals in
-      Program blocks (0,IM.unionWith IS.union edges edges')
+        edges'    = IM.fromList $ map (, IS.empty) terminals
+    in  Program blocks (0, IM.unionWith IS.union edges edges')
   -- if the block terminal?
   is_terminal_block cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
 
@@ -84,37 +112,43 @@ obtain_L0_program ctxt entry =
 
 
 -- map two functions over a program, transforming regular instructions and special instructions
-mapP ::
-     ([Instruction label storage prefix opcode annotation] -> [Instruction label1 storage1 prefix1 opcode1 annotation1])
+mapP
+  :: (  [Instruction label storage prefix opcode annotation]
+     -> [Instruction label1 storage1 prefix1 opcode1 annotation1]
+     )
   -> (special -> special1)
-  -> Program label  storage  prefix  opcode  annotation  special
+  -> Program label storage prefix opcode annotation special
   -> Program label1 storage1 prefix1 opcode1 annotation1 special1
-mapP transform_instructions transform_special (Program blocks (root,g)) =
-  Program (mapP_blocks blocks) (root,g)
+mapP transform_instructions transform_special (Program blocks (root, g)) =
+  Program (mapP_blocks blocks) (root, g)
  where
-  mapP_blocks                          = IM.map mapP_block
-  mapP_block                           = map mapP_statement
-  mapP_statement (Stmt_Instruction is) = Stmt_Instruction $ transform_instructions is
-  mapP_statement (Stmt_Special i)      = Stmt_Special $ transform_special i
+  mapP_blocks = IM.map mapP_block
+  mapP_block  = map mapP_statement
+  mapP_statement (Stmt_Instruction is) =
+    Stmt_Instruction $ transform_instructions is
+  mapP_statement (Stmt_Special i) = Stmt_Special $ transform_special i
 
 -- map a function over an instruction, transforming the storages
-mapI ::
-     (storage -> storage1)
-  -> Instruction label storage  prefix opcode annotation
+mapI
+  :: (storage -> storage1)
+  -> Instruction label storage prefix opcode annotation
   -> Instruction label storage1 prefix opcode annotation
 mapI transform_storage (Instruction label prefix mnemonic ops annot) =
   Instruction label prefix mnemonic (map mapI_op ops) annot
  where
-  mapI_op (Memory address si)  = Memory (mapI_address address) si
-  mapI_op (EffectiveAddress a) = EffectiveAddress $ mapI_address a
-  mapI_op (Storage r)          = Storage $ transform_storage r
-  mapI_op (Immediate imm)      = Immediate imm
+  mapI_op (Memory address si   ) = Memory (mapI_address address) si
+  mapI_op (EffectiveAddress a  ) = EffectiveAddress $ mapI_address a
+  mapI_op (Storage          r  ) = Storage $ transform_storage r
+  mapI_op (Immediate        imm) = Immediate imm
 
-  mapI_address (AddressStorage r)   = AddressStorage $ transform_storage r
-  mapI_address (AddressImm imm)     = AddressImm imm
-  mapI_address (AddressMinus a0 a1) = AddressMinus (mapI_address a0) (mapI_address a1)
-  mapI_address (AddressPlus a0 a1)  = AddressPlus  (mapI_address a0) (mapI_address a1)
-  mapI_address (AddressTimes a0 a1) = AddressTimes (mapI_address a0) (mapI_address a1)
+  mapI_address (AddressStorage r  ) = AddressStorage $ transform_storage r
+  mapI_address (AddressImm     imm) = AddressImm imm
+  mapI_address (AddressMinus a0 a1) =
+    AddressMinus (mapI_address a0) (mapI_address a1)
+  mapI_address (AddressPlus a0 a1) =
+    AddressPlus (mapI_address a0) (mapI_address a1)
+  mapI_address (AddressTimes a0 a1) =
+    AddressTimes (mapI_address a0) (mapI_address a1)
 
 
 
@@ -125,30 +159,44 @@ l0_to_l0_explicitize_dataflow = mapP explicitize id
  where
   -- PUSH
   explicitize [Instruction label prefix PUSH [op1] annot] =
-    let si = operand_size op1 in
-     [
-      Instruction label prefix SUB [Storage RSP,Immediate $ fromIntegral si] annot,
-      Instruction label prefix MOV [Memory (AddressStorage RSP) si,op1] Nothing
-     ]
+    let si = operand_size op1
+    in
+      [ Instruction label
+                    prefix
+                    SUB
+                    [Storage RSP, Immediate $ fromIntegral si]
+                    annot
+      , Instruction label
+                    prefix
+                    MOV
+                    [Memory (AddressStorage RSP) si, op1]
+                    Nothing
+      ]
   -- POP
   explicitize [Instruction label prefix POP [op1] annot] =
-    let si = operand_size op1 in
-     [
-      Instruction label prefix MOV [op1,Memory (AddressStorage RSP) si] Nothing,
-      Instruction label prefix ADD [Storage RSP,Immediate $ fromIntegral si] annot
-     ]
+    let si = operand_size op1
+    in
+      [ Instruction label
+                    prefix
+                    MOV
+                    [op1, Memory (AddressStorage RSP) si]
+                    Nothing
+      , Instruction label
+                    prefix
+                    ADD
+                    [Storage RSP, Immediate $ fromIntegral si]
+                    annot
+      ]
   --IMUL (1)
   explicitize [Instruction label prefix IMUL [op1] annot] =
-   [
-    Instruction label prefix IMUL [Storage RDX, Storage RAX, op1] annot,
-    Instruction label prefix IMUL [Storage RAX, Storage RAX, op1] Nothing
-   ]
+    [ Instruction label prefix IMUL [Storage RDX, Storage RAX, op1] annot
+    , Instruction label prefix IMUL [Storage RAX, Storage RAX, op1] Nothing
+    ]
   -- XCHG
-  explicitize [Instruction label prefix XCHG [op1,op2] annot] = -- TODO: think about this, as now the order matters
-   [
-    Instruction label prefix MOV [op1,op2] annot,
-    Instruction label prefix MOV [op2,op1] Nothing
-   ]
+  explicitize [Instruction label prefix XCHG [op1, op2] annot] = -- TODO: think about this, as now the order matters
+    [ Instruction label prefix MOV [op1, op2] annot
+    , Instruction label prefix MOV [op2, op1] Nothing
+    ]
   -- REMAINDER
   explicitize i = i
 
@@ -157,8 +205,7 @@ l0_to_l0_explicitize_dataflow = mapP explicitize id
 
 -- transform an L0 instruction into an L1 instruction, trivially, by adding an empty set of indices
 l0_instruction_to_l1_instruction = mapI l0_storage_to_l1_storage
- where
-  l0_storage_to_l1_storage r = L1_Storage r IS.empty
+  where l0_storage_to_l1_storage r = L1_Storage r IS.empty
 
 
 -- | Trivial L0 to L1 translation by adding empty sets of indices
@@ -285,19 +332,28 @@ register_elem_of_address r (AddressStorage (L1_Storage r' _)) = r == r'
 
 
 instance (Eq storage, Show storage,Show label,Show prefix,Show opcode, Show annotation,Show special) => Show (Statement label storage prefix opcode annotation special) where
-  show (Stmt_Instruction i) = show i
-  show (Stmt_Special sp)    = show sp
+  show (Stmt_Instruction i ) = show i
+  show (Stmt_Special     sp) = show sp
 
 instance (Eq storage, Show storage,Show label,Show prefix,Show opcode, Show annotation,Show special) => Show (Program label storage prefix opcode annotation special) where
-  show (Program blocks (root,g)) = intercalate "\n\n" [
-    "BLOCKS:\n" ++ intercalate "\n" (map show_block $ IM.toList blocks),
-    "ENTRY: " ++ showHex root,
-    "GRAPH:\n" ++ intercalate "\n" (map show_edge $ IM.toList g)
-   ]
+  show (Program blocks (root, g)) = intercalate
+    "\n\n"
+    [ "BLOCKS:\n" ++ intercalate "\n" (map show_block $ IM.toList blocks)
+    , "ENTRY: " ++ showHex root
+    , "GRAPH:\n" ++ intercalate "\n" (map show_edge $ IM.toList g)
+    ]
    where
-    show_block (a,b) = "BLOCK " ++ show a ++ ":\n" ++ intercalate "\n" (map show b)
-    show_edge (a,as) = showHex a ++ " --> " ++ showHex_set as
+    show_block (a, b) =
+      "BLOCK " ++ show a ++ ":\n" ++ intercalate "\n" (map show b)
+    show_edge (a, as) = showHex a ++ " --> " ++ showHex_set as
 
 
 instance Show L1_Storage where
-  show (L1_Storage r is) = show r ++ (if IS.null is then "" else if IS.size is == 1 then "_" ++ show (IS.findMin is) else show (IS.toList is))
+  show (L1_Storage r is) =
+    show r
+      ++ (if IS.null is
+           then ""
+           else if IS.size is == 1
+             then "_" ++ show (IS.findMin is)
+             else show (IS.toList is)
+         )

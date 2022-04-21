@@ -16,5 +16,7 @@
         "XCHG",
         "XMMWORD",
         "YMMWORD"
-    ]
+    ],
+    "haskell.formattingProvider": "brittany",
+    "editor.formatOnSave": true
 }
