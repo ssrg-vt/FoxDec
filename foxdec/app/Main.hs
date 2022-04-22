@@ -413,12 +413,18 @@ num_of_unres_inds_in_cfg ctxt g =
     length (filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) blocks)
 
 
+
+-- TODO we can use the information in src/Data/X86 for this
 count_all_mem_writes g = 
   let instrs = S.fromList $ concat $ IM.elems $ cfg_instrs g
       writes = S.filter is_mem_write instrs in
     S.size writes
  where
   is_mem_write i = (is_mem_operand $ instr_op1 i) || instr_opcode i `elem` [PUSH,POP,CALL,RET]
+
+  instr_op1 i = case instr_srcs i of
+                  []      -> Nothing
+                  (op1:_) -> Just op1
 
   is_mem_operand (Just (Memory _ _)) = True
   is_mem_operand _                   = False
@@ -811,7 +817,7 @@ ctxt_analyze_unresolved_indirections entry = do
     let fname  = dirname ++ name ++ ".indirections" 
 
     let i                 = last (fetch_block g b)
-    let Just trgt         = instr_op1 i
+    let [trgt]            = instr_srcs i
     let p                 = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg = p
 

@@ -81,7 +81,7 @@ mk_instr cs_instr =
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
-      i             = Instruction addr prefix m (catMaybes ops) (Just size) in
+      i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
     if m == InvalidOpcode then
       error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
     else if prefix == Just InvalidPrefix then

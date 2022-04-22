@@ -38,11 +38,12 @@ data GenericOperand storage =
 
 -- | A generic instruction
 data Instruction label storage prefix opcode annotation = Instruction {
-  instr_label  :: label,                    -- ^ unique identifier of the instruction: can be an immediate address, or a string label
-  instr_prefix :: Maybe prefix,             -- ^ optional: prefix, e.g., lock or repz
-  instr_opcode :: opcode,                   -- ^ opcode/mnemonic
-  instr_ops    :: [GenericOperand storage], -- ^ operands, possibly empty
-  instr_annot  :: Maybe annotation          -- ^ optional: an annotation, such as the instruction size
+  instr_label  :: label,                           -- ^ unique identifier of the instruction: can be an immediate address, or a string label
+  instr_prefix :: Maybe prefix,                    -- ^ optional: prefix, e.g., lock or repz
+  instr_opcode :: opcode,                          -- ^ opcode/mnemonic
+  instr_dest   :: Maybe (GenericOperand storage) , -- ^ destination operand, possibly none
+  instr_srcs   :: [GenericOperand storage],        -- ^ source operands, possibly empty
+  instr_annot  :: Maybe annotation                 -- ^ optional: an annotation, such as the instruction size
  }
   deriving (Eq,Ord,Generic)
 
@@ -88,11 +89,12 @@ show_size_directive 32 = "YMMWORD PTR"
 show_size_directive si = show (si*8) ++ " PTR"
 
 instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annotation) => Show (Instruction label storage prefix opcode annotation) where
-  show (Instruction label prefix opcode ops annot) =
+  show (Instruction label prefix opcode dst srcs annot) =
     show label ++ ": " ++
     show_prefix prefix ++
     show opcode ++ " " ++
-    intercalate ", " (map show ops) ++
+    show_dest dst ++
+    intercalate ", " (map show srcs) ++
     show_annot annot
    where
     show_prefix Nothing    = ""
@@ -101,5 +103,7 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annot
     show_annot Nothing = ""
     show_annot (Just annot) = " (" ++ show annot ++ ")"
 
+    show_dest Nothing = ""
+    show_dest (Just op) = show op ++ " <- "
 instance Show AddressWord64 where
   show (AddressWord64 a) = showHex a

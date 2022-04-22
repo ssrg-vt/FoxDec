@@ -95,8 +95,8 @@ mapI
     :: (storage -> storage1)
     -> Instruction label storage prefix opcode annotation
     -> Instruction label storage1 prefix opcode annotation
-mapI transform_storage (Instruction label prefix mnemonic ops annot) =
-    Instruction label prefix mnemonic (map mapI_op ops) annot
+mapI transform_storage (Instruction label prefix mnemonic dst srcs annot) =
+    Instruction label prefix mnemonic (mapI_op <$> dst) (map mapI_op srcs) annot
   where
     mapI_op (Memory address si   ) = Memory (mapI_address address) si
     mapI_op (EffectiveAddress a  ) = EffectiveAddress $ mapI_address a

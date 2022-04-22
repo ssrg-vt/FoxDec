@@ -312,7 +312,7 @@ instruction = do
   skipMany comment
   whitespaces--}
   skipMany newline
-  return $ Instruction (AddressWord64 addr) p m (catMaybes [op1,op2,op3]) Nothing
+  return $ Instruction (AddressWord64 addr) p m Nothing (catMaybes [op1,op2,op3]) Nothing
 
 
 

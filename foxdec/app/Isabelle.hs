@@ -218,17 +218,17 @@ get_relevant_precs_for ctxt p i prec =
       []
 
   instruction_to_stateparts p i = 
-    let operands = [instr_op1 i,instr_op2 i,instr_op3 i] ++ map Just (extra_operands i) in
+    let operands = instr_srcs i ++ extra_operands i in
       concatMap (operand_to_statepart p i) operands
 
   extra_operands i =
-    case instr_opcode i of 
-      PUSH -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size (fromJust $ instr_op1 i))) (operand_size (fromJust $ instr_op1 i)) ]
-      POP  -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size (fromJust $ instr_op1 i))) (operand_size (fromJust $ instr_op1 i)) ]
-      _    -> []
+    case (instr_opcode i,instr_srcs i) of 
+      (PUSH,[op1]) -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size op1)) (operand_size op1) ]
+      (POP, [op1]) -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size op1)) (operand_size op1) ]
+      _            -> []
 
-  operand_to_statepart p i (Just (Memory a si)) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
-  operand_to_statepart p _ _                    = []
+  operand_to_statepart p i (Memory a si) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
+  operand_to_statepart p _ _             = []
 
   resolve_address_of_operand i a = do
     write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))

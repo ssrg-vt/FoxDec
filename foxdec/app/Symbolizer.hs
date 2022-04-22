@@ -211,7 +211,7 @@ symbolize_instr ctxt entry cfg i =
 
 
 -- TODO LIBC_START_MAIN
-symbolize_operand1_of_instr ctxt entry cfg i@(Instruction (AddressWord64 i_a) Nothing mnemonic ops annot) =
+symbolize_operand1_of_instr ctxt entry cfg i@(Instruction (AddressWord64 i_a) Nothing mnemonic Nothing ops annot) =
  case resolve_jump_target ctxt i of
    [External sym]         -> show mnemonic ++ " " ++ sym
    [ImmediateAddress imm] -> show mnemonic ++ " " ++ symbolize_address ctxt entry cfg imm
@@ -371,7 +371,7 @@ jump_table_label i_a = "L_JUMP_TABLE_" ++ showHex i_a
 show_nasm_opcode MOVABS = "MOV"
 show_nasm_opcode opcode = show opcode
 
-show_nasm_instruction ctxt entry cfg  i@(Instruction addr pre opcode ops annot) =
+show_nasm_instruction ctxt entry cfg  i@(Instruction addr pre opcode Nothing ops annot) =
      show pre
   ++ show_nasm_opcode opcode
   ++ " "

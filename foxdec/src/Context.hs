@@ -294,8 +294,8 @@ pp_instruction ::
 pp_instruction ctxt i =
   if is_call (instr_opcode i) then
     show i ++
-      case instr_op1 i of
-        Just (Immediate imm) -> 
+      case instr_srcs i of
+        [Immediate imm] -> 
           case IM.lookup (fromIntegral imm) $ ctxt_syms ctxt of
             Nothing  -> " (0x" ++ showHex imm ++ ")"
             Just sym -> " (" ++ (show sym) ++ ")"

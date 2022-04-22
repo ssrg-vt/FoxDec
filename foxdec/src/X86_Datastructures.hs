@@ -27,16 +27,9 @@ instr_size :: X86_Instruction -> Int
 instr_size i = instr_annot i `orElse` 0
 
 instr_addr :: X86_Instruction -> Word64
-instr_addr (Instruction (AddressWord64 a) _ _ _ _) = a
+instr_addr (Instruction (AddressWord64 a) _ _ _ _ _) = a
 
-instr_op1 (Instruction (AddressWord64 a) _ _ (op1:_) _) = Just op1
-instr_op1 (Instruction (AddressWord64 a) _ _ _       _) = Nothing
 
-instr_op2 (Instruction (AddressWord64 a) _ _ (_:op2:_) _) = Just op2
-instr_op2 (Instruction (AddressWord64 a) _ _ _         _) = Nothing
-
-instr_op3 (Instruction (AddressWord64 a) _ _ (_:_:op3:_) _) = Just op3
-instr_op3 (Instruction (AddressWord64 a) _ _ _           _) = Nothing
 
 
 

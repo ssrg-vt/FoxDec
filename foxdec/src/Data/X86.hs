@@ -34,20 +34,7 @@ import           Generic_Datastructures         ( AddressWord64
                                                     )
                                                 )
 import qualified Generic_Datastructures        as GD
-import           X86_Datastructures             ( Opcode
-                                                    ( ADD
-                                                    , IMUL
-                                                    , MOV
-                                                    , POP
-                                                    , PUSH
-                                                    , SUB
-                                                    , XCHG
-                                                    )
-                                                , Prefix
-                                                , Register(RAX, RDX, RSP)
-                                                , operand_size
-                                                )
-
+import           X86_Datastructures             
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
@@ -100,50 +87,203 @@ canonicalize :: Program -> Program
 canonicalize = mapP explicitize id
   where
   -- PUSH
-    explicitize [GD.Instruction label prefix PUSH [op1] annot] =
+    explicitize [GD.Instruction label prefix PUSH Nothing [op1] annot] =
         let si = operand_size op1
         in  [ GD.Instruction label
                              prefix
                              SUB
-                             [Storage RSP, Immediate $ fromIntegral si]
+                             (Just $ Storage RSP)
+                             [Storage RSP,Immediate $ fromIntegral si]
                              annot
             , GD.Instruction label
                              prefix
                              MOV
-                             [Memory (AddressStorage RSP) si, op1]
+                             (Just $ Memory (AddressStorage RSP) si)
+                             [op1]
                              Nothing
             ]
     -- POP
-    explicitize [GD.Instruction label prefix POP [op1] annot] =
+    explicitize [GD.Instruction label prefix POP Nothing [op1] annot] =
         let si = operand_size op1
         in  [ GD.Instruction label
                              prefix
                              MOV
-                             [op1, Memory (AddressStorage RSP) si]
-                             Nothing
+                             (Just op1)
+                             [Memory (AddressStorage RSP) si]
+                             annot
             , GD.Instruction label
                              prefix
                              ADD
-                             [GD.Storage RSP, Immediate $ fromIntegral si]
-                             annot
+                             (Just $ Storage RSP)
+                             [Storage RSP, Immediate $ fromIntegral si]
+                             Nothing
             ]
-    --IMUL (1)
-    explicitize [GD.Instruction label prefix IMUL [op1] annot] =
+    -- LEAVE 
+    explicitize [GD.Instruction label prefix LEAVE Nothing [] annot] =
         [ GD.Instruction label
+                             prefix
+                             MOV
+                             (Just $ Storage RSP)
+                             [GD.Storage RBP]
+                             annot
+        ] ++ explicitize [GD.Instruction label prefix POP Nothing [GD.Storage RBP] annot]
+    -- The remaining cases
+    explicitize [i@(GD.Instruction label prefix mnemonic Nothing ops annot)] =
+      if mnemonic `elem` [CBW,CWDE,CDQE] then
+        -- CBW / CWDE / CDQE
+        explicitize_sextend1 i
+      else if mnemonic `elem` [CWD,CDQ,CQO] then
+        -- CWD / CDQ / CQO
+        explicitize_sextend2 i
+      else if mnemonic `elem` [MUL,IMUL] then
+        -- MUL / IMUL
+        explicitize_mul i
+      else if mnemonic `elem` [DIV,IDIV] then
+        -- DIV /IDIV
+        explicitize_div i
+      else if mnemonic_reads_from_all_operands mnemonic then
+        -- all operands are sources, and thus the destination is included added as source 
+        [GD.Instruction label prefix mnemonic (Just $ head ops) ops annot]
+      else if mnemonic_reads_from_all_but_first_operands mnemonic then
+        -- the first operand is destination but not source
+        [GD.Instruction label prefix mnemonic (Just $ head ops) (tail ops) annot]
+      else if do_not_modify mnemonic then
+        -- the instruction is kept unmodified 
+        [i]
+      else
+        error $ "Cannot canonicalize instruction: " ++ show i
+
+
+
+
+    -- CBW / CWDE / CDQE
+    explicitize_sextend1 (GD.Instruction label prefix mnemonic Nothing [] annot) =
+      let srcs = case mnemonic of
+                   CBW  -> [AX,AL]
+                   CWDE -> [EAX,AX]
+                   CDQE -> [RAX,EAX]
+      in [ GD.Instruction label
                          prefix
-                         IMUL
-                         [GD.Storage RDX, GD.Storage RAX, op1]
+                         mnemonic
+                         (Just $ GD.Storage $ srcs !! 0)
+                         [GD.Storage $ srcs !! 1]
+                         annot
+        ]
+
+    -- CWD / CDQ / CQO
+    explicitize_sextend2 (GD.Instruction label prefix mnemonic Nothing [] annot) =
+      let srcs = case mnemonic of
+                   CWD -> [DX,AX]
+                   CDQ -> [EDX,EAX]
+                   CQO -> [RDX,RAX]
+      in [ GD.Instruction label
+                         prefix
+                         mnemonic
+                         (Just $ GD.Storage $ srcs !! 0)
+                         [GD.Storage $ srcs !! 1]
                          annot
         , GD.Instruction label
                          prefix
-                         IMUL
-                         [GD.Storage RAX, GD.Storage RAX, op1]
+                         mnemonic
+                         (Just $ GD.Storage $ srcs !! 1)
+                         [GD.Storage $ srcs !! 1]
                          Nothing
         ]
-    -- XCHG
-    explicitize [GD.Instruction label prefix XCHG [op1, op2] annot] = -- TODO: think about this, as now the order matters
-        [ GD.Instruction label prefix MOV [op1, op2] annot
-        , GD.Instruction label prefix MOV [op2, op1] Nothing
-        ]
-    -- REMAINDER
-    explicitize i = i
+
+
+    -- MUL /IMUL (1)
+    explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1] annot) = 
+      let srcs = case operand_size op1 of
+                   8 -> [RDX,RAX]
+                   4 -> [EDX,EAX]
+                   2 -> [DX,AX]
+                   1 -> [AH,AL]
+      in
+        [ GD.Instruction label
+                         prefix
+                         mnemonic
+                         (Just $ Storage $ srcs !! 0)
+                         [Storage $ srcs !! 1, op1]
+                         annot
+        , GD.Instruction label
+                         prefix
+                         mnemonic
+                         (Just $ Storage $ srcs !! 1)
+                         [Storage $ srcs !! 1, op1]
+                         Nothing
+      ] 
+    -- MUL /IMUL (2)
+    explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1,op2] annot) = 
+      [GD.Instruction label prefix mnemonic (Just op1) [op1,op2] annot]
+    -- MUL /IMUL (3)
+    explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1,op2,op3] annot) = 
+      [GD.Instruction label prefix mnemonic (Just op1) [op2,op3] annot]
+
+
+    -- DIV /IDIV (1)
+    explicitize_div (GD.Instruction label prefix mnemonic Nothing [op1] annot) = 
+      let srcs = case operand_size op1 of
+                   8 -> [RDX,RAX]
+                   4 -> [EDX,EAX]
+                   2 -> [DX,AX]
+                   1 -> [AH,AL]
+      in
+        [ GD.Instruction label
+                         prefix
+                         mnemonic
+                         (Just $ Storage $ srcs !! 0)
+                         [Storage $ srcs !! 0, Storage $ srcs !! 1, op1]
+                         annot
+        , GD.Instruction label
+                         prefix
+                         mnemonic
+                         (Just $ Storage $ srcs !! 1)
+                         [Storage $ srcs !! 0, Storage $ srcs !! 1, op1]
+                         Nothing
+      ] 
+
+
+    -- Does the instruction read from all operands, inlcuding the first one?
+    mnemonic_reads_from_all_operands mnemonic =
+      mnemonic `elem` [
+        ADD,SUB,NEG,INC,DEC,SHL,SHL,ADC,SBB,ROL,ROR,SHR,SHR,SAR,SAR,SHLD,SHRD,XOR,OR,AND,NOT,BT,BTC,BTR,BSR,BSF,BTS,BSWAP,
+        SETO,SETNO,SETS,SETNS,SETE,SETZ,SETNE,SETNZ,SETB,SETNAE,SETC,SETNB,SETAE,SETNC,SETBE,SETNA,SETA,SETNBE,SETL,SETNGE,SETGE,SETNL,SETLE,SETNG,SETG,SETNLE,SETP,SETPE,SETNP,SETPO,
+        XORPD,XORPS,ANDPD,ANDNPD,ORPD,SUBPD,ADDPD,HADDPD,POR,PAND,PANDN,PXOR,VPOR,VPAND,VPANDN,VPXOR,PUNPCKLQDQ,PUNPCKLBW,PUNPCKLDQ,PCMPGTD,
+        PADDD,PADDB,PADDQ,PSUBD,PSUBB,PSUBQ,PMULLD,PMINSD,PMAXSD,PMINUD,PMAXUD,PMAXUQ,PMAXUQ,PSRLD,PSRLW,PSRLDQ,PSLLDQ,PSLLQ,PSRLQ,PSUBUSB,PSUBUSW,
+        PINSRB,PINSRQ,PINSRD,PEXTRB,PEXTRD,PEXTRQ,PCLMULQDQ,PACKSSDW,PACKSSWB,SUBSS,ADDSS,DIVSS,MULSS,ROUNDSS,SUBSD,ADDSD,DIVSD,MULSD,ROUNDSD
+      ]
+
+    -- Does the instruction read from all operands, except for the first one?
+    mnemonic_reads_from_all_but_first_operands mnemonic =
+      mnemonic `elem` [
+        LEA,
+        MOV,MOVZX,MOVSX,MOVSXD,MOVAPS,MOVAPD,MOVABS,MOVUPD,MOVUPS,MOVDQU,MOVDQA,MOVD,MOVQ,MOVLPD,MOVLPS,MOVSD,MOVSS,VMOVD,VMOVAPD,VMOVAPS,
+        CMOVO,CMOVNO,CMOVS,CMOVNS,CMOVE,CMOVZ,CMOVNE,CMOVNZ,CMOVB,CMOVNAE,CMOVC,CMOVNB,CMOVAE,CMOVNC,CMOVBE,CMOVNA,CMOVA,CMOVNBE,CMOVL,
+        CMOVNGE,CMOVG,CMOVGE,CMOVNL,CMOVLE,CMOVNG,CMOVNLE,CMOVP,CMOVPE,CMOVNP,CMOVPO,
+        CVTSS2SD,CVTSI2SS,CVTSI2SD,CVTSD2SS,CVTTSS2SI,CVTTSD2SI,CVTTPD2DQ,CVTDQ2PD,
+        MOVMSKPD,MOVMSKPS,PMOVSXDQ,PMOVZXDQ,PMOVSXBD,PMOVZXBD,
+        UNPCKLPS,BLENDVPD,BLENDVPS,EXTRACTPS,
+        VINSERTF128,VEXTRACTI128,VEXTRACTF128,VPERM2F128,VPERM2I128,VPALIGNR,PALIGNR,
+        SHUFPS,PSHUFB,PSHUFD,VPSHUFB,VPSHUFD,PSHUFLW
+      ]
+
+    -- Does the instruction need no modification?
+    -- For example, instructions without destination (CMP, TEST) or function calls and returns.
+    do_not_modify mnemonic = is_call mnemonic || is_jump mnemonic || is_cond_jump mnemonic || is_ret mnemonic || is_halt mnemonic || 
+      mnemonic `elem` [ CMP,TEST,
+                        CMPS,CMPSB,CMPSW,CMPSD,
+                        PTEST,PCMPEQB,PCMPEQD,PCMPGTB,PCMPGTD,
+                        UCOMISS, COMISS,UCOMISD,CMPLTSD,CMPEQSD,CMPNEQSD,
+                        NOP,ENDBR64,UD2,WAIT,MFENCE,CLFLUSH ]
+
+
+
+
+-- TODO:
+-- BLENDVP, BLENDVPS read from XMM0 sometimes as well?
+-- At SymbolicExecution the instructions add lines 1500 to 1537 (FST to EMMS)
+-- At SymbolicExecution the instructions add lines 1547 to 1572 (VANDPS to VMOVHPS)
+-- At SymbolicExecution the instructions add lines 1575 to 1593 (CPUID to WRGSBASE)
+-- VANDPS: depends on number of operands (3 or 2)
+-- XCHG,XADD,CMPXCHG
+-- MOVSD, MOVSQ
