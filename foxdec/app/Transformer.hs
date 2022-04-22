@@ -8,9 +8,10 @@ import SimplePred
 import Context
 import X86_Datastructures
 import VerificationReportInterface
-import Transformations
 import SymbolicExecution
 import Pointers
+import qualified Data.X86 as X86
+import Data.Generic (programControlFlow)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -56,14 +57,14 @@ main = do
 
 
 -- | Run a transformation
--- We obtain L0 from the .report file, and then trasnform it into L1
+-- We obtain L0 from the .report file, and then transform it into L1
 ctxt_transform :: Context -> Int -> IO ()
 ctxt_transform ctxt entry = do
   -- obtain L0
-  let l0 = obtain_L0_program ctxt entry
+  let l0 = X86.fromContext ctxt entry
 
   -- Obtain the control flow graph of L0
-  let (root,g) = program_controlfow l0
+  let (root,g) = programControlFlow l0
 
   -- Compute the dominance tree and the dominance frontiers
   let (_,tree) = G.asGraph $ G.domTree (root,g)
@@ -74,7 +75,7 @@ ctxt_transform ctxt entry = do
 
   -- explicitize dataflow
   putStrLn $ "\nMAKING DATAFLOWS EXPLICIT:"
-  let l0' = l0_to_l0_explicitize_dataflow l0
+  let l0' = X86.canonicalize l0
   putStrLn $ show l0'
 
 

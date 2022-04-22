@@ -11,8 +11,10 @@
         "HLINT",
         "IMUL",
         "instrs",
+        "pressa",
         "QWORD",
         "stmts",
+        "succ",
         "XCHG",
         "XMMWORD",
         "YMMWORD"

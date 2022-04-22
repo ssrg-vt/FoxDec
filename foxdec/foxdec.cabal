@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       ACode_Gen
+      Algo.Dominance
       Base
       CallGraph
       CFG_Gen
@@ -32,6 +33,10 @@ library
       Context
       ControlFlow
       Conventions
+      Data.Generic
+      Data.PreSSA
+      Data.SSA
+      Data.X86
       DisassembleCapstone
       Generic_Datastructures
       MachineState
@@ -41,12 +46,14 @@ library
       ParserSections
       ParserSymbols
       ParserX86Instruction
+      Pass.ConstructSSA
+      Pass.Mem2Var
+      Pass.Reg2Var
       Pointers
       Propagation
       SCC
       SimplePred
       SymbolicExecution
-      Transformations
       VerificationReportInterface
       X86_Datastructures
   other-modules:
