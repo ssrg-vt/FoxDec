@@ -1,44 +1,31 @@
 {-# LANGUAGE TupleSections #-}
 
 module Data.X86
-  ( Label
-  , Storage
-  , Special
-  , Instruction
-  , Statement
-  , Program
-  , fromContext
-  , canonicalize
-  ) where
+    ( Label
+    , Storage
+    , Special
+    , Instruction
+    , Statement
+    , Program
+    , fromContext
+    , canonicalize) where
 
-import           Base                           ( showHex )
-import           Context                        ( CFG
-                                                  ( cfg_blocks
-                                                  , cfg_edges
-                                                  , cfg_instrs
-                                                  )
-                                                , Context(ctxt_cfgs)
-                                                )
-import qualified Data.Generic                  as Generic
-import           Data.Generic                   ( mapP )
-import qualified Data.IntMap                   as IM
-import qualified Data.IntSet                   as IS
-import           Data.Maybe                     ( isNothing )
-import           Data.Void                      ( Void )
-import           Generic_Datastructures         ( AddressWord64
-                                                , GenericAddress(AddressStorage)
-                                                , GenericOperand
-                                                  ( Immediate
-                                                  , Memory
-                                                  , Storage
-                                                  )
-                                                )
-import qualified Generic_Datastructures        as GD
+import           Base (showHex)
+import           Context (CFG(..), Context(..))
+import qualified Data.Generic as Generic
+import           Data.Generic (mapP)
+import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
+import           Data.Maybe (isNothing)
+import           Data.Void (Void)
+import           Generic_Datastructures (AddressWord64, GenericAddress(..)
+                                       , GenericOperand(..))
+import qualified Generic_Datastructures as GD
 import           X86_Datastructures
+
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
-
 type Label = AddressWord64
 
 type Storage = Register
@@ -49,192 +36,203 @@ type Instruction = GD.Instruction Label Storage Prefix Opcode Int
 
 type Statement = Generic.Statement Label Storage Prefix Opcode Int Special
 
-type Program = Generic.Program Label Storage Prefix Opcode Int Special -- labels are words, storage locations are registers, there are no special instructions
+type Program =
+  Generic.Program Label Storage Prefix Opcode Int Special -- labels are words, storage locations are registers, there are no special instructions
 
 --------------------------------------------------------------------------------
 -- PARSING
 --------------------------------------------------------------------------------
-
 -- | From a context stored in a .report file, retrieve an L0 program for a given function entry.
-fromContext
-  :: Context -- ^ The context
-  -> Int     -- ^ The function entry of interest
-  -> Program
+fromContext :: Context -- ^ The context
+            -> Int     -- ^ The function entry of interest
+            -> Program
 fromContext ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
   Just cfg -> cfg_to_L0 cfg
   Nothing  -> error $ "Function entry " ++ showHex entry ++ " does not exist."
- where
-  -- convert a CFG to L0
-  -- add edges for all terminal blocks to an empty set of successors
-  cfg_to_L0 cfg =
-    let blocks = IM.map (map (Generic.StmtInstruction . pure)) $ cfg_instrs cfg
-        edges     = cfg_edges cfg
-        terminals = filter (is_terminal_block cfg) $ IM.keys (cfg_blocks cfg)
-        edges'    = IM.fromList $ map (, IS.empty) terminals
-    in  Generic.Program blocks (0, IM.unionWith IS.union edges edges')
-  -- if the block terminal?
-  is_terminal_block cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
+  where
+    -- convert a CFG to L0
+    -- add edges for all terminal blocks to an empty set of successors
+    cfg_to_L0 cfg =
+      let blocks = IM.map (map (Generic.StmtInstruction . pure))
+            $ cfg_instrs cfg
+          edges = cfg_edges cfg
+          terminals = filter (is_terminal_block cfg) $ IM.keys (cfg_blocks cfg)
+          edges' = IM.fromList $ map (, IS.empty) terminals
+      in Generic.Program blocks (0, IM.unionWith IS.union edges edges')
+
+    -- if the block terminal?
+    is_terminal_block cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
 
 --------------------------------------------------------------------------------
 -- X86 -> X86
 --------------------------------------------------------------------------------
-
 canonicalize :: Program -> Program
 canonicalize = mapP explicitize id
- where
-  -- PUSH
-  explicitize [GD.Instruction label prefix PUSH Nothing [op1] annot] =
-    let si = operand_size op1
-    in  [ GD.Instruction label
-                         prefix
-                         SUB
-                         (Just $ Storage RSP)
-                         [Storage RSP, Immediate $ fromIntegral si]
-                         annot
-        , GD.Instruction label
-                         prefix
-                         MOV
-                         (Just $ Memory (AddressStorage RSP) si)
-                         [op1]
-                         Nothing
-        ]
-  -- POP
-  explicitize [GD.Instruction label prefix POP Nothing [op1] annot] =
-    let si = operand_size op1
-    in  [ GD.Instruction label
-                         prefix
-                         MOV
-                         (Just op1)
-                         [Memory (AddressStorage RSP) si]
-                         annot
-        , GD.Instruction label
-                         prefix
-                         ADD
-                         (Just $ Storage RSP)
-                         [Storage RSP, Immediate $ fromIntegral si]
-                         Nothing
-        ]
-  -- LEAVE 
-  explicitize [GD.Instruction label prefix LEAVE Nothing [] annot] =
-    GD.Instruction label prefix MOV (Just $ Storage RSP) [GD.Storage RBP] annot
-      : explicitize
-          [GD.Instruction label prefix POP Nothing [GD.Storage RBP] annot]
-  -- The remaining cases
-  explicitize [i@(GD.Instruction label prefix mnemonic Nothing ops annot)]
-    | mnemonic `elem` [CBW, CWDE, CDQE]
-    = explicitize_sextend1 i
-    | mnemonic `elem` [CWD, CDQ, CQO]
-    = explicitize_sextend2 i
-    | mnemonic `elem` [MUL, IMUL]
-    = explicitize_mul i
-    | mnemonic `elem` [DIV, IDIV]
-    = explicitize_div i
-    | mnemonic_reads_from_all_operands mnemonic
-    = [GD.Instruction label prefix mnemonic (Just $ head ops) ops annot]
-    | mnemonic_reads_from_all_but_first_operands mnemonic
-    = [GD.Instruction label prefix mnemonic (Just $ head ops) (tail ops) annot]
-    | do_not_modify mnemonic
-    = [i]
-    | otherwise
-    = error $ "Cannot canonicalize instruction: " ++ show i
-  explicitize _ = error "Unknown instruction"
+  where
+    -- PUSH
+    explicitize [GD.Instruction label prefix PUSH Nothing [op1] annot] =
+      let si = operand_size op1
+      in [ GD.Instruction
+             label
+             prefix
+             SUB
+             (Just $ Storage RSP)
+             [Storage RSP, Immediate $ fromIntegral si]
+             annot
+         , GD.Instruction
+             label
+             prefix
+             MOV
+             (Just $ Memory (AddressStorage RSP) si)
+             [op1]
+             Nothing]
+    -- POP
+    explicitize [GD.Instruction label prefix POP Nothing [op1] annot] =
+      let si = operand_size op1
+      in [ GD.Instruction
+             label
+             prefix
+             MOV
+             (Just op1)
+             [Memory (AddressStorage RSP) si]
+             annot
+         , GD.Instruction
+             label
+             prefix
+             ADD
+             (Just $ Storage RSP)
+             [Storage RSP, Immediate $ fromIntegral si]
+             Nothing]
+    -- LEAVE 
+    explicitize
+      [GD.Instruction label prefix LEAVE Nothing [] annot] = GD.Instruction
+      label
+      prefix
+      MOV
+      (Just $ Storage RSP)
+      [GD.Storage RBP]
+      annot
+      :explicitize
+        [GD.Instruction label prefix POP Nothing [GD.Storage RBP] annot]
+    -- The remaining cases
+    explicitize [i@(GD.Instruction label prefix mnemonic Nothing ops annot)]
+      | mnemonic `elem` [CBW, CWDE, CDQE] = explicitize_sextend1 i
+      | mnemonic `elem` [CWD, CDQ, CQO] = explicitize_sextend2 i
+      | mnemonic `elem` [MUL, IMUL] = explicitize_mul i
+      | mnemonic `elem` [DIV, IDIV] = explicitize_div i
+      | mnemonic_reads_from_all_operands mnemonic =
+        [GD.Instruction label prefix mnemonic (Just $ head ops) ops annot]
+      | mnemonic_reads_from_all_but_first_operands mnemonic =
+        [ GD.Instruction
+            label
+            prefix
+            mnemonic
+            (Just $ head ops)
+            (tail ops)
+            annot]
+      | do_not_modify mnemonic = [i]
+      | otherwise = error $ "Cannot canonicalize instruction: " ++ show i
+    explicitize _ = error "Unknown instruction"
 
-  -- CBW / CWDE / CDQE
-  explicitize_sextend1 (GD.Instruction label prefix mnemonic Nothing [] annot)
-    = let srcs = case mnemonic of
+    -- CBW / CWDE / CDQE
+    explicitize_sextend1
+      (GD.Instruction label prefix mnemonic Nothing [] annot) =
+      let srcs = case mnemonic of
             CBW  -> [AX, AL]
             CWDE -> [EAX, AX]
             CDQE -> [RAX, EAX]
             _    -> error "Invalid extend sources"
-      in  [ GD.Instruction label
-                           prefix
-                           mnemonic
-                           (Just $ GD.Storage $ head srcs)
-                           [GD.Storage $ srcs !! 1]
-                           annot
-          ]
-  explicitize_sextend1 _ = error "Invalid extend instruction"
+      in [ GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ GD.Storage $ head srcs)
+             [GD.Storage $ srcs !! 1]
+             annot]
+    explicitize_sextend1 _ = error "Invalid extend instruction"
 
-  -- CWD / CDQ / CQO
-  explicitize_sextend2 (GD.Instruction label prefix mnemonic Nothing [] annot)
-    = let srcs = case mnemonic of
+    -- CWD / CDQ / CQO
+    explicitize_sextend2
+      (GD.Instruction label prefix mnemonic Nothing [] annot) =
+      let srcs = case mnemonic of
             CWD -> [DX, AX]
             CDQ -> [EDX, EAX]
             CQO -> [RDX, RAX]
             _   -> error "invalid extends source"
-      in  [ GD.Instruction label
-                           prefix
-                           mnemonic
-                           (Just $ GD.Storage $ head srcs)
-                           [GD.Storage $ srcs !! 1]
-                           annot
-          , GD.Instruction label
-                           prefix
-                           mnemonic
-                           (Just $ GD.Storage $ srcs !! 1)
-                           [GD.Storage $ srcs !! 1]
-                           Nothing
-          ]
-  explicitize_sextend2 _ = error "Invalid extend instruction"
+      in [ GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ GD.Storage $ head srcs)
+             [GD.Storage $ srcs !! 1]
+             annot
+         , GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ GD.Storage $ srcs !! 1)
+             [GD.Storage $ srcs !! 1]
+             Nothing]
+    explicitize_sextend2 _ = error "Invalid extend instruction"
 
+    -- MUL /IMUL (1)
+    explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
+      let srcs = case operand_size op1 of
+            8 -> [RDX, RAX]
+            4 -> [EDX, EAX]
+            2 -> [DX, AX]
+            1 -> [AH, AL]
+            _ -> error "Invalid operand size"
+      in [ GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ Storage $ head srcs)
+             [Storage $ srcs !! 1, op1]
+             annot
+         , GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ Storage $ srcs !! 1)
+             [Storage $ srcs !! 1, op1]
+             Nothing]
+    -- MUL /IMUL (2)
+    explicitize_mul
+      (GD.Instruction label prefix mnemonic Nothing [op1, op2] annot) =
+      [GD.Instruction label prefix mnemonic (Just op1) [op1, op2] annot]
+    -- MUL /IMUL (3)
+    explicitize_mul
+      (GD.Instruction label prefix mnemonic Nothing [op1, op2, op3] annot) =
+      [GD.Instruction label prefix mnemonic (Just op1) [op2, op3] annot]
+    explicitize_mul _ = error "Invalid mul operation"
 
-  -- MUL /IMUL (1)
-  explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
-    let srcs = case operand_size op1 of
-          8 -> [RDX, RAX]
-          4 -> [EDX, EAX]
-          2 -> [DX, AX]
-          1 -> [AH, AL]
-          _ -> error "Invalid operand size"
-    in  [ GD.Instruction label
-                         prefix
-                         mnemonic
-                         (Just $ Storage $ head srcs)
-                         [Storage $ srcs !! 1, op1]
-                         annot
-        , GD.Instruction label
-                         prefix
-                         mnemonic
-                         (Just $ Storage $ srcs !! 1)
-                         [Storage $ srcs !! 1, op1]
-                         Nothing
-        ]
-  -- MUL /IMUL (2)
-  explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1, op2] annot)
-    = [GD.Instruction label prefix mnemonic (Just op1) [op1, op2] annot]
-  -- MUL /IMUL (3)
-  explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1, op2, op3] annot)
-    = [GD.Instruction label prefix mnemonic (Just op1) [op2, op3] annot]
-  explicitize_mul _ = error "Invalid mul operation"
+    -- DIV /IDIV (1)
+    explicitize_div (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
+      let srcs = case operand_size op1 of
+            8 -> [RDX, RAX]
+            4 -> [EDX, EAX]
+            2 -> [DX, AX]
+            1 -> [AH, AL]
+            _ -> error "Invalid operand size"
+      in [ GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ Storage $ head srcs)
+             [Storage $ head srcs, Storage $ srcs !! 1, op1]
+             annot
+         , GD.Instruction
+             label
+             prefix
+             mnemonic
+             (Just $ Storage $ srcs !! 1)
+             [Storage $ head srcs, Storage $ srcs !! 1, op1]
+             Nothing]
+    explicitize_div _ = error "Invalid div instruction"
 
-
-  -- DIV /IDIV (1)
-  explicitize_div (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
-    let srcs = case operand_size op1 of
-          8 -> [RDX, RAX]
-          4 -> [EDX, EAX]
-          2 -> [DX, AX]
-          1 -> [AH, AL]
-          _ -> error "Invalid operand size"
-    in  [ GD.Instruction label
-                         prefix
-                         mnemonic
-                         (Just $ Storage $ head srcs)
-                         [Storage $ head srcs, Storage $ srcs !! 1, op1]
-                         annot
-        , GD.Instruction label
-                         prefix
-                         mnemonic
-                         (Just $ Storage $ srcs !! 1)
-                         [Storage $ head srcs, Storage $ srcs !! 1, op1]
-                         Nothing
-        ]
-  explicitize_div _ = error "Invalid div instruction"
-
-
-  -- Does the instruction read from all operands, inlcuding the first one?
-  mnemonic_reads_from_all_operands mnemonic =
-    mnemonic
+    -- Does the instruction read from all operands, inlcuding the first one?
+    mnemonic_reads_from_all_operands mnemonic = mnemonic
       `elem` [ ADD
              , SUB
              , NEG
@@ -352,12 +350,10 @@ canonicalize = mapP explicitize id
              , ADDSD
              , DIVSD
              , MULSD
-             , ROUNDSD
-             ]
+             , ROUNDSD]
 
-  -- Does the instruction read from all operands, except for the first one?
-  mnemonic_reads_from_all_but_first_operands mnemonic =
-    mnemonic
+    -- Does the instruction read from all operands, except for the first one?
+    mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
       `elem` [ LEA
              , MOV
              , MOVZX
@@ -439,18 +435,16 @@ canonicalize = mapP explicitize id
              , PSHUFD
              , VPSHUFB
              , VPSHUFD
-             , PSHUFLW
-             ]
+             , PSHUFLW]
 
-  -- Does the instruction need no modification?
-  -- For example, instructions without destination (CMP, TEST) or function calls and returns.
-  do_not_modify mnemonic =
-    is_call mnemonic
-      ||     is_jump mnemonic
-      ||     is_cond_jump mnemonic
-      ||     is_ret mnemonic
-      ||     is_halt mnemonic
-      ||     mnemonic
+    -- Does the instruction need no modification?
+    -- For example, instructions without destination (CMP, TEST) or function calls and returns.
+    do_not_modify mnemonic = is_call mnemonic
+      || is_jump mnemonic
+      || is_cond_jump mnemonic
+      || is_ret mnemonic
+      || is_halt mnemonic
+      || mnemonic
       `elem` [ CMP
              , TEST
              , CMPS
@@ -473,12 +467,7 @@ canonicalize = mapP explicitize id
              , UD2
              , WAIT
              , MFENCE
-             , CLFLUSH
-             ]
-
-
-
-
+             , CLFLUSH]
 -- TODO:
 -- BLENDVP, BLENDVPS read from XMM0 sometimes as well?
 -- At SymbolicExecution the instructions add lines 1500 to 1537 (FST to EMMS)

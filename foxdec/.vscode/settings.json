@@ -8,17 +8,19 @@
         "Datastructures",
         "DWORD",
         "explicitize",
+        "fmap",
         "HLINT",
         "IMUL",
         "instrs",
         "pressa",
         "QWORD",
+        "srcs",
         "stmts",
         "succ",
         "XCHG",
         "XMMWORD",
         "YMMWORD"
     ],
-    "haskell.formattingProvider": "brittany",
+    "haskell.formattingProvider": "floskell",
     "editor.formatOnSave": true
 }
