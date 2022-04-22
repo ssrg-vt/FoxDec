@@ -6,7 +6,9 @@ module Data.Generic
     , Variable(..)
     , VariableConversion(..)
     , Phi(..)
+    , variableFromRegister
     , mapP
+    , bindP
     , mapI) where
 
 import           Base (showHex, showHex_set)
@@ -15,6 +17,7 @@ import qualified Data.IntMap as IM
 import           Data.List (intercalate)
 import           Generic_Datastructures (GenericAddress(..), GenericOperand(..)
                                        , Instruction(..))
+import           X86_Datastructures (Register, operand_size)
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -32,10 +35,12 @@ data Program label storage prefix opcode annotation special =
           , programControlFlow :: G.Rooted -- ^ A graph based on integers (blockIDs)
           }
 
-newtype MutableVariable = MutableVariable { mutableVariableName :: String }
+data MutableVariable =
+  MutableVariable { mutableVariableName :: String, mutableVariableSize :: Int }
 
 data ImmutableVariable = ImmutableVariable { immutableVariableName :: String
                                            , immutableVariableIndex :: Int
+                                           , immutableVariableSize :: Int
                                            }
 
 -- | A variable.
@@ -51,10 +56,17 @@ newtype Phi arg = Phi { phiArguments :: [arg] }
 data VariableConversion storage =
   VariableConversion { conversionFrom :: storage
                      , conversionTo :: storage
-                     , conversionFromSize :: Int
-                     , conversionToSize :: Int
                      , conversionLow :: Bool
                      }
+
+--------------------------------------------------------------------------------
+-- SMART CONSTRUCTORS
+--------------------------------------------------------------------------------
+variableFromRegister :: Register -> Variable
+variableFromRegister reg = MutableVar
+  MutableVariable { mutableVariableName = show reg
+                  , mutableVariableSize = operand_size $ Storage reg
+                  }
 
 --------------------------------------------------------------------------------
 -- OPERATIONS
@@ -146,4 +158,4 @@ instance ( Eq storage
       show_edge (a, as) = showHex a ++ " --> " ++ showHex_set as
 
 instance Functor VariableConversion where
-    fmap = mapConversion
+  fmap = mapConversion
