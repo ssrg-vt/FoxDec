@@ -76,6 +76,14 @@ mapP transform_instructions transform_special (Program blocks (root, g)) =
       StmtInstruction $ transform_instructions is
     mapP_statement (StmtSpecial i) = StmtSpecial $ transform_special i
 
+-- TODO: Is this the correct name?
+bindP :: (Statement label storage prefix opcode annotation special
+          -> [Statement label' storage' prefix' opcode' annotation' special'])
+      -> Program label storage prefix opcode annotation special
+      -> Program label' storage' prefix' opcode' annotation' special'
+bindP transformStmt prog@(Program blocks _) =
+  prog { programBasicBlocks = IM.map (>>= transformStmt) blocks }
+
 -- map a function over an instruction, transforming the storages
 mapI :: (storage -> storage1)
      -> Instruction label storage prefix opcode annotation
