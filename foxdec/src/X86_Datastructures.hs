@@ -42,14 +42,14 @@ instance Cereal.Serialize Prefix
 -- | Registers
 data Register = InvalidRegister
   | RIP | EIP
-  | RAX | EAX | AX | AH | AL 
+  | RAX | EAX | AX | AH | AL
   | RBX | EBX | BX | BH | BL
   | RCX | ECX | CX | CH | CL
   | RDX | EDX | DX | DH | DL
   | RDI | EDI | DI | DIL
   | RSI | ESI | SI | SIL
-  | RSP | ESP | SP | SPL 
-  | RBP | EBP | BP | BPL 
+  | RSP | ESP | SP | SPL
+  | RBP | EBP | BP | BPL
   | R15 | R15D | R15W | R15B
   | R14 | R14D | R14W | R14B
   | R13 | R13D | R13W | R13B
@@ -288,7 +288,7 @@ data Opcode = InvalidOpcode
   | IRET
   | IRETD
   | IRETQ
-  | JA  
+  | JA
   | JAE
   | JB
   | JBE
@@ -360,7 +360,7 @@ data Opcode = InvalidOpcode
   | MINSD
   | MINSS
   | MONITOR
-  | MOV 
+  | MOV
   | MOVABS
   | MOVAPD
   | MOVAPS
@@ -493,9 +493,9 @@ data Opcode = InvalidOpcode
   | PSUBUSW
   | PSUBW
   | PTEST
-  | PUNPCKLBW 
+  | PUNPCKLBW
   | PUNPCKLWD
-  | PUNPCKLDQ 
+  | PUNPCKLDQ
   | PUNPCKLQDQ
   | PUSH
   | PUSHA
@@ -647,8 +647,8 @@ data Opcode = InvalidOpcode
   | VPUNPCKHWD
   | VSUBPD
   | VSUBPS
-  | VUNPCKHPS 
-  | VUNPCKLPS 
+  | VUNPCKHPS
+  | VUNPCKLPS
   | VXORPD
   | VXORPS
   | VZEROUPPER
@@ -679,18 +679,18 @@ instance Cereal.Serialize Opcode
 -- | The size of the operand, in bytes
 operand_size :: X86_Operand -> Int
 operand_size (Storage r)          = reg_size r
-operand_size (Memory _ si)        = si 
+operand_size (Memory _ si)        = si
 operand_size (EffectiveAddress _) = 8
 operand_size (Immediate _)        = 8
 
 -- | Returns true iff m is the mnemonic of a conditional jump
-is_cond_jump m = m `elem` [JO, JNO, JS, JNS, JE, JZ, JNE, JNZ, JB, JNAE, JC, JNB, JAE, JNC, JBE, JNA, JA, JNBE, JL, JNGE, JGE, JNL, JLE, JNG, JG, JNLE, JP, JPE, JNP, JPO, JCXZ, JECXZ, JRCXZ] 
+is_cond_jump m = m `elem` [JO, JNO, JS, JNS, JE, JZ, JNE, JNZ, JB, JNAE, JC, JNB, JAE, JNC, JBE, JNA, JA, JNBE, JL, JNGE, JGE, JNL, JLE, JNG, JG, JNLE, JP, JPE, JNP, JPO, JCXZ, JECXZ, JRCXZ]
 
 -- | Returns true iff m is the mnemonic of a halting instruction
 is_halt m = m `elem` [HLT]
 
 -- | Returns true iff m is the mnemonic of a jump
-is_jump m = m `elem` [JMP, JMPF, JMPN ] 
+is_jump m = m `elem` [JMP, JMPF, JMPN ]
 
 -- | Returns true iff m is the mnemonic of a call
 is_call m = m `elem` [CALL, CALLF ]
@@ -715,15 +715,15 @@ reg16  = [AX,BX,CX,DX,SI,DI,SP,BP,R8W,R9W,R10W,R11W,R12W,R13W,R14W,R15W]
 reg8   = [AL,BL,CL,DL,SIL,DIL,SPL,BPL,R8B,R9B,R10B,R11B,R12B,R13B,R14B,R15B]
 
 -- | The size of the given register, in bytes.
-reg_size r =
-  if r `elem` reg256 then 32
-  else if r `elem` reg128 then 16
-  else if r `elem` reg80 then 10
-  else if r `elem` reg64 then 8
-  else if r `elem` reg32 then 4
-  else if r `elem` reg16 then 2
-  else if r `elem` reg8 ++ [AH,BH,CH,DH] then 1
-  else error $ "Size of " ++ show r ++ " unknown"
+reg_size r
+  | r `elem` reg256 = 32
+  | r `elem` reg128 = 16
+  | r `elem` reg80 = 10
+  | r `elem` reg64 = 8
+  | r `elem` reg32 = 4
+  | r `elem` reg16 = 2
+  | r `elem` reg8 ++ [AH,BH,CH,DH] = 1
+  | otherwise = error $ "Size of " ++ show r ++ " unknown"
 
 
 -- | Matches register names to the real registers
