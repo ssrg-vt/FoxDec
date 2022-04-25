@@ -1,4 +1,4 @@
-module Data.Generic
+module IR.Generic
     ( Statement(..)
     , Program(..)
     , MutableVariable(..)

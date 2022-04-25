@@ -1,5 +1,6 @@
 module Algo.Dominance
-    () where
+    (domFrontier) where
+
 import qualified Data.Graph.Dom                as G
 import           Data.IntMap                    ( (!) )
 import           Data.IntSet                    ( IntSet )

@@ -33,12 +33,12 @@ library
       Context
       ControlFlow
       Conventions
-      Data.Generic
-      Data.PreSSA
-      Data.SSA
-      Data.X86
       DisassembleCapstone
       Generic_Datastructures
+      IR.Generic
+      IR.PreSSA
+      IR.SSA
+      IR.X86
       MachineState
       ParserCalls
       ParserDump

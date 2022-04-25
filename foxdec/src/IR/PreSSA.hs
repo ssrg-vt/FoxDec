@@ -1,4 +1,4 @@
-module Data.PreSSA
+module IR.PreSSA
     ( Label
     , Storage
     , Special(..)
@@ -7,7 +7,7 @@ module Data.PreSSA
     , Program
     , verifySSA) where
 
-import qualified Data.Generic as Generic
+import qualified IR.Generic as Generic
 import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
 import           X86_Datastructures (Opcode, Prefix)

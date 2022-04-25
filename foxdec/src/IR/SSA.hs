@@ -1,4 +1,4 @@
-module Data.SSA
+module IR.SSA
     ( Label
     , Storage
     , Special
@@ -7,10 +7,10 @@ module Data.SSA
     , Program
     , fromPreSSA) where
 
-import           Data.Generic (ImmutableVariable, Phi(..), Variable(..), mapI
-                             , mapP)
-import qualified Data.Generic as Generic
-import qualified Data.PreSSA as PreSSA
+import           IR.Generic (ImmutableVariable, Phi(..), Variable(..), mapI
+                           , mapP)
+import qualified IR.Generic as Generic
+import qualified IR.PreSSA as PreSSA
 import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
 import           X86_Datastructures (Opcode, Prefix)

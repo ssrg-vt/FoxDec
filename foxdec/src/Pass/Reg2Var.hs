@@ -1,15 +1,15 @@
 module Pass.Reg2Var (reg2var) where
 
-import           Data.Generic (MutableVariable(..), Variable(..), mapI, mapP
-                             , bindP, Statement(..), variableFromRegister
-                             , VariableConversion(..))
-import qualified Data.PreSSA as PreSSA
-import qualified Data.X86 as X86
+import           IR.Generic (MutableVariable(..), Variable(..), mapI, mapP
+                           , bindP, Statement(..), variableFromRegister
+                           , VariableConversion(..))
+import qualified IR.PreSSA as PreSSA
+import qualified IR.X86 as X86
 import           Data.Void (absurd)
 import           Generic_Datastructures (Instruction(..), GenericOperand(..))
 import           X86_Datastructures (Register(..), real_reg, operand_size)
 import           Data.List (delete)
-import           Data.PreSSA (Special(SpecialConversion))
+import           IR.PreSSA (Special(SpecialConversion))
 
 --------------------------------------------------------------------------------
 -- TRANSFORMATIONS
@@ -45,7 +45,8 @@ reg2varStorage = variableFromRegister
 -- This will cause the high 8-bit registers to have the wrong value.
 otherDestinationsToStatements :: X86.Instruction -> [PreSSA.Statement]
 otherDestinationsToStatements i = case instr_dest i of
-  Just (Storage reg) -> mkConversion reg . variableFromRegister <$> otherRegisters reg
+  Just (Storage reg)
+    -> mkConversion reg . variableFromRegister <$> otherRegisters reg
   _ -> []
   where
     mkConversion :: Register -> PreSSA.Storage -> PreSSA.Statement
@@ -70,7 +71,7 @@ isNot8BitHigh _ = True
 otherRegisters :: Register -> [Register]
 otherRegisters r = let others = otherPotentialRegisters r
                    in case opposingRegister r of
-                        Just op -> delete r others
+                        Just op -> delete op others
                         Nothing -> others
 
 -- | All registers that may be aliased by this register

@@ -10,8 +10,8 @@ import X86_Datastructures
 import VerificationReportInterface
 import SymbolicExecution
 import Pointers
-import qualified Data.X86 as X86
-import Data.Generic (programControlFlow)
+import qualified IR.X86 as X86
+import IR.Generic (programControlFlow)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

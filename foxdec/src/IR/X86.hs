@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module Data.X86
+module IR.X86
     ( Label
     , Storage
     , Special
@@ -12,8 +12,8 @@ module Data.X86
 
 import           Base (showHex)
 import           Context (CFG(..), Context(..))
-import qualified Data.Generic as Generic
-import           Data.Generic (mapP)
+import qualified IR.Generic as Generic
+import           IR.Generic (mapP)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Maybe (isNothing)
