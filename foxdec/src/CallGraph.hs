@@ -19,7 +19,6 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set as S
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.List.Extra (groupSort)
@@ -42,7 +41,7 @@ pp_source (Src_Function f)         = f
 pp_source (Src_ImmediateAddress a) = showHex a
 
 
-pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]" 
+pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]"
 pp_statepart (SP_StackPointer f) = "StackPointer of " ++ f
 pp_statepart (SP_Reg r)          = show r
 
@@ -73,7 +72,7 @@ summarize_assertions get_info show_e vcs =
       per_instruction         = groupSort instr_assert_pairs
       per_instruction_grouped = map (\(rip,pairs) -> (rip, groupSort pairs)) per_instruction in
     if per_instruction_grouped == [] then
-      "" 
+      ""
     else
       "ASSERTIONS:\n" ++ (intercalate "\n" $ map show_instr_group per_instruction_grouped) ++ "\n"
  where
@@ -98,7 +97,7 @@ summarize_function_constraints_short ctxt vcs =
   show_param (r,e) = show r ++ show_param_eq_sign e ++ strip_parentheses (show_param_value e)
   show_param_value e = if not (contains_bot e) then pp_bot e else pp_bot $ join_single ctxt e
   show_param_eq_sign e = if contains_bot e then "~=" else ":="
-  
+
   show_sps sps =
     let (stackframe,others) = partition is_stack_frame $ S.toList sps
         showed_stack_frame  = show_stack_frame stackframe in
@@ -123,7 +122,7 @@ summarize_function_constraints_short ctxt vcs =
   get_top (SP_Mem (SE_Var (SP_StackPointer _)) si)                                        = si
 
 summarize_function_constraints_long :: Context -> S.Set VerificationCondition -> String
-summarize_function_constraints_long ctxt vcs = 
+summarize_function_constraints_long ctxt vcs =
   let fcs = S.filter is_func_constraint vcs in
     if S.null fcs then
       ""
@@ -132,7 +131,7 @@ summarize_function_constraints_long ctxt vcs =
 
 
 -- | Summarize sourceless memwrites
-summarize_sourceless_memwrites_short ctxt vcs = 
+summarize_sourceless_memwrites_short ctxt vcs =
   let mws = S.filter is_sourceless_memwrite vcs in
     if S.null mws then
       ""
@@ -191,7 +190,7 @@ summarize_verification_conditions ctxt entry =
 
 calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cfg_instrs cfg
  where
-  get_call_target i = 
+  get_call_target i =
     if is_call (instr_opcode i) then
       IS.fromList $ concatMap get_internal_addresses $ resolve_jump_target ctxt i
     else
@@ -199,7 +198,7 @@ calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cf
 
 
 function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
- where 
+ where
   get_function_pointers_of_call i =
     if is_call (instr_opcode i) then -- TODO or jump?
       IS.unions $ S.map (get_function_pointers $ instr_addr i) $ (S.unions $ ctxt_vcs ctxt)
@@ -226,7 +225,7 @@ callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
   node_to_dot v =
     let bgcolor = node_color v
         fgcolor = hex_color_of_text bgcolor in
-       "\t" 
+       "\t"
     ++ mk_node v
     ++ "  ["
     ++ "style=filled fillcolor=\"" ++ bgcolor ++ "\" fontcolor=\"" ++ fgcolor ++ "\" shape=" ++ node_shape v ++ " "
@@ -235,7 +234,7 @@ callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
 
   edge_to_dot'  style (v,vs) = intercalate "\n" $ map (edge_to_dot'' style v) $ IS.toList vs
   edge_to_dot'' style v v'   = "\t" ++ mk_node v ++ " -> " ++ mk_node v'  ++ " " ++ style
-  
+
   mk_node v = ctxt_name ctxt ++ "_" ++ showHex v
 
   node_shape v =
@@ -244,11 +243,11 @@ callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
       Just VerificationSuccesWithAssumptions -> "Mrecord"
       _                                      -> "record"
 
-  node_label v = 
+  node_label v =
     let finit = IM.lookup v $ ctxt_finits ctxt in
       case IM.lookup v $ ctxt_vcs ctxt of
         Nothing  -> function_name_of_entry ctxt v
-        Just vcs -> 
+        Just vcs ->
           if S.null vcs && finit `elem` [Just M.empty,Nothing] then
             function_name_of_entry ctxt v
           else
@@ -265,9 +264,9 @@ callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
         VerificationError _               -> "#FF7F7F" -- light red
         VerificationUnresolvedIndirection -> "#CBC3E3" -- light purple
 
-        
-     
- 
+
+
+
 
   markup vcs = take max_limit_node_text_size_as_indicated_by_graphviz $ map replace [c | c <- vcs, c /= '|']
 

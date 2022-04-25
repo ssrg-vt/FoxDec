@@ -22,11 +22,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set as S
-import Data.List
+import Data.List ( find, intercalate )
 import Data.Word (Word8,Word64)
-
-import Data.List (intercalate)
 import Data.Maybe (mapMaybe,fromJust)
 
 
@@ -63,14 +60,14 @@ data JumpTable = JumpTable {
  deriving (Show,Generic,Eq)
 
 -- | Resolving the operand of a jump/call can produce one of the following.
-data ResolvedJumpTarget = 
+data ResolvedJumpTarget =
    Unresolved               -- ^ An indirect branch that has not been resolved yet
  | External String          -- ^ A call to external function f
  | ImmediateAddress Word64  -- ^ An internal call to the given address
  deriving (Eq,Show,Generic,Ord)
 
 -- | An indirection
-data Indirection = 
+data Indirection =
     IndirectionResolved (S.Set ResolvedJumpTarget) -- ^ An indirection that could be resolved to one or more addresses
   | IndirectionJumpTable JumpTable                 -- ^ An indirection based on a jump table
  deriving (Show,Generic,Eq)
@@ -88,7 +85,7 @@ data SectionsInfo = SectionsInfo {
 
 
 -- | An enumeration indicating the result of verification over a function
-data VerificationResult = 
+data VerificationResult =
      VerificationSuccess              -- ^ Function was succesfully verified
   | VerificationSuccesWithAssumptions -- ^ Function was succesfully verified, but required assertions
   | VerificationUnresolvedIndirection -- ^ Function contains an unresolved indirection
@@ -101,7 +98,7 @@ data VerificationResult =
 type Invariants = IM.IntMap Pred
 
 -- | For each leaf-node in a CFG we store the following info.
-data NodeInfo = 
+data NodeInfo =
     Normal                -- ^ The basic block behaves normally, e.g., a ret
   | UnresolvedIndirection -- ^ The basic block ends in an unresolved indirection
   | Terminal              -- ^ The basic blocks ends with, e.g., a call to exit()
@@ -142,7 +139,7 @@ type VCS = S.Set VerificationCondition
 
 
 -- | An abstract domain for pointers
-data PointerDomain = 
+data PointerDomain =
     Domain_Bases    (S.Set PointerBase)  -- a non-empty set of bases
   | Domain_Sources  (S.Set BotSrc)       -- a possibly empty set of sources
   deriving (Generic,Eq,Ord)
@@ -153,7 +150,7 @@ data PointerDomain =
 type FInit = M.Map StatePart SimpleExpr
 
 -- | A function call 
-data FReturnBehavior = 
+data FReturnBehavior =
     Terminating              -- ^ The function does never return
   | ReturningWith Pred       -- ^ The function returns withg the symbolic changes stored in the predicate
   | UnknownRetBehavior       -- ^  It is unknown whether the function returns or not
@@ -208,7 +205,7 @@ instance Cereal.Serialize Context
 
 
 -- | intialize an empty context based on the command-line parameters
-init_context config dirname name = 
+init_context config dirname name =
   let dirname'       = if last dirname  == '/' then dirname else dirname ++ "/"
       empty_sections = SectionsInfo [] 0 0 in
     Context config IM.empty IM.empty  IM.empty empty_sections dirname' name (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
@@ -233,7 +230,7 @@ purge_context (Context config dump dat syms sections dirname name entries cfgs c
 -- | Reading from a data section.
 --
 -- Reads maximally up to 8 bytes. Returns @Nothing@ if the given address is out-of-range.
-read_from_datasection :: 
+read_from_datasection ::
   Context          -- ^ The context 
   -> Word64        -- ^ An address
   -> Int           -- ^ Size, i.e., the number of bytes to read
@@ -251,8 +248,8 @@ read_from_datasection ctxt a si =
 is_roughly_an_address ::
    Context                              -- ^ The context
    -> Int                               -- ^ An address
-   -> Bool 
-is_roughly_an_address ctxt a = 
+   -> Bool
+is_roughly_an_address ctxt a =
   let si = ctxt_sections ctxt in
     a >= si_min_address si && a <= si_max_address si
 
@@ -261,7 +258,7 @@ find_section_for_address ::
    Context                              -- ^ The context
    -> Int                               -- ^ An address
    -> Maybe (String, String, Int, Int)
-find_section_for_address ctxt a = 
+find_section_for_address ctxt a =
   if is_roughly_an_address ctxt a then
     find (address_in_section a) (si_sections $ ctxt_sections ctxt)
   else
@@ -277,7 +274,7 @@ find_section_for_address ctxt a =
 -- | Fetching an instruction
 --
 -- Returns @Nothing@ if the given address is out-of-range.
-fetch_instruction :: 
+fetch_instruction ::
   Context              -- ^ The context
   -> Int               -- ^ An address
   -> IO (Maybe X86_Instruction)
@@ -295,7 +292,7 @@ pp_instruction ctxt i =
   if is_call (instr_opcode i) then
     show i ++
       case instr_srcs i of
-        [Immediate imm] -> 
+        [Immediate imm] ->
           case IM.lookup (fromIntegral imm) $ ctxt_syms ctxt of
             Nothing  -> " (0x" ++ showHex imm ++ ")"
             Just sym -> " (" ++ (show sym) ++ ")"
@@ -336,7 +333,7 @@ instance Show VerificationCondition where
   show (Precondition lhs _ rhs _)      = show lhs ++ " SEP " ++ show rhs
   show (Assertion a  lhs _ rhs _)      = "@" ++ show a ++ ": " ++ show lhs ++ " SEP " ++ show rhs
   show (SourcelessMemWrite mid)        = "UNKNOWN WRITE: " ++ show mid
-  show (FunctionPointers a ptrs)       = "@" ++ showHex a ++ ": function pointers " ++ showHex_set ptrs 
+  show (FunctionPointers a ptrs)       = "@" ++ showHex a ++ ": function pointers " ++ showHex_set ptrs
   show (FunctionConstraint f a ps sps) = f ++ "@" ++ showHex a ++ "(" ++ intercalate "," (map show_param ps) ++ ") PRESERVES " ++ (intercalate "," (map show $ S.toList sps))
    where
     show_param (r,e) = show r ++ ":=" ++ strip_parentheses (show e)

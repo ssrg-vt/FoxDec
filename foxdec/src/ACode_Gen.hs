@@ -80,7 +80,7 @@ is_reachable_from v v' = do
  -
  - ACode consists of blocks (identified by an ID of type Int), sequential execution,
  - case splits (i.e., if statements) and while loops. Also, it can be a "Break ID"
- - which is anormal loop break annotated with the ID of the block that is executed next.
+ - which is a normal loop break annotated with the ID of the block that is executed next.
 --}
 data ACode =
     ACode_Skip

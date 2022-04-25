@@ -8,30 +8,28 @@ Description : Some base functions, imported by almost all other modules.
 
 module Base where
 
-import SCC 
+import SCC
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set as S
-import Data.Word (Word64)
+import Data.Word ( Word64, Word8 )
 import Data.Traversable (for)
 import Data.List
-import Data.Maybe (mapMaybe)
-import qualified Numeric as Numeric (showHex,readHex)
+import Data.Maybe (mapMaybe, fromMaybe)
+import qualified Numeric (showHex,readHex)
 import Debug.Trace
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Control.Monad.State.Strict
-import Data.Word (Word8)
 import Data.Ord (comparing)
 import Data.Bits (shift,testBit,clearBit)
 
 -- | Show the integer in hex.
 showHex i = if i < 0 then Numeric.showHex (fromIntegral i :: Word64) "" else Numeric.showHex i ""
 -- | Show an integer list as hex-list.
-showHex_list is = "[" ++ intercalate "," (map (\i -> showHex i) is) ++ "]"
+showHex_list is = "[" ++ intercalate "," (map showHex is) ++ "]"
 -- | Show an integer set as hex-list.
 showHex_set     = showHex_list . IS.toList
 -- | Show an optional integer as an optional hex.
@@ -59,10 +57,10 @@ pair a b = (a,b)
 findString :: (Eq a) => [a] -> [a] -> Maybe Int
 findString search str = findIndex (isPrefixOf search) (tails str)
 
--- | Take until the occurence of the string
+-- | Take until the occurrence of the string
 takeUntilString :: String -> String -> String
 takeUntilString search []   = []
-takeUntilString search str = if isPrefixOf search str then [] else head str : takeUntilString search (tail str)
+takeUntilString search str = if search `isPrefixOf` str then [] else head str : takeUntilString search (tail str)
 
 
 -- | Strip outer parentheses from a string, if it has them.
@@ -121,14 +119,12 @@ graph_is_edge (Edges es) v0 v1  =
 
 instance IntGraph Graph where
   intgraph_post (Edges es) v =
-    case IM.lookup v es of
-      Nothing -> IS.empty
-      Just vs -> vs
-  intgraph_V (Edges es) = IS.unions $ IM.keysSet es : (IM.elems es)
+    fromMaybe IS.empty (IM.lookup v es)
+  intgraph_V (Edges es) = IS.unions $ IM.keysSet es : IM.elems es
 
 
 -- | retrieve a non-trivial SCC, if any exists
-graph_nontrivial_scc g@(Edges es) = 
+graph_nontrivial_scc g@(Edges es) =
   let sccs             = all_sccs g IS.empty
       nontrivial_sccs  = filter is_non_trivial sccs
       nontrivial_scc   = maximumBy (comparing IS.size) sccs in
@@ -168,132 +164,132 @@ hex_color_of_text bgcolor =
 
 -- | A list of RGB colors
 hex_colors = [
-  "#000000", 
-  "#FF0000", 
-  "#00FF00", 
-  "#0000FF", 
-  "#FFFF00", 
-  "#00FFFF", 
-  "#FF00FF", 
-  "#808080", 
-  "#FF8080", 
-  "#80FF80", 
-  "#8080FF", 
-  "#008080", 
-  "#800080", 
-  "#808000", 
-  "#FFFF80", 
-  "#80FFFF", 
-  "#FF80FF", 
-  "#FF0080", 
-  "#80FF00", 
-  "#0080FF", 
-  "#00FF80", 
-  "#8000FF", 
-  "#FF8000", 
-  "#000080", 
-  "#800000", 
-  "#008000", 
-  "#404040", 
-  "#FF4040", 
-  "#40FF40", 
-  "#4040FF", 
-  "#004040", 
-  "#400040", 
-  "#404000", 
-  "#804040", 
-  "#408040", 
-  "#404080", 
-  "#FFFF40", 
-  "#40FFFF", 
-  "#FF40FF", 
-  "#FF0040", 
-  "#40FF00", 
-  "#0040FF", 
-  "#FF8040", 
-  "#40FF80", 
-  "#8040FF", 
-  "#00FF40", 
-  "#4000FF", 
-  "#FF4000", 
-  "#000040", 
-  "#400000", 
-  "#004000", 
-  "#008040", 
-  "#400080", 
-  "#804000", 
-  "#80FF40", 
-  "#4080FF", 
-  "#FF4080", 
-  "#800040", 
-  "#408000", 
-  "#004080", 
-  "#808040", 
-  "#408080", 
-  "#804080", 
-  "#C0C0C0", 
-  "#FFC0C0", 
-  "#C0FFC0", 
-  "#C0C0FF", 
-  "#00C0C0", 
-  "#C000C0", 
-  "#C0C000", 
-  "#80C0C0", 
-  "#C080C0", 
-  "#C0C080", 
-  "#40C0C0", 
-  "#C040C0", 
-  "#C0C040", 
-  "#FFFFC0", 
-  "#C0FFFF", 
-  "#FFC0FF", 
-  "#FF00C0", 
-  "#C0FF00", 
-  "#00C0FF", 
-  "#FF80C0", 
-  "#C0FF80", 
-  "#80C0FF", 
-  "#FF40C0", 
-  "#C0FF40", 
-  "#40C0FF", 
-  "#00FFC0", 
-  "#C000FF", 
-  "#FFC000", 
-  "#0000C0", 
-  "#C00000", 
-  "#00C000", 
-  "#0080C0", 
-  "#C00080", 
-  "#80C000", 
-  "#0040C0", 
-  "#C00040", 
-  "#40C000", 
-  "#80FFC0", 
-  "#C080FF", 
-  "#FFC080", 
-  "#8000C0", 
-  "#C08000", 
-  "#00C080", 
-  "#8080C0", 
-  "#C08080", 
-  "#80C080", 
-  "#8040C0", 
-  "#C08040", 
-  "#40C080", 
-  "#40FFC0", 
-  "#C040FF", 
-  "#FFC040", 
-  "#4000C0", 
-  "#C04000", 
-  "#00C040", 
-  "#4080C0", 
-  "#C04080", 
-  "#80C040", 
-  "#4040C0", 
-  "#C04040", 
-  "#40C040", 
-  "#202020", 
-  "#FF2020", 
+  "#000000",
+  "#FF0000",
+  "#00FF00",
+  "#0000FF",
+  "#FFFF00",
+  "#00FFFF",
+  "#FF00FF",
+  "#808080",
+  "#FF8080",
+  "#80FF80",
+  "#8080FF",
+  "#008080",
+  "#800080",
+  "#808000",
+  "#FFFF80",
+  "#80FFFF",
+  "#FF80FF",
+  "#FF0080",
+  "#80FF00",
+  "#0080FF",
+  "#00FF80",
+  "#8000FF",
+  "#FF8000",
+  "#000080",
+  "#800000",
+  "#008000",
+  "#404040",
+  "#FF4040",
+  "#40FF40",
+  "#4040FF",
+  "#004040",
+  "#400040",
+  "#404000",
+  "#804040",
+  "#408040",
+  "#404080",
+  "#FFFF40",
+  "#40FFFF",
+  "#FF40FF",
+  "#FF0040",
+  "#40FF00",
+  "#0040FF",
+  "#FF8040",
+  "#40FF80",
+  "#8040FF",
+  "#00FF40",
+  "#4000FF",
+  "#FF4000",
+  "#000040",
+  "#400000",
+  "#004000",
+  "#008040",
+  "#400080",
+  "#804000",
+  "#80FF40",
+  "#4080FF",
+  "#FF4080",
+  "#800040",
+  "#408000",
+  "#004080",
+  "#808040",
+  "#408080",
+  "#804080",
+  "#C0C0C0",
+  "#FFC0C0",
+  "#C0FFC0",
+  "#C0C0FF",
+  "#00C0C0",
+  "#C000C0",
+  "#C0C000",
+  "#80C0C0",
+  "#C080C0",
+  "#C0C080",
+  "#40C0C0",
+  "#C040C0",
+  "#C0C040",
+  "#FFFFC0",
+  "#C0FFFF",
+  "#FFC0FF",
+  "#FF00C0",
+  "#C0FF00",
+  "#00C0FF",
+  "#FF80C0",
+  "#C0FF80",
+  "#80C0FF",
+  "#FF40C0",
+  "#C0FF40",
+  "#40C0FF",
+  "#00FFC0",
+  "#C000FF",
+  "#FFC000",
+  "#0000C0",
+  "#C00000",
+  "#00C000",
+  "#0080C0",
+  "#C00080",
+  "#80C000",
+  "#0040C0",
+  "#C00040",
+  "#40C000",
+  "#80FFC0",
+  "#C080FF",
+  "#FFC080",
+  "#8000C0",
+  "#C08000",
+  "#00C080",
+  "#8080C0",
+  "#C08080",
+  "#80C080",
+  "#8040C0",
+  "#C08040",
+  "#40C080",
+  "#40FFC0",
+  "#C040FF",
+  "#FFC040",
+  "#4000C0",
+  "#C04000",
+  "#00C040",
+  "#4080C0",
+  "#C04080",
+  "#80C040",
+  "#4040C0",
+  "#C04040",
+  "#40C040",
+  "#202020",
+  "#FF2020",
   "#20FF20"
  ]
 
