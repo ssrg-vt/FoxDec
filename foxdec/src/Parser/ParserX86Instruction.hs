@@ -16,7 +16,7 @@
 -- 100002f9a:	jne	0x100003001
 -- 100002fb1:	call	0x1001455d8
 
-module ParserX86Instruction where
+module Parser.ParserX86Instruction where
 
 import Generic_Datastructures
 import X86_Datastructures

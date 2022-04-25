@@ -15,7 +15,7 @@
 -- |   addr = 0x00000001000041d0
 -- |   size = 0x0000000000000010
 
-module ParserSections where
+module Parser.ParserSections where
 
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec

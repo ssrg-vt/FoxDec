@@ -6,7 +6,7 @@
 -- Example input line:
 --   100000ed4 [100000ed6,100000f7c,100000f8c,1000010e7]
 
-module ParserIndirections where
+module Parser.ParserIndirections where
 
 import Text.Parsec.Token
 import Text.Parsec.Char (hexDigit)

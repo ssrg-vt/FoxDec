@@ -40,12 +40,12 @@ library
       IR.SSA
       IR.X86
       MachineState
-      ParserCalls
-      ParserDump
-      ParserIndirections
-      ParserSections
-      ParserSymbols
-      ParserX86Instruction
+      Parser.ParserCalls
+      Parser.ParserDump
+      Parser.ParserIndirections
+      Parser.ParserSections
+      Parser.ParserSymbols
+      Parser.ParserX86Instruction
       Pass.ConstructSSA
       Pass.Mem2Var
       Pass.Reg2Var

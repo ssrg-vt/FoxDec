@@ -6,7 +6,7 @@
 --   100000ed4 terminating
 --   100000ed4 returning
 
-module ParserCalls where
+module Parser.ParserCalls where
 
 import Text.Parsec.Token
 import Text.Parsec.Char (hexDigit)

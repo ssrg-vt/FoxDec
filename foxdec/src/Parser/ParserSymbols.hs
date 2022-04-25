@@ -15,7 +15,7 @@
 --
 -- 0x00000001001ac528 _strcasecmp
 
-module ParserSymbols where
+module Parser.ParserSymbols where
 
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec

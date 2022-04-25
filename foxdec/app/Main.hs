@@ -11,11 +11,11 @@ import Context
 import Config
 import X86_Datastructures
 import Generic_Datastructures
-import ParserDump
-import ParserSymbols
-import ParserSections
-import ParserIndirections
-import ParserCalls 
+import Parser.ParserDump
+import Parser.ParserSymbols
+import Parser.ParserSections
+import Parser.ParserIndirections
+import Parser.ParserCalls 
 import CFG_Gen
 import SymbolicExecution
 import SimplePred

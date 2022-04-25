@@ -4,7 +4,7 @@
 module DisassembleCapstone where
 
 import Generic_Datastructures
-import ParserX86Instruction
+import Parser.ParserX86Instruction
 import X86_Datastructures
 import Base
 

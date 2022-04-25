@@ -20,7 +20,7 @@
 --
 --   ADDRESS is in hex format without 0x
 
-module ParserDump where
+module Parser.ParserDump where
 
 import Text.Parsec.Token
 import Text.Parsec.Char (hexDigit)
