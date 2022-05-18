@@ -37,6 +37,8 @@ import X86.Register (Register(..))
 import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
 import X86.Address (GenericAddress(..))
+import X86.Operand (GenericOperand(..))
+import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 
 jumps_and_calls_are_relative = False -- TODO make configurable
 

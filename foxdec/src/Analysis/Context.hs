@@ -33,6 +33,8 @@ import X86.Register (Register)
 import X86.Opcode (isCall)
 import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
+import X86.Operand (GenericOperand(..))
+import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 
 
 

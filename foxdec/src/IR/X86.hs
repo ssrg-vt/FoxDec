@@ -18,7 +18,7 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Maybe (isNothing)
 import           Data.Void (Void)
-import           Generic_Datastructures (AddressWord64, GenericOperand(..))
+import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
 import qualified X86.Register as X86
 import           X86.Register (Register(..))
@@ -27,6 +27,8 @@ import           X86.Opcode (Opcode(..), isHalt, isRet, isCondJump, isJump
                            , isCall)
 import           Typeclasses.HasSize (HasSize(sizeof))
 import           X86.Address (GenericAddress(..))
+import X86.Operand (GenericOperand(..))
+import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -115,10 +117,10 @@ canonicalize = mapP explicitize id
       prefix
       MOV
       (Just $ Storage RSP)
-      [GD.Storage RBP]
+      [Storage RBP]
       annot
       :explicitize
-        [GD.Instruction label prefix POP Nothing [GD.Storage RBP] annot]
+        [GD.Instruction label prefix POP Nothing [Storage RBP] annot]
     -- The remaining cases
     explicitize [i@(GD.Instruction label prefix mnemonic Nothing ops annot)]
       | mnemonic `elem` [CBW, CWDE, CDQE] = explicitize_sextend1 i
@@ -151,8 +153,8 @@ canonicalize = mapP explicitize id
              label
              prefix
              mnemonic
-             (Just $ GD.Storage $ head srcs)
-             [GD.Storage $ srcs !! 1]
+             (Just $ Storage $ head srcs)
+             [Storage $ srcs !! 1]
              annot]
     explicitize_sextend1 _ = error "Invalid extend instruction"
 
@@ -168,15 +170,15 @@ canonicalize = mapP explicitize id
              label
              prefix
              mnemonic
-             (Just $ GD.Storage $ head srcs)
-             [GD.Storage $ srcs !! 1]
+             (Just $ Storage $ head srcs)
+             [Storage $ srcs !! 1]
              annot
          , GD.Instruction
              label
              prefix
              mnemonic
-             (Just $ GD.Storage $ srcs !! 1)
-             [GD.Storage $ srcs !! 1]
+             (Just $ Storage $ srcs !! 1)
+             [Storage $ srcs !! 1]
              Nothing]
     explicitize_sextend2 _ = error "Invalid extend instruction"
 

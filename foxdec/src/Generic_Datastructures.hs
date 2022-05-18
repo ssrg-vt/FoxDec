@@ -17,17 +17,7 @@ import GHC.Generics ( Generic )
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Typeclasses.HasSize (HasSize (sizeof))
 import Generic.Address (GenericAddress)
-
-
-
--- | A generic statepart, based on polymorphic type `storage`.
-data GenericOperand storage =
-    Memory            (GenericAddress storage) Int -- ^ A region in memory, whose address is stored in the given state part and whose size in bytes is given in the Int
-  | EffectiveAddress  (GenericAddress storage)     -- ^ An address itself, but not the value stored at the address.
-  | Storage           storage                      -- ^ A storage location such as a register or a variable
-  | Immediate         Word64                       -- ^ An immediate value
-  deriving (Eq,Ord,Generic)
-
+import Generic.Operand (GenericOperand)
 
 -- | A generic instruction
 data Instruction label storage prefix opcode annotation = Instruction {
@@ -48,30 +38,8 @@ newtype AddressWord64 = AddressWord64 Word64
 
 
 instance Cereal.Serialize AddressWord64
-instance (Cereal.Serialize storage) => Cereal.Serialize (GenericOperand storage)
 instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize prefix, Cereal.Serialize opcode, Cereal.Serialize annotation) =>
          Cereal.Serialize (Instruction label storage prefix opcode annotation)
-
-
-
-
-
-
-
-instance Show storage => Show (GenericOperand storage) where
-  show (Memory addr si)        = show_size_directive si ++ " [" ++ show addr ++ "," ++ show si ++ "]"
-  show (EffectiveAddress addr) = "[" ++ show addr ++ "]"
-  show (Storage st)            = show st
-  show (Immediate imm)         = showHex imm
-
--- | Showing a size directive
-show_size_directive 1  = "BYTE PTR"
-show_size_directive 2  = "WORD PTR"
-show_size_directive 4  = "DWORD PTR"
-show_size_directive 8  = "QWORD PTR"
-show_size_directive 16 = "XMMWORD PTR"
-show_size_directive 32 = "YMMWORD PTR"
-show_size_directive si = show (si*8) ++ " PTR"
 
 instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annotation) => Show (Instruction label storage prefix opcode annotation) where
   show (Instruction label prefix opcode dst srcs annot) =
@@ -92,10 +60,3 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annot
     show_dest (Just op) = show op ++ " <- "
 instance Show AddressWord64 where
   show (AddressWord64 a) = showHex a
-
-instance (HasSize storage) => HasSize (GenericOperand storage)
-  where
-    sizeof (Storage r)          = sizeof r
-    sizeof (Memory _ si)        = si
-    sizeof (EffectiveAddress _) = 8
-    sizeof (Immediate _)        = 8

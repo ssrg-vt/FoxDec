@@ -51,6 +51,7 @@ import Typeclasses.HasSize (sizeof)
 import qualified X86.Address as X86
 import qualified X86.Operand as X86
 import X86.Address (GenericAddress(..))
+import Generic.Operand (GenericOperand(..))
 
 
 -- *  Registers

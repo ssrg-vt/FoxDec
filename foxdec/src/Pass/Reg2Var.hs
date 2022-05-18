@@ -6,11 +6,12 @@ import           IR.Generic (MutableVariable(..), Variable(..), mapI, mapP
 import qualified IR.PreSSA as PreSSA
 import qualified IR.X86 as X86
 import           Data.Void (absurd)
-import           Generic_Datastructures (Instruction(..), GenericOperand(..))
+import           Generic_Datastructures (Instruction(..))
 import           Data.List (delete)
 import           IR.PreSSA (Special(SpecialConversion))
 import           X86.Register (Register(..))
 import qualified X86.Register as Reg
+import           Generic.Operand (GenericOperand(Storage))
 
 --------------------------------------------------------------------------------
 -- TRANSFORMATIONS

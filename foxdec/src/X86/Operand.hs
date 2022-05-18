@@ -1,6 +1,6 @@
-module X86.Operand (Operand) where
+module X86.Operand (Operand, GenericOperand(..)) where
 
-import           Generic_Datastructures (GenericOperand)
 import           X86.Register (Register)
+import           Generic.Operand (GenericOperand)
 
 type Operand = GenericOperand Register
