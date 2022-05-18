@@ -7,24 +7,25 @@ module IR.SSA
     , Program
     , fromPreSSA) where
 
-import           IR.Generic (ImmutableVariable, Phi(..), Variable(..), mapI
-                           , mapP)
+import           IR.Generic (mapI, mapP)
 import qualified IR.Generic as Generic
 import qualified IR.PreSSA as PreSSA
 import           X86.Prefix (Prefix)
 import           X86.Opcode (Opcode)
 import           Generic.Address (AddressWord64)
 import           Generic.Instruction (GenericInstruction)
+import           Data.Variable (Variable, VariableConversion)
+import           Data.Phi (Phi)
 
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
 type Label = AddressWord64
 
-type Storage = ImmutableVariable
+type Storage = Variable
 
-data Special = SpecialPhi (Generic.Phi Storage)
-             | SpecialConversion (Generic.VariableConversion Storage)
+data Special = SpecialPhi Phi
+             | SpecialConversion VariableConversion
 
 type Instruction = GenericInstruction Label Storage Prefix Opcode Int
 
@@ -39,15 +40,8 @@ fromPreSSA :: PreSSA.Program -> Program
 fromPreSSA = mapP (map instructionFromPreSSA) specialFromPreSSA
 
 specialFromPreSSA :: PreSSA.Special -> Special
-specialFromPreSSA (PreSSA.SpecialPhi (Phi args)) =
-  SpecialPhi $ Phi $ storageFromPreSSA <$> args
-specialFromPreSSA (PreSSA.SpecialConversion c) =
-  SpecialConversion $ storageFromPreSSA <$> c
-
-storageFromPreSSA :: PreSSA.Storage -> Storage
-storageFromPreSSA (ImmutableVar v) = v
-storageFromPreSSA (MutableVar _) =
-  error "Only SSA verified PreSSA programs may be translated"
+specialFromPreSSA (PreSSA.SpecialPhi phi) = SpecialPhi phi
+specialFromPreSSA (PreSSA.SpecialConversion c) = SpecialConversion c
 
 instructionFromPreSSA :: PreSSA.Instruction -> Instruction
-instructionFromPreSSA = mapI storageFromPreSSA
+instructionFromPreSSA = mapI id

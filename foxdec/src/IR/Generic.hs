@@ -1,12 +1,6 @@
 module IR.Generic
     ( Statement(..)
     , Program(..)
-    , MutableVariable(..)
-    , ImmutableVariable(..)
-    , Variable(..)
-    , VariableConversion(..)
-    , Phi(..)
-    , variableFromRegister
     , mapP
     , bindP
     , mapI) where
@@ -36,39 +30,6 @@ data Program label storage prefix opcode annotation special =
                 [Statement label storage prefix opcode annotation special]-- ^ A mapping from blockIDs to lists of statements
           , programControlFlow :: G.Rooted -- ^ A graph based on integers (blockIDs)
           }
-
-data MutableVariable =
-  MutableVariable { mutableVariableName :: String, mutableVariableSize :: Int }
-
-data ImmutableVariable = ImmutableVariable { immutableVariableName :: String
-                                           , immutableVariableIndex :: Int
-                                           , immutableVariableSize :: Int
-                                           }
-
--- | A variable.
--- | Mutable variables can be reassigned,
--- | SSA variables should only be assigned once
-data Variable = MutableVar MutableVariable
-              | ImmutableVar ImmutableVariable
-
--- | A phi node with its arguments.
--- | Usually, these arguments are Variables
-newtype Phi arg = Phi { phiArguments :: [arg] }
-
-data VariableConversion storage =
-  VariableConversion { conversionFrom :: storage
-                     , conversionTo :: storage
-                     , conversionLow :: Bool
-                     }
-
---------------------------------------------------------------------------------
--- SMART CONSTRUCTORS
---------------------------------------------------------------------------------
-variableFromRegister :: Register -> Variable
-variableFromRegister reg = MutableVar
-  MutableVariable { mutableVariableName = show reg
-                  , mutableVariableSize = sizeof $ Storage reg
-                  }
 
 --------------------------------------------------------------------------------
 -- OPERATIONS
@@ -119,13 +80,6 @@ mapI transform_storage (Instruction label prefix mnemonic dst srcs annot) =
     mapI_address (AddressTimes a0 a1) =
       AddressTimes (mapI_address a0) (mapI_address a1)
 
-mapConversion :: (storage1 -> storage2)
-              -> VariableConversion storage1
-              -> VariableConversion storage2
-mapConversion f c = c { conversionFrom = f $ conversionFrom c
-                      , conversionTo = f $ conversionTo c
-                      }
-
 --------------------------------------------------------------------------------
 -- TYPE CLASSES
 --------------------------------------------------------------------------------
@@ -158,6 +112,3 @@ instance ( Eq storage
         "BLOCK " ++ show a ++ ":\n" ++ intercalate "\n" (map show b)
 
       show_edge (a, as) = showHex a ++ " --> " ++ showHex_set as
-
-instance Functor VariableConversion where
-  fmap = mapConversion

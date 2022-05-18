@@ -1,8 +1,6 @@
 module Pass.Reg2Var (reg2var) where
 
-import           IR.Generic (MutableVariable(..), Variable(..), mapI, mapP
-                           , bindP, Statement(..), variableFromRegister
-                           , VariableConversion(..))
+import           IR.Generic (mapI, mapP, bindP, Statement(..))
 import qualified IR.PreSSA as PreSSA
 import qualified IR.X86 as X86
 import           Data.Void (absurd)
@@ -32,7 +30,7 @@ reg2varInstr
   i = StmtInstruction [mapI reg2varStorage i]:otherDestinationsToStatements i
 
 reg2varStorage :: X86.Storage -> PreSSA.Storage
-reg2varStorage = variableFromRegister
+reg2varStorage = undefined 
 
 -- Makes sure all variables for aliasing registers are in sync
 -- This will for all instructions that
@@ -46,18 +44,7 @@ reg2varStorage = variableFromRegister
 -- TODO: Right now, the decision on high/low for the 8-bit registers is the wrong way around.
 -- This will cause the high 8-bit registers to have the wrong value.
 otherDestinationsToStatements :: X86.Instruction -> [PreSSA.Statement]
-otherDestinationsToStatements i = case Instr.dest i of
-  Just (Storage reg)
-    -> mkConversion reg . variableFromRegister <$> otherRegisters reg
-  _ -> []
-  where
-    mkConversion :: Register -> PreSSA.Storage -> PreSSA.Statement
-    mkConversion orig var = StmtSpecial
-      $ PreSSA.SpecialConversion
-      $ VariableConversion { conversionFrom = variableFromRegister orig
-                           , conversionTo = var
-                           , conversionLow = isNot8BitHigh orig
-                           }
+otherDestinationsToStatements i = undefined 
 
 --------------------------------------------------------------------------------
 -- REGISTER UTIL

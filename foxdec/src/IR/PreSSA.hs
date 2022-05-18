@@ -12,16 +12,18 @@ import           X86.Prefix (Prefix)
 import           X86.Opcode (Opcode)
 import           Generic.Address (AddressWord64)
 import           Generic.Instruction (GenericInstruction)
+import           Data.Variable (Variable, VariableConversion)
+import           Data.Phi (Phi)
 
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
 type Label = AddressWord64
 
-type Storage = Generic.Variable
+type Storage = Variable
 
-data Special = SpecialPhi (Generic.Phi Storage)
-             | SpecialConversion (Generic.VariableConversion Storage)
+data Special = SpecialPhi Phi
+             | SpecialConversion VariableConversion
 
 type Instruction = GenericInstruction Label Storage Prefix Opcode Int
 
