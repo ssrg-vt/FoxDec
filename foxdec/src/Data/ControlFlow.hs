@@ -32,7 +32,6 @@ import Algorithm.SCC
 import Analysis.Context
 import Base
 import Data.SimplePred
-import Generic_Datastructures
 import X86.Conventions
 
 import qualified Data.IntMap as IM
@@ -50,10 +49,11 @@ import X86.Register (Register(..))
 import X86.Opcode (Opcode(JMP), isCall, isJump)
 import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
-import X86.Instruction (instr_addr)
 import Typeclasses.HasSize (sizeof)
 import X86.Address (GenericAddress(..))
 import Generic.Operand (GenericOperand(..))
+import X86.Instruction (GenericInstruction(Instruction))
+import qualified X86.Instruction as Instr
 
 
 
@@ -111,15 +111,15 @@ operand_static_resolve ::
   -> X86.Operand  -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
 operand_static_resolve ctxt i (Immediate a')                                                         = ImmediateAddress a'
-operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressStorage RIP) (AddressImm imm))) = ImmediateAddress $ instr_addr i + fromIntegral (sizeof i) + imm
-operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressImm imm) (AddressStorage RIP))) = ImmediateAddress $ instr_addr i + fromIntegral (sizeof i) + imm
+operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressStorage RIP) (AddressImm imm))) = ImmediateAddress $ Instr.addr i + fromIntegral (sizeof i) + imm
+operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressImm imm) (AddressStorage RIP))) = ImmediateAddress $ Instr.addr i + fromIntegral (sizeof i) + imm
 operand_static_resolve ctxt i (Memory (AddressPlus  (AddressStorage RIP) (AddressImm imm)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
 operand_static_resolve ctxt i (Memory (AddressPlus  (AddressImm imm) (AddressStorage RIP)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
 operand_static_resolve ctxt i (Memory (AddressMinus (AddressStorage RIP) (AddressImm imm)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
 operand_static_resolve ctxt i _                                                                      = Unresolved
 
 static_resolve_rip_expr ctxt i f si =
-  let rip     = instr_addr i + (fromIntegral $ sizeof i)
+  let rip     = Instr.addr i + (fromIntegral $ sizeof i)
       a'      = f rip
       syms    = ctxt_syms    ctxt in
     case (IM.lookup (fromIntegral a') syms,read_from_datasection ctxt a' si) of
@@ -149,7 +149,7 @@ resolve_jump_target ::
   -> X86.Instruction       -- ^ The instruction
   -> [ResolvedJumpTarget]
 resolve_jump_target ctxt i =
-  case (IM.lookup (fromIntegral $ instr_addr i) $ ctxt_inds ctxt, instr_srcs i) of
+  case (IM.lookup (fromIntegral $ Instr.addr i) $ ctxt_inds ctxt, Instr.srcs i) of
     (Just ind,_)    -> jump_targets_of_indirection ind -- already resolved indirection
     (Nothing,[op1]) ->
       case operand_static_resolve ctxt i op1 of
@@ -203,11 +203,11 @@ function_name_of_instruction ::
   -> X86.Instruction -- ^ The instruction
   -> String
 function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
-  if isCall (instr_opcode i) || isJump (instr_opcode i) then
+  if isCall (Instr.opcode i) || isJump (Instr.opcode i) then
     case operand_static_resolve ctxt i (head ops) of
       External sym       -> sym
       ImmediateAddress a -> function_name_of_entry ctxt $ fromIntegral a
-      Unresolved         -> "indirection@" ++ showHex (instr_addr i)
+      Unresolved         -> "indirection@" ++ showHex (Instr.addr i)
   else
     ""
 

@@ -3,7 +3,6 @@
 
 module Pass.DisassembleCapstone where
 
-import Generic_Datastructures
 import Parser.ParserX86Instruction
 import Base
 
@@ -85,7 +84,7 @@ mk_instr cs_instr =
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
-      i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
+      i             = X86.Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
     if m == InvalidOpcode then
       error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
     else if prefix == Just InvalidPrefix then

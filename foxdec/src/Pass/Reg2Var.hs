@@ -6,12 +6,12 @@ import           IR.Generic (MutableVariable(..), Variable(..), mapI, mapP
 import qualified IR.PreSSA as PreSSA
 import qualified IR.X86 as X86
 import           Data.Void (absurd)
-import           Generic_Datastructures (Instruction(..))
 import           Data.List (delete)
 import           IR.PreSSA (Special(SpecialConversion))
 import           X86.Register (Register(..))
 import qualified X86.Register as Reg
 import           Generic.Operand (GenericOperand(Storage))
+import qualified Generic.Instruction as Instr
 
 --------------------------------------------------------------------------------
 -- TRANSFORMATIONS
@@ -46,7 +46,7 @@ reg2varStorage = variableFromRegister
 -- TODO: Right now, the decision on high/low for the 8-bit registers is the wrong way around.
 -- This will cause the high 8-bit registers to have the wrong value.
 otherDestinationsToStatements :: X86.Instruction -> [PreSSA.Statement]
-otherDestinationsToStatements i = case instr_dest i of
+otherDestinationsToStatements i = case Instr.dest i of
   Just (Storage reg)
     -> mkConversion reg . variableFromRegister <$> otherRegisters reg
   _ -> []

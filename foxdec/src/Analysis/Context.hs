@@ -15,7 +15,6 @@ import Base
 import Config
 import Pass.DisassembleCapstone
 import Data.SimplePred
-import Generic_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -35,6 +34,7 @@ import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
+import qualified Generic.Instruction as Instr
 
 
 
@@ -294,9 +294,9 @@ pp_instruction ::
   -> X86.Instruction  -- ^ An instruction
   -> String
 pp_instruction ctxt i =
-  if isCall (instr_opcode i) then
+  if isCall (Instr.opcode i) then
     show i ++
-      case instr_srcs i of
+      case Instr.srcs i of
         [Immediate imm] ->
           case IM.lookup (fromIntegral imm) $ ctxt_syms ctxt of
             Nothing  -> " (0x" ++ showHex imm ++ ")"

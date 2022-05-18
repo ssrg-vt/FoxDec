@@ -29,7 +29,6 @@ import Base
 import Data.ControlFlow
 import Data.Pointers
 import Data.SimplePred
-import Generic_Datastructures
 import X86.Conventions
 
 import qualified Data.Map as M

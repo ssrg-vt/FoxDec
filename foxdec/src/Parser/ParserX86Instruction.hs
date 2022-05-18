@@ -18,7 +18,6 @@
 
 module Parser.ParserX86Instruction where
 
-import Generic_Datastructures
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
@@ -40,6 +39,7 @@ import X86.Address (GenericAddress(..))
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 import Generic.Address (AddressWord64(AddressWord64))
+import X86.Instruction (GenericInstruction(Instruction))
 
 jumps_and_calls_are_relative = False -- TODO make configurable
 

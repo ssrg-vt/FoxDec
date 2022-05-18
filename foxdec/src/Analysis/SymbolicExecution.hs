@@ -23,7 +23,6 @@ import Data.ControlFlow
 import Data.MachineState
 import Data.Pointers
 import Data.SimplePred
-import Generic_Datastructures
 import X86.Conventions
 
 import qualified Data.Map as M
@@ -45,11 +44,12 @@ import X86.Opcode (Opcode(..), isCondJump, isJump)
 import X86.Prefix (Prefix(LOCK))
 import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
-import X86.Instruction (instr_addr)
 import Typeclasses.HasSize (sizeof)
 import X86.Address (GenericAddress(..))
 import Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
+import X86.Instruction (GenericInstruction(Instruction))
+import qualified X86.Instruction as Instr
 
 -- | Forward transposition
 -- If the current invariant states:
@@ -234,17 +234,17 @@ functions_returning_bottom = [
 function_semantics :: FContext -> X86.Instruction -> String -> State (Pred,VCS) Bool
 function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
 function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
-function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
+function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (Instr.addr i) RAX >> return True
 function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "strcpy"
-function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
+function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (Instr.addr i) RAX >> return True
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
-function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (instr_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
+function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (Instr.addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
 function_semantics ctxt i f                      =
   if f `elem` functions_returning_bottom then do  -- and exiting function calls?
-    write_reg ctxt (instr_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
+    write_reg ctxt (Instr.addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
     return True
   else if f `elem` functions_returning_fresh_pointers then do
-    write_reg ctxt (instr_addr i) RAX $ SE_Malloc (Just (instr_addr i)) (Just "")
+    write_reg ctxt (Instr.addr i) RAX $ SE_Malloc (Just (Instr.addr i)) (Just "")
     return True
   else
     return False
@@ -287,7 +287,7 @@ call :: FContext -> X86.Instruction -> State (Pred,VCS) ()
 call ctxt i = do
   let f  = f_name ctxt
   let f' = function_name_of_instruction (f_ctxt ctxt) i
-  let i_a = instr_addr i
+  let i_a = Instr.addr i
   known <- function_semantics ctxt i $ takeUntilString "@GLIBC" f'
 
   when (not known) $ do
@@ -334,7 +334,7 @@ call ctxt i = do
     let si' = 1
     v'     <- evalState_discard $ read_sp ctxt (SP_Mem a 1)
     let bot = join_single ctxt v'
-    write_sp ctxt (instr_addr i)  mk_mid (SP_Mem a' si',bot)
+    write_sp ctxt (Instr.addr i)  mk_mid (SP_Mem a' si',bot)
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
@@ -352,7 +352,7 @@ call ctxt i = do
   transfer_current_statepart f' i p@(Predicate p_eqs _) q@(Predicate q_eqs _) is_external (sp,v) = do
     if sp == SP_Reg RIP then do
       -- forcibly transfer and set the value of the instruction pointer
-      forced_insert_sp sp (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
+      forced_insert_sp sp (SE_Immediate $ Instr.addr i + (fromIntegral $ sizeof i))
       return S.empty
     else if all (necessarily_separate_stateparts ctxt sp) $ M.keys q_eqs then do
       -- if the function did not write to the statepart, transfer it without annotations
@@ -377,12 +377,12 @@ call ctxt i = do
       else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
         Just (_,v') -> do
           -- the statepart was overwritten by the function, so use its new value
-          write_sp ctxt (instr_addr i) mk_mid (sp,v')
+          write_sp ctxt (Instr.addr i) mk_mid (sp,v')
           return S.empty
         Nothing     -> do
           -- the statepart was possibly overwritten by the function, so use its old and new value joined
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
-          write_sp ctxt (instr_addr i) mk_mid (sp,join_expr ctxt v v')
+          write_sp ctxt (Instr.addr i) mk_mid (sp,join_expr ctxt v v')
           return S.empty
 
 
@@ -498,7 +498,7 @@ sysret ctxt i_a = do
 jmp ctxt i =
   if instruction_jumps_to_external (f_ctxt ctxt) i then
     -- A jump to an external symbol is treated as a function call and implicit RET
-    call ctxt i >> ret ctxt (fromIntegral $ instr_addr i)
+    call ctxt i >> ret ctxt (fromIntegral $ Instr.addr i)
   else
     return ()
 
@@ -1614,7 +1614,7 @@ tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSD   _ [op1,op2] _) =
 tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSQ   _ [op1,op2] _) = movsq        ctxt pre op1 op2
 
 tau_i ctxt i
-  | isJump (instr_opcode i) || isCondJump (instr_opcode i) = return ()
+  | isJump (Instr.opcode i) || isCondJump (Instr.opcode i) = return ()
   | ctxt_continue_on_unknown_instruction $ f_ctxt ctxt = trace ("Unsupported instruction: " ++ show i) $ return ()
   | otherwise = error ("Unsupported instruction: " ++ show i)
 
@@ -1623,7 +1623,7 @@ tau_i ctxt i
 tau_b :: FContext -> [X86.Instruction] -> State (Pred,VCS) ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
-  write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
+  write_reg ctxt (Instr.addr i) RIP (SE_Immediate $ Instr.addr i + (fromIntegral $ sizeof i))
   tau_i ctxt i
   tau_b ctxt is
 
@@ -1633,7 +1633,7 @@ tau_b ctxt (i:is) = do
 add_jump_to_pred :: X86.Instruction -> X86.Instruction -> FlagStatus -> FlagStatus
 add_jump_to_pred i0@(Instruction _ _ JA _ [Immediate trgt] _) i1 flg =
   case flg of
-    FS_CMP b o1 o2 -> if instr_addr i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
+    FS_CMP b o1 o2 -> if Instr.addr i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
     _ -> flg
 add_jump_to_pred i0 i1 flg = flg
 
@@ -1651,14 +1651,14 @@ tau_block ctxt insts insts' p@(Predicate eqs flg) =
   if insts == [] then
     (p, S.empty)
   else let
-      addr                   = instr_addr $ head insts
+      addr                   = Instr.addr $ head insts
       eqs'                   = write_rip addr eqs
       (p'',vcs'')            = execState (tau_b ctxt insts) (Predicate eqs' flg, S.empty)
       Predicate eqs'' flgs'' = p'' in
     case insts' of
       Nothing -> (p'', vcs'')
       Just (i':_) ->
-        let addr'  = instr_addr i' in
+        let addr'  = Instr.addr i' in
           (Predicate (write_rip addr' eqs'') (add_jump_to_pred (last insts) i' flgs''), vcs'')
  where
   write_rip addr eqs = M.insert (SP_Reg RIP) (SE_Immediate $ fromIntegral addr) eqs
@@ -1789,7 +1789,7 @@ get_invariant fctxt a = do
   p         <- IM.lookup blockId invs
   instrs    <- IM.lookup blockId $ cfg_instrs g
 
-  return $ fst $ tau_block fctxt (takeWhile (\i -> fromIntegral (instr_addr i) /= a) instrs) Nothing p
+  return $ fst $ tau_block fctxt (takeWhile (\i -> fromIntegral (Instr.addr i) /= a) instrs) Nothing p
 
 
 

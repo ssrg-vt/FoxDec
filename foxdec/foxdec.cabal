@@ -43,7 +43,6 @@ library
       Generic.Instruction
       Generic.Operand
       Generic.Program
-      Generic_Datastructures
       IR.Generic
       IR.PreSSA
       IR.SSA

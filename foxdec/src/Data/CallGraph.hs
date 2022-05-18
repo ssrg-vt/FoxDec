@@ -12,7 +12,6 @@ import Data.ControlFlow
 import Data.MachineState
 import Data.Pointers
 import Data.SimplePred
-import Generic_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -24,7 +23,7 @@ import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
 import X86.Opcode (isCall)
-import X86.Instruction (instr_addr)
+import qualified X86.Instruction as Instr
 
 pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
 pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
@@ -192,7 +191,7 @@ summarize_verification_conditions ctxt entry =
 calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cfg_instrs cfg
  where
   get_call_target i =
-    if isCall (instr_opcode i) then
+    if isCall (Instr.opcode i) then
       IS.fromList $ concatMap get_internal_addresses $ resolve_jump_target ctxt i
     else
       IS.empty
@@ -201,8 +200,8 @@ calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cf
 function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
  where
   get_function_pointers_of_call i =
-    if isCall (instr_opcode i) then -- TODO or jump?
-      IS.unions $ S.map (get_function_pointers $ instr_addr i) $ (S.unions $ ctxt_vcs ctxt)
+    if isCall (Instr.opcode i) then -- TODO or jump?
+      IS.unions $ S.map (get_function_pointers $ Instr.addr i) $ (S.unions $ ctxt_vcs ctxt)
     else
       IS.empty
 

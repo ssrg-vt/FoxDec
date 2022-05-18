@@ -23,7 +23,6 @@ import Data.ControlFlow
 import Data.MachineState
 import Data.SimplePred
 import X86.Conventions
-import Generic_Datastructures
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -41,7 +40,7 @@ import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
 import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
 import qualified X86.Instruction as X86
 import Typeclasses.HasSize (sizeof)
-import X86.Instruction (instr_addr)
+import qualified X86.Instruction as Instr
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
 split_graph' a g = 
@@ -167,7 +166,7 @@ is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctx
 resolve_call ctxt entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
-      Right [(fromIntegral (instr_addr i) + sizeof i,True)] -- Right []
+      Right [(fromIntegral (Instr.addr i) + sizeof i,True)] -- Right []
     else 
       let nexts          = map next resolved_addresses
           (lefts,rights) = partitionEithers nexts in
@@ -181,7 +180,7 @@ resolve_call ctxt entry i =
     if is_exiting_function_call sym then
       Right []
     else
-      Right [(fromIntegral (instr_addr i) + sizeof i,True)]
+      Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
   next (ImmediateAddress a') =
     -- call to an immediate address
     if not $ is_new_function_call_to_be_analyzed ctxt (fromIntegral a') then
@@ -191,10 +190,10 @@ resolve_call ctxt entry i =
         Right []
       else
         -- verified and returning
-        Right [(fromIntegral (instr_addr i) + sizeof i,True)]
+        Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
     else if graph_is_edge (ctxt_entries ctxt) entry (fromIntegral a') then
       -- recursion
-      Right [(fromIntegral (instr_addr i) + sizeof i,True)]
+      Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
     else
       -- new function, stop CFG generation here
       Left [fromIntegral a']
@@ -220,15 +219,15 @@ stepA ctxt entry a = do
   case instr of
     Nothing -> return $ Right [] -- error $ "Cannot find instruction at addres: " ++ showHex a
     Just i -> 
-      if isHalt (instr_opcode i) then
+      if isHalt (Instr.opcode i) then
         return $ Right []
-      else if isJump (instr_opcode i) then
+      else if isJump (Instr.opcode i) then
         return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
-      else if isCondJump $ instr_opcode i then
+      else if isCondJump $ Instr.opcode i then
         return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + sizeof i]
-      else if isCall $ instr_opcode i then
+      else if isCall $ Instr.opcode i then
         return $ resolve_call ctxt entry i
-      else if isRet (instr_opcode i) then
+      else if isRet (Instr.opcode i) then
         return $ Right []
       else
         return $ Right [(a + sizeof i,False)]
@@ -293,7 +292,7 @@ is_end_node ::
   -> Bool
 is_end_node g b = IS.null $ post g b
 
-is_unresolved_indirection ctxt i = (isCall (instr_opcode i) || isJump (instr_opcode i) || isCondJump (instr_opcode i))
+is_unresolved_indirection ctxt i = (isCall (Instr.opcode i) || isJump (Instr.opcode i) || isCondJump (Instr.opcode i))
                    && (any ((==) Unresolved) $ resolve_jump_target ctxt i)
 
 
@@ -310,13 +309,13 @@ node_info_of ctxt g blockId =
       i    = last (im_lookup ("D.) Block " ++ show blockId ++ " in instrs.") (cfg_instrs g) blockId) in
     if is_unresolved_indirection ctxt i then
       UnresolvedIndirection
-    else if IS.null (post g blockId) && (isCall (instr_opcode i) || isHalt (instr_opcode i)) || is_terminating_jump i then
+    else if IS.null (post g blockId) && (isCall (Instr.opcode i) || isHalt (Instr.opcode i)) || is_terminating_jump i then
         Terminal
     else
       Normal
 
  where
-  is_terminating_jump i = isJump (instr_opcode i) &&
+  is_terminating_jump i = isJump (Instr.opcode i) &&
     case resolve_jump_target ctxt i of
       [External sym] -> is_exiting_function_call sym
       _              -> False

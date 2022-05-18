@@ -9,7 +9,6 @@ import System.Console.ArgParser
 import Base
 import Analysis.Context
 import Config
-import Generic_Datastructures
 import Parser.ParserDump
 import Parser.ParserSymbols
 import Parser.ParserSections
@@ -27,8 +26,8 @@ import Data.ControlFlow
 import Data.Pointers
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isCall)
-import X86.Instruction (instr_addr)
 import qualified X86.Instruction as X86
+import qualified X86.Instruction as Instr
 import           Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
 
@@ -203,7 +202,7 @@ ctxt_get_recursive_calls entry = do
  where
   get_new_calls ctxt is = map (get_new_call ctxt) is
   get_new_call  ctxt i =
-    if isCall (instr_opcode i) then
+    if isCall (Instr.opcode i) then
       map (when_trgt_is_not_done_yet ctxt) $ resolve_jump_target ctxt i
     else
       []
@@ -237,14 +236,14 @@ ctxt_get_new_calls entry = do
  where
   get_new_calls fctxt is = map (get_new_call fctxt) is
   get_new_call  fctxt i =
-    if isCall (instr_opcode i) then
+    if isCall (Instr.opcode i) then
        map (trgt_to_finit fctxt i) $ resolve_jump_target (f_ctxt fctxt) i
     else
       []
 
   trgt_to_finit fctxt i (ImmediateAddress trgt) =
    let ctxt = f_ctxt fctxt in
-    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant fctxt $ fromIntegral $ instr_addr i) of
+    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant fctxt $ fromIntegral $ Instr.addr i) of
       (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit fctxt inv)
       (_,Just finit,Just inv)    -> do
         let finit' = join_finit fctxt (invariant_to_finit fctxt inv) finit
@@ -425,9 +424,9 @@ count_all_mem_writes g =
       writes = S.filter is_mem_write instrs in
     S.size writes
  where
-  is_mem_write i = (is_mem_operand $ instr_op1 i) || instr_opcode i `elem` [PUSH,POP,CALL,RET]
+  is_mem_write i = (is_mem_operand $ instr_op1 i) || Instr.opcode i `elem` [PUSH,POP,CALL,RET]
 
-  instr_op1 i = case instr_srcs i of
+  instr_op1 i = case Instr.srcs i of
                   []      -> Nothing
                   (op1:_) -> Just op1
 
@@ -822,7 +821,7 @@ ctxt_analyze_unresolved_indirections entry = do
     let fname  = dirname ++ name ++ ".indirections" 
 
     let i                 = last (fetch_block g b)
-    let [trgt]            = instr_srcs i
+    let [trgt]            = Instr.srcs i
     let p                 = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
     let Predicate eqs flg = p
 
@@ -834,17 +833,17 @@ ctxt_analyze_unresolved_indirections entry = do
       to_out $ "Instruction = " ++ show i
       to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ show value
       to_out $ "Updated file: " ++ fname
-      liftIO $ appendFile fname $ showHex (instr_addr i) ++ " " ++ show [value] ++ "\n"
+      liftIO $ appendFile fname $ showHex (Instr.addr i) ++ " " ++ show [value] ++ "\n"
 
       inds <- gets ctxt_inds
-      let inds' = IM.insert (fromIntegral $ instr_addr i) (IndirectionResolved value) inds -- TODO check if already exists
+      let inds' = IM.insert (fromIntegral $ Instr.addr i) (IndirectionResolved value) inds -- TODO check if already exists
       put $ ctxt { ctxt_inds = inds' }
 
       return True
     else case flagstatus_to_tries max_tries flg of
       Nothing      -> return False
       Just (op1,n) -> do
-        let values1 = map (\n -> evalState (try fctxt f (instr_addr i) g b op1 trgt n) (p,S.empty)) [0..n]
+        let values1 = map (\n -> evalState (try fctxt f (Instr.addr i) g b op1 trgt n) (p,S.empty)) [0..n]
 
         if values1 == [] || any ((==) Nothing) values1 then do
           -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
@@ -857,10 +856,10 @@ ctxt_analyze_unresolved_indirections entry = do
           to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
           to_out $ "Because of bounded jump table access: " ++ show flg
           to_out $ "Updated file: " ++ fname
-          liftIO $ appendFile fname $ showHex (instr_addr i) ++ " " ++ showHex_list trgts ++ "\n"
+          liftIO $ appendFile fname $ showHex (Instr.addr i) ++ " " ++ showHex_list trgts ++ "\n"
 
           inds <- gets ctxt_inds
-          let inds' = IM.insert (fromIntegral $ instr_addr i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
+          let inds' = IM.insert (fromIntegral $ Instr.addr i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
           put $ ctxt { ctxt_inds = inds' }
 
           return True

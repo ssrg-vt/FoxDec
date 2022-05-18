@@ -15,18 +15,18 @@ import           Base (showHex, showHex_set)
 import qualified Data.Graph.Dom as G
 import qualified Data.IntMap as IM
 import           Data.List (intercalate)
-import           Generic_Datastructures (Instruction(..))
 import           X86.Register (Register)
 import           Typeclasses.HasSize (HasSize(sizeof))
 import           Generic.Address (GenericAddress(..))
 import           Generic.Operand (GenericOperand(..))
+import Generic.Instruction (GenericInstruction (Instruction))
 
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
 -- | A generic statement
 data Statement label storage prefix opcode annotation special =
-    StmtInstruction [Instruction label storage prefix opcode annotation] -- ^ A non-empty list of normal instructions
+    StmtInstruction [GenericInstruction label storage prefix opcode annotation] -- ^ A non-empty list of normal instructions
   | StmtSpecial special
 
 -- | A program over generic statements
@@ -74,8 +74,8 @@ variableFromRegister reg = MutableVar
 -- OPERATIONS
 --------------------------------------------------------------------------------
 -- map two functions over a program, transforming regular instructions and special instructions
-mapP :: ([Instruction label storage prefix opcode annotation]
-         -> [Instruction label1 storage1 prefix1 opcode1 annotation1])
+mapP :: ([GenericInstruction label storage prefix opcode annotation]
+         -> [GenericInstruction label1 storage1 prefix1 opcode1 annotation1])
      -> (special -> special1)
      -> Program label storage prefix opcode annotation special
      -> Program label1 storage1 prefix1 opcode1 annotation1 special1
@@ -100,8 +100,8 @@ bindP transformStmt prog@(Program blocks _) =
 
 -- map a function over an instruction, transforming the storages
 mapI :: (storage -> storage1)
-     -> Instruction label storage prefix opcode annotation
-     -> Instruction label storage1 prefix opcode annotation
+     -> GenericInstruction label storage prefix opcode annotation
+     -> GenericInstruction label storage1 prefix opcode annotation
 mapI transform_storage (Instruction label prefix mnemonic dst srcs annot) =
   Instruction label prefix mnemonic (mapI_op <$> dst) (map mapI_op srcs) annot
   where

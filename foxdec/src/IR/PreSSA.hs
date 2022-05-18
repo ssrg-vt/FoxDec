@@ -8,10 +8,10 @@ module IR.PreSSA
     , verifySSA) where
 
 import qualified IR.Generic as Generic
-import qualified Generic_Datastructures as GD
-import X86.Prefix (Prefix)
-import X86.Opcode (Opcode)
-import Generic.Address (AddressWord64)
+import           X86.Prefix (Prefix)
+import           X86.Opcode (Opcode)
+import           Generic.Address (AddressWord64)
+import           Generic.Instruction (GenericInstruction)
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -23,7 +23,7 @@ type Storage = Generic.Variable
 data Special = SpecialPhi (Generic.Phi Storage)
              | SpecialConversion (Generic.VariableConversion Storage)
 
-type Instruction = GD.Instruction Label Storage Prefix Opcode Int
+type Instruction = GenericInstruction Label Storage Prefix Opcode Int
 
 type Statement = Generic.Statement Label Storage Prefix Opcode Int Special
 

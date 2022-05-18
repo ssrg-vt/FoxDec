@@ -8,9 +8,7 @@ import Base
 import Data.SimplePred
 import Analysis.Context
 import X86.Register (Register(..))
-import X86.Instruction (instr_addr)
 import X86.Opcode (Opcode(..), isJump, isCall)
-import Generic_Datastructures
 import Analysis.SymbolicExecution
 import Data.MachineState
 import Data.ControlFlow
@@ -20,6 +18,7 @@ import Typeclasses.HasSize(sizeof)
 import X86.Address (GenericAddress(..))
 import           Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
+import qualified X86.Instruction as Instr
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -127,7 +126,7 @@ instr_to_hoare_triple fctxt fname all_precs all_asserts p i = do
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for fctxt p i) $ S.toList all_precs
 
-  let htriple_name = "ht_" ++ (showHex $ instr_addr i)
+  let htriple_name = "ht_" ++ (showHex $ Instr.addr i)
   appendFile fname $ 
       "htriple "        ++ mk_quote htriple_name ++ "\n" ++
       " Separations \"" ++ isa_precs ++ "\"\n" ++
@@ -149,7 +148,7 @@ mk_isa_preconditions precs = intercalate "; " $ map mk_isa_precondition $ S.toLi
 mk_isa_precondition (Precondition a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
    
 mk_isa_asserts i all_asserts = 
-  let a'      = instr_addr i + fromIntegral (sizeof i)
+  let a'      = Instr.addr i + fromIntegral (sizeof i)
       asserts = S.filter (\(Assertion a _ _ _ _) -> a == SE_Immediate a') all_asserts in
     intercalate "; " (map mk_assertion $ S.toList asserts)
 mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1   
@@ -167,16 +166,16 @@ mk_pred_for_hoare_triple (Predicate eqs _) =
 
 -- generate an instruction
 mk_instr fctxt i =
-  if isCall (instr_opcode i) || (isJump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if isCall (Instr.opcode i) || (isJump (Instr.opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i
-        call  = if isJump (instr_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
-      showHex (instr_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (sizeof i)
+        call  = if isJump (Instr.opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
+      showHex (Instr.addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (sizeof i)
   else
     show i
 
 -- generate function constraints
 mk_fcs fctxt i p =
-  if isCall (instr_opcode i) || (isJump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if isCall (Instr.opcode i) || (isJump (Instr.opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i in      
       " FunctionConstraints \"PRESERVES " ++ mk_safe_isa_fun_name fname ++ " {" ++ intercalate ";" (map sp_to_isa $ preserved_stateparts i p) ++ "}\"\n"
   else
@@ -224,11 +223,11 @@ get_relevant_precs_for ctxt p i prec =
       []
 
   instruction_to_stateparts p i = 
-    let operands = instr_srcs i ++ extra_operands i in
+    let operands = Instr.srcs i ++ extra_operands i in
       concatMap (operand_to_statepart p i) operands
 
   extra_operands i =
-    case (instr_opcode i,instr_srcs i) of 
+    case (Instr.opcode i,Instr.srcs i) of 
       (PUSH,[op1]) -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ sizeof op1)) (sizeof op1) ]
       (POP, [op1]) -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ sizeof op1)) (sizeof op1) ]
       _            -> []
@@ -237,7 +236,7 @@ get_relevant_precs_for ctxt p i prec =
   operand_to_statepart p _ _             = []
 
   resolve_address_of_operand i a = do
-    write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
+    write_reg ctxt (Instr.addr i) RIP (SE_Immediate $ Instr.addr i + (fromIntegral $ sizeof i))
     resolve_address ctxt a
 
 
