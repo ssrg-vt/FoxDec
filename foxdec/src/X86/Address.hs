@@ -1,6 +1,6 @@
-module X86.Address (Address) where
+module X86.Address (Address, GenericAddress(..)) where
 
-import Generic_Datastructures (GenericAddress)
-import X86.Register (Register)
+import           X86.Register (Register)
+import           Generic.Address (GenericAddress(..))
 
 type Address = GenericAddress Register

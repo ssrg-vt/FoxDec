@@ -17,6 +17,7 @@ import Data.ControlFlow
 import Data.Pointers
 import VerificationReportInterface
 import Typeclasses.HasSize(sizeof)
+import X86.Address (GenericAddress(..))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

@@ -52,6 +52,7 @@ import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
 import X86.Instruction (instr_addr)
 import Typeclasses.HasSize (sizeof)
+import X86.Address (GenericAddress(..))
 
 
 

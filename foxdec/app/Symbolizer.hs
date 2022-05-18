@@ -14,6 +14,7 @@ import X86.Opcode (Opcode(..), isCall, isJump, isCondJump, isRet)
 import X86.Instruction (instr_addr)
 import qualified X86.Instruction as X86
 import Typeclasses.HasSize(sizeof)
+import X86.Address (GenericAddress(..))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

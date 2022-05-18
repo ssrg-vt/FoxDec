@@ -16,16 +16,8 @@ import qualified Data.Map as M
 import GHC.Generics ( Generic )
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Typeclasses.HasSize (HasSize (sizeof))
+import Generic.Address (GenericAddress)
 
-
--- | An unresolved address, within the operand of an instruction, based on polymorphic type `storage`.
-data GenericAddress storage =
-    AddressStorage storage                                          -- ^ Reading a pointer from a storage
-  | AddressImm Word64                                               -- ^ Immediate value 
-  | AddressMinus (GenericAddress storage) (GenericAddress storage)  -- ^ Minus
-  | AddressPlus  (GenericAddress storage) (GenericAddress storage)  -- ^ Plus
-  | AddressTimes (GenericAddress storage) (GenericAddress storage)  -- ^ Times
-  deriving (Eq,Ord,Generic)
 
 
 -- | A generic statepart, based on polymorphic type `storage`.
@@ -56,7 +48,6 @@ newtype AddressWord64 = AddressWord64 Word64
 
 
 instance Cereal.Serialize AddressWord64
-instance (Cereal.Serialize storage) => Cereal.Serialize (GenericAddress storage)
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericOperand storage)
 instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize prefix, Cereal.Serialize opcode, Cereal.Serialize annotation) =>
          Cereal.Serialize (Instruction label storage prefix opcode annotation)
@@ -66,13 +57,6 @@ instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize pre
 
 
 
--- showing the datastructures
-instance Show storage => Show (GenericAddress storage) where
-  show (AddressStorage st)  = show st
-  show (AddressImm imm)     = showHex imm
-  show (AddressMinus a0 a1) = show a0 ++ " - " ++ show a1
-  show (AddressPlus  a0 a1) = show a0 ++ " + " ++ show a1
-  show (AddressTimes a0 a1) = show a0 ++ " * " ++ show a1
 
 instance Show storage => Show (GenericOperand storage) where
   show (Memory addr si)        = show_size_directive si ++ " [" ++ show addr ++ "," ++ show si ++ "]"

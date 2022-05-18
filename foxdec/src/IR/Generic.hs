@@ -15,10 +15,11 @@ import           Base (showHex, showHex_set)
 import qualified Data.Graph.Dom as G
 import qualified Data.IntMap as IM
 import           Data.List (intercalate)
-import           Generic_Datastructures (GenericAddress(..), GenericOperand(..)
+import           Generic_Datastructures ( GenericOperand(..)
                                        , Instruction(..))
 import           X86.Register (Register)
 import Typeclasses.HasSize (HasSize(sizeof))
+import Generic.Address (GenericAddress(..))
 
 --------------------------------------------------------------------------------
 -- DATA

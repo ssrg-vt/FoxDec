@@ -18,15 +18,15 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Maybe (isNothing)
 import           Data.Void (Void)
-import           Generic_Datastructures (AddressWord64, GenericAddress(..)
-                                       , GenericOperand(..))
+import           Generic_Datastructures (AddressWord64, GenericOperand(..))
 import qualified Generic_Datastructures as GD
 import qualified X86.Register as X86
 import           X86.Register (Register(..))
 import           X86.Prefix (Prefix)
 import           X86.Opcode (Opcode(..), isHalt, isRet, isCondJump, isJump
                            , isCall)
-import Typeclasses.HasSize (HasSize(sizeof))
+import           Typeclasses.HasSize (HasSize(sizeof))
+import           X86.Address (GenericAddress(..))
 
 --------------------------------------------------------------------------------
 -- DATA
