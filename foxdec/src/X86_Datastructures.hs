@@ -18,6 +18,7 @@ import X86.Register (Register)
 import qualified X86.Register as Reg
 import X86.Prefix (Prefix)
 import X86.Opcode (Opcode)
+import Typeclasses.HasSize (sizeof)
 
 -- | An x86 instruction
 -- labels are integers, storages are registers, the annotation is the instruction size
@@ -36,7 +37,7 @@ instr_addr (Instruction (AddressWord64 a) _ _ _ _ _) = a
 
 -- | The size of the operand, in bytes
 operand_size :: X86_Operand -> Int
-operand_size (Storage r)          = Reg.size r
+operand_size (Storage r)          = sizeof r
 operand_size (Memory _ si)        = si
 operand_size (EffectiveAddress _) = 8
 operand_size (Immediate _)        = 8

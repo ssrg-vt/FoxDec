@@ -48,14 +48,7 @@ import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register (..))
 import qualified X86.Register as Reg
-
-
-
-
-
-
-
-
+import Typeclasses.HasSize (sizeof)
 
 
 -- *  Registers
@@ -74,9 +67,9 @@ read_reg :: FContext -> Register -> State (Pred,VCS) SimpleExpr
 read_reg ctxt r = do
   let rr = Reg.real r
   v <- read_rreg rr
-  if Reg.size r == 8 then -- 64 bit 
+  if sizeof r == 8 then -- 64 bit 
     return v
-  else if Reg.size r == 4 then -- 32 bit
+  else if sizeof r == 4 then -- 32 bit
     return $ simp $ SE_Bit 32 v
   else if r `elem` Reg.reg16 then -- 16 bit
     return $ simp $ SE_Bit 16 v
@@ -107,7 +100,7 @@ get_immediate_forced (SE_Immediate imm) = fromIntegral imm
 write_reg :: FContext -> Word64 -> Register -> SimpleExpr -> State (Pred,VCS) ()
 write_reg ctxt i_a r v = do
  let mid = mk_reg_write_identifier i_a r 
-     sz  = Reg.size r in
+     sz  = sizeof r in
   if sz == 8 then -- 64 bit
     write_rreg ctxt mid r $ simp v
   else if sz == 4 then -- 32 bit

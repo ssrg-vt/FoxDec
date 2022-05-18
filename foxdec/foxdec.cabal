@@ -60,6 +60,7 @@ library
       Pass.DisassembleCapstone
       Pass.Mem2Var
       Pass.Reg2Var
+      Typeclasses.HasSize
       VerificationReportInterface
       X86.Conventions
       X86.Flag

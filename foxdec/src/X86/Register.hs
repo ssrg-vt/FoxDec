@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module X86.Register (Register(..), reg8, reg16, reg32, reg64, reg80, reg128, reg256, size, real) where
+module X86.Register (Register(..), reg8, reg16, reg32, reg64, reg80, reg128, reg256, real) where
 
 import GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
+import Typeclasses.HasSize ( HasSize(..) )
 
 data Register = InvalidRegister
   | RIP | EIP
@@ -54,19 +55,6 @@ reg16  = [AX,BX,CX,DX,SI,DI,SP,BP,R8W,R9W,R10W,R11W,R12W,R13W,R14W,R15W]
 -- | List of 8 bit registers
 reg8 :: [Register]
 reg8   = [AL,BL,CL,DL,SIL,DIL,SPL,BPL,R8B,R9B,R10B,R11B,R12B,R13B,R14B,R15B]
-
--- | The size of the given register, in bytes.
-size :: Num p => Register -> p
-size r
-  | r `elem` reg256 = 32
-  | r `elem` reg128 = 16
-  | r `elem` reg80 = 10
-  | r `elem` reg64 = 8
-  | r `elem` reg32 = 4
-  | r `elem` reg16 = 2
-  | r `elem` reg8 ++ [AH,BH,CH,DH] = 1
-  | otherwise = error $ "Size of " ++ show r ++ " unknown"
-
 
 -- | Matches register names to the real registers
 -- E.g.: EAX is actually a part of RAX
@@ -154,4 +142,13 @@ real CH = RCX
 real DH = RDX
 real r = if r `elem` (reg64 ++ reg256) then r else error $ "Cannot match register " ++ show r ++ " to real register"
 
-
+instance HasSize Register where
+  sizeof r
+    | r `elem` reg256 = 32
+    | r `elem` reg128 = 16
+    | r `elem` reg80 = 10
+    | r `elem` reg64 = 8
+    | r `elem` reg32 = 4
+    | r `elem` reg16 = 2
+    | r `elem` reg8 ++ [AH,BH,CH,DH] = 1
+    | otherwise = error $ "Size of " ++ show r ++ " unknown"
