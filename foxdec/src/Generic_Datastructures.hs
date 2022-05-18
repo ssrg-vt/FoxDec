@@ -15,6 +15,7 @@ import Base ( showHex )
 import qualified Data.Map as M
 import GHC.Generics ( Generic )
 import qualified Data.Serialize as Cereal hiding (get,put)
+import Typeclasses.HasSize (HasSize (sizeof))
 
 
 -- | An unresolved address, within the operand of an instruction, based on polymorphic type `storage`.
@@ -107,3 +108,10 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annot
     show_dest (Just op) = show op ++ " <- "
 instance Show AddressWord64 where
   show (AddressWord64 a) = showHex a
+
+instance (HasSize storage) => HasSize (GenericOperand storage)
+  where
+    sizeof (Storage r)          = sizeof r
+    sizeof (Memory _ si)        = si
+    sizeof (EffectiveAddress _) = 8
+    sizeof (Immediate _)        = 8

@@ -17,8 +17,8 @@ import qualified Data.IntMap as IM
 import           Data.List (intercalate)
 import           Generic_Datastructures (GenericAddress(..), GenericOperand(..)
                                        , Instruction(..))
-import           X86_Datastructures (operand_size)
-import X86.Register (Register)
+import           X86.Register (Register)
+import Typeclasses.HasSize (HasSize(sizeof))
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -66,7 +66,7 @@ data VariableConversion storage =
 variableFromRegister :: Register -> Variable
 variableFromRegister reg = MutableVar
   MutableVariable { mutableVariableName = show reg
-                  , mutableVariableSize = operand_size $ Storage reg
+                  , mutableVariableSize = sizeof $ Storage reg
                   }
 
 --------------------------------------------------------------------------------

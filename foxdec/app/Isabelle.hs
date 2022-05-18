@@ -7,8 +7,8 @@ module Isabelle where
 import Base
 import Data.SimplePred
 import Analysis.Context
-import X86_Datastructures
 import X86.Register (Register(..))
+import X86.Instruction (instr_addr)
 import X86.Opcode (Opcode(..), isJump, isCall)
 import Generic_Datastructures
 import Analysis.SymbolicExecution
@@ -16,6 +16,7 @@ import Data.MachineState
 import Data.ControlFlow
 import Data.Pointers
 import VerificationReportInterface
+import Typeclasses.HasSize(sizeof)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -145,7 +146,7 @@ mk_isa_preconditions precs = intercalate "; " $ map mk_isa_precondition $ S.toLi
 mk_isa_precondition (Precondition a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
    
 mk_isa_asserts i all_asserts = 
-  let a'      = instr_addr i + fromIntegral (instr_size i)
+  let a'      = instr_addr i + fromIntegral (sizeof i)
       asserts = S.filter (\(Assertion a _ _ _ _) -> a == SE_Immediate a') all_asserts in
     intercalate "; " (map mk_assertion $ S.toList asserts)
 mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1   
@@ -166,7 +167,7 @@ mk_instr fctxt i =
   if isCall (instr_opcode i) || (isJump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i
         call  = if isJump (instr_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
-      showHex (instr_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (instr_size i)
+      showHex (instr_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (sizeof i)
   else
     show i
 
@@ -225,15 +226,15 @@ get_relevant_precs_for ctxt p i prec =
 
   extra_operands i =
     case (instr_opcode i,instr_srcs i) of 
-      (PUSH,[op1]) -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size op1)) (operand_size op1) ]
-      (POP, [op1]) -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ operand_size op1)) (operand_size op1) ]
+      (PUSH,[op1]) -> [Memory (AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral $ sizeof op1)) (sizeof op1) ]
+      (POP, [op1]) -> [Memory (AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral $ sizeof op1)) (sizeof op1) ]
       _            -> []
 
   operand_to_statepart p i (Memory a si) = [SP_Mem (evalState (resolve_address_of_operand i a) (p,S.empty)) si]
   operand_to_statepart p _ _             = []
 
   resolve_address_of_operand i a = do
-    write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
+    write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
     resolve_address ctxt a
 
 

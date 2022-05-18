@@ -31,7 +31,6 @@ import Data.Pointers
 import Data.SimplePred
 import Generic_Datastructures
 import X86.Conventions
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -49,6 +48,8 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register (..))
 import qualified X86.Register as Reg
 import Typeclasses.HasSize (sizeof)
+import qualified X86.Address as X86
+import qualified X86.Operand as X86
 
 
 -- *  Registers
@@ -145,7 +146,7 @@ clean_flg sp (FS_CMP b op1 op2) = do
 -- * Memory 
 
 -- | Given the address of an operand of an instruction, resolve it given the current state.
-resolve_address :: FContext -> X86_Address -> State (Pred,VCS) SimpleExpr
+resolve_address :: FContext -> X86.Address -> State (Pred,VCS) SimpleExpr
 resolve_address ctxt (AddressStorage r) = read_reg ctxt r
 resolve_address ctxt (AddressImm i)     = return $ SE_Immediate $ fromIntegral i
 resolve_address ctxt (AddressMinus a0 a1) = do
@@ -215,7 +216,7 @@ add_assertion rip a0 si0 a1 si1 (p,vcs)  = (p,S.insert (Assertion rip a0 si0 a1 
 
 
 
-generate_assertion :: FContext -> Maybe X86_Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
+generate_assertion :: FContext -> Maybe X86.Address -> SimpleExpr -> State (Pred,VCS) SimpleExpr
 generate_assertion ctxt Nothing a0                    = return a0
 generate_assertion ctxt (Just (AddressStorage r)) _   = read_reg ctxt r
 generate_assertion ctxt (Just (AddressImm i))       _ = return $ SE_Immediate $ fromIntegral i
@@ -291,7 +292,7 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
   deriving Eq
 
 
-read_from_address :: FContext -> Maybe X86_Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
+read_from_address :: FContext -> Maybe X86.Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
 read_from_address ctxt operand a si0 = do
   let as = map simp $ unfold_non_determinism ctxt a
   vs <- mapM read_from_address' as
@@ -405,7 +406,7 @@ read_from_address ctxt operand a si0 = do
 -- | Read from memory
 read_mem :: 
      FContext     -- ^ The context
-  -> X86_Operand  -- ^ The address of an operand of an instruction
+  -> X86.Operand  -- ^ The address of an operand of an instruction
   -> State (Pred,VCS) SimpleExpr
 read_mem ctxt (Memory a si) = do
   resolved_address <- resolve_address ctxt a
@@ -506,7 +507,7 @@ write_mem ctxt mid a si0 v = do
 
 -- * Operands  
 -- | Read from an operand of an instruction
-read_operand :: FContext -> X86_Operand -> State (Pred,VCS) SimpleExpr
+read_operand :: FContext -> X86.Operand -> State (Pred,VCS) SimpleExpr
 read_operand ctxt (Storage r)          = read_reg ctxt r
 read_operand ctxt (Immediate w)        = return $ SE_Immediate w
 read_operand ctxt (EffectiveAddress a) = resolve_address ctxt a
@@ -516,7 +517,7 @@ read_operand ctxt (Memory a si)        = read_mem ctxt $ Memory a si
 write_operand ::
  FContext                -- ^ The context
  -> Word64               -- ^ The address of the instruction, used to build a `MemWriteIdentifier`
- -> X86_Operand          -- ^ The operand
+ -> X86.Operand          -- ^ The operand
  -> SimpleExpr           -- ^ The value to be written
  -> State (Pred,VCS) ()
 write_operand ctxt instr_a (Storage r)   v = write_reg ctxt instr_a r v

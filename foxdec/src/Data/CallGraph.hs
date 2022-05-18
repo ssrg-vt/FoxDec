@@ -13,7 +13,6 @@ import Data.MachineState
 import Data.Pointers
 import Data.SimplePred
 import Generic_Datastructures
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -25,6 +24,7 @@ import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
 import X86.Opcode (isCall)
+import X86.Instruction (instr_addr)
 
 pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
 pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)

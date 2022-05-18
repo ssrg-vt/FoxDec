@@ -6,7 +6,6 @@ module Transformer where
 import Base
 import Data.SimplePred
 import Analysis.Context
-import X86_Datastructures
 import VerificationReportInterface
 import Analysis.SymbolicExecution
 import Data.Pointers

@@ -21,7 +21,6 @@ module Analysis.Propagation (
 import Base
 import Analysis.Context
 import Data.ControlFlow
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -31,11 +30,12 @@ import Data.Foldable (find)
 
 import Control.Monad.State.Strict hiding (join)
 import Debug.Trace
+import qualified X86.Instruction as X86
 
 -- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
   -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-  tau     :: ctxt -> [X86_Instruction] -> Maybe [X86_Instruction] -> pred -> (pred,S.Set VerificationCondition)
+  tau     :: ctxt -> [X86.Instruction] -> Maybe [X86.Instruction] -> pred -> (pred,S.Set VerificationCondition)
   -- | A lattice-join
   join    :: ctxt -> pred -> pred -> pred
   -- | Symbolic implication

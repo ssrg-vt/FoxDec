@@ -6,12 +6,14 @@ module Symbolizer where
 import Base
 import Pass.CFG_Gen
 import Analysis.Context
-import X86_Datastructures
 import Generic_Datastructures
 import VerificationReportInterface
 import Data.ControlFlow
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isCall, isJump, isCondJump, isRet)
+import X86.Instruction (instr_addr)
+import qualified X86.Instruction as X86
+import Typeclasses.HasSize(sizeof)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -300,8 +302,8 @@ show_nasm_address ctxt entry cfg i address =
     _                      -> show_nasm_address'' address
  where
   rip_relative_to_immediate (AddressImm imm)                          = Just $ imm
-  rip_relative_to_immediate (AddressPlus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (instr_addr i) + fromIntegral (instr_size i) + fromIntegral imm
-  rip_relative_to_immediate (AddressPlus (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (instr_addr i) + fromIntegral (instr_size i) + fromIntegral imm
+  rip_relative_to_immediate (AddressPlus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (instr_addr i) + fromIntegral (sizeof i) + fromIntegral imm
+  rip_relative_to_immediate (AddressPlus (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (instr_addr i) + fromIntegral (sizeof i) + fromIntegral imm
   rip_relative_to_immediate _                                      = Nothing
 
 

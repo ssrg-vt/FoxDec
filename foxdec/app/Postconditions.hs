@@ -6,7 +6,6 @@ module Postconditions where
 import Base
 import Data.SimplePred
 import Analysis.Context
-import X86_Datastructures
 import Data.CallGraph
 import VerificationReportInterface
 import Analysis.Propagation

@@ -6,7 +6,6 @@ module ControlFlowResolver where
 import Base
 import Pass.CFG_Gen
 import Analysis.Context
-import X86_Datastructures
 import VerificationReportInterface
 
 import qualified Data.Map as M

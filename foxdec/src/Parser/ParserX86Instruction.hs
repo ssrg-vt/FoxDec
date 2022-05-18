@@ -19,7 +19,6 @@
 module Parser.ParserX86Instruction where
 
 import Generic_Datastructures
-import X86_Datastructures
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number

@@ -3,7 +3,7 @@
 
 {-|
 Module      : SimplePred
-Description : Symbolic execution of sequential lists of instructions of type @"X86_Instruction"@ on predicates of type @"Pred"@.
+Description : Symbolic execution of sequential lists of instructions of type @"X86.Instruction"@ on predicates of type @"Pred"@.
 -}
 
 module Analysis.SymbolicExecution (
@@ -25,7 +25,6 @@ import Data.Pointers
 import Data.SimplePred
 import Generic_Datastructures
 import X86.Conventions
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -44,6 +43,10 @@ import Debug.Trace
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isCondJump, isJump)
 import X86.Prefix (Prefix(LOCK))
+import qualified X86.Instruction as X86
+import qualified X86.Operand as X86
+import X86.Instruction (instr_addr)
+import Typeclasses.HasSize (sizeof)
 
 
 
@@ -227,7 +230,7 @@ functions_returning_bottom = [
 
 -- | Executes semantics for some external functions.
 -- Returns true iff the string corresponds to a known external function, and the semantics were applied.
-function_semantics :: FContext -> X86_Instruction -> String -> State (Pred,VCS) Bool
+function_semantics :: FContext -> X86.Instruction -> String -> State (Pred,VCS) Bool
 function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
 function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
 function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
@@ -279,7 +282,7 @@ evalState_discard ma = do
   return $ evalState ma s
 
 -- | Symbolically execute a function call
-call :: FContext -> X86_Instruction -> State (Pred,VCS) ()
+call :: FContext -> X86.Instruction -> State (Pred,VCS) ()
 call ctxt i = do
   let f  = f_name ctxt
   let f' = function_name_of_instruction (f_ctxt ctxt) i
@@ -348,7 +351,7 @@ call ctxt i = do
   transfer_current_statepart f' i p@(Predicate p_eqs _) q@(Predicate q_eqs _) is_external (sp,v) = do
     if sp == SP_Reg RIP then do
       -- forcibly transfer and set the value of the instruction pointer
-      forced_insert_sp sp (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
+      forced_insert_sp sp (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
       return S.empty
     else if all (necessarily_separate_stateparts ctxt sp) $ M.keys q_eqs then do
       -- if the function did not write to the statepart, transfer it without annotations
@@ -450,7 +453,7 @@ is_initial sp v = v == SE_Var sp
 
 
 -- | Instruction semantics
-push :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+push :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 push ctxt i_a (Immediate imm) = do
   let si = 8
   let address = AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral si)
@@ -459,22 +462,22 @@ push ctxt i_a (Immediate imm) = do
   write_mem ctxt (MemWriteInstruction i_a (Memory address si) e1) e1 si (SE_Immediate imm)
 push ctxt i_a op1 = do
   e0 <- read_operand ctxt op1
-  let si = operand_size op1
+  let si = sizeof op1
   let address = AddressMinus (AddressStorage RSP) (AddressImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt i_a RSP e1
   write_mem ctxt (MemWriteInstruction i_a (Memory address si) e1) e1 si e0
 
-pop :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+pop :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 pop ctxt i_a op1 = do
-  let si = operand_size op1
+  let si = sizeof op1
   e0 <- read_mem ctxt (Memory (AddressStorage RSP) si)
   let address = AddressPlus (AddressStorage RSP) (AddressImm $ fromIntegral si)
   e1 <- resolve_address ctxt address
   write_reg ctxt i_a RSP e1
   write_operand ctxt i_a op1 e0
 
-lea :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+lea :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 lea ctxt i_a op1 (EffectiveAddress a) = do
   e <- resolve_address ctxt a
   write_operand ctxt i_a op1 e
@@ -500,33 +503,33 @@ jmp ctxt i =
 
 
 
-write_flags :: (X86_Operand -> X86_Operand -> FlagStatus) -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+write_flags :: (X86.Operand -> X86.Operand -> FlagStatus) -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 write_flags g op1 op2 = do
   (Predicate eqs flg,vcs) <- get
   put (Predicate eqs (g op1 op2),vcs)
 
 
-mov_with_func_op2_to_op1 :: FContext -> Word64 -> (SimpleExpr -> SimpleExpr) -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+mov_with_func_op2_to_op1 :: FContext -> Word64 -> (SimpleExpr -> SimpleExpr) -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 mov_with_func_op2_to_op1 ctxt i_a f op1 op2 = do
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (f e1)
 
 mk_bottom ctxt es = Bottom $ FromSemantics $ S.unions (map (srcs_of_expr ctxt) es)
 
-mov_with_func1 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> State (Pred,VCS) ()
+mov_with_func1 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86.Operand -> State (Pred,VCS) ()
 mov_with_func1 ctxt i_a f do_write_flags op1 = do
   e0 <- read_operand ctxt op1
   write_operand ctxt i_a op1 (f ctxt [e0])
   when do_write_flags (write_flags (\_ _ -> None) op1 op1)
 
-mov_with_func :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+mov_with_func :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 mov_with_func ctxt i_a f do_write_flags op1 op2 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (f ctxt [e0,e1])
   when do_write_flags (write_flags (\_ _ -> None) op1 op2)
 
-mov_with_func3 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+mov_with_func3 :: FContext -> Word64 -> (FContext -> [SimpleExpr] -> SimpleExpr) -> Bool -> X86.Operand -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 mov_with_func3 ctxt i_a f do_write_flags op1 op2 op3 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
@@ -556,11 +559,11 @@ movzx ctxt i_a op1 op2 = do
 
 movsx ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
+  write_operand ctxt i_a op1 (SE_SExtend (8 * sizeof op2) (8 * sizeof op1) e2)
 
 movsxd ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_SExtend (8 * operand_size op2) (8 * operand_size op1) e2)
+  write_operand ctxt i_a op1 (SE_SExtend (8 * sizeof op2) (8 * sizeof op1) e2)
 
 movsd = mov
 
@@ -600,7 +603,7 @@ cmov ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op2
   write_operand ctxt i_a op1 $ join_exprs ("cmov") ctxt [e0,e1]
 
-xchg :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+xchg :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xchg ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -610,11 +613,11 @@ xchg ctxt i_a op1 op2 = do
 
 cmp ctxt i_a = write_flags $ FS_CMP Nothing
 
-add ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Plus (8 * operand_size op1))) True op1
+add ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Plus (8 * sizeof op1))) True op1
 
-sub ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Minus (8 * operand_size op1))) True op1
+sub ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Minus (8 * sizeof op1))) True op1
 
-neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\ctxt e -> SE_Op (Minus (8 * operand_size op1)) (SE_Immediate 0 : e) ) True op1
+neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\ctxt e -> SE_Op (Minus (8 * sizeof op1)) (SE_Immediate 0 : e) ) True op1
 
 test ctxt i_a = write_flags (\_ _ -> None) --TODO needed?
 
@@ -624,37 +627,37 @@ ucomiss ctxt i_a = write_flags (\_ _ -> None)
 
 comiss ctxt i_a = write_flags (\_ _ -> None)
 
-inc :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+inc :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 inc ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Plus (8 * operand_size op1)) [e1,SE_Immediate 1])
+  write_operand ctxt i_a op1 (SE_Op (Plus (8 * sizeof op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-dec :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+dec :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 dec ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Minus (8 * operand_size op1)) [e1,SE_Immediate 1])
+  write_operand ctxt i_a op1 (SE_Op (Minus (8 * sizeof op1)) [e1,SE_Immediate 1])
   write_flags (\_ _ -> None) op1 op1
 
-or' :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+or' :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 or' ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Or (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Or (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-and' :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+and' :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 and' ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (And (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (And (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
-not' :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+not' :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 not' ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Not (8 * operand_size op1)) [e1])
+  write_operand ctxt i_a op1 (SE_Op (Not (8 * sizeof op1)) [e1])
   write_flags (\_ _ -> None) op1 op1
 
 
@@ -664,7 +667,7 @@ xor ctxt i_a op1 op2 = do
   else do
     e1 <- read_operand ctxt op1
     e2 <- read_operand ctxt op2
-    write_operand ctxt i_a op1 (SE_Op (Xor (8 * operand_size op1)) [e1,e2])
+    write_operand ctxt i_a op1 (SE_Op (Xor (8 * sizeof op1)) [e1,e2])
     write_flags (\_ _ -> None) op1 op2
 
 setxx ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False -- TODO ND 0/1
@@ -722,7 +725,7 @@ divsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 roundsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
-bt :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+bt :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 bt ctxt i_a op1 op2 = do
   write_flags (\_ _ -> None) op1 op2
 
@@ -732,7 +735,7 @@ btr ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
 bsr ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 $ SE_Op (Bsr (8 * operand_size op1)) [e2]
+  write_operand ctxt i_a op1 $ SE_Op (Bsr (8 * sizeof op1)) [e2]
   write_flags (\_ _ -> None) op1 op2
 
 bsf ctxt i_a = mov_with_func ctxt i_a mk_bottom True
@@ -879,9 +882,9 @@ fisttp ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
 
 idiv ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True
 
-div1 :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+div1 :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 div1 ctxt i_a op1 = do
-  let srcs = case operand_size op1 of
+  let srcs = case sizeof op1 of
                8 -> [RDX,RAX]
                4 -> [EDX,EAX]
                2 -> [DX,AX]
@@ -890,8 +893,8 @@ div1 ctxt i_a op1 = do
   src0 <- read_operand ctxt (Storage $ srcs !! 0)
   src1 <- read_operand ctxt (Storage $ srcs !! 1)
 
-  write_operand ctxt i_a (Storage $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
-  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 0) $ SE_Op (Div_Rem (8 * sizeof op1)) [src0,src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Div (8 * sizeof op1)) [src0,src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
 
@@ -918,32 +921,32 @@ cwde ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True (Storage EAX)
 
 
 
-shl :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+shl :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 shl ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
+  write_operand ctxt i_a op1 (SE_Op (Times (8 * sizeof op1)) [e1,SE_Immediate $ 2^i])
   write_flags (\_ _ -> None) op1 op2
 shl ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Shl (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Shl (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-shr :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+shr :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 shr ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 (SE_Op (Udiv (8 * operand_size op1)) [e1,SE_Immediate $ 2^i])
+  write_operand ctxt i_a op1 (SE_Op (Udiv (8 * sizeof op1)) [e1,SE_Immediate $ 2^i])
   write_flags (\_ _ -> None) op1 op2
 shr ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Shr (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Shr (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 sar ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Sar (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Sar (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
@@ -952,29 +955,29 @@ shld ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
 shrd ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False -- TODO
 
 
-rol :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+rol :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 rol ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Rol (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
+  write_operand ctxt i_a op1 $ SE_Op (Rol (8 * sizeof op1)) [e1,SE_Immediate $ 2^i]
   write_flags (\_ _ -> None) op1 op2
 rol ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
 
-ror :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+ror :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 ror ctxt i_a op1 op2@(Immediate i) = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Ror (8 * operand_size op1)) [e1,SE_Immediate $ 2^i]
+  write_operand ctxt i_a op1 $ SE_Op (Ror (8 * sizeof op1)) [e1,SE_Immediate $ 2^i]
   write_flags (\_ _ -> None) op1 op2
 ror ctxt i_a op1 op2 = mov_with_func ctxt i_a mk_bottom True op1 op2
 
 {-
-adc :: FContext -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+adc :: FContext -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 adc ctxt op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt op1 $ SE_Binop "adc" [e1,e2]
   write_flags (\_ _ -> None) op1 op2
 
-sbb :: FContext -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+sbb :: FContext -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 sbb ctxt op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
@@ -989,9 +992,9 @@ mul1 ctxt i_a = mov_with_func1 ctxt i_a mk_bottom True --TODO
 
 mul2 ctxt i_a = mov_with_func ctxt i_a mk_bottom True --TODO 
 
-imul1 :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+imul1 :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 imul1 ctxt i_a op1 = do
-  let srcs = case operand_size op1 of
+  let srcs = case sizeof op1 of
                8 -> [RDX,RAX]
                4 -> [EDX,EAX]
                2 -> [DX,AX]
@@ -1001,46 +1004,46 @@ imul1 ctxt i_a op1 = do
   src1 <- read_operand ctxt (Storage $ srcs !! 1)
 
   write_operand ctxt i_a (Storage $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
-  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
+  write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Times (8 * sizeof op1)) [src1,e1]
   write_flags (\_ _ -> None) op1 op1
 
-imul2 :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+imul2 :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 imul2 ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Times (8 * operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Times (8 * sizeof op1)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
-imul3 :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+imul3 :: FContext -> Word64 -> X86.Operand -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 imul3 ctxt i_a op0 op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op0 (SE_Op (Times (8 * operand_size op0)) [e1,e2])
+  write_operand ctxt i_a op0 (SE_Op (Times (8 * sizeof op0)) [e1,e2])
   write_flags (\_ _ -> None) op1 op2
 
 
 
-bswap :: FContext -> Word64 -> X86_Operand -> State (Pred,VCS) ()
+bswap :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 bswap ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
-  write_operand ctxt i_a op1 $ SE_Op (Bswap (8 * operand_size op1)) [e1]
+  write_operand ctxt i_a op1 $ SE_Op (Bswap (8 * sizeof op1)) [e1]
   write_flags (\_ _ -> None) op1 op1
 
-pextrb :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+pextrb :: FContext -> Word64 -> X86.Operand -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pextrb ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op0 (SE_Op (Pextr 8) [e0,e1,e2])
 
-pextrd :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+pextrd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pextrd ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op0 (SE_Op (Pextr 32) [e0,e1,e2])
 
-pextrq :: FContext -> Word64 -> X86_Operand -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+pextrq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pextrq ctxt i_a op0 op1 op2 = do
   e0 <- read_operand ctxt op0
   e1 <- read_operand ctxt op1
@@ -1220,11 +1223,11 @@ movhlps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 vmovhps ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 
-xadd :: FContext -> Word64 -> X86_Operand -> X86_Operand -> State (Pred,VCS) ()
+xadd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xadd ctxt i_a op1 op2 = do
   e1 <- read_operand ctxt op1
   e2 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 (SE_Op (Plus (operand_size op1)) [e1,e2])
+  write_operand ctxt i_a op1 (SE_Op (Plus (sizeof op1)) [e1,e2])
   write_operand ctxt i_a op2 e1
   write_flags (\_ _ -> None) op1 op2
 
@@ -1241,7 +1244,7 @@ cmpsd ctxt i_a pre = mov_with_func ctxt i_a mk_bottom True
 
 
 
-tau_i :: FContext -> X86_Instruction -> State (Pred,VCS) ()
+tau_i :: FContext -> X86.Instruction -> State (Pred,VCS) ()
 tau_i ctxt (Instruction (AddressWord64 i_a) _ PUSH     _ [op1]     _)   = push   ctxt i_a op1
 tau_i ctxt (Instruction (AddressWord64 i_a) _ POP      _ [op1]     _)   = pop    ctxt i_a op1
 tau_i ctxt (Instruction (AddressWord64 i_a) _ LEA      _ [op1,op2] _)   = lea    ctxt i_a op1 op2
@@ -1616,17 +1619,17 @@ tau_i ctxt i
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.
-tau_b :: FContext -> [X86_Instruction] -> State (Pred,VCS) ()
+tau_b :: FContext -> [X86.Instruction] -> State (Pred,VCS) ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
-  write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ instr_size i))
+  write_reg ctxt (instr_addr i) RIP (SE_Immediate $ instr_addr i + (fromIntegral $ sizeof i))
   tau_i ctxt i
   tau_b ctxt is
 
 
 
 -- TODO JE, other JMP aboves and JUMP lesses
-add_jump_to_pred :: X86_Instruction -> X86_Instruction -> FlagStatus -> FlagStatus
+add_jump_to_pred :: X86.Instruction -> X86.Instruction -> FlagStatus -> FlagStatus
 add_jump_to_pred i0@(Instruction _ _ JA _ [Immediate trgt] _) i1 flg =
   case flg of
     FS_CMP b o1 o2 -> if instr_addr i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
@@ -1639,8 +1642,8 @@ add_jump_to_pred i0 i1 flg = flg
 -- Parameter insts' is needed to set the flags properly. If @Nothing@ is supplied, the flags are overapproximatively set to @`None`@.
 tau_block ::
   FContext                    -- ^ The context
-  -> [X86_Instruction]        -- ^ The instructions of the basic block
-  -> Maybe [X86_Instruction]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
+  -> [X86.Instruction]        -- ^ The instructions of the basic block
+  -> Maybe [X86.Instruction]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
   -> Pred                     -- ^ The predicate to be transformed
   -> (Pred, VCS)
 tau_block ctxt insts insts' p@(Predicate eqs flg) =

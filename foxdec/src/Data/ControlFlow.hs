@@ -34,7 +34,6 @@ import Base
 import Data.SimplePred
 import Generic_Datastructures
 import X86.Conventions
-import X86_Datastructures
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -49,6 +48,10 @@ import Numeric (readHex)
 import System.IO.Unsafe (unsafePerformIO)
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(JMP), isCall, isJump)
+import qualified X86.Instruction as X86
+import qualified X86.Operand as X86
+import X86.Instruction (instr_addr)
+import Typeclasses.HasSize (sizeof)
 
 
 
@@ -62,7 +65,7 @@ post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
 fetch_block ::
   CFG    -- ^ The CFG
   -> Int -- ^ The blockID
-  -> [X86_Instruction]
+  -> [X86.Instruction]
 fetch_block g blockId =
   case IM.lookup blockId $ cfg_instrs $ g of
     Nothing -> error $ "Block with ID" ++ show blockId ++ " not found in cfg."
@@ -102,19 +105,19 @@ address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instr
 -- @10005464e: call qword ptr [RIP + 1751660]@ read from address 1002000c0, but address has a symbol associated to it. This function call will resolve to an external function.
 operand_static_resolve ::
   Context               -- ^ The context
-  -> X86_Instruction    -- ^ The instruction
-  -> X86_Operand  -- ^ The operand of the instruction to be resolved
+  -> X86.Instruction    -- ^ The instruction
+  -> X86.Operand  -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
 operand_static_resolve ctxt i (Immediate a')                                                         = ImmediateAddress a'
-operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressStorage RIP) (AddressImm imm))) = ImmediateAddress $ instr_addr i + fromIntegral (instr_size i) + imm
-operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressImm imm) (AddressStorage RIP))) = ImmediateAddress $ instr_addr i + fromIntegral (instr_size i) + imm
+operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressStorage RIP) (AddressImm imm))) = ImmediateAddress $ instr_addr i + fromIntegral (sizeof i) + imm
+operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressImm imm) (AddressStorage RIP))) = ImmediateAddress $ instr_addr i + fromIntegral (sizeof i) + imm
 operand_static_resolve ctxt i (Memory (AddressPlus  (AddressStorage RIP) (AddressImm imm)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
 operand_static_resolve ctxt i (Memory (AddressPlus  (AddressImm imm) (AddressStorage RIP)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip + imm) si
 operand_static_resolve ctxt i (Memory (AddressMinus (AddressStorage RIP) (AddressImm imm)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
 operand_static_resolve ctxt i _                                                                      = Unresolved
 
 static_resolve_rip_expr ctxt i f si =
-  let rip     = instr_addr i + (fromIntegral $ instr_size i)
+  let rip     = instr_addr i + (fromIntegral $ sizeof i)
       a'      = f rip
       syms    = ctxt_syms    ctxt in
     case (IM.lookup (fromIntegral a') syms,read_from_datasection ctxt a' si) of
@@ -141,7 +144,7 @@ static_resolve_rip_expr ctxt i f si =
 -- Returns a list of @`ResolvedJumpTarget`@, since an indirection may be resolved to multiple targets.
 resolve_jump_target ::
   Context        -- ^ The context
-  -> X86_Instruction       -- ^ The instruction
+  -> X86.Instruction       -- ^ The instruction
   -> [ResolvedJumpTarget]
 resolve_jump_target ctxt i =
   case (IM.lookup (fromIntegral $ instr_addr i) $ ctxt_inds ctxt, instr_srcs i) of
@@ -161,7 +164,7 @@ resolve_jump_target ctxt i =
 -- | Returns true iff the instruction resolves to external targets only.
 instruction_jumps_to_external ::
   Context        -- ^ The context
-  -> X86_Instruction       -- ^ The instruction
+  -> X86.Instruction       -- ^ The instruction
   -> Bool
 instruction_jumps_to_external ctxt i =
   all resolve_is_external $ resolve_jump_target ctxt i
@@ -195,7 +198,7 @@ function_name_of_entry ctxt a =
 -- Returns the empty string if the given instruction is not a call or a jump.
 function_name_of_instruction ::
   Context            -- ^ The context
-  -> X86_Instruction -- ^ The instruction
+  -> X86.Instruction -- ^ The instruction
   -> String
 function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
   if isCall (instr_opcode i) || isJump (instr_opcode i) then

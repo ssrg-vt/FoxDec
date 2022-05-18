@@ -62,12 +62,14 @@ library
       Pass.Reg2Var
       Typeclasses.HasSize
       VerificationReportInterface
+      X86.Address
       X86.Conventions
       X86.Flag
+      X86.Instruction
       X86.Opcode
+      X86.Operand
       X86.Prefix
       X86.Register
-      X86_Datastructures
   other-modules:
       Paths_foxdec
   hs-source-dirs:

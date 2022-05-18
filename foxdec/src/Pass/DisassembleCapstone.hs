@@ -5,7 +5,6 @@ module Pass.DisassembleCapstone where
 
 import Generic_Datastructures
 import Parser.ParserX86Instruction
-import X86_Datastructures
 import Base
 
 
@@ -21,6 +20,8 @@ import qualified Data.IntMap as IM
 import Data.Maybe (fromJust,catMaybes)
 import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
+import qualified X86.Operand as X86
+import qualified X86.Instruction as X86
 
 
 
@@ -72,12 +73,12 @@ mk_operands cs_instr cs_ops = map mk_operand [0,1,2]
           Right op -> Just op
       else
         Nothing
-  parse_operand :: String -> Either ParseError X86_Operand
+  parse_operand :: String -> Either ParseError X86.Operand
   parse_operand = parse operand "" . trim
 
 trim = dropWhileEnd isWhiteSpace . dropWhile isWhiteSpace
 
-mk_instr :: Capstone.CsInsn -> X86_Instruction
+mk_instr :: Capstone.CsInsn -> X86.Instruction
 mk_instr cs_instr =
   let addr          = AddressWord64 $ Capstone.address cs_instr
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
@@ -98,7 +99,7 @@ mk_instr cs_instr =
 
 
 
-disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe X86_Instruction)
+disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe X86.Instruction)
 disassemble dump a = do
   let buffer = readBuffer
   if head buffer == Nothing then 

@@ -24,7 +24,6 @@ import Data.MachineState
 import Data.SimplePred
 import X86.Conventions
 import Generic_Datastructures
-import X86_Datastructures
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -40,6 +39,9 @@ import Debug.Trace
 import Numeric (readHex)
 import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
 import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
+import qualified X86.Instruction as X86
+import Typeclasses.HasSize (sizeof)
+import X86.Instruction (instr_addr)
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
 split_graph' a g = 
@@ -165,7 +167,7 @@ is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctx
 resolve_call ctxt entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
-      Right [(fromIntegral (instr_addr i) + instr_size i,True)] -- Right []
+      Right [(fromIntegral (instr_addr i) + sizeof i,True)] -- Right []
     else 
       let nexts          = map next resolved_addresses
           (lefts,rights) = partitionEithers nexts in
@@ -179,7 +181,7 @@ resolve_call ctxt entry i =
     if is_exiting_function_call sym then
       Right []
     else
-      Right [(fromIntegral (instr_addr i) + instr_size i,True)]
+      Right [(fromIntegral (instr_addr i) + sizeof i,True)]
   next (ImmediateAddress a') =
     -- call to an immediate address
     if not $ is_new_function_call_to_be_analyzed ctxt (fromIntegral a') then
@@ -189,10 +191,10 @@ resolve_call ctxt entry i =
         Right []
       else
         -- verified and returning
-        Right [(fromIntegral (instr_addr i) + instr_size i,True)]
+        Right [(fromIntegral (instr_addr i) + sizeof i,True)]
     else if graph_is_edge (ctxt_entries ctxt) entry (fromIntegral a') then
       -- recursion
-      Right [(fromIntegral (instr_addr i) + instr_size i,True)]
+      Right [(fromIntegral (instr_addr i) + sizeof i,True)]
     else
       -- new function, stop CFG generation here
       Left [fromIntegral a']
@@ -212,7 +214,7 @@ stepA ::
      Context -- ^ The context
   -> Int     -- ^ The entry address
   -> Int     -- ^ The instruction address
-  -> IO (Either (S.Set (X86_Instruction,Int)) [(Int,Bool)])
+  -> IO (Either (S.Set (X86.Instruction,Int)) [(Int,Bool)])
 stepA ctxt entry a = do
   instr <- fetch_instruction ctxt a
   case instr of
@@ -223,18 +225,18 @@ stepA ctxt entry a = do
       else if isJump (instr_opcode i) then
         return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
       else if isCondJump $ instr_opcode i then
-        return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + instr_size i]
+        return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + sizeof i]
       else if isCall $ instr_opcode i then
         return $ resolve_call ctxt entry i
       else if isRet (instr_opcode i) then
         return $ Right []
       else
-        return $ Right [(a + instr_size i,False)]
+        return $ Right [(a + sizeof i,False)]
 
 
 
 
-mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86_Instruction,Int) -> IO (S.Set (X86_Instruction,Int),CFG) 
+mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86.Instruction,Int) -> IO (S.Set (X86.Instruction,Int),CFG) 
 mk_graph ctxt entry bag g new_calls =
   case S.minView bag of
     Nothing -> return $ (new_calls,g)
@@ -271,7 +273,7 @@ cfg_add_instrs ctxt g = do
 cfg_gen ::
   Context    -- ^ The context
   -> Int     -- ^ The entry point of the function
-  -> IO (S.Set (X86_Instruction,Int),CFG)
+  -> IO (S.Set (X86.Instruction,Int),CFG)
 cfg_gen ctxt entry = do
  let g           = init_cfg entry
  nxt            <- stepA ctxt entry entry

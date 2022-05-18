@@ -16,7 +16,6 @@ import Config
 import Pass.DisassembleCapstone
 import Data.SimplePred
 import Generic_Datastructures
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -32,6 +31,8 @@ import GHC.Natural (naturalToInteger)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
 import X86.Opcode (isCall)
+import qualified X86.Instruction as X86
+import qualified X86.Operand as X86
 
 
 
@@ -43,7 +44,7 @@ data CFG = CFG {
   cfg_edges  :: IM.IntMap (IS.IntSet),      -- ^ A mapping of blockIDs to sets of blocKIDs
   cfg_addr_to_blockID :: IM.IntMap Int,     -- ^ A mapping of instruction addresses to blockIDs
   cfg_fresh :: Int,                         -- ^ A fresh blockID
-  cfg_instrs :: IM.IntMap [X86_Instruction] -- ^ A mapping of blockIDs to lists of disassembled instructions.
+  cfg_instrs :: IM.IntMap [X86.Instruction] -- ^ A mapping of blockIDs to lists of disassembled instructions.
  }
  deriving (Show,Generic,Eq)
 
@@ -55,8 +56,8 @@ data CFG = CFG {
 --
 --    MOV jt_trgt_operand, QWORD PTR [jt_address + 8*jt_index_operand]
 data JumpTable = JumpTable {
-  jt_index_operand   :: X86_Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
-  jt_trgt_operand    :: X86_Operand, -- ^ The operand of the jump
+  jt_index_operand   :: X86.Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
+  jt_trgt_operand    :: X86.Operand, -- ^ The operand of the jump
   jt_table_entries   :: [Int]        -- ^ An ordered list of instruction addresses to which is jumped
  }
  deriving (Show,Generic,Eq)
@@ -114,7 +115,7 @@ type Postconditions = S.Set (NodeInfo,Pred)
 -- TODO should be generalized, is a StatePartWriteIdentifier
 data MemWriteIdentifier =
    MemWriteFunction String Word64 StatePart          -- ^ A function with @name@ at address @i_a@ wrote to a statepart
- | MemWriteInstruction Word64 X86_Operand SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
+ | MemWriteInstruction Word64 X86.Operand SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
   deriving (Generic,Eq,Ord)
 
 -- |  A verification condition is either:
@@ -279,7 +280,7 @@ find_section_for_address ctxt a =
 fetch_instruction ::
   Context              -- ^ The context
   -> Int               -- ^ An address
-  -> IO (Maybe X86_Instruction)
+  -> IO (Maybe X86.Instruction)
 fetch_instruction ctxt a = do
   let dump = ctxt_dump ctxt
   disassemble dump a
@@ -288,7 +289,7 @@ fetch_instruction ctxt a = do
 -- | Pretty printing an instruction
 pp_instruction ::
   Context             -- ^ The context
-  -> X86_Instruction  -- ^ An instruction
+  -> X86.Instruction  -- ^ An instruction
   -> String
 pp_instruction ctxt i =
   if isCall (instr_opcode i) then

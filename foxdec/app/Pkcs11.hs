@@ -42,7 +42,6 @@ import System.Console.ArgParser
 import Base
 import Analysis.Context
 import Config
-import X86_Datastructures
 import Parser.ParserDump
 import Parser.ParserSymbols
 import Parser.ParserSections

@@ -37,7 +37,6 @@ import Config
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
-import X86_Datastructures
 import Data.Word (Word64,Word32)
 import Data.Traversable (for)
 import Data.List
@@ -47,6 +46,7 @@ import GHC.Generics
 import Data.Bits (testBit, (.|.), (.&.))
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
+import qualified X86.Operand as X86
 
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
@@ -374,7 +374,7 @@ instance Show StatePart where
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus = 
     None                                         -- ^ No information known, flags could have any value
-  | FS_CMP (Maybe Bool) X86_Operand X86_Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
+  | FS_CMP (Maybe Bool) X86.Operand X86.Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
   deriving (Generic,Eq,Ord)
 
 

@@ -37,7 +37,6 @@ import Base
 import Config
 import Data.ControlFlow
 import Data.SimplePred
-import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S

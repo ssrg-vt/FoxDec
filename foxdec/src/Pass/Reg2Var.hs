@@ -7,7 +7,6 @@ import qualified IR.PreSSA as PreSSA
 import qualified IR.X86 as X86
 import           Data.Void (absurd)
 import           Generic_Datastructures (Instruction(..), GenericOperand(..))
-import           X86_Datastructures (operand_size)
 import           Data.List (delete)
 import           IR.PreSSA (Special(SpecialConversion))
 import           X86.Register (Register(..))

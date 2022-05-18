@@ -49,7 +49,6 @@ import Data.ControlFlow
 import Data.Pointers
 import Data.SimplePred
 import Pass.CFG_Gen
-import X86_Datastructures
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM
@@ -58,6 +57,7 @@ import qualified Data.IntSet as IS
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as BS (readFile,writeFile) 
 import System.Exit (die)
+import qualified X86.Instruction as X86
 
 
 
@@ -129,7 +129,7 @@ ctxt_get_indirections = Right . ctxt_inds
 
 
 -- | Retrieve instruction for a given instruction address, both as datastructure and pretty-printed
-ctxt_get_instruction :: InstructionAddress -> Retrieve (X86_Instruction,String)
+ctxt_get_instruction :: InstructionAddress -> Retrieve (X86.Instruction,String)
 ctxt_get_instruction a ctxt =
   case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
     Nothing -> Left $ "Could not disassemble instruction at address: " ++ showHex a

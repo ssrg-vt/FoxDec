@@ -21,12 +21,12 @@ import           Data.Void (Void)
 import           Generic_Datastructures (AddressWord64, GenericAddress(..)
                                        , GenericOperand(..))
 import qualified Generic_Datastructures as GD
-import           X86_Datastructures
 import qualified X86.Register as X86
 import           X86.Register (Register(..))
 import           X86.Prefix (Prefix)
 import           X86.Opcode (Opcode(..), isHalt, isRet, isCondJump, isJump
                            , isCall)
+import Typeclasses.HasSize (HasSize(sizeof))
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -76,7 +76,7 @@ canonicalize = mapP explicitize id
   where
     -- PUSH
     explicitize [GD.Instruction label prefix PUSH Nothing [op1] annot] =
-      let si = operand_size op1
+      let si = sizeof op1
       in [ GD.Instruction
              label
              prefix
@@ -93,7 +93,7 @@ canonicalize = mapP explicitize id
              Nothing]
     -- POP
     explicitize [GD.Instruction label prefix POP Nothing [op1] annot] =
-      let si = operand_size op1
+      let si = sizeof op1
       in [ GD.Instruction
              label
              prefix
@@ -182,7 +182,7 @@ canonicalize = mapP explicitize id
 
     -- MUL /IMUL (1)
     explicitize_mul (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
-      let srcs = case operand_size op1 of
+      let srcs = case sizeof op1 of
             8 -> [RDX, RAX]
             4 -> [EDX, EAX]
             2 -> [DX, AX]
@@ -214,7 +214,7 @@ canonicalize = mapP explicitize id
 
     -- DIV /IDIV (1)
     explicitize_div (GD.Instruction label prefix mnemonic Nothing [op1] annot) =
-      let srcs = case operand_size op1 of
+      let srcs = case sizeof op1 of
             8 -> [RDX, RAX]
             4 -> [EDX, EAX]
             2 -> [DX, AX]

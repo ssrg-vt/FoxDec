@@ -9,7 +9,6 @@ import System.Console.ArgParser
 import Base
 import Analysis.Context
 import Config
-import X86_Datastructures
 import Generic_Datastructures
 import Parser.ParserDump
 import Parser.ParserSymbols
@@ -28,6 +27,8 @@ import Data.ControlFlow
 import Data.Pointers
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isCall)
+import X86.Instruction (instr_addr)
+import qualified X86.Instruction as X86
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -671,7 +672,7 @@ ctxt_init_indirections = do
 
 
 -- TODO generate dot only once
-ctxt_generate_cfg :: Int -> StateT Context IO (S.Set (X86_Instruction,Int))
+ctxt_generate_cfg :: Int -> StateT Context IO (S.Set (X86.Instruction,Int))
 ctxt_generate_cfg entry = do
   -- Generate a CFG, write dot file if no new calls discovered
   ctxt          <- get
