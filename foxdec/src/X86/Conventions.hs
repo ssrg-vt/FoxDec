@@ -9,6 +9,7 @@ import X86_Datastructures
 import Base
 import qualified Data.Map as M
 import Debug.Trace
+import X86.Register (Register(..))
 
 
 

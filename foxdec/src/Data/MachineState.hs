@@ -46,6 +46,8 @@ import Data.Maybe (mapMaybe,fromJust,catMaybes)
 import Debug.Trace
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
+import X86.Register (Register (..))
+import qualified X86.Register as Reg
 
 
 
@@ -70,15 +72,15 @@ read_rreg r = do
 -- | Read from a register
 read_reg :: FContext -> Register -> State (Pred,VCS) SimpleExpr
 read_reg ctxt r = do
-  let rr = real_reg r
+  let rr = Reg.real r
   v <- read_rreg rr
-  if reg_size r == 8 then -- 64 bit 
+  if Reg.size r == 8 then -- 64 bit 
     return v
-  else if reg_size r == 4 then -- 32 bit
+  else if Reg.size r == 4 then -- 32 bit
     return $ simp $ SE_Bit 32 v
-  else if r `elem` reg16 then -- 16 bit
+  else if r `elem` Reg.reg16 then -- 16 bit
     return $ simp $ SE_Bit 16 v
-  else if r `elem` reg8 then -- 8 bit low registers
+  else if r `elem` Reg.reg8 then -- 8 bit low registers
     return $ simp $ SE_Bit 8 v
   else
     case v of
@@ -105,21 +107,21 @@ get_immediate_forced (SE_Immediate imm) = fromIntegral imm
 write_reg :: FContext -> Word64 -> Register -> SimpleExpr -> State (Pred,VCS) ()
 write_reg ctxt i_a r v = do
  let mid = mk_reg_write_identifier i_a r 
-     sz  = reg_size r in
+     sz  = Reg.size r in
   if sz == 8 then -- 64 bit
     write_rreg ctxt mid r $ simp v
   else if sz == 4 then -- 32 bit
-    write_rreg ctxt mid (real_reg r) (simp $ SE_Bit 32 v)
+    write_rreg ctxt mid (Reg.real r) (simp $ SE_Bit 32 v)
   else if sz == 2 then do -- 16 bit 
-    let rr = real_reg r
+    let rr = Reg.real r
     curr_v <- read_rreg rr
     write_rreg ctxt mid rr (simp $ SE_Overwrite 16 curr_v (SE_Bit 16 v))
-  else if r `elem` reg8 then do -- 8 bit low registers
-    let rr = real_reg r
+  else if r `elem` Reg.reg8 then do -- 8 bit low registers
+    let rr = Reg.real r
     curr_v <- read_rreg rr
     write_rreg ctxt mid rr (simp $ SE_Overwrite 8 curr_v (SE_Bit 8 v))
   else
-    write_rreg ctxt mid (real_reg r) $ Bottom (FromBitMode $ srcs_of_expr ctxt v)
+    write_rreg ctxt mid (Reg.real r) $ Bottom (FromBitMode $ srcs_of_expr ctxt v)
 
 
 -- * Flags 
@@ -135,7 +137,7 @@ clean_flg sp (FS_CMP b op1 op2) = do
   else
     FS_CMP b op1 op2
  where
-  is_tainted (Storage r)          = sp == SP_Reg (real_reg r)
+  is_tainted (Storage r)          = sp == SP_Reg (Reg.real r)
   is_tainted (Immediate _)        = False
   is_tainted (EffectiveAddress _) = True -- TODO
   is_tainted (Memory a si)        =

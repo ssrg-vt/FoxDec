@@ -46,6 +46,7 @@ import Debug.Trace
 import GHC.Generics
 import Data.Bits (testBit, (.|.), (.&.))
 import qualified Data.Serialize as Cereal hiding (get,put)
+import X86.Register (Register)
 
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.

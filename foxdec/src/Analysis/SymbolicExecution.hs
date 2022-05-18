@@ -41,6 +41,7 @@ import Control.Monad.Extra (anyM,whenM,mapMaybeM)
 import Data.List hiding (transpose)
 import Data.Maybe (mapMaybe)
 import Debug.Trace
+import X86.Register (Register(..))
 
 
 

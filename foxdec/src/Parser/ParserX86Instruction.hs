@@ -34,6 +34,7 @@ import qualified Data.IntMap as IM
 import Debug.Trace
 import Data.Functor ((<&>))
 import System.Directory (doesFileExist)
+import X86.Register (Register(..))
 
 
 jumps_and_calls_are_relative = False -- TODO make configurable

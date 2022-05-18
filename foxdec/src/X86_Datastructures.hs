@@ -14,6 +14,8 @@ import qualified Data.Map as M
 import Generic_Datastructures
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
+import X86.Register (Register)
+import qualified X86.Register as Reg
 
 -- | An x86 instruction
 -- labels are integers, storages are registers, the annotation is the instruction size
@@ -40,33 +42,6 @@ data Prefix = InvalidPrefix | REP | REPZ | REPNE | LOCK | BND
 instance Cereal.Serialize Prefix
 
 -- | Registers
-data Register = InvalidRegister
-  | RIP | EIP
-  | RAX | EAX | AX | AH | AL
-  | RBX | EBX | BX | BH | BL
-  | RCX | ECX | CX | CH | CL
-  | RDX | EDX | DX | DH | DL
-  | RDI | EDI | DI | DIL
-  | RSI | ESI | SI | SIL
-  | RSP | ESP | SP | SPL
-  | RBP | EBP | BP | BPL
-  | R15 | R15D | R15W | R15B
-  | R14 | R14D | R14W | R14B
-  | R13 | R13D | R13W | R13B
-  | R12 | R12D | R12W | R12B
-  | R11 | R11D | R11W | R11B
-  | R10 | R10D | R10W | R10B
-  | R9 | R9D | R9W | R9B
-  | R8 | R8D | R8W | R8B
-  | CS | DS | ES | FS | GS | SS
-  | EIZ | RIZ
-  | ST0 | ST1 | ST2 | ST3 | ST4 | ST5 | ST6 | ST7
-  | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7 | YMM8 | YMM9 | YMM10 | YMM11 | YMM12 | YMM13 | YMM14 | YMM15
-  | XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7 | XMM8 | XMM9 | XMM10 | XMM11 | XMM12 | XMM13 | XMM14 | XMM15
-  deriving (Show,Eq,Read,Ord,Generic,Enum)
-
-instance Cereal.Serialize Register
-
 -- | Flags
 data Flag = ZF | CF | SF | OF | PF | InvalidFlag
   deriving (Show,Eq,Ord)
@@ -678,7 +653,7 @@ instance Cereal.Serialize Opcode
 
 -- | The size of the operand, in bytes
 operand_size :: X86_Operand -> Int
-operand_size (Storage r)          = reg_size r
+operand_size (Storage r)          = Reg.size r
 operand_size (Memory _ si)        = si
 operand_size (EffectiveAddress _) = 8
 operand_size (Immediate _)        = 8
@@ -697,119 +672,3 @@ is_call m = m `elem` [CALL, CALLF ]
 
 -- | Returns true iff m is the mnemonic of a return
 is_ret m = m `elem` [RET, RETF, RET, RETN, IRET, IRETD, IRETQ]
-
-
--- | List of 256 bit registers
-reg256 = [YMM0,YMM1,YMM2,YMM3,YMM4,YMM5,YMM6,YMM7,YMM8,YMM9,YMM10,YMM11,YMM12,YMM13,YMM14,YMM15]
--- | List of 128 bit registers
-reg128 = [XMM0,XMM1,XMM2,XMM3,XMM4,XMM5,XMM6,XMM7,XMM8,XMM9,XMM10,XMM11,XMM12,XMM13,XMM14,XMM15]
--- | List of 80 bit registers
-reg80  = [ST0,ST1,ST2,ST3,ST4,ST5,ST6,ST7]
--- | List of 64 bit registers
-reg64  = [RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP, R8, R9, R10, R11, R12, R13, R14, R15, RIP,CS,DS,ES,FS,GS,SS]
--- | List of 32 bit registers
-reg32  = [EAX, EBX, ECX, EDX, ESI, EDI, ESP, EBP, R8D, R9D, R10D, R11D, R12D, R13D, R14D, R15D]
--- | List of 16 bit registers
-reg16  = [AX,BX,CX,DX,SI,DI,SP,BP,R8W,R9W,R10W,R11W,R12W,R13W,R14W,R15W]
--- | List of 8 bit registers
-reg8   = [AL,BL,CL,DL,SIL,DIL,SPL,BPL,R8B,R9B,R10B,R11B,R12B,R13B,R14B,R15B]
-
--- | The size of the given register, in bytes.
-reg_size r
-  | r `elem` reg256 = 32
-  | r `elem` reg128 = 16
-  | r `elem` reg80 = 10
-  | r `elem` reg64 = 8
-  | r `elem` reg32 = 4
-  | r `elem` reg16 = 2
-  | r `elem` reg8 ++ [AH,BH,CH,DH] = 1
-  | otherwise = error $ "Size of " ++ show r ++ " unknown"
-
-
--- | Matches register names to the real registers
--- E.g.: EAX is actually a part of RAX
-real_reg EAX = RAX
-real_reg EBX = RBX
-real_reg ECX = RCX
-real_reg EDX = RDX
-real_reg ESI = RSI
-real_reg EDI = RDI
-real_reg ESP = RSP
-real_reg EBP = RBP
-real_reg R8D = R8
-real_reg R9D = R9
-real_reg R10D = R10
-real_reg R11D = R11
-real_reg R12D = R12
-real_reg R13D = R13
-real_reg R14D = R14
-real_reg R15D = R15
-
-real_reg AX = RAX
-real_reg BX = RBX
-real_reg CX = RCX
-real_reg DX = RDX
-real_reg SI = RSI
-real_reg DI = RDI
-real_reg SP = RSP
-real_reg BP = RBP
-real_reg R8W = R8
-real_reg R9W = R9
-real_reg R10W = R10
-real_reg R11W = R11
-real_reg R12W = R12
-real_reg R13W = R13
-real_reg R14W = R14
-real_reg R15W = R15
-
-real_reg AL = RAX
-real_reg BL = RBX
-real_reg CL = RCX
-real_reg DL = RDX
-real_reg SIL = RSI
-real_reg DIL = RDI
-real_reg SPL = RSP
-real_reg BPL = RBP
-real_reg R8B = R8
-real_reg R9B = R9
-real_reg R10B = R10
-real_reg R11B = R11
-real_reg R12B = R12
-real_reg R13B = R13
-real_reg R14B = R14
-real_reg R15B = R15
-
-real_reg XMM0 = YMM0
-real_reg XMM1 = YMM1
-real_reg XMM2 = YMM2
-real_reg XMM3 = YMM3
-real_reg XMM4 = YMM4
-real_reg XMM5 = YMM5
-real_reg XMM6 = YMM6
-real_reg XMM7 = YMM7
-real_reg XMM8 = YMM8
-real_reg XMM9 = YMM9
-real_reg XMM10 = YMM10
-real_reg XMM11 = YMM11
-real_reg XMM12 = YMM12
-real_reg XMM13 = YMM13
-real_reg XMM14 = YMM14
-real_reg XMM15 = YMM15
-
-real_reg ST0 = ST0
-real_reg ST1 = ST1
-real_reg ST2 = ST2
-real_reg ST3 = ST3
-real_reg ST4 = ST4
-real_reg ST5 = ST5
-real_reg ST6 = ST6
-real_reg ST7 = ST7
-
-real_reg AH = RAX
-real_reg BH = RBX
-real_reg CH = RCX
-real_reg DH = RDX
-real_reg r = if r `elem` (reg64 ++ reg256) then r else error $ "Cannot match register " ++ show r ++ " to real register"
-
-
-

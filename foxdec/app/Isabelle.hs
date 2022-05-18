@@ -8,6 +8,7 @@ import Base
 import Data.SimplePred
 import Analysis.Context
 import X86_Datastructures
+import X86.Register (Register(..))
 import Generic_Datastructures
 import Analysis.SymbolicExecution
 import Data.MachineState

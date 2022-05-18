@@ -7,9 +7,11 @@ import qualified IR.PreSSA as PreSSA
 import qualified IR.X86 as X86
 import           Data.Void (absurd)
 import           Generic_Datastructures (Instruction(..), GenericOperand(..))
-import           X86_Datastructures (Register(..), real_reg, operand_size)
+import           X86_Datastructures (operand_size)
 import           Data.List (delete)
 import           IR.PreSSA (Special(SpecialConversion))
+import           X86.Register (Register(..))
+import qualified X86.Register as Reg
 
 --------------------------------------------------------------------------------
 -- TRANSFORMATIONS
@@ -76,7 +78,7 @@ otherRegisters r = let others = otherPotentialRegisters r
 
 -- | All registers that may be aliased by this register
 otherPotentialRegisters :: Register -> [Register]
-otherPotentialRegisters = delete <*> registerGroup . real_reg
+otherPotentialRegisters = delete <*> registerGroup . Reg.real
 
 -- | The partial registers that don't alias (AL and AH, BL and BH, ...)
 opposingRegister :: Register -> Maybe Register

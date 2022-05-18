@@ -10,6 +10,7 @@ import X86_Datastructures
 import Generic_Datastructures
 import VerificationReportInterface
 import Data.ControlFlow
+import X86.Register (Register(..))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

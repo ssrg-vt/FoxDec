@@ -17,7 +17,8 @@ import qualified Data.IntMap as IM
 import           Data.List (intercalate)
 import           Generic_Datastructures (GenericAddress(..), GenericOperand(..)
                                        , Instruction(..))
-import           X86_Datastructures (Register, operand_size)
+import           X86_Datastructures (operand_size)
+import X86.Register (Register)
 
 --------------------------------------------------------------------------------
 -- DATA

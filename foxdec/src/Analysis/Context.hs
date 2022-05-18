@@ -30,6 +30,7 @@ import Data.Maybe (mapMaybe,fromJust)
 import GHC.Generics
 import GHC.Natural (naturalToInteger)
 import qualified Data.Serialize as Cereal hiding (get,put)
+import X86.Register (Register)
 
 
 

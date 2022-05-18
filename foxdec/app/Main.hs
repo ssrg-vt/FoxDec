@@ -26,6 +26,7 @@ import Data.CallGraph
 import X86.Conventions
 import Data.ControlFlow
 import Data.Pointers
+import X86.Register (Register(..))
 
 import Numeric (readHex)
 import Control.Monad.State.Strict

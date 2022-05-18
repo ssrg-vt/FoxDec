@@ -22,13 +22,15 @@ import           Generic_Datastructures (AddressWord64, GenericAddress(..)
                                        , GenericOperand(..))
 import qualified Generic_Datastructures as GD
 import           X86_Datastructures
+import qualified X86.Register as X86
+import X86.Register (Register(..))
 
 --------------------------------------------------------------------------------
 -- DATA
 --------------------------------------------------------------------------------
 type Label = AddressWord64
 
-type Storage = Register
+type Storage = X86.Register
 
 type Special = Void
 

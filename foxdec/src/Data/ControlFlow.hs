@@ -39,7 +39,7 @@ import X86_Datastructures
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.Word (Word64)
@@ -47,19 +47,18 @@ import Control.Monad ((>=>))
 import Debug.Trace
 import Numeric (readHex)
 import System.IO.Unsafe (unsafePerformIO)
+import X86.Register (Register(..))
 
 
 
 -- | The set of next blocks from the given block in a CFG
-post g blockId =
-  case IM.lookup blockId (cfg_edges g) of
-    Nothing -> IS.empty
-    Just ns -> ns
+post :: CFG -> IS.Key -> IS.IntSet
+post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
 
 
 
 -- | Fetching an instruction list given a block ID
-fetch_block :: 
+fetch_block ::
   CFG    -- ^ The CFG
   -> Int -- ^ The blockID
   -> [X86_Instruction]
@@ -100,7 +99,7 @@ address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instr
 -- @10005464e: call RIP + 1751660@ resolves to an immediate jump target by resolving the RIP-relative addressing.
 --
 -- @10005464e: call qword ptr [RIP + 1751660]@ read from address 1002000c0, but address has a symbol associated to it. This function call will resolve to an external function.
-operand_static_resolve :: 
+operand_static_resolve ::
   Context               -- ^ The context
   -> X86_Instruction    -- ^ The instruction
   -> X86_Operand  -- ^ The operand of the instruction to be resolved
@@ -118,7 +117,7 @@ static_resolve_rip_expr ctxt i f si =
       a'      = f rip
       syms    = ctxt_syms    ctxt in
     case (IM.lookup (fromIntegral a') syms,read_from_datasection ctxt a' si) of
-      (Just s,  a'')      -> 
+      (Just s,  a'')      ->
         -- Example:
         --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
         --   Address 1002000c0 is returned and treated as an external function call       
@@ -146,7 +145,7 @@ resolve_jump_target ::
 resolve_jump_target ctxt i =
   case (IM.lookup (fromIntegral $ instr_addr i) $ ctxt_inds ctxt, instr_srcs i) of
     (Just ind,_)    -> jump_targets_of_indirection ind -- already resolved indirection
-    (Nothing,[op1]) -> 
+    (Nothing,[op1]) ->
       case operand_static_resolve ctxt i op1 of
         Unresolved         -> [Unresolved] -- unresolved indirection
         External sym       -> [External sym]
@@ -163,7 +162,7 @@ instruction_jumps_to_external ::
   Context        -- ^ The context
   -> X86_Instruction       -- ^ The instruction
   -> Bool
-instruction_jumps_to_external ctxt i = 
+instruction_jumps_to_external ctxt i =
   all resolve_is_external $ resolve_jump_target ctxt i
  where
   resolve_is_external (External _) = True
@@ -193,11 +192,11 @@ function_name_of_entry ctxt a =
 -- | Tries to retrieve a function name for a @call@-instruction (see @`function_name_of_entry`@).
 --
 -- Returns the empty string if the given instruction is not a call or a jump.
-function_name_of_instruction :: 
+function_name_of_instruction ::
   Context            -- ^ The context
   -> X86_Instruction -- ^ The instruction
   -> String
-function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) = 
+function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
   if is_call (instr_opcode i) || is_jump (instr_opcode i) then
     case operand_static_resolve ctxt i (head ops) of
       External sym       -> sym
@@ -219,9 +218,9 @@ get_internal_addresses Unresolved           = []
 get_internal_addresses (ImmediateAddress a) = [fromIntegral a]
 
 
-    
 
-        
+
+
 
 
 -- | Shows the block associated to the givern blockID.
@@ -229,16 +228,16 @@ show_block ::
   CFG    -- ^ The CFG
   -> Int -- ^ The blockID
   -> String
-show_block g b = 
+show_block g b =
   let instrs = im_lookup ("show_block: Block " ++ show b ++ "in cfg.") (cfg_blocks g) b in
        show b ++ " ["
     ++ showHex (head instrs)
     ++ ","
     ++ showHex (last instrs)
-    ++ "]" 
+    ++ "]"
 
 -- | Shows invariants.
-show_invariants 
+show_invariants
   :: CFG        -- ^ The CFG
   -> Invariants -- ^ The invariants
   -> String
