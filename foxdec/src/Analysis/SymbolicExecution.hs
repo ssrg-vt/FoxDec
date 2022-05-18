@@ -34,7 +34,7 @@ import qualified Data.IntSet as IS
 
 import Data.Maybe (fromJust)
 import Data.List.Extra (firstJust)
-import Data.Word 
+import Data.Word
 import Data.Either (partitionEithers)
 import Control.Monad.State.Strict hiding (join)
 import Control.Monad.Extra (anyM,whenM,mapMaybeM)
@@ -42,6 +42,8 @@ import Data.List hiding (transpose)
 import Data.Maybe (mapMaybe)
 import Debug.Trace
 import X86.Register (Register(..))
+import X86.Opcode (Opcode(..), isCondJump, isJump)
+import X86.Prefix (Prefix(LOCK))
 
 
 
@@ -58,13 +60,13 @@ import X86.Register (Register(..))
 --    @r == r0'@
 --    @x == r0' + i@
 fw_transposition :: FContext -> StatePart -> (StatePart,SimpleExpr) -> Maybe SimpleExpr
-fw_transposition ctxt (SP_Reg r) (SP_Reg r1, SE_Op (Minus wsize) [SE_Var (SP_Reg r2), SE_Immediate i]) 
+fw_transposition ctxt (SP_Reg r) (SP_Reg r1, SE_Op (Minus wsize) [SE_Var (SP_Reg r2), SE_Immediate i])
   | r == r1 && r1 == r2    = Just $ SE_Op (Plus wsize) [SE_Var (SP_Reg r), SE_Immediate i]
   | otherwise              = Nothing
 fw_transposition _ _ _     = Nothing
 
 
-transpose_fw_e :: FContext -> M.Map StatePart SimpleExpr -> SimpleExpr -> Maybe SimpleExpr 
+transpose_fw_e :: FContext -> M.Map StatePart SimpleExpr -> SimpleExpr -> Maybe SimpleExpr
 transpose_fw_e ctxt p (Bottom (FromNonDeterminism es)) = do
   es' <- mapM (fmap simp . transpose_fw_e ctxt p) $ S.toList es
   return $ join_exprs "transpose_fw" ctxt $ es'
@@ -75,7 +77,7 @@ transpose_fw_e ctxt p   (Bottom typ)          = Nothing -- TODO what if all sour
 transpose_fw_e ctxt p e@(SE_Malloc _ _)       = return e
 transpose_fw_e ctxt p e@(SE_Immediate i)      = return e
 transpose_fw_e ctxt p   (SE_Var sp)           = transpose_fw_var ctxt p sp
-transpose_fw_e ctxt p   (SE_StatePart sp)     = Nothing 
+transpose_fw_e ctxt p   (SE_StatePart sp)     = Nothing
 transpose_fw_e ctxt p   (SE_Op op es)         = SE_Op op <$> mapM (transpose_fw_e ctxt p) es
 transpose_fw_e ctxt p   (SE_Bit i e)          = SE_Bit i <$> transpose_fw_e ctxt p e
 transpose_fw_e ctxt p   (SE_SExtend l h e)    = SE_SExtend l h <$> transpose_fw_e ctxt p e
@@ -106,7 +108,7 @@ invariant_to_finit ctxt (Predicate eqs _) = M.fromList $ mapMaybe mk_finit_entry
   is_suitable_for_finit (SP_Reg r,_)    = r `notElem` [RIP,RSP,RBP]
   is_suitable_for_finit (SP_Mem a si,_) = is_immediate a
 
-  mk_finit_entry (sp,v) = 
+  mk_finit_entry (sp,v) =
     if is_immediate_pointer v then
       Just (sp,v)
     else case get_pointer_domain ctxt v of
@@ -122,7 +124,7 @@ join_finit :: FContext -> FInit -> FInit -> FInit
 join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr ctxt) f0 f1
  where
   keep (Bottom (FromPointerBases _)) = True
-  keep (Bottom _)                    = False 
+  keep (Bottom _)                    = False
   keep _                             = True
 
 
@@ -167,7 +169,7 @@ transpose_bw_e ctxt p (SE_Var sp)                      = evalState (read_sp ctxt
 transpose_bw_e ctxt p (SE_Bit i e)                     = SE_Bit i $ transpose_bw_e ctxt p e
 transpose_bw_e ctxt p (SE_SExtend l h e)               = SE_SExtend l h $ transpose_bw_e ctxt p e
 transpose_bw_e ctxt p (SE_Op op es)                    = SE_Op op $ map (transpose_bw_e ctxt p) es
-transpose_bw_e ctxt p (SE_Overwrite i a b)             = SE_Overwrite i (transpose_bw_e ctxt p a) (transpose_bw_e ctxt p b) 
+transpose_bw_e ctxt p (SE_Overwrite i a b)             = SE_Overwrite i (transpose_bw_e ctxt p a) (transpose_bw_e ctxt p b)
 
 transpose_bw_sp ctxt p sp@(SP_Reg r)          = sp
 transpose_bw_sp ctxt p sp@(SP_StackPointer _) = sp
@@ -201,7 +203,7 @@ transpose_bw_base ctxt p b@(Malloc _ _)          = b
 
 -- | a list of some function that return a heap-pointer through RAX.
 -- The pointer is assumed to  be fresh.
-functions_returning_fresh_pointers = [ 
+functions_returning_fresh_pointers = [
      "_malloc", "malloc", "_malloc_create_zone", "_malloc_default_zone", "_malloc_zone_malloc", "_calloc", "calloc", "_malloc_zone_calloc", "_mmap", "_av_mallocz",
      "strdup", "_strdup", "___error", "_fts_read$INODE64", "_fts_open$INODE64", "_opendir$INODE64", "fopen", "_fopen", "_getenv", "_open",
      "_localeconv", "localeconv", "_setlocale", "_wsetlocale", "_fgetln", "fgetln",
@@ -213,7 +215,7 @@ functions_returning_bottom = [
      "feof", "_feof", "_getc", "getc", "fgetc", "_fgetc", "_fgetwc", "fgetwc", "_fnmatch", "_fputc",
      "_close", "_fstat$INODE64", "_fstatfs$INODE64", "_statfs$INODE64", "___maskrune", "_sysctlbyname", "_getbsize",
      "_printf", "printf", "_fprintf", "fprintf", "_fprintf_l", "fwprintf", "_fwprintf_l",
-     "_putchar", "_puts", 
+     "_putchar", "_puts",
      "_btowc", "btowc", "mbtowc", "_mbtowc", "_mbrtowc", "mbrtowc", "_atof", "atof",
      "_strcmp", "strcmp",
      "_ilogb", "_atoi",
@@ -233,10 +235,10 @@ function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "st
 function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (instr_addr i) RAX >> return True
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
 function_semantics ctxt i "strrchr"              = read_reg ctxt RDI >>= (\rdi -> write_reg ctxt (instr_addr i) RAX $ SE_Op (Plus 64) [rdi,rock_bottom]) >> return True
-function_semantics ctxt i f                      = 
+function_semantics ctxt i f                      =
   if f `elem` functions_returning_bottom then do  -- and exiting function calls?
     write_reg ctxt (instr_addr i) RAX $ Bottom $ FromCall f -- TODO overwrite volatile regs as well?
-    return True 
+    return True
   else if f `elem` functions_returning_fresh_pointers then do
     write_reg ctxt (instr_addr i) RAX $ SE_Malloc (Just (instr_addr i)) (Just "")
     return True
@@ -250,7 +252,7 @@ function_semantics ctxt i f                      =
 add_function_constraint f a ps sps (p,vcs) = (p,S.insert (FunctionConstraint f a ps sps) vcs)
 
 -- | Add a function_pointer_intro to the given symbolic predicate
-add_function_pointers a ptrs (p,vcs) = 
+add_function_pointers a ptrs (p,vcs) =
   if not $ IS.null ptrs then
     let (match,remainder) = S.partition belongs_to_a vcs in
       case S.toList match of
@@ -274,7 +276,7 @@ get_symbolic_function_pointers ctxt _                                = IS.empty
 evalState_discard :: State s a -> State s a
 evalState_discard ma = do
   s <- get
-  return $ evalState ma s 
+  return $ evalState ma s
 
 -- | Symbolically execute a function call
 call :: FContext -> X86_Instruction -> State (Pred,VCS) ()
@@ -325,14 +327,14 @@ call ctxt i = do
   -- do a write to region [a+bot,1] to muddle the state. The value written to that region is an abstraction of what is already there.
   write_param (r,a) = do
     let a'  = SE_Op (Plus 64) [a,rock_bottom]
-    let si' = 1 
+    let si' = 1
     v'     <- evalState_discard $ read_sp ctxt (SP_Mem a 1)
     let bot = join_single ctxt v'
-    write_sp ctxt (instr_addr i)  mk_mid (SP_Mem a' si',bot)  
+    write_sp ctxt (instr_addr i)  mk_mid (SP_Mem a' si',bot)
 
   when_is_relevant_param p_eqs r = do
     v <- read_reg ctxt r
-    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then 
+    if expr_highly_likely_pointer ctxt v || (is_currently_pointer p_eqs v && not (is_immediate v)) then
       return $ Just (r,v)
     else
       return $ Nothing
@@ -365,7 +367,7 @@ call ctxt i = do
         -- the statepart should have been preserved by the function, but that cannot be proven
         -- forcibly preserve the statepart and annotate
         forced_insert_sp sp v
-        let add_vc = v /= v' && not (uninitialized v') 
+        let add_vc = v /= v' && not (uninitialized v')
         --trace ("Preserving (" ++ show i ++ "): " ++ show (sp,v,v')) $
         return $ if add_vc then S.singleton sp else S.empty
       else case find (\(sp',v) -> necessarily_equal_stateparts sp sp') $ M.assocs q_eqs of
@@ -378,10 +380,10 @@ call ctxt i = do
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
           write_sp ctxt (instr_addr i) mk_mid (sp,join_expr ctxt v v')
           return S.empty
-        
+
 
   -- make a memory-write-identifier: the memroy write happened during this function call
-  mk_mid = MemWriteFunction (function_name_of_instruction (f_ctxt ctxt) i)  
+  mk_mid = MemWriteFunction (function_name_of_instruction (f_ctxt ctxt) i)
 
   -- forcibly insert the statepart into ther current predicate
   -- should never be done without caution, one should always use the mem_write function
@@ -389,10 +391,10 @@ call ctxt i = do
     (p@(Predicate p_eqs flg),vcs) <- get
     put (Predicate (M.insert sp v p_eqs) flg,vcs)
 
- 
+
   must_be_preserved p_eqs (SP_Reg _)                              _ = True
   must_be_preserved p_eqs (SP_Mem (SE_Var (SP_StackPointer _)) _) _ = True
-  must_be_preserved p_eqs (SP_Mem a si)                           v = if expr_is_highly_likely_local_pointer ctxt a then expr_highly_likely_pointer ctxt v || is_reg_var v || is_currently_pointer p_eqs v else True 
+  must_be_preserved p_eqs (SP_Mem a si)                           v = if expr_is_highly_likely_local_pointer ctxt a then expr_highly_likely_pointer ctxt v || is_reg_var v || is_currently_pointer p_eqs v else True
 
   is_reg_var (SE_Var (SP_Reg r)) = True
   is_reg_var _                   = False
@@ -404,11 +406,11 @@ call ctxt i = do
   source_in_finit _             = False
 
   uninitialized (Bottom (FromUninitializedMemory _)) = True
-  uninitialized _                                    = False 
+  uninitialized _                                    = False
 
-  do_transfer sp@(SP_Reg _)    v = True 
+  do_transfer sp@(SP_Reg _)    v = True
   do_transfer sp@(SP_Mem a si) v = not (any is_local_to_not_f $ srcs_of_expr ctxt a) && not (is_initial sp v)
- 
+
   is_local_to_not_f (Src_StackPointer f') = f_name ctxt /= f' -- TODO keep when f' is from current SCC callgraph
   is_local_to_not_f _                     = False
 
@@ -424,7 +426,7 @@ statepart_preserved_after_external_function_call ::
   FContext       -- ^ The context
   -> Bool       -- ^ Is the function external?
   -> StatePart  -- ^ A state part 
-  -> Bool 
+  -> Bool
 statepart_preserved_after_external_function_call ctxt is_external (SP_Reg r)   = r `elem` callee_saved_registers
 statepart_preserved_after_external_function_call ctxt is_external (SP_Mem a _) = not (contains_bot a) && or [
       expr_is_highly_likely_local_pointer ctxt a,
@@ -546,7 +548,7 @@ mfence ctxt i_a = return ()
 
 clflush ctxt i_a = return ()
 
-mov ctxt i_a = mov_with_func_op2_to_op1 ctxt i_a id 
+mov ctxt i_a = mov_with_func_op2_to_op1 ctxt i_a id
 
 movzx ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
@@ -823,7 +825,7 @@ fild ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False
 fxch ctxt i_a = return ()
 
 fchs ctxt i_a = return ()
-  
+
 fucom ctxt i_a = return ()
 
 fucomi ctxt i_a = return ()
@@ -887,7 +889,7 @@ div1 ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   src0 <- read_operand ctxt (Storage $ srcs !! 0)
   src1 <- read_operand ctxt (Storage $ srcs !! 1)
-  
+
   write_operand ctxt i_a (Storage $ srcs !! 0) $ SE_Op (Div_Rem (8 * operand_size op1)) [src0,src1,e1]
   write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Div (8 * operand_size op1)) [src0,src1,e1]
   write_flags (\_ _ -> None) op1 op1
@@ -997,7 +999,7 @@ imul1 ctxt i_a op1 = do
   e1 <- read_operand ctxt op1
   src0 <- read_operand ctxt (Storage $ srcs !! 0)
   src1 <- read_operand ctxt (Storage $ srcs !! 1)
-  
+
   write_operand ctxt i_a (Storage $ srcs !! 0) $ mk_bottom ctxt [src1,e1] -- high part of multiplication
   write_operand ctxt i_a (Storage $ srcs !! 1) $ SE_Op (Times (8 * operand_size op1)) [src1,e1]
   write_flags (\_ _ -> None) op1 op1
@@ -1245,8 +1247,8 @@ tau_i ctxt (Instruction (AddressWord64 i_a) _ POP      _ [op1]     _)   = pop   
 tau_i ctxt (Instruction (AddressWord64 i_a) _ LEA      _ [op1,op2] _)   = lea    ctxt i_a op1 op2
 
 tau_i ctxt i@(Instruction (AddressWord64 i_a) _ CALL     _ _         _) = call   ctxt i
-tau_i ctxt   (Instruction (AddressWord64 i_a) _ RET      _ _         _) = ret    ctxt i_a 
-tau_i ctxt   (Instruction (AddressWord64 i_a) _ IRETQ    _ _         _) = ret    ctxt i_a 
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ RET      _ _         _) = ret    ctxt i_a
+tau_i ctxt   (Instruction (AddressWord64 i_a) _ IRETQ    _ _         _) = ret    ctxt i_a
 tau_i ctxt   (Instruction (AddressWord64 i_a) _ SYSRET   _ _         _) = sysret ctxt i_a
 tau_i ctxt i@(Instruction (AddressWord64 i_a) _ JMP      _ [op1]     _) = jmp    ctxt i
 tau_i ctxt   (Instruction (AddressWord64 i_a) _ LEAVE    _ _         _) = leave  ctxt i_a
@@ -1567,10 +1569,10 @@ tau_i ctxt (Instruction (AddressWord64 i_a) _ VZEROUPPER   _ []            _)  =
 tau_i ctxt (Instruction (AddressWord64 i_a) _ VPCMPEQB     _ [op1,op2,op3] _)  = vpcmpeqb     ctxt i_a op1 op2 op3
 tau_i ctxt (Instruction (AddressWord64 i_a) _ VPCMPEQW     _ [op1,op2,op3] _)  = vpcmpeqw     ctxt i_a op1 op2 op3
 tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSLLW       _ [op1,op2,op3] _)  = vpsllw       ctxt i_a op1 op2 op3
-tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVHPS       _ [op1,op2] _)      = movhps       ctxt i_a op1 op2 
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVHPS       _ [op1,op2] _)      = movhps       ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVHLPS      _ [op1,op2] _)      = movhlps      ctxt i_a op1 op2
-tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVLHPS      _ [op1,op2] _)      = movlhps      ctxt i_a op1 op2 
-tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVHPS      _ [op1,op2] _)      = vmovhps      ctxt i_a op1 op2 
+tau_i ctxt (Instruction (AddressWord64 i_a) _ MOVLHPS      _ [op1,op2] _)      = movlhps      ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ VMOVHPS      _ [op1,op2] _)      = vmovhps      ctxt i_a op1 op2
 
 
 tau_i ctxt (Instruction (AddressWord64 i_a) _ CPUID    _ []       _)  = cpuid    ctxt i_a
@@ -1607,13 +1609,10 @@ tau_i ctxt (Instruction (AddressWord64 i_a) (Just LOCK) CMPXCHG _ [op1,op2] _) =
 tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSD   _ [op1,op2] _) = movsd_string ctxt pre op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSQ   _ [op1,op2] _) = movsq        ctxt pre op1 op2
 
-tau_i ctxt i =
-  if is_jump (instr_opcode i) || is_cond_jump (instr_opcode i) then
-    return ()
-  else if ctxt_continue_on_unknown_instruction $ f_ctxt ctxt then
-    trace ("Unsupported instruction: " ++ show i) $ return () 
-  else
-    error ("Unsupported instruction: " ++ show i)
+tau_i ctxt i
+  | isJump (instr_opcode i) || isCondJump (instr_opcode i) = return ()
+  | ctxt_continue_on_unknown_instruction $ f_ctxt ctxt = trace ("Unsupported instruction: " ++ show i) $ return ()
+  | otherwise = error ("Unsupported instruction: " ++ show i)
 
 -- | Do predicate transformation over a block of instructions.
 -- Does not take into account flags, commonly function @`tau_block`@ should be used.
@@ -1644,7 +1643,7 @@ tau_block ::
   -> Maybe [X86_Instruction]  -- ^ Optionally, the instructions of the next block if symbolically executing an edge in a CFG.
   -> Pred                     -- ^ The predicate to be transformed
   -> (Pred, VCS)
-tau_block ctxt insts insts' p@(Predicate eqs flg) = 
+tau_block ctxt insts insts' p@(Predicate eqs flg) =
   if insts == [] then
     (p, S.empty)
   else let
@@ -1688,23 +1687,23 @@ join_preds ctxt p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
       q    = Predicate m flg' in
     foldr mk_entry' q $ M.toList eqs1
  where
-  mk_entry sp v = 
+  mk_entry sp v =
     case find (\(sp',v') -> necessarily_equal_stateparts sp sp') $ M.toList eqs1 of
       Nothing ->
         if is_initial sp v then
           v
-        else 
+        else
           let v' = evalState (read_sp ctxt sp) (p',S.empty) in
             temp_trace v v' sp $ join_expr' ctxt p p' v v'
-      Just (sp',v') -> 
+      Just (sp',v') ->
         if necessarily_equal v v' || v == v' then
           v
         else
           temp_trace v v' sp $ join_expr' ctxt p p' v v'
 
-  mk_entry' (sp',v' ) q = 
+  mk_entry' (sp',v' ) q =
     case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
-      Nothing -> 
+      Nothing ->
         if is_initial sp' v' then
           fst $ execState (write_sp ctxt 0 mk_mid (sp', v')) (q,S.empty)
         else
@@ -1716,7 +1715,7 @@ join_preds ctxt p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
 
 
 -- TODO in case of bot, check whether sources of P1 are larger than P0
-implies_preds ctxt (Predicate eqs0 flg0) (Predicate eqs1 flg1) = 
+implies_preds ctxt (Predicate eqs0 flg0) (Predicate eqs1 flg1) =
  flg1 `elem` [None,flg0] && (all implied_by_eqs0 $ M.toList eqs1) -- && (all_sps_in_eqs1 $ M.keys eqs0)
  where
   implied_by_eqs0 (SP_Reg RIP, _) = True -- technicality 
@@ -1725,19 +1724,19 @@ implies_preds ctxt (Predicate eqs0 flg0) (Predicate eqs1 flg1) =
     if contains_bot v1 then
       True
     else case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
-      Nothing -> is_initial sp1 v1 
+      Nothing -> is_initial sp1 v1
       Just (sp0,v0) -> necessarily_equal v0 v1  || join_expr ctxt v0 v1 == v1
 
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
 
 
 -- | The initial predicate.
-init_pred :: 
+init_pred ::
   FContext                 -- ^ The current context
   -> Invariants            -- ^ The currently available invariants
   -> S.Set (NodeInfo,Pred) -- ^ The currently known postconditions
   -> Pred
-init_pred ctxt curr_invs curr_posts = 
+init_pred ctxt curr_invs curr_posts =
   let f                    = f_name ctxt
       finit                = f_init ctxt
       finit'               = M.filter (not . contains_bot) finit
@@ -1793,9 +1792,9 @@ get_invariant fctxt a = do
 
 
 
-  
+
 
 instance Propagator FContext Pred where
   tau     = tau_block
-  join    = join_preds 
+  join    = join_preds
   implies = implies_preds

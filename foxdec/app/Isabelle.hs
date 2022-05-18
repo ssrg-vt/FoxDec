@@ -9,6 +9,7 @@ import Data.SimplePred
 import Analysis.Context
 import X86_Datastructures
 import X86.Register (Register(..))
+import X86.Opcode (Opcode(..), isJump, isCall)
 import Generic_Datastructures
 import Analysis.SymbolicExecution
 import Data.MachineState
@@ -162,16 +163,16 @@ mk_pred_for_hoare_triple (Predicate eqs _) =
 
 -- generate an instruction
 mk_instr fctxt i =
-  if is_call (instr_opcode i) || (is_jump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if isCall (instr_opcode i) || (isJump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i
-        call  = if is_jump (instr_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
+        call  = if isJump (instr_opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
       showHex (instr_addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (instr_size i)
   else
     show i
 
 -- generate function constraints
 mk_fcs fctxt i p =
-  if is_call (instr_opcode i) || (is_jump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
+  if isCall (instr_opcode i) || (isJump (instr_opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i in      
       " FunctionConstraints \"PRESERVES " ++ mk_safe_isa_fun_name fname ++ " {" ++ intercalate ";" (map sp_to_isa $ preserved_stateparts i p) ++ "}\"\n"
   else

@@ -27,6 +27,7 @@ import X86.Conventions
 import Data.ControlFlow
 import Data.Pointers
 import X86.Register (Register(..))
+import X86.Opcode (Opcode(..), isCall)
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -199,7 +200,7 @@ ctxt_get_recursive_calls entry = do
  where
   get_new_calls ctxt is = map (get_new_call ctxt) is
   get_new_call  ctxt i =
-    if is_call (instr_opcode i) then
+    if isCall (instr_opcode i) then
       map (when_trgt_is_not_done_yet ctxt) $ resolve_jump_target ctxt i
     else
       []
@@ -233,7 +234,7 @@ ctxt_get_new_calls entry = do
  where
   get_new_calls fctxt is = map (get_new_call fctxt) is
   get_new_call  fctxt i =
-    if is_call (instr_opcode i) then
+    if isCall (instr_opcode i) then
        map (trgt_to_finit fctxt i) $ resolve_jump_target (f_ctxt fctxt) i
     else
       []

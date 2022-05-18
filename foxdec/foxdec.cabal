@@ -62,6 +62,8 @@ library
       Pass.Reg2Var
       VerificationReportInterface
       X86.Conventions
+      X86.Opcode
+      X86.Prefix
       X86.Register
       X86_Datastructures
   other-modules:

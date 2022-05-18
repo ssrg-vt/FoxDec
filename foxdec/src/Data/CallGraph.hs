@@ -24,6 +24,7 @@ import Data.List.Split (chunksOf)
 import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
+import X86.Opcode (isCall)
 
 pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
 pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
@@ -191,7 +192,7 @@ summarize_verification_conditions ctxt entry =
 calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cfg_instrs cfg
  where
   get_call_target i =
-    if is_call (instr_opcode i) then
+    if isCall (instr_opcode i) then
       IS.fromList $ concatMap get_internal_addresses $ resolve_jump_target ctxt i
     else
       IS.empty
@@ -200,7 +201,7 @@ calls_of_cfg ctxt cfg = IS.unions $ map get_call_target $ concat $ IM.elems $ cf
 function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_pointers_of_call $ concat $ IM.elems $ cfg_instrs cfg
  where
   get_function_pointers_of_call i =
-    if is_call (instr_opcode i) then -- TODO or jump?
+    if isCall (instr_opcode i) then -- TODO or jump?
       IS.unions $ S.map (get_function_pointers $ instr_addr i) $ (S.unions $ ctxt_vcs ctxt)
     else
       IS.empty

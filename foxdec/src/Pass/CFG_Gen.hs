@@ -39,6 +39,7 @@ import Control.Monad ((>=>))
 import Debug.Trace
 import Numeric (readHex)
 import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
+import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
 split_graph' a g = 
@@ -217,15 +218,15 @@ stepA ctxt entry a = do
   case instr of
     Nothing -> return $ Right [] -- error $ "Cannot find instruction at addres: " ++ showHex a
     Just i -> 
-      if is_halt (instr_opcode i) then
+      if isHalt (instr_opcode i) then
         return $ Right []
-      else if is_jump (instr_opcode i) then
+      else if isJump (instr_opcode i) then
         return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
-      else if is_cond_jump $ instr_opcode i then
+      else if isCondJump $ instr_opcode i then
         return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + instr_size i]
-      else if is_call $ instr_opcode i then
+      else if isCall $ instr_opcode i then
         return $ resolve_call ctxt entry i
-      else if is_ret (instr_opcode i) then
+      else if isRet (instr_opcode i) then
         return $ Right []
       else
         return $ Right [(a + instr_size i,False)]
@@ -290,7 +291,7 @@ is_end_node ::
   -> Bool
 is_end_node g b = IS.null $ post g b
 
-is_unresolved_indirection ctxt i = (is_call (instr_opcode i) || is_jump (instr_opcode i) || is_cond_jump (instr_opcode i))
+is_unresolved_indirection ctxt i = (isCall (instr_opcode i) || isJump (instr_opcode i) || isCondJump (instr_opcode i))
                    && (any ((==) Unresolved) $ resolve_jump_target ctxt i)
 
 
@@ -307,13 +308,13 @@ node_info_of ctxt g blockId =
       i    = last (im_lookup ("D.) Block " ++ show blockId ++ " in instrs.") (cfg_instrs g) blockId) in
     if is_unresolved_indirection ctxt i then
       UnresolvedIndirection
-    else if IS.null (post g blockId) && (is_call (instr_opcode i) || is_halt (instr_opcode i)) || is_terminating_jump i then
+    else if IS.null (post g blockId) && (isCall (instr_opcode i) || isHalt (instr_opcode i)) || is_terminating_jump i then
         Terminal
     else
       Normal
 
  where
-  is_terminating_jump i = is_jump (instr_opcode i) &&
+  is_terminating_jump i = isJump (instr_opcode i) &&
     case resolve_jump_target ctxt i of
       [External sym] -> is_exiting_function_call sym
       _              -> False

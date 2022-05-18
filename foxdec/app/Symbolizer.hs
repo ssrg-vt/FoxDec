@@ -11,6 +11,7 @@ import Generic_Datastructures
 import VerificationReportInterface
 import Data.ControlFlow
 import X86.Register (Register(..))
+import X86.Opcode (Opcode(..), isCall, isJump, isCondJump, isRet)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -184,10 +185,10 @@ symbolize_block ctxt entry cfg (blockID, instrs) =
   block_body   = map (indent . symbolize_instr ctxt entry cfg) $ filter_unnecessary_jumps instrs
   block_end    = if instrs == [] || is_proper_block_end_instruction (instr_opcode $ last instrs) then "" else mk_extra_jmp
 
-  filter_unnecessary_jumps instrs = (filter (not . is_jump . instr_opcode) $ init instrs) ++ [last instrs]
+  filter_unnecessary_jumps instrs = (filter (not . isJump . instr_opcode) $ init instrs) ++ [last instrs]
 
 
-  is_proper_block_end_instruction i = is_ret i || is_jump i 
+  is_proper_block_end_instruction i = isRet i || isJump i 
 
   mk_extra_jmp =
     case unsafePerformIO $ stepA ctxt entry (fromIntegral $ instr_addr $ last instrs) of -- TODO, also TODO assumes fall through is last/second
@@ -203,7 +204,7 @@ indent str = "    " ++ str
 
 
 symbolize_instr ctxt entry cfg i = 
-  if is_call (instr_opcode i) || is_jump (instr_opcode i) || is_cond_jump (instr_opcode i) then
+  if isCall (instr_opcode i) || isJump (instr_opcode i) || isCondJump (instr_opcode i) then
     symbolize_operand1_of_instr ctxt entry cfg i
   else
     show_nasm_instruction ctxt entry cfg  i

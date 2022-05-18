@@ -19,6 +19,8 @@ import Data.Word (Word64,Word8)
 import Debug.Trace
 import qualified Data.IntMap as IM
 import Data.Maybe (fromJust,catMaybes)
+import X86.Opcode (Opcode(..))
+import X86.Prefix (Prefix(..))
 
 
 

@@ -48,6 +48,7 @@ import Debug.Trace
 import Numeric (readHex)
 import System.IO.Unsafe (unsafePerformIO)
 import X86.Register (Register(..))
+import X86.Opcode (Opcode(JMP), isCall, isJump)
 
 
 
@@ -197,7 +198,7 @@ function_name_of_instruction ::
   -> X86_Instruction -- ^ The instruction
   -> String
 function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
-  if is_call (instr_opcode i) || is_jump (instr_opcode i) then
+  if isCall (instr_opcode i) || isJump (instr_opcode i) then
     case operand_static_resolve ctxt i (head ops) of
       External sym       -> sym
       ImmediateAddress a -> function_name_of_entry ctxt $ fromIntegral a

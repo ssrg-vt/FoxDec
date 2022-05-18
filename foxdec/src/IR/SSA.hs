@@ -13,7 +13,8 @@ import qualified IR.Generic as Generic
 import qualified IR.PreSSA as PreSSA
 import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
-import           X86_Datastructures (Opcode, Prefix)
+import X86.Prefix (Prefix)
+import X86.Opcode (Opcode)
 
 --------------------------------------------------------------------------------
 -- DATA

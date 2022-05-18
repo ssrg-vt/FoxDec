@@ -35,7 +35,8 @@ import Debug.Trace
 import Data.Functor ((<&>))
 import System.Directory (doesFileExist)
 import X86.Register (Register(..))
-
+import X86.Opcode (Opcode(..))
+import X86.Prefix (Prefix(..))
 
 jumps_and_calls_are_relative = False -- TODO make configurable
 

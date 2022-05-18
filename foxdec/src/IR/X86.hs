@@ -23,7 +23,10 @@ import           Generic_Datastructures (AddressWord64, GenericAddress(..)
 import qualified Generic_Datastructures as GD
 import           X86_Datastructures
 import qualified X86.Register as X86
-import X86.Register (Register(..))
+import           X86.Register (Register(..))
+import           X86.Prefix (Prefix)
+import           X86.Opcode (Opcode(..), isHalt, isRet, isCondJump, isJump
+                           , isCall)
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -441,11 +444,11 @@ canonicalize = mapP explicitize id
 
     -- Does the instruction need no modification?
     -- For example, instructions without destination (CMP, TEST) or function calls and returns.
-    do_not_modify mnemonic = is_call mnemonic
-      || is_jump mnemonic
-      || is_cond_jump mnemonic
-      || is_ret mnemonic
-      || is_halt mnemonic
+    do_not_modify mnemonic = isCall mnemonic
+      || isJump mnemonic
+      || isCondJump mnemonic
+      || isRet mnemonic
+      || isHalt mnemonic
       || mnemonic
       `elem` [ CMP
              , TEST

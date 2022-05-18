@@ -31,6 +31,7 @@ import GHC.Generics
 import GHC.Natural (naturalToInteger)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
+import X86.Opcode (isCall)
 
 
 
@@ -290,7 +291,7 @@ pp_instruction ::
   -> X86_Instruction  -- ^ An instruction
   -> String
 pp_instruction ctxt i =
-  if is_call (instr_opcode i) then
+  if isCall (instr_opcode i) then
     show i ++
       case instr_srcs i of
         [Immediate imm] ->
