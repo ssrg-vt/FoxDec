@@ -34,8 +34,15 @@ library
       Data.CallGraph
       Data.ControlFlow
       Data.MachineState
+      Data.Phi
       Data.Pointers
       Data.SimplePred
+      Data.Variable
+      Generic.Address
+      Generic.BasicBlock
+      Generic.Instruction
+      Generic.Operand
+      Generic.Program
       Generic_Datastructures
       IR.Generic
       IR.PreSSA
