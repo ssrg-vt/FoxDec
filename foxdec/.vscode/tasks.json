@@ -6,7 +6,7 @@
         {
             "label": "Build",
             "type": "shell",
-            "command": "PATH=\"/opt/homebrew/opt/llvm/bin:$PATH\" cabal build",
+            "command": "PATH=\"/opt/homebrew/opt/llvm/bin:$PATH\" stack build",
             "problemMatcher": [],
             "group": {
                 "kind": "build",
