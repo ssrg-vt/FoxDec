@@ -34,12 +34,6 @@ instr_addr :: X86_Instruction -> Word64
 instr_addr (Instruction (AddressWord64 a) _ _ _ _ _) = a
 
 
--- | Flags
-data Flag = ZF | CF | SF | OF | PF | InvalidFlag
-  deriving (Show,Eq,Ord)
-
-
-
 -- | The size of the operand, in bytes
 operand_size :: X86_Operand -> Int
 operand_size (Storage r)          = Reg.size r
