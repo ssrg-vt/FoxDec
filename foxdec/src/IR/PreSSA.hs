@@ -8,10 +8,10 @@ module IR.PreSSA
     , verifySSA) where
 
 import qualified IR.Generic as Generic
-import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
 import X86.Prefix (Prefix)
 import X86.Opcode (Opcode)
+import Generic.Address (AddressWord64)
 
 --------------------------------------------------------------------------------
 -- DATA

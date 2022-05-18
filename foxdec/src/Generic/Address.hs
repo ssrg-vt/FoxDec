@@ -1,11 +1,17 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Generic.Address (GenericAddress(..)) where
+module Generic.Address (GenericAddress(..), AddressWord64(..)) where
 
 import           Data.Word (Word64)
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Base (showHex)
+
+-- | A type for encapsulating an immediate (allows to always show hex)
+newtype AddressWord64 = AddressWord64 Word64
+  deriving (Eq, Ord, Generic)
+
+instance Cereal.Serialize AddressWord64
 
 -- | An unresolved address, within the operand of an instruction, based on polymorphic type `storage`.
 data GenericAddress storage =
@@ -24,3 +30,6 @@ instance Show storage => Show (GenericAddress storage) where
   show (AddressMinus a0 a1) = show a0 ++ " - " ++ show a1
   show (AddressPlus a0 a1) = show a0 ++ " + " ++ show a1
   show (AddressTimes a0 a1) = show a0 ++ " * " ++ show a1
+
+instance Show AddressWord64 where
+  show (AddressWord64 a) = showHex a

@@ -49,6 +49,7 @@ import X86.Instruction (instr_addr)
 import Typeclasses.HasSize (sizeof)
 import X86.Address (GenericAddress(..))
 import Generic.Operand (GenericOperand(..))
+import Generic.Address (AddressWord64(AddressWord64))
 
 -- | Forward transposition
 -- If the current invariant states:

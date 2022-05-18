@@ -8,6 +8,7 @@ import Pass.CFG_Gen
 import Analysis.Context
 import VerificationReportInterface
 import Analysis.Propagation
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

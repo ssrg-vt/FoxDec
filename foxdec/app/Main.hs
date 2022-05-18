@@ -30,6 +30,7 @@ import X86.Opcode (Opcode(..), isCall)
 import X86.Instruction (instr_addr)
 import qualified X86.Instruction as X86
 import           Generic.Operand (GenericOperand(..))
+import Generic.Address (AddressWord64(AddressWord64))
 
 import Numeric (readHex)
 import Control.Monad.State.Strict

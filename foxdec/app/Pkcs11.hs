@@ -58,6 +58,7 @@ import X86.Conventions
 import Data.ControlFlow
 import Data.Pointers
 import X86.Register (Register(..))
+import Generic.Address (AddressWord64(AddressWord64))
 
 import Control.Monad.State.Strict
 import qualified Data.Map as M

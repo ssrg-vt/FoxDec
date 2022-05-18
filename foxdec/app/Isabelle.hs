@@ -19,6 +19,7 @@ import VerificationReportInterface
 import Typeclasses.HasSize(sizeof)
 import X86.Address (GenericAddress(..))
 import           Generic.Operand (GenericOperand(..))
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

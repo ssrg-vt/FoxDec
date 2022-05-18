@@ -10,6 +10,7 @@ import Data.CallGraph
 import VerificationReportInterface
 import Analysis.Propagation
 import Data.Pointers
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

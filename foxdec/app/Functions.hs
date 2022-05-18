@@ -8,6 +8,7 @@ import Data.SimplePred
 import Analysis.Context
 import Data.CallGraph
 import VerificationReportInterface
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

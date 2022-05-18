@@ -39,6 +39,7 @@ import X86.Prefix (Prefix(..))
 import X86.Address (GenericAddress(..))
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
+import Generic.Address (AddressWord64(AddressWord64))
 
 jumps_and_calls_are_relative = False -- TODO make configurable
 

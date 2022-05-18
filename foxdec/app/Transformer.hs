@@ -12,6 +12,7 @@ import Data.Pointers
 import qualified IR.X86 as X86
 import IR.Generic (programControlFlow)
 import Algorithm.Dominance (domFrontier)
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

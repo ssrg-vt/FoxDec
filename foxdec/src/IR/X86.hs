@@ -18,7 +18,6 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Maybe (isNothing)
 import           Data.Void (Void)
-import           Generic_Datastructures (AddressWord64)
 import qualified Generic_Datastructures as GD
 import qualified X86.Register as X86
 import           X86.Register (Register(..))
@@ -29,6 +28,7 @@ import           Typeclasses.HasSize (HasSize(sizeof))
 import           X86.Address (GenericAddress(..))
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
+import Generic.Address (AddressWord64)
 
 --------------------------------------------------------------------------------
 -- DATA

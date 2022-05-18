@@ -7,6 +7,7 @@ import Base
 import Pass.CFG_Gen
 import Analysis.Context
 import VerificationReportInterface
+import Generic.Address (AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

@@ -31,13 +31,6 @@ data Instruction label storage prefix opcode annotation = Instruction {
   deriving (Eq,Ord,Generic)
 
 
--- | A type for encapsulating an immediate (allows to always show hex)
-newtype AddressWord64 = AddressWord64 Word64
-  deriving (Eq,Ord,Generic)
-
-
-
-instance Cereal.Serialize AddressWord64
 instance (Cereal.Serialize label, Cereal.Serialize storage, Cereal.Serialize prefix, Cereal.Serialize opcode, Cereal.Serialize annotation) =>
          Cereal.Serialize (Instruction label storage prefix opcode annotation)
 
@@ -58,5 +51,3 @@ instance (Eq storage, Show storage,Show label,Show prefix,Show opcode,Show annot
 
     show_dest Nothing = ""
     show_dest (Just op) = show op ++ " <- "
-instance Show AddressWord64 where
-  show (AddressWord64 a) = showHex a

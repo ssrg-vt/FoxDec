@@ -22,6 +22,7 @@ import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
 import qualified X86.Operand as X86
 import qualified X86.Instruction as X86
+import Generic.Address (AddressWord64(AddressWord64))
 
 
 
