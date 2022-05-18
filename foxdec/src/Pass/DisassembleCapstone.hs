@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 {-# OPTIONS_HADDOCK hide #-}
 
-module DisassembleCapstone where
+module Pass.DisassembleCapstone where
 
 import Generic_Datastructures
 import Parser.ParserX86Instruction

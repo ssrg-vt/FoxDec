@@ -9,12 +9,12 @@ Module "VerificationReportInterface" provides functions for obtaining and interf
 -}
 
 
-module Context where
+module Analysis.Context where
 
 import Base
 import Config
-import DisassembleCapstone
-import SimplePred
+import Pass.DisassembleCapstone
+import Data.SimplePred
 import Generic_Datastructures
 import X86_Datastructures
 

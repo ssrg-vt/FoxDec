@@ -4,14 +4,15 @@ module Transformer where
 
 
 import Base
-import SimplePred
-import Context
+import Data.SimplePred
+import Analysis.Context
 import X86_Datastructures
 import VerificationReportInterface
-import SymbolicExecution
-import Pointers
+import Analysis.SymbolicExecution
+import Data.Pointers
 import qualified IR.X86 as X86
 import IR.Generic (programControlFlow)
+import Algorithm.Dominance (domFrontier)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -70,7 +71,7 @@ ctxt_transform ctxt entry = do
   let (_,tree) = G.asGraph $ G.domTree (root,g)
   putStrLn $ "\nDOMINANCE FRONTIERS:"
   forM_ (IM.keys g) (\v ->
-    putStrLn $ show (v,dominance_frontier g tree v)
+    putStrLn $ show (v,domFrontier g tree v)
    )
 
   -- explicitize dataflow

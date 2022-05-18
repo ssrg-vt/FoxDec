@@ -24,37 +24,37 @@ source-repository head
 
 library
   exposed-modules:
-      ACode_Gen
-      Algo.Dominance
+      Algorithm.Dominance
+      Algorithm.SCC
+      Analysis.Context
+      Analysis.Propagation
+      Analysis.SymbolicExecution
       Base
-      CallGraph
-      CFG_Gen
       Config
-      Context
-      ControlFlow
-      Conventions
-      DisassembleCapstone
+      Data.CallGraph
+      Data.ControlFlow
+      Data.MachineState
+      Data.Pointers
+      Data.SimplePred
       Generic_Datastructures
       IR.Generic
       IR.PreSSA
       IR.SSA
       IR.X86
-      MachineState
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction
+      Pass.ACode_Gen
+      Pass.CFG_Gen
       Pass.ConstructSSA
+      Pass.DisassembleCapstone
       Pass.Mem2Var
       Pass.Reg2Var
-      Pointers
-      Propagation
-      SCC
-      SimplePred
-      SymbolicExecution
       VerificationReportInterface
+      X86.Conventions
       X86_Datastructures
   other-modules:
       Paths_foxdec

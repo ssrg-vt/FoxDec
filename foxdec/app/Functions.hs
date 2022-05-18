@@ -4,10 +4,10 @@ module Functions where
 
 
 import Base
-import SimplePred
-import Context
+import Data.SimplePred
+import Analysis.Context
 import X86_Datastructures
-import CallGraph
+import Data.CallGraph
 import VerificationReportInterface
 
 import qualified Data.Map as M

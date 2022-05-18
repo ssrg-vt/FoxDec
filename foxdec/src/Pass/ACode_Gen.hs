@@ -1,11 +1,11 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_HADDOCK hide #-}
 
-module ACode_Gen where
+module Pass.ACode_Gen where
 
-import Context
-import SCC 
-import ControlFlow
+import Analysis.Context
+import Algorithm.SCC 
+import Data.ControlFlow
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS

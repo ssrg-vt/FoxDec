@@ -4,11 +4,11 @@ module Invariants where
 
 
 import Base
-import CFG_Gen
-import Context
+import Pass.CFG_Gen
+import Analysis.Context
 import X86_Datastructures
 import VerificationReportInterface
-import Propagation
+import Analysis.Propagation
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

@@ -7,7 +7,7 @@ import System.Console.ArgParser
 
 
 import Base
-import Context
+import Analysis.Context
 import Config
 import X86_Datastructures
 import Generic_Datastructures
@@ -16,16 +16,16 @@ import Parser.ParserSymbols
 import Parser.ParserSections
 import Parser.ParserIndirections
 import Parser.ParserCalls 
-import CFG_Gen
-import SymbolicExecution
-import SimplePred
-import MachineState
-import ACode_Gen
-import Propagation
-import CallGraph
-import Conventions
-import ControlFlow
-import Pointers
+import Pass.CFG_Gen
+import Analysis.SymbolicExecution
+import Data.SimplePred
+import Data.MachineState
+import Pass.ACode_Gen
+import Analysis.Propagation
+import Data.CallGraph
+import X86.Conventions
+import Data.ControlFlow
+import Data.Pointers
 
 import Numeric (readHex)
 import Control.Monad.State.Strict

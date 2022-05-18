@@ -4,13 +4,13 @@ module Postconditions where
 
 
 import Base
-import SimplePred
-import Context
+import Data.SimplePred
+import Analysis.Context
 import X86_Datastructures
-import CallGraph
+import Data.CallGraph
 import VerificationReportInterface
-import Propagation
-import Pointers
+import Analysis.Propagation
+import Data.Pointers
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM

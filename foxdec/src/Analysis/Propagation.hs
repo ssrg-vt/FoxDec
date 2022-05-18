@@ -12,16 +12,16 @@ Given these functions, we provide a generic abstract interpretation algorithm.
 
 
 
-module Propagation (
+module Analysis.Propagation (
   Propagator(..),
   do_prop,
   supremum
  ) where
 
 import Base
-import Context
+import Analysis.Context
+import Data.ControlFlow
 import X86_Datastructures
-import ControlFlow
 
 import qualified Data.Map as M
 import qualified Data.Set as S

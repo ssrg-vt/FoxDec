@@ -1,4 +1,4 @@
-module Algo.Dominance
+module Algorithm.Dominance
     (domFrontier) where
 
 import qualified Data.Graph.Dom                as G

@@ -41,15 +41,15 @@ module VerificationReportInterface
   )
 where
 
+import Analysis.Context
+import Analysis.SymbolicExecution
 import Base
-import Context
-import SimplePred
+import Data.CallGraph
+import Data.ControlFlow
+import Data.Pointers
+import Data.SimplePred
+import Pass.CFG_Gen
 import X86_Datastructures
-import CallGraph
-import CFG_Gen
-import SymbolicExecution
-import ControlFlow
-import Pointers
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM

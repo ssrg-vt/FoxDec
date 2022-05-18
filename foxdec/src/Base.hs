@@ -8,7 +8,7 @@ Description : Some base functions, imported by almost all other modules.
 
 module Base where
 
-import SCC
+import Algorithm.SCC
 
 import qualified Data.Map as M
 import qualified Data.Set as S

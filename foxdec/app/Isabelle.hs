@@ -5,14 +5,14 @@ module Isabelle where
 
 
 import Base
-import SimplePred
-import Context
+import Data.SimplePred
+import Analysis.Context
 import X86_Datastructures
 import Generic_Datastructures
-import SymbolicExecution
-import MachineState
-import ControlFlow
-import Pointers
+import Analysis.SymbolicExecution
+import Data.MachineState
+import Data.ControlFlow
+import Data.Pointers
 import VerificationReportInterface
 
 import qualified Data.Map as M

@@ -2,7 +2,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 
-module SCC where
+module Algorithm.SCC where
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS

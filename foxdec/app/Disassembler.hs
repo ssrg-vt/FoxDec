@@ -4,8 +4,8 @@ module Disassembler where
 
 
 import Base
-import SimplePred
-import Context
+import Data.SimplePred
+import Analysis.Context
 import X86_Datastructures
 import VerificationReportInterface
 

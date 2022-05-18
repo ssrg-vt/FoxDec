@@ -9,7 +9,7 @@ Description : Functions for resolving symbolic memory reads and writes.
 These functions are defined using the @State (Pred,VCS)@ monad.
 Both the read- and write function may update the current predicate, as well as introduce new verification conditions.
 -}
-module MachineState (
+module Data.MachineState (
   read_reg,
   write_reg,
   read_mem,
@@ -24,14 +24,14 @@ module MachineState (
  )
  where
 
+import Analysis.Context
 import Base
-import SimplePred
-import Context
-import Conventions
-import X86_Datastructures
+import Data.ControlFlow
+import Data.Pointers
+import Data.SimplePred
 import Generic_Datastructures
-import ControlFlow
-import Pointers
+import X86.Conventions
+import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S

@@ -4,7 +4,7 @@
 Module      : Pointers
 Description : Functions for dealing with symbolic pointers and abstraction.
 -}
-module Pointers (
+module Data.Pointers (
    FContext (..),
    mk_fcontext,
    get_pointer_domain,
@@ -32,12 +32,12 @@ module Pointers (
   )
   where
 
+import Analysis.Context
 import Base
-import SimplePred
-import Context
-import X86_Datastructures
-import ControlFlow
 import Config
+import Data.ControlFlow
+import Data.SimplePred
+import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S

@@ -5,7 +5,7 @@ Module      : CFG_Gen
 Description : Contains functions pertaining to control flow graph generation.
 -}
 
-module CFG_Gen (
+module Pass.CFG_Gen (
    cfg_gen,
    cfg_to_dot,
    is_end_node,
@@ -14,15 +14,15 @@ module CFG_Gen (
  )
  where
 
+import Algorithm.SCC
+import Analysis.Context
+import Analysis.Propagation
+import Analysis.SymbolicExecution
 import Base
-import Context
-import MachineState
-import SimplePred
-import Propagation
-import Conventions
-import SCC
-import SymbolicExecution
-import ControlFlow
+import Data.ControlFlow
+import Data.MachineState
+import Data.SimplePred
+import X86.Conventions
 import Generic_Datastructures
 import X86_Datastructures
 

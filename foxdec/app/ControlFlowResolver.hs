@@ -4,8 +4,8 @@ module ControlFlowResolver where
 
 
 import Base
-import CFG_Gen
-import Context
+import Pass.CFG_Gen
+import Analysis.Context
 import X86_Datastructures
 import VerificationReportInterface
 

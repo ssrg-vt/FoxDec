@@ -4,16 +4,16 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 
-module CallGraph where
+module Data.CallGraph where
 
+import Analysis.Context
 import Base
-import Context
-import SimplePred
-import X86_Datastructures
+import Data.ControlFlow
+import Data.MachineState
+import Data.Pointers
+import Data.SimplePred
 import Generic_Datastructures
-import MachineState
-import ControlFlow
-import Pointers
+import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S

@@ -11,7 +11,7 @@ module IR.X86
     , canonicalize) where
 
 import           Base (showHex)
-import           Context (CFG(..), Context(..))
+import           Analysis.Context (CFG(..), Context(..))
 import qualified IR.Generic as Generic
 import           IR.Generic (mapP)
 import qualified Data.IntMap as IM

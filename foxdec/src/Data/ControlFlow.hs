@@ -10,7 +10,7 @@ resolving the targets of jumps and calls.
 
 
 
-module ControlFlow (
+module Data.ControlFlow (
    ResolvedJumpTarget(..),
    post,
    fetch_block,
@@ -28,12 +28,12 @@ module ControlFlow (
  )
  where
 
+import Algorithm.SCC
+import Analysis.Context
 import Base
-import Context
-import SimplePred
-import Conventions
-import SCC
+import Data.SimplePred
 import Generic_Datastructures
+import X86.Conventions
 import X86_Datastructures
 
 import qualified Data.IntMap as IM

@@ -9,7 +9,7 @@ on equalities between the current values stored in state parts (lhs)
 and constant expressions (rhs).
 -}
 
-module SimplePred ( 
+module Data.SimplePred ( 
   Pred (..),
   StatePart (..),
   SimpleExpr (..),

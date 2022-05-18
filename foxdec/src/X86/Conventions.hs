@@ -3,7 +3,7 @@ Module      : Conventions
 Description : In this file, we eumerate assumptions made on calling conventions and over external functions.
 -}
 
-module Conventions where
+module X86.Conventions where
 
 import X86_Datastructures
 import Base

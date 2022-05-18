@@ -6,7 +6,7 @@ Module      : SimplePred
 Description : Symbolic execution of sequential lists of instructions of type @"X86_Instruction"@ on predicates of type @"Pred"@.
 -}
 
-module SymbolicExecution (
+module Analysis.SymbolicExecution (
   tau_block,
   init_pred,
   gather_stateparts,
@@ -15,17 +15,17 @@ module SymbolicExecution (
   get_invariant
   ) where
 
+import Analysis.Context
+import Analysis.Propagation
 import Base
 import Config
-import SimplePred
-import Context
-import MachineState
-import Propagation
-import X86_Datastructures
+import Data.ControlFlow
+import Data.MachineState
+import Data.Pointers
+import Data.SimplePred
 import Generic_Datastructures
-import Conventions
-import ControlFlow
-import Pointers
+import X86.Conventions
+import X86_Datastructures
 
 import qualified Data.Map as M
 import qualified Data.Set as S

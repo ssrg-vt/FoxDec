@@ -21,7 +21,7 @@ import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
 
-import Context
+import Analysis.Context
 
 isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True

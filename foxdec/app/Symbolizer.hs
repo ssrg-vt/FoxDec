@@ -4,12 +4,12 @@ module Symbolizer where
 
 
 import Base
-import CFG_Gen
-import Context
+import Pass.CFG_Gen
+import Analysis.Context
 import X86_Datastructures
 import Generic_Datastructures
 import VerificationReportInterface
-import ControlFlow
+import Data.ControlFlow
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
