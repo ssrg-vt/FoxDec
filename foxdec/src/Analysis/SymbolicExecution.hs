@@ -48,8 +48,8 @@ import Typeclasses.HasSize (sizeof)
 import Typeclasses.HasAddress (addressof)
 import Generic.Operand (GenericOperand(..))
 import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
-import X86.Instruction (GenericInstruction(Instruction))
-import qualified X86.Instruction as Instr
+import Generic.Instruction (GenericInstruction(Instruction))
+import qualified Generic.Instruction as Instr
 
 -- | Forward transposition
 -- If the current invariant states:

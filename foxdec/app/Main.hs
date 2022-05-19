@@ -27,8 +27,8 @@ import Data.Pointers
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isCall)
 import qualified X86.Instruction as X86
-import qualified X86.Instruction as Instr
-import           Generic.Operand (GenericOperand(..))
+import qualified Generic.Instruction as Instr
+import Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
 import Typeclasses.HasAddress (addressof)
 

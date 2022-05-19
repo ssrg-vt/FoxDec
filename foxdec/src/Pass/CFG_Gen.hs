@@ -41,7 +41,7 @@ import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
 import qualified X86.Instruction as X86
 import Typeclasses.HasSize (sizeof)
 import Typeclasses.HasAddress (addressof)
-import qualified X86.Instruction as Instr
+import qualified Generic.Instruction as Instr
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
 split_graph' a g = 

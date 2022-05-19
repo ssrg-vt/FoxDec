@@ -54,8 +54,8 @@ import Typeclasses.HasSize (sizeof)
 import Typeclasses.HasAddress (addressof)
 import Generic.Address (GenericAddress(..))
 import Generic.Operand (GenericOperand(..))
-import X86.Instruction (GenericInstruction(Instruction))
-import qualified X86.Instruction as Instr
+import Generic.Instruction (GenericInstruction(Instruction))
+import qualified Generic.Instruction as Instr
 
 
 

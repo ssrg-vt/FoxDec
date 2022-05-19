@@ -23,7 +23,7 @@ import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
 import X86.Opcode (isCall)
-import qualified X86.Instruction as Instr
+import qualified Generic.Instruction as Instr
 import Typeclasses.HasAddress (addressof)
 
 pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)

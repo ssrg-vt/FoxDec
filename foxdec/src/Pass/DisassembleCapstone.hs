@@ -21,7 +21,8 @@ import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
 import qualified X86.Operand as X86
 import qualified X86.Instruction as X86
-import Generic.Address (AddressWord64(AddressWord64))
+import Generic.Address (AddressWord64(..))
+import Generic.Instruction (GenericInstruction(..))
 
 
 
@@ -84,7 +85,7 @@ mk_instr cs_instr =
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
-      i             = X86.Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
+      i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
     if m == InvalidOpcode then
       error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
     else if prefix == Just InvalidPrefix then

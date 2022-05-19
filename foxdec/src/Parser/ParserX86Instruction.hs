@@ -35,10 +35,9 @@ import System.Directory (doesFileExist)
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
-import X86.Operand (GenericOperand(..))
-import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
-import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
-import X86.Instruction (GenericInstruction(Instruction))
+import Generic.Operand (GenericOperand(..))
+import Generic.Address (GenericAddress(..),AddressWord64(..))
+import Generic.Instruction ( GenericInstruction(Instruction) ) 
 
 jumps_and_calls_are_relative = False -- TODO make configurable
 

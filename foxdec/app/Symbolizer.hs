@@ -9,13 +9,13 @@ import Analysis.Context
 import VerificationReportInterface
 import Data.ControlFlow
 import X86.Register (Register(..))
-import X86.Instruction (GenericInstruction(..))
+import Generic.Instruction (GenericInstruction(..))
 import X86.Opcode (Opcode(..), isCall, isJump, isCondJump, isRet)
 import qualified X86.Instruction as X86
-import qualified X86.Instruction as Instr
+import qualified Generic.Instruction as Instr
 import Typeclasses.HasSize(sizeof)
 import Typeclasses.HasAddress(addressof)
-import           Generic.Operand (GenericOperand(..))
+import Generic.Operand (GenericOperand(..))
 import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
 
 import qualified Data.Map as M

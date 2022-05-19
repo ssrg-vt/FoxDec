@@ -10,6 +10,8 @@ import           Data.ControlFlow (isTerminal)
 import           Analysis.Context (Context(..), CFG(..))
 import           Generic.Program (GenericProgram(..))
 import           Generic.BasicBlock (GenericBasicBlock(..))
+import qualified Generic.Program as Prog
+import qualified X86.Instruction as Instr
 import qualified X86.Instruction as X86
 
 type Program = GenericProgram X86.Instruction
@@ -29,3 +31,6 @@ fromContext ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
           terminals = filter (isTerminal cfg) $ IM.keys (cfg_blocks cfg)
           edges' = IM.fromList $ (, IS.empty) <$> terminals
       in Program blocks (0, IM.unionWith IS.union edges edges')
+
+canonicalize :: Program -> Program
+canonicalize = Prog.mapBasicBlocks (>>= BasicBlock <$> Instr.canonicalize)
