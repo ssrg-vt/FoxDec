@@ -33,3 +33,10 @@ instance Show storage => Show (GenericAddress storage) where
 
 instance Show AddressWord64 where
   show (AddressWord64 a) = showHex a
+
+instance Functor GenericAddress where
+  fmap f (AddressStorage s) = AddressStorage $ f s
+  fmap f (AddressImm val) = AddressImm val
+  fmap f (AddressMinus a1 a2) = AddressMinus (f <$> a1) (f <$> a2)
+  fmap f (AddressPlus a1 a2) = AddressPlus (f <$> a1) (f <$> a2)
+  fmap f (AddressTimes a1 a2) = AddressTimes (f <$> a1) (f <$> a2)

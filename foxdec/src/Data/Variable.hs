@@ -1,12 +1,14 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Data.Variable (Variable(..), VariableConversion(..), isSSA) where
+module Data.Variable (Variable(..), VariableConversion(..), isSSA, fromRegister) where
 
 import           Data.Maybe (isJust)
 import           GHC.Generics (Generic)
 import           Base (orElse)
 import qualified Data.Serialize as Cereal
+import           X86.Register (Register)
+import           Typeclasses.HasSize (sizeof)
 
 -- | A mutable or immutable variable
 data Variable =
@@ -30,6 +32,9 @@ instance Cereal.Serialize VariableConversion
 
 isSSA :: Variable -> Bool
 isSSA Variable { index } = isJust index
+
+fromRegister :: Register -> Variable
+fromRegister r = Variable (show r) Nothing (sizeof r)
 
 instance Show Variable where
   show (Variable name index size) =

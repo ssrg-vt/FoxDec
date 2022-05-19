@@ -58,6 +58,7 @@ library
       Pass.ACode_Gen
       Pass.CFG_Gen
       Pass.DisassembleCapstone
+      Pass.Reg2Var
       Typeclasses.HasAddress
       Typeclasses.HasSize
       VerificationReportInterface

@@ -39,3 +39,9 @@ instance (HasSize storage) => HasSize (GenericOperand storage) where
   sizeof (Memory _ si) = si
   sizeof (EffectiveAddress _) = 8
   sizeof (Immediate _) = 8
+
+instance Functor GenericOperand where
+  fmap f (Memory addr size) = Memory (f <$> addr) size
+  fmap f (EffectiveAddress addr) = EffectiveAddress $ f <$> addr
+  fmap f (Storage s) = Storage $ f s
+  fmap _ (Immediate imm) = Immediate imm
