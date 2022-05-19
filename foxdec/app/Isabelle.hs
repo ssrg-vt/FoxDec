@@ -15,9 +15,9 @@ import Data.ControlFlow
 import Data.Pointers
 import VerificationReportInterface
 import Typeclasses.HasSize(sizeof)
-import X86.Address (GenericAddress(..))
+import Typeclasses.HasAddress(addressof)
 import           Generic.Operand (GenericOperand(..))
-import Generic.Address (AddressWord64(AddressWord64))
+import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
 import qualified X86.Instruction as Instr
 
 import qualified Data.Map as M
@@ -126,7 +126,7 @@ instr_to_hoare_triple fctxt fname all_precs all_asserts p i = do
   -- filter separations relevant for p
   let isa_precs = mk_isa_preconditions $ S.unions $ map (get_relevant_precs_for fctxt p i) $ S.toList all_precs
 
-  let htriple_name = "ht_" ++ (showHex $ Instr.addr i)
+  let htriple_name = "ht_" ++ (showHex $ addressof i)
   appendFile fname $ 
       "htriple "        ++ mk_quote htriple_name ++ "\n" ++
       " Separations \"" ++ isa_precs ++ "\"\n" ++
@@ -148,7 +148,7 @@ mk_isa_preconditions precs = intercalate "; " $ map mk_isa_precondition $ S.toLi
 mk_isa_precondition (Precondition a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1
    
 mk_isa_asserts i all_asserts = 
-  let a'      = Instr.addr i + fromIntegral (sizeof i)
+  let a'      = addressof i + fromIntegral (sizeof i)
       asserts = S.filter (\(Assertion a _ _ _ _) -> a == SE_Immediate a') all_asserts in
     intercalate "; " (map mk_assertion $ S.toList asserts)
 mk_assertion (Assertion _ a0 si0 a1 si1) = mk_isa_separation a0 si0 a1 si1   
@@ -169,7 +169,7 @@ mk_instr fctxt i =
   if isCall (Instr.opcode i) || (isJump (Instr.opcode i) && instruction_jumps_to_external (f_ctxt fctxt) i) then
     let fname = function_name_of_instruction (f_ctxt fctxt) i
         call  = if isJump (Instr.opcode i) then "ExternalCallWithReturn" else "ExternalCall" in
-      showHex (Instr.addr i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (sizeof i)
+      showHex (addressof i) ++ ": " ++ call ++ " " ++ mk_safe_isa_fun_name fname ++ " " ++ show (sizeof i)
   else
     show i
 
@@ -236,7 +236,7 @@ get_relevant_precs_for ctxt p i prec =
   operand_to_statepart p _ _             = []
 
   resolve_address_of_operand i a = do
-    write_reg ctxt (Instr.addr i) RIP (SE_Immediate $ Instr.addr i + (fromIntegral $ sizeof i))
+    write_reg ctxt (addressof i) RIP (SE_Immediate $ addressof i + (fromIntegral $ sizeof i))
     resolve_address ctxt a
 
 

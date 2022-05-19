@@ -14,9 +14,9 @@ import X86.Opcode (Opcode(..), isCall, isJump, isCondJump, isRet)
 import qualified X86.Instruction as X86
 import qualified X86.Instruction as Instr
 import Typeclasses.HasSize(sizeof)
-import X86.Address (GenericAddress(..))
+import Typeclasses.HasAddress(addressof)
 import           Generic.Operand (GenericOperand(..))
-import Generic.Address (AddressWord64(AddressWord64))
+import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -183,7 +183,7 @@ symbolize_cfg ctxt entry cfg =
 symbolize_block ctxt entry cfg (blockID, instrs) = 
   intercalate "\n" $ block_header : symbolyzed_block
  where
-  block_header = comment $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (Instr.addr $ head instrs)
+  block_header = comment $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (addressof $ head instrs)
   symbolyzed_block = [block_label'] ++ block_body ++ [block_end]
 
   block_label' = block_label entry blockID ++ ":"
@@ -196,7 +196,7 @@ symbolize_block ctxt entry cfg (blockID, instrs) =
   is_proper_block_end_instruction i = isRet i || isJump i 
 
   mk_extra_jmp =
-    case unsafePerformIO $ stepA ctxt entry (fromIntegral $ Instr.addr $ last instrs) of -- TODO, also TODO assumes fall through is last/second
+    case unsafePerformIO $ stepA ctxt entry (fromIntegral $ addressof $ last instrs) of -- TODO, also TODO assumes fall through is last/second
       Right []        -> ""
       Right [(a,_)]   -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
       Right [_,(a,_)] -> indent $ "JMP " ++ (symbolize_address ctxt entry cfg $ fromIntegral a) ++ "     ; inserted\n"
@@ -253,7 +253,7 @@ symbolize_address ctxt entry cfg imm =
   -- search for a block in the current cfg that starts at @imm@, and if found, make a label for it
   label_in_current_cfg = ((block_label entry . fst) <$> find block_starts_at (IM.toList $ cfg_instrs cfg))
 
-  block_starts_at (blockId, instrs) = instrs /= [] && Instr.addr (head instrs) == fromIntegral imm
+  block_starts_at (blockId, instrs) = instrs /= [] && addressof (head instrs) == fromIntegral imm
 
 
 
@@ -305,8 +305,8 @@ show_nasm_address ctxt entry cfg i address =
     _                      -> show_nasm_address'' address
  where
   rip_relative_to_immediate (AddressImm imm)                          = Just $ imm
-  rip_relative_to_immediate (AddressPlus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (Instr.addr i) + fromIntegral (sizeof i) + fromIntegral imm
-  rip_relative_to_immediate (AddressPlus (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (Instr.addr i) + fromIntegral (sizeof i) + fromIntegral imm
+  rip_relative_to_immediate (AddressPlus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (addressof i) + fromIntegral (sizeof i) + fromIntegral imm
+  rip_relative_to_immediate (AddressPlus (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (addressof i) + fromIntegral (sizeof i) + fromIntegral imm
   rip_relative_to_immediate _                                      = Nothing
 
 
@@ -344,7 +344,7 @@ find_block_for_instruction ctxt a =
     x   -> trace ("Address " ++ showHex a ++ " has instruction but no block") $ Nothing
   
 find_block_for_instruction_address_in_cfg a (entry,cfg) = 
-  return_entry_and_blockID <$> (find (\(blockID,instrs) -> Instr.addr (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
+  return_entry_and_blockID <$> (find (\(blockID,instrs) -> addressof (head instrs) == a) $ IM.toList $ cfg_instrs cfg)
  where
   return_entry_and_blockID (blockID,instrs) = (entry,blockID)
 

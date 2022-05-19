@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "addressof",
         "annot",
         "cfgs",
         "controlfow",
@@ -20,6 +21,7 @@
         "srcs",
         "stmts",
         "succ",
+        "Typeclasses",
         "XCHG",
         "XMMWORD",
         "YMMWORD"

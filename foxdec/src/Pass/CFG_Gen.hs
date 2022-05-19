@@ -40,6 +40,7 @@ import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
 import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
 import qualified X86.Instruction as X86
 import Typeclasses.HasSize (sizeof)
+import Typeclasses.HasAddress (addressof)
 import qualified X86.Instruction as Instr
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
@@ -166,7 +167,7 @@ is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctx
 resolve_call ctxt entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
-      Right [(fromIntegral (Instr.addr i) + sizeof i,True)] -- Right []
+      Right [(fromIntegral (addressof i) + sizeof i,True)] -- Right []
     else 
       let nexts          = map next resolved_addresses
           (lefts,rights) = partitionEithers nexts in
@@ -180,7 +181,7 @@ resolve_call ctxt entry i =
     if is_exiting_function_call sym then
       Right []
     else
-      Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
+      Right [(fromIntegral (addressof i) + sizeof i,True)]
   next (ImmediateAddress a') =
     -- call to an immediate address
     if not $ is_new_function_call_to_be_analyzed ctxt (fromIntegral a') then
@@ -190,10 +191,10 @@ resolve_call ctxt entry i =
         Right []
       else
         -- verified and returning
-        Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
+        Right [(fromIntegral (addressof i) + sizeof i,True)]
     else if graph_is_edge (ctxt_entries ctxt) entry (fromIntegral a') then
       -- recursion
-      Right [(fromIntegral (Instr.addr i) + sizeof i,True)]
+      Right [(fromIntegral (addressof i) + sizeof i,True)]
     else
       -- new function, stop CFG generation here
       Left [fromIntegral a']

@@ -24,6 +24,7 @@ import Data.Maybe (fromJust)
 import Debug.Trace
 import X86.Opcode (isCall)
 import qualified X86.Instruction as Instr
+import Typeclasses.HasAddress (addressof)
 
 pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
 pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
@@ -201,7 +202,7 @@ function_pointer_intros ctxt cfg = IS.empty -- IS.unions $ map get_function_poin
  where
   get_function_pointers_of_call i =
     if isCall (Instr.opcode i) then -- TODO or jump?
-      IS.unions $ S.map (get_function_pointers $ Instr.addr i) $ (S.unions $ ctxt_vcs ctxt)
+      IS.unions $ S.map (get_function_pointers $ addressof i) $ (S.unions $ ctxt_vcs ctxt)
     else
       IS.empty
 

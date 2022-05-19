@@ -30,6 +30,7 @@ import qualified X86.Instruction as X86
 import qualified X86.Instruction as Instr
 import           Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
+import Typeclasses.HasAddress (addressof)
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -243,7 +244,7 @@ ctxt_get_new_calls entry = do
 
   trgt_to_finit fctxt i (ImmediateAddress trgt) =
    let ctxt = f_ctxt fctxt in
-    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant fctxt $ fromIntegral $ Instr.addr i) of
+    case (IM.lookup (fromIntegral trgt) $ ctxt_calls ctxt, IM.lookup (fromIntegral trgt) $ ctxt_finits ctxt, get_invariant fctxt $ fromIntegral $ addressof i) of
       (Nothing,Nothing,Just inv) -> Just $ (fromIntegral trgt,invariant_to_finit fctxt inv)
       (_,Just finit,Just inv)    -> do
         let finit' = join_finit fctxt (invariant_to_finit fctxt inv) finit
@@ -833,17 +834,17 @@ ctxt_analyze_unresolved_indirections entry = do
       to_out $ "Instruction = " ++ show i
       to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ show value
       to_out $ "Updated file: " ++ fname
-      liftIO $ appendFile fname $ showHex (Instr.addr i) ++ " " ++ show [value] ++ "\n"
+      liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show [value] ++ "\n"
 
       inds <- gets ctxt_inds
-      let inds' = IM.insert (fromIntegral $ Instr.addr i) (IndirectionResolved value) inds -- TODO check if already exists
+      let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionResolved value) inds -- TODO check if already exists
       put $ ctxt { ctxt_inds = inds' }
 
       return True
     else case flagstatus_to_tries max_tries flg of
       Nothing      -> return False
       Just (op1,n) -> do
-        let values1 = map (\n -> evalState (try fctxt f (Instr.addr i) g b op1 trgt n) (p,S.empty)) [0..n]
+        let values1 = map (\n -> evalState (try fctxt f (addressof i) g b op1 trgt n) (p,S.empty)) [0..n]
 
         if values1 == [] || any ((==) Nothing) values1 then do
           -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
@@ -856,10 +857,10 @@ ctxt_analyze_unresolved_indirections entry = do
           to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
           to_out $ "Because of bounded jump table access: " ++ show flg
           to_out $ "Updated file: " ++ fname
-          liftIO $ appendFile fname $ showHex (Instr.addr i) ++ " " ++ showHex_list trgts ++ "\n"
+          liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ showHex_list trgts ++ "\n"
 
           inds <- gets ctxt_inds
-          let inds' = IM.insert (fromIntegral $ Instr.addr i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
+          let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
           put $ ctxt { ctxt_inds = inds' }
 
           return True

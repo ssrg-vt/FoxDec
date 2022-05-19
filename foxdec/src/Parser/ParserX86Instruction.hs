@@ -24,7 +24,7 @@ import Text.ParserCombinators.Parsec.Number
 import Text.Parsec.Expr
 import Data.Char
 import Debug.Trace
-import Data.Maybe 
+import Data.Maybe
 import Data.List
 import Data.Word (Word64)
 import Data.Bits (shiftL)
@@ -35,10 +35,9 @@ import System.Directory (doesFileExist)
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..))
 import X86.Prefix (Prefix(..))
-import X86.Address (GenericAddress(..))
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
-import Generic.Address (AddressWord64(AddressWord64))
+import Generic.Address (GenericAddress(..),AddressWord64(AddressWord64))
 import X86.Instruction (GenericInstruction(Instruction))
 
 jumps_and_calls_are_relative = False -- TODO make configurable
@@ -48,7 +47,7 @@ isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True
 isWhiteSpace '\v' = True
 isWhiteSpace ' '  = True
-isWhiteSpace _    = False 
+isWhiteSpace _    = False
 
 whitespace  = satisfy isWhiteSpace <?> "white space"
 whitespaces = skipMany whitespace <?> "white spaces"
@@ -70,7 +69,7 @@ parseMnemonic s =
 --}
 mnemonic = try (do
   m <- many1 alphaNum
-  let m' = read_opcode $ map toUpper m 
+  let m' = read_opcode $ map toUpper m
   case m' of
     InvalidOpcode -> fail ("Invalid mnemonic: " ++ m)
     _ -> return $ m'
@@ -96,7 +95,7 @@ isRegisterChar c = isAlphaNum c || c `elem` "_lh()"
 register =
   try (do
     m <- many1 (satisfy isRegisterChar)
-    let m' = read_regname $ map toUpper m 
+    let m' = read_regname $ map toUpper m
     case m' of
       InvalidRegister -> fail ("Invalid register: " ++ m)
       _ -> return $ m'
@@ -107,7 +106,7 @@ register =
 parsePrefix :: [Char] -> Prefix
 parsePrefix "REPE" = REPZ
 parsePrefix "repe" = REPZ
-parsePrefix s = 
+parsePrefix s =
   case readsPrec 5 $ map toUpper s of
     [(m,s')] -> m
     _ -> InvalidPrefix
@@ -115,7 +114,7 @@ parsePrefix s =
 prefix =
   try (do
     m <- many1 alphaNum
-    let m' = parsePrefix m 
+    let m' = parsePrefix m
     case m' of
       InvalidPrefix -> fail ("Invalid prefix: " ++ m)
       _ -> return $ m'
@@ -132,7 +131,7 @@ address_term =
  <|>
  (int <&>  AddressImm)
 
-size_directive = 
+size_directive =
       (try (string "ymmword ptr" >> return 32))
   <|> (try (string "xmmword ptr" >> return 16))
   <|> (string "tbyte ptr" >> return 10)
@@ -215,7 +214,7 @@ address_expr_inner =
   ))
   <|> addr_expr0
 
-op_address = 
+op_address =
   (try (do
     whitespaces
     s <- size_directive
@@ -231,7 +230,7 @@ op_address =
     whitespaces
     char ']'
     return $ EffectiveAddress a
-  )) 
+  ))
   <|> (try (do
     whitespaces
     r <- register
@@ -260,7 +259,7 @@ op_immediate_0x = try (do
   return $ Immediate (if sign == "-" then 0 - i else i)
  )
 
-operand = 
+operand =
       op_immediate_0x
   <|> op_address
   <|> op_reg
@@ -287,7 +286,7 @@ comment = do
   char '#'
   skipMany (noneOf "\n")
 ---}
-  
+
 
 hexnum_with_0x = do
   string "0x"
@@ -302,7 +301,7 @@ instruction = do
   whitespaces
   p <- optionMaybe prefix
   whitespaces
-  m <- mnemonic 
+  m <- mnemonic
   whitespaces
   op1 <- optionMaybe operand
   whitespaces
@@ -534,7 +533,7 @@ read_opcode "INVPCID" = INVPCID
 read_opcode "IRET" = IRET
 read_opcode "IRETD" = IRETD
 read_opcode "IRETQ" = IRETQ
-read_opcode "JA" = JA  
+read_opcode "JA" = JA
 read_opcode "JAE" = JAE
 read_opcode "JB" = JB
 read_opcode "JBE" = JBE
@@ -606,7 +605,7 @@ read_opcode "MINPS" = MINPS
 read_opcode "MINSD" = MINSD
 read_opcode "MINSS" = MINSS
 read_opcode "MONITOR" = MONITOR
-read_opcode "MOV" = MOV 
+read_opcode "MOV" = MOV
 read_opcode "MOVABS" = MOVABS
 read_opcode "MOVAPD" = MOVAPD
 read_opcode "MOVAPS" = MOVAPS
@@ -739,9 +738,9 @@ read_opcode "PSUBUSB" = PSUBUSB
 read_opcode "PSUBUSW" = PSUBUSW
 read_opcode "PSUBW" = PSUBW
 read_opcode "PTEST" = PTEST
-read_opcode "PUNPCKLBW" = PUNPCKLBW 
+read_opcode "PUNPCKLBW" = PUNPCKLBW
 read_opcode "PUNPCKLWD" = PUNPCKLWD
-read_opcode "PUNPCKLDQ" = PUNPCKLDQ 
+read_opcode "PUNPCKLDQ" = PUNPCKLDQ
 read_opcode "PUNPCKLQDQ" = PUNPCKLQDQ
 read_opcode "PUSH" = PUSH
 read_opcode "PUSHA" = PUSHA
@@ -893,8 +892,8 @@ read_opcode "VPUNPCKLWD" = VPUNPCKLWD
 read_opcode "VPUNPCKHWD" = VPUNPCKHWD
 read_opcode "VSUBPD" = VSUBPD
 read_opcode "VSUBPS" = VSUBPS
-read_opcode "VUNPCKHPS" = VUNPCKHPS 
-read_opcode "VUNPCKLPS" = VUNPCKLPS 
+read_opcode "VUNPCKHPS" = VUNPCKHPS
+read_opcode "VUNPCKLPS" = VUNPCKLPS
 read_opcode "VXORPD" = VXORPD
 read_opcode "VXORPS" = VXORPS
 read_opcode "VZEROUPPER" = VZEROUPPER
@@ -916,13 +915,13 @@ read_opcode "XORPS" = XORPS
 read_opcode _ = InvalidOpcode
 
 
-read_regname "RIP" = RIP 
+read_regname "RIP" = RIP
 read_regname "EIP" = EIP
 read_regname "RAX" = RAX
-read_regname "EAX" = EAX 
-read_regname "AX" = AX 
-read_regname "AH" = AH 
-read_regname "AL" = AL 
+read_regname "EAX" = EAX
+read_regname "AX" = AX
+read_regname "AH" = AH
+read_regname "AL" = AL
 read_regname "RBX" = RBX
 read_regname "EBX" = EBX
 read_regname "BX" = BX
@@ -949,11 +948,11 @@ read_regname "SIL" = SIL
 read_regname "RSP" = RSP
 read_regname "ESP" = ESP
 read_regname "SP" = SP
-read_regname "SPL" = SPL 
+read_regname "SPL" = SPL
 read_regname "RBP" = RBP
 read_regname "EBP" = EBP
 read_regname "BP" = BP
-read_regname "BPL" = BPL 
+read_regname "BPL" = BPL
 read_regname "R15" = R15
 read_regname "R15D" = R15D
 read_regname "R15W" = R15W
