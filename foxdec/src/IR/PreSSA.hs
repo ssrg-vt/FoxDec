@@ -1,19 +1,17 @@
 module IR.PreSSA
     ( Label
     , Storage
-    , Special(..)
     , Instruction
-    , Statement
     , Program
     , verifySSA) where
 
-import qualified IR.Generic as Generic
 import           X86.Prefix (Prefix)
 import           X86.Opcode (Opcode)
 import           Generic.Address (AddressWord64)
 import           Generic.Instruction (GenericInstruction)
 import           Data.Variable (Variable, VariableConversion)
 import           Data.Phi (Phi)
+import           Generic.Program (GenericProgram)
 
 --------------------------------------------------------------------------------
 -- DATA
@@ -22,14 +20,9 @@ type Label = AddressWord64
 
 type Storage = Variable
 
-data Special = SpecialPhi Phi
-             | SpecialConversion VariableConversion
-
 type Instruction = GenericInstruction Label Storage Prefix Opcode Int
 
-type Statement = Generic.Statement Label Storage Prefix Opcode Int Special
-
-type Program = Generic.Program Label Storage Prefix Opcode Int Special
+type Program = GenericProgram Instruction
 
 --------------------------------------------------------------------------------
 -- VERIFIER

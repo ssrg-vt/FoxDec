@@ -43,7 +43,6 @@ library
       Generic.Instruction
       Generic.Operand
       Generic.Program
-      IR.Generic
       IR.PreSSA
       IR.SSA
       IR.X86
