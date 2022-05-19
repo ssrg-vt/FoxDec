@@ -24,7 +24,8 @@ module Data.ControlFlow (
    show_block,
    show_invariants,
    function_name_of_entry,
-   function_name_of_instruction
+   function_name_of_instruction,
+   isTerminal
  )
  where
 
@@ -37,7 +38,7 @@ import X86.Conventions
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, isNothing)
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.Word (Word64)
@@ -74,12 +75,8 @@ fetch_block g blockId =
     Nothing -> error $ "Block with ID" ++ show blockId ++ " not found in cfg."
     Just b -> b
 
-
-
-
-
-
-
+isTerminal :: CFG -> IS.Key -> Bool
+isTerminal cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
 
 
 -- | Returns true iff an instruction can be fetched from the address.
