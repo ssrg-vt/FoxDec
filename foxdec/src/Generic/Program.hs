@@ -20,8 +20,7 @@ data GenericProgram instr =
 mapBasicBlocks :: (GenericBasicBlock instr1 -> GenericBasicBlock instr2)
                -> GenericProgram instr1
                -> GenericProgram instr2
-mapBasicBlocks f p@(Program bbs _) =
-  p { basicBlocks = IM.fromList $ second f <$> IM.toList bbs }
+mapBasicBlocks f p@(Program bbs _) = p { basicBlocks = f <$> bbs }
 
 mapInstructions
   :: (instr1 -> instr2) -> GenericProgram instr1 -> GenericProgram instr2
@@ -29,7 +28,7 @@ mapInstructions f = mapBasicBlocks (fmap f)
 
 foldBasicBlocks
   :: (a -> GenericBasicBlock instr -> a) -> a -> GenericProgram instr -> a
-foldBasicBlocks f a (Program bbs _) = foldl f a $ snd <$> IM.toList bbs
+foldBasicBlocks f a (Program bbs _) = IM.foldl f a bbs
 
 foldInstructions :: (instr -> a -> a) -> a -> GenericProgram instr -> a
 foldInstructions f = foldBasicBlocks (foldr f)
