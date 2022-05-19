@@ -62,6 +62,7 @@ library
       Typeclasses.HasSize
       VerificationReportInterface
       X86.Address
+      X86.BasicBlock
       X86.Conventions
       X86.Flag
       X86.Instruction
