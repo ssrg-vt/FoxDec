@@ -69,6 +69,7 @@ library
       X86.Opcode
       X86.Operand
       X86.Prefix
+      X86.Program
       X86.Register
   other-modules:
       Paths_foxdec

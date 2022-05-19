@@ -11,6 +11,7 @@
         "explicitize",
         "fmap",
         "foldl",
+        "foldr",
         "HLINT",
         "IMUL",
         "instrs",
