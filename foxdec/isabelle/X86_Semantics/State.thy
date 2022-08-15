@@ -1,9 +1,3 @@
-(*  Title:       X86 instruction semantics and basic block symbolic execution
-    Authors:     Freek Verbeek, Abhijith Bharadwaj, Joshua Bockenek, Ian Roessle, Timmy Weerwag, Binoy Ravindran
-    Year:        2020
-    Maintainer:  Freek Verbeek (freek@vt.edu)
-*)
-
 section "Concrete state and instructions"
 
 theory State

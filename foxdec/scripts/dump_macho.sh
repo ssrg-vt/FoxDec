@@ -46,7 +46,7 @@ fi
 
 # OBJDUMP
 # First, just run objdump for debugging purposes
-objdump -no-show-raw-insn -disassemble -x86-asm-syntax=intel -print-imm-hex $BINARY > $2.objdump
+objdump --no-show-raw-insn --disassemble --x86-asm-syntax=intel --print-imm-hex $BINARY > $2.objdump
 echo "Created $2.objdump"
 
 # SYMBOLS

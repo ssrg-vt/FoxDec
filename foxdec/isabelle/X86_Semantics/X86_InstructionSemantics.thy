@@ -1,9 +1,3 @@
-(*  Title:       X86 instruction semantics and basic block symbolic execution
-    Authors:     Freek Verbeek, Abhijith Bharadwaj, Joshua Bockenek, Ian Roessle, Timmy Weerwag, Binoy Ravindran
-    Year:        2020
-    Maintainer:  Freek Verbeek (freek@vt.edu)
-*)
-
 section "Instruction Semantics"
 
 theory X86_InstructionSemantics
@@ -411,8 +405,8 @@ definition MUL_flags :: "'a::len word \<Rightarrow> string \<Rightarrow> bool"
 
 definition IMUL_flags :: "'a::len word \<Rightarrow> string \<Rightarrow> bool"
   where "IMUL_flags result flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> (\<langle>LENGTH('a) div 2,LENGTH('a)\<rangle>result) \<noteq> (if result !! (LENGTH('a) div 2 - 1) then 2^(LENGTH('a) div 2)-1 else 0)
-      | ''of'' \<Rightarrow> (\<langle>LENGTH('a) div 2,LENGTH('a)\<rangle>result) \<noteq> (if result !! (LENGTH('a) div 2 - 1) then 2^(LENGTH('a) div 2)-1 else 0)
+        ''cf'' \<Rightarrow> (\<langle>LENGTH('a) div 2,LENGTH('a)\<rangle>result) \<noteq> (if bit result (LENGTH('a) div 2 - 1) then 2^(LENGTH('a) div 2)-1 else 0)
+      | ''of'' \<Rightarrow> (\<langle>LENGTH('a) div 2,LENGTH('a)\<rangle>result) \<noteq> (if bit result (LENGTH('a) div 2 - 1) then 2^(LENGTH('a) div 2)-1 else 0)
       | f      \<Rightarrow> unknown_flags ''IMUL'' f"
 
 
@@ -555,10 +549,10 @@ definition semantics_IDIV :: "Operand \<Rightarrow> state \<Rightarrow> state"
 
 definition SHL_flags :: "nat \<Rightarrow> ('a::len word \<Rightarrow> string \<Rightarrow> bool)"
   where "SHL_flags n dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (LENGTH('a) - n) 
-      | ''of'' \<Rightarrow> dst !! (LENGTH('a) - n - 1) \<noteq> dst !! (LENGTH('a) - n)
+        ''cf'' \<Rightarrow> bit dst (LENGTH('a) - n) 
+      | ''of'' \<Rightarrow> bit dst (LENGTH('a) - n - 1) \<noteq> bit dst (LENGTH('a) - n)
       | ''zf'' \<Rightarrow> (dst << n) = 0
-      | ''sf'' \<Rightarrow> dst !! (LENGTH('a) - n - 1)
+      | ''sf'' \<Rightarrow> bit dst (LENGTH('a) - n - 1)
       | f      \<Rightarrow> unknown_flags ''SHL'' f"
 
 definition semantics_SHL :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state" 
@@ -580,7 +574,7 @@ abbreviation SAL
 
 definition SHR_flags :: "nat \<Rightarrow> ('a::len word \<Rightarrow> string \<Rightarrow> bool)"
   where "SHR_flags n dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (n - 1) 
+        ''cf'' \<Rightarrow> bit dst (n - 1) 
       | ''of'' \<Rightarrow> msb dst
       | ''zf'' \<Rightarrow> (dst >> n) = 0
       | f      \<Rightarrow> unknown_flags ''SHR'' f"
@@ -601,7 +595,7 @@ abbreviation SHR
 
 definition SAR_flags :: "nat \<Rightarrow> ('a::len word \<Rightarrow> string \<Rightarrow> bool)"
   where "SAR_flags n dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (n - 1) 
+        ''cf'' \<Rightarrow> bit dst (n - 1) 
       | ''of'' \<Rightarrow> False
       | ''zf'' \<Rightarrow> (dst >>> n) = 0
       | f      \<Rightarrow> unknown_flags ''SAR'' f"
@@ -631,16 +625,16 @@ abbreviation sshiftr_over_words :: "'a ::len word \<Rightarrow> 'a word \<Righta
 
 definition shld :: "'b::len itself \<Rightarrow> nat \<Rightarrow> 'a::len word \<Rightarrow> 'a word \<Rightarrow> 'a word"
   where "shld _ n dst src \<equiv>
-    let dstsrc  = (ucast dst << LENGTH('a)) OR (ucast src :: 'b word);
+    let dstsrc  = or (ucast dst << LENGTH('a)) (ucast src :: 'b word);
         shifted = \<langle>LENGTH('a),LENGTH('a)*2\<rangle>(dstsrc << n) in
       ucast shifted"
 
 definition SHLD_flags :: "'b::len itself \<Rightarrow> nat \<Rightarrow> ('a::len word \<Rightarrow> 'a::len word \<Rightarrow> string \<Rightarrow> bool)"
   where "SHLD_flags b n src dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (LENGTH('a) - n) 
-      | ''of'' \<Rightarrow> dst !! (LENGTH('a) - n - 1) \<noteq> dst !! (LENGTH('a) - n)
+        ''cf'' \<Rightarrow> bit dst (LENGTH('a) - n) 
+      | ''of'' \<Rightarrow> bit dst (LENGTH('a) - n - 1) \<noteq> bit dst (LENGTH('a) - n)
       | ''zf'' \<Rightarrow> shld b n dst src = 0
-      | ''sf'' \<Rightarrow> dst !! (LENGTH('a) - n - 1) \<comment> \<open>msb (shld n dst src)\<close>
+      | ''sf'' \<Rightarrow> bit dst (LENGTH('a) - n - 1) \<comment> \<open>msb (shld n dst src)\<close>
       | f      \<Rightarrow> unknown_flags ''SHLD'' f"
 
 definition semantics_SHLD :: "Operand \<Rightarrow> Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
@@ -658,8 +652,8 @@ definition semantics_SHLD :: "Operand \<Rightarrow> Operand \<Rightarrow> Operan
 
 definition ROL_flags :: "nat \<Rightarrow> ('a::len word \<Rightarrow> string \<Rightarrow> bool)" (*TODO check for unaffected flags *)
   where "ROL_flags n dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (LENGTH('a) - n) 
-      | ''of'' \<Rightarrow> dst !! (LENGTH('a) - n - 1) \<noteq> dst !! (LENGTH('a) - n)
+        ''cf'' \<Rightarrow> bit dst (LENGTH('a) - n) 
+      | ''of'' \<Rightarrow> bit dst (LENGTH('a) - n - 1) \<noteq> bit dst (LENGTH('a) - n)
       | f      \<Rightarrow> unknown_flags ''ROL'' f"
 
 definition semantics_ROL :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state" 
@@ -678,8 +672,8 @@ abbreviation ROL
 
 definition ROR_flags :: "nat \<Rightarrow> ('a::len word \<Rightarrow> string \<Rightarrow> bool)"
   where "ROR_flags n dst flag \<equiv> case flag of
-        ''cf'' \<Rightarrow> dst !! (n - 1) 
-      | ''of'' \<Rightarrow> msb (word_rotr n dst) \<noteq> (word_rotr n dst !! (LENGTH('a)-2))
+        ''cf'' \<Rightarrow> bit dst (n - 1) 
+      | ''of'' \<Rightarrow> msb (word_rotr n dst) \<noteq> (bit (word_rotr n dst) (LENGTH('a)-2))
       | f      \<Rightarrow> unknown_flags ''ROR'' f"
 
 definition semantics_ROR :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state" 
@@ -721,12 +715,12 @@ definition logic_flags :: "('a::len word \<Rightarrow> 'a::len word \<Rightarrow
 
 definition semantics_TEST :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_TEST op1 \<equiv> 
-           if operand_size op1 = 32 then binop_flags (logic_flags ((AND)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1
-      else if operand_size op1 = 16 then binop_flags (logic_flags ((AND)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1
-      else if operand_size op1 = 8  then binop_flags (logic_flags ((AND)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1
-      else if operand_size op1 = 4  then binop_flags (logic_flags ((AND)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1
-      else if operand_size op1 = 2  then binop_flags (logic_flags ((AND)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1
-      else if operand_size op1 = 1  then binop_flags (logic_flags ((AND)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1
+           if operand_size op1 = 32 then binop_flags (logic_flags ((and)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1
+      else if operand_size op1 = 16 then binop_flags (logic_flags ((and)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1
+      else if operand_size op1 = 8  then binop_flags (logic_flags ((and)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1
+      else if operand_size op1 = 4  then binop_flags (logic_flags ((and)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1
+      else if operand_size op1 = 2  then binop_flags (logic_flags ((and)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1
+      else if operand_size op1 = 1  then binop_flags (logic_flags ((and)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1
       else undefined"
 
 abbreviation TEST
@@ -791,12 +785,12 @@ abbreviation CQO
 text \<open>logic\<close>
 definition semantics_AND :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_AND op1 op2 \<sigma> \<equiv> 
-           if operand_size op1 = 32 then binop ((AND)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 16 then binop ((AND)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 8  then binop ((AND)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 4  then binop ((AND)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 2  then binop ((AND)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 1  then binop ((AND)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((AND)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+           if operand_size op1 = 32 then binop ((and)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 16 then binop ((and)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 8  then binop ((and)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 4  then binop ((and)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 2  then binop ((and)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 1  then binop ((and)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((and)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
       else undefined"
 
 abbreviation AND'
@@ -804,12 +798,12 @@ abbreviation AND'
 
 definition semantics_OR :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_OR op1 op2 \<sigma> \<equiv> 
-           if operand_size op1 = 32 then binop ((OR)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 16 then binop ((OR)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 8  then binop ((OR)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 4  then binop ((OR)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 2  then binop ((OR)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 1  then binop ((OR)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((OR)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+           if operand_size op1 = 32 then binop ((or)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 16 then binop ((or)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 8  then binop ((or)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 4  then binop ((or)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 2  then binop ((or)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 1  then binop ((or)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((or)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
       else undefined"
 
 abbreviation OR'
@@ -817,12 +811,12 @@ abbreviation OR'
 
 definition semantics_XOR :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_XOR op1 op2 \<sigma> \<equiv> 
-           if operand_size op1 = 32 then binop ((XOR)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 16 then binop ((XOR)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 8  then binop ((XOR)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 4  then binop ((XOR)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 2  then binop ((XOR)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
-      else if operand_size op1 = 1  then binop ((XOR)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((XOR)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+           if operand_size op1 = 32 then binop ((xor)::256 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::256 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 16 then binop ((xor)::128 word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::128 word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 8  then binop ((xor)::64  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::64  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 4  then binop ((xor)::32  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::32  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 2  then binop ((xor)::16  word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::16  word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
+      else if operand_size op1 = 1  then binop ((xor)::8   word \<Rightarrow> _ \<Rightarrow> _) (logic_flags ((xor)::8   word \<Rightarrow> _ \<Rightarrow> _)) op1 op2 \<sigma>
       else undefined"
 
 abbreviation XOR'
@@ -830,12 +824,12 @@ abbreviation XOR'
 
 definition semantics_XORPS :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_XORPS op1 \<equiv> 
-           if operand_size op1 = 32 then binop_no_flags ((XOR)::256 word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 16 then binop_no_flags ((XOR)::128 word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 8  then binop_no_flags ((XOR)::64  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 4  then binop_no_flags ((XOR)::32  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 2  then binop_no_flags ((XOR)::16  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 1  then binop_no_flags ((XOR)::8   word \<Rightarrow> _ \<Rightarrow> _) op1
+           if operand_size op1 = 32 then binop_no_flags ((xor)::256 word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 16 then binop_no_flags ((xor)::128 word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 8  then binop_no_flags ((xor)::64  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 4  then binop_no_flags ((xor)::32  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 2  then binop_no_flags ((xor)::16  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 1  then binop_no_flags ((xor)::8   word \<Rightarrow> _ \<Rightarrow> _) op1
       else undefined"
 
 abbreviation XORPS
@@ -843,12 +837,12 @@ abbreviation XORPS
 
 definition semantics_XORPD :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_XORPD op1 \<equiv> 
-           if operand_size op1 = 32 then binop_no_flags ((XOR)::256 word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 16 then binop_no_flags ((XOR)::128 word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 8  then binop_no_flags ((XOR)::64  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 4  then binop_no_flags ((XOR)::32  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 2  then binop_no_flags ((XOR)::16  word \<Rightarrow> _ \<Rightarrow> _) op1
-      else if operand_size op1 = 1  then binop_no_flags ((XOR)::8   word \<Rightarrow> _ \<Rightarrow> _) op1
+           if operand_size op1 = 32 then binop_no_flags ((xor)::256 word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 16 then binop_no_flags ((xor)::128 word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 8  then binop_no_flags ((xor)::64  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 4  then binop_no_flags ((xor)::32  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 2  then binop_no_flags ((xor)::16  word \<Rightarrow> _ \<Rightarrow> _) op1
+      else if operand_size op1 = 1  then binop_no_flags ((xor)::8   word \<Rightarrow> _ \<Rightarrow> _) op1
       else undefined"
 
 abbreviation XORPD
@@ -1276,10 +1270,10 @@ abbreviation UCOMISD
 
 definition simd_32_128 :: "(32 word \<Rightarrow> 32 word \<Rightarrow> 32 word) \<Rightarrow> 128 word \<Rightarrow> 128 word \<Rightarrow> 128 word" 
   where "simd_32_128 f dst src \<equiv> 
-            ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>96,128\<rangle>dst)) (ucast (\<langle>96,128\<rangle>src))))) << 96) OR
-            ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>64,96\<rangle>dst))  (ucast (\<langle>64,96\<rangle>src))))) << 64)  OR
-            ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>32,64\<rangle>dst))  (ucast (\<langle>32,64\<rangle>src))))) << 32)  OR
-             (ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>0,32\<rangle>dst))   (ucast (\<langle>0,32\<rangle>src)))))"
+            or ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>96,128\<rangle>dst)) (ucast (\<langle>96,128\<rangle>src))))) << 96)
+            (or ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>64,96\<rangle>dst))  (ucast (\<langle>64,96\<rangle>src))))) << 64)  
+            (or ((ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>32,64\<rangle>dst))  (ucast (\<langle>32,64\<rangle>src))))) << 32) 
+               (ucast (\<langle>0,32\<rangle>(f (ucast (\<langle>0,32\<rangle>dst))   (ucast (\<langle>0,32\<rangle>src)))))))"
 
 abbreviation semantics_PADDD :: "Operand \<Rightarrow> Operand \<Rightarrow> state \<Rightarrow> state"
   where "semantics_PADDD \<equiv> binop_no_flags (simd_32_128 (+))"
@@ -1288,10 +1282,10 @@ abbreviation PADDD
   where "PADDD op1 op2 \<equiv> Instr ''paddd'' (Some op1) (Some op2) None"
 
 definition pshufd :: "128 word \<Rightarrow> 8 word \<Rightarrow> 128 word"
-  where "pshufd src n \<equiv> ((\<langle>0,32\<rangle>(src >> (unat (\<langle>6,8\<rangle>n)*32))) << 96) OR
-                        ((\<langle>0,32\<rangle>(src >> (unat (\<langle>4,6\<rangle>n)*32))) << 64) OR
-                        ((\<langle>0,32\<rangle>(src >> (unat (\<langle>2,4\<rangle>n)*32))) << 32) OR
-                        ((\<langle>0,32\<rangle>(src >> (unat (\<langle>0,2\<rangle>n)*32))))"
+  where "pshufd src n \<equiv> or ((\<langle>0,32\<rangle>(src >> (unat (\<langle>6,8\<rangle>n)*32))) << 96) 
+                        (or ((\<langle>0,32\<rangle>(src >> (unat (\<langle>4,6\<rangle>n)*32))) << 64) 
+                        (or ((\<langle>0,32\<rangle>(src >> (unat (\<langle>2,4\<rangle>n)*32))) << 32) 
+                            ((\<langle>0,32\<rangle>(src >> (unat (\<langle>0,2\<rangle>n)*32))))))"
 
 lemmas pshufd_numeral[simp] = pshufd_def[of "numeral n"] for n
 lemmas pshufd_0[simp] = pshufd_def[of 0]
@@ -1321,8 +1315,8 @@ definition semantics_PINSRD :: "Operand \<Rightarrow> Operand \<Rightarrow> Oper
               src = ucast (operand_read \<sigma> op2)::128 word;
               n   = unat (operand_read \<sigma> op3) mod 4;
               m   = 0xFFFFFFFF << (n * 32) :: 128 word;
-              t   = (src << (n *32)) AND m in
-             operand_write op1 (ucast ((dst AND NOT m) OR t)) \<sigma>"
+              t   = and (src << (n *32)) m in
+             operand_write op1 (ucast (or (and dst (not m)) t)) \<sigma>"
 
 abbreviation PINSRD
   where "PINSRD op1 op2 op3 \<equiv> Instr ''pinsrd'' op1 op2 op3"
@@ -1333,7 +1327,7 @@ abbreviation PINSRD
 
 
 definition bswap :: "32 word \<Rightarrow> 32 word"
-  where "bswap w \<equiv> ((\<langle>0,8\<rangle>w) << 24) OR ((\<langle>8,16\<rangle>w) << 16) OR ((\<langle>16,24\<rangle>w) << 8) OR (\<langle>24,32\<rangle>w)"
+  where "bswap w \<equiv> or ((\<langle>0,8\<rangle>w) << 24) (or ((\<langle>8,16\<rangle>w) << 16) (or ((\<langle>16,24\<rangle>w) << 8) (\<langle>24,32\<rangle>w)))"
 
 lemmas bswap_numeral[simp] = bswap_def[of "numeral n"] for n
 lemmas bswap_0[simp] = bswap_def[of 0]

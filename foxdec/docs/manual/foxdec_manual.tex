@@ -191,6 +191,30 @@ Do not hesitate to contact us for questions, remarks and suggestions.
 }
 
 
+\section{FoxDec Story}
+
+One of the key goals for the VT FALCON project is trustworthy, provably sound x86-64 binary lifting.
+The first step of any approach to binary lifting is disassembly.
+A fundamental challenge herein is to resolve indirect branches.
+Instead of leveraging heuristics, a provably sound approach requires indirections to be resolved based on binary-level invariants that provide, e.g., information on pointer values stored in stateparts, and bounds on indices into jump tables.
+We have thus developped FoxDec, a tool that integrates disassembly, indirection resolving, and invariant generation into one tool.
+Key characteristic is that FoxDec enables formal verification: the invariants can be exported to the Isabelle/HOL theorem prover.
+In Isabelle/HOL, proof scripts automatically show that all generated invariants are sound. 
+
+When applying FoxDec to a binary, information is generated on disassembled instructions, reconstructed control flow, function boundaries, and invariants.
+All this information is programmatically available through an interface, but it also stored in graphical representations.
+Most notably, an annotated call graph is generated.
+This call graph privdes an overview of all reached functions, as well as assumptions made that were required for verification of elementary memory-related sanity properties.
+These properties include return address integrity (no function should overwrite its own return address) as well as adherence to a calling convention.
+
+We have applied this approach to Linux Foundation and Intel’s Xen Hypervisor and to Ubuntu binaries that do file accesses, networking, databases, and a text editing with a UI.
+Moreover, we have applied FoxDec to MacOs libraries from Mozilla Firefox that include cryptographic and security-related libraries and AV codecs.
+Running times vary from minutes to at most about 4 hours for the vi editor, spanning over 426.258 instructions and 3139 functions.
+
+
+
+
+
 \section{User Manual with Example}
 
 

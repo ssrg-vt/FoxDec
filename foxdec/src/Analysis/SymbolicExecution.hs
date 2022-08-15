@@ -1061,6 +1061,8 @@ pshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 pshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pshufd3 ctxt i_a = mov_with_func3 ctxt i_a mk_bottom False
+
 vpshufb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 vpshufd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
@@ -1096,6 +1098,8 @@ cmpltsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 cmpeqsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 cmpneqsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
+
+cmpnlesd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 punpcklqdq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
@@ -1437,6 +1441,7 @@ tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVSXBD   _ [op1,op2] _)         
 tau_i ctxt (Instruction (AddressWord64 i_a) _ PMOVZXBD   _ [op1,op2] _)          = pmovzxbd     ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFB     _ [op1,op2] _)          = pshufb       ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFD     _ [op1,op2] _)          = pshufd       ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ PSHUFD     _ [op1,op2,op3] _)      = pshufd3      ctxt i_a op1 op2 op3
 tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSHUFB    _ [op1,op2] _)          = vpshufb      ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ VPSHUFD    _ [op1,op2] _)          = vpshufd      ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ PCMPEQB    _ [op1,op2] _)          = pcmpeqb      ctxt i_a op1 op2
@@ -1492,6 +1497,7 @@ tau_i ctxt (Instruction (AddressWord64 i_a) _ UCOMISD  _ [op1,op2] _) = ucomisd 
 tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPLTSD  _ [op1,op2] _) = cmpltsd  ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPEQSD  _ [op1,op2] _) = cmpeqsd  ctxt i_a op1 op2
 tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPNEQSD _ [op1,op2] _) = cmpneqsd ctxt i_a op1 op2
+tau_i ctxt (Instruction (AddressWord64 i_a) _ CMPNLESD _ [op1,op2] _) = cmpnlesd ctxt i_a op1 op2
 
 
 

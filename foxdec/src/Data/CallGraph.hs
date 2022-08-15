@@ -175,7 +175,7 @@ summarize_verification_conditions ctxt entry =
       finit      = IM.lookup entry $ ctxt_finits ctxt
       fctxt      = mk_fcontext ctxt entry
       summary    = summarize_finit finit
-                   ++ summarize_preconditions_short fctxt vcs
+                   -- ++ summarize_preconditions_short fctxt vcs
                    -- ++ summarize_assertions_short ctxt vcs
                    ++ summarize_function_constraints_short fctxt vcs
                    ++ summarize_sourceless_memwrites_short ctxt vcs

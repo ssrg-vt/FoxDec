@@ -1,7 +1,7 @@
 
 
 theory X86_Parse_Hoare_Triples
-  imports X86_InstructionSemantics
+  imports X86_InstructionSemantics "HOL-Eisbach.Eisbach_Tools"
   keywords "htriple" :: thy_decl
 
   and "Separations" "Assertions" "Pre" "Post" "Instruction" "FunctionConstraints" :: quasi_command
@@ -45,7 +45,7 @@ lemma scast_ucast_ucast[simp]:
   by (auto simp add: word_eq_iff nth_ucast nth_scast)
 
 lemma test_bit_mem_read:
-  shows "mem_read \<sigma> a si !! n \<Longrightarrow> n < si*8"
+  shows "bit (mem_read \<sigma> a si) n \<Longrightarrow> n < si*8"
   by (auto simp add: mem_read_def test_bit_rcat word_size rev_nth length_read_bytes)
 
 lemma ucast_ucast_mem_read_8[simp]:
@@ -122,56 +122,56 @@ assumes "LENGTH('a) > 32"
 lemma ucast_overwrite[simp]:
   shows "ucast (overwrite 0 n a b) = overwrite 0 n (ucast a) (ucast b)"
   using test_bit_size[of a] test_bit_size[of b]
-  by (auto simp add: word_eq_iff nth_ucast overwrite_def nth_shiftl nth_takebits word_size)
+  by (auto simp add: word_eq_iff nth_ucast overwrite_def nth_takebits word_size bit_shiftl_iff word_or_nth)
 
 lemma takebits_overwrite[simp]:
   shows "(\<langle>0,h\<rangle> (overwrite 0 n a b)) = overwrite 0 n (\<langle>0,h\<rangle> a) (\<langle>0,h\<rangle> b)"
   using test_bit_size[of a] test_bit_size[of b]
-  by (auto simp add: word_eq_iff nth_ucast overwrite_def nth_shiftl nth_takebits word_size)
+  by (auto simp add: word_eq_iff nth_ucast overwrite_def bit_shiftl_iff nth_takebits word_size word_or_nth)
 
 lemma overwrite_overwrite_l[simp]:
   shows "overwrite 0 h (overwrite 0 h a b) c = overwrite 0 h a c"
-  by (auto simp add: word_eq_iff nth_ucast overwrite_def nth_shiftl nth_takebits word_size)
+  by (auto simp add: word_eq_iff nth_ucast overwrite_def bit_shiftl_iff nth_takebits word_size word_or_nth)
 
 lemma overwrite_overwrite_r[simp]:
   shows "overwrite 0 h a (overwrite 0 h b c) = overwrite 0 h a c"
-  by (auto simp add: word_eq_iff nth_ucast overwrite_def nth_shiftl nth_takebits word_size)
+  by (auto simp add: word_eq_iff nth_ucast overwrite_def bit_shiftl_iff nth_takebits word_size word_or_nth)
 
 lemma overwrite_all_8[simp]:
   fixes a :: "8 word"
   shows "overwrite 0 8 a b = b"
-  by (auto simp add: word_eq_iff overwrite_def nth_shiftl nth_takebits)
+  by (auto simp add: word_eq_iff overwrite_def bit_shiftl_iff nth_takebits word_or_nth)
 
 lemma overwrite_all_16[simp]:
   fixes a :: "16 word"
   shows "overwrite 0 16 a b = b"
-  by (auto simp add: word_eq_iff overwrite_def nth_shiftl nth_takebits)
+  by (auto simp add: word_eq_iff overwrite_def bit_shiftl_iff nth_takebits word_or_nth)
 
 
 
 lemma ucast_AND[simp]:
-  shows "ucast (a AND b) = ucast a AND ucast b"
-  by (auto simp add: word_eq_iff nth_ucast)
+  shows "ucast (and a b) = and (ucast a) (ucast b)"
+  by (auto simp add: word_eq_iff nth_ucast word_and_nth)
 
 lemma ucast_OR[simp]:
-  shows "ucast (a OR b) = ucast a OR ucast b"
-  by (auto simp add: word_eq_iff nth_ucast)
+  shows "ucast (or a b) = or (ucast a) (ucast b)"
+  by (auto simp add: word_eq_iff nth_ucast word_or_nth)
 
 lemma ucast_XOR[simp]:
-  shows "ucast (a XOR b) = ucast a XOR ucast b"
-  by (auto simp add: word_eq_iff nth_ucast)
+  shows "ucast (xor a b) = xor (ucast a) (ucast b)"
+  by (auto simp add: word_eq_iff nth_ucast word_xor_nth)
 
 lemma take_bits_AND[simp]:
-  shows "(\<langle>l,h\<rangle> (a AND b)) = (\<langle>l,h\<rangle> a) AND (\<langle>l,h\<rangle> b)"
-  by (auto simp add: word_eq_iff nth_ucast nth_takebits)
+  shows "(\<langle>l,h\<rangle> (and a b)) = and (\<langle>l,h\<rangle> a) (\<langle>l,h\<rangle> b)"
+  by (auto simp add: word_eq_iff nth_ucast nth_takebits word_and_nth)
 
 lemma take_bits_OR[simp]:
-  shows "(\<langle>l,h\<rangle> (a OR b)) = (\<langle>l,h\<rangle> a) OR (\<langle>l,h\<rangle> b)"
-  by (auto simp add: word_eq_iff nth_ucast nth_takebits)
+  shows "(\<langle>l,h\<rangle> (or a b)) = or (\<langle>l,h\<rangle> a) (\<langle>l,h\<rangle> b)"
+  by (auto simp add: word_eq_iff nth_ucast nth_takebits word_or_nth)
 
 lemma take_bits_XOR[simp]:
-  shows "(\<langle>l,h\<rangle> (a XOR b)) = (\<langle>l,h\<rangle> a) XOR (\<langle>l,h\<rangle> b)"
-  by (auto simp add: word_eq_iff nth_ucast nth_takebits)
+  shows "(\<langle>l,h\<rangle> (xor a b)) = xor (\<langle>l,h\<rangle> a) (\<langle>l,h\<rangle> b)"
+  by (auto simp add: word_eq_iff nth_ucast nth_takebits word_xor_nth)
 
 
 

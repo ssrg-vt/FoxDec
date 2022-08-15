@@ -79,6 +79,7 @@ data Opcode =
   | CMP
   | CMPEQSD
   | CMPNEQSD
+  | CMPNLESD
   | CMPLTSD
   | CMPS
   | CMPSB
@@ -358,6 +359,7 @@ data Opcode =
   | PAUSE
   | PAVGB
   | PAVGW
+  | PBLENDW
   | PCLMULQDQ
   | PCMPEQB
   | PCMPEQD
@@ -366,6 +368,7 @@ data Opcode =
   | PEXTRB
   | PEXTRD
   | PEXTRQ
+  | PHADDD
   | PINSRB
   | PINSRD
   | PINSRQ
@@ -590,6 +593,7 @@ data Opcode =
   | WRMSR
   | XADD
   | XCHG
+  | XGETBV
   | XLAT
   | XLATB
   | XSETBV

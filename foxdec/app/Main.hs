@@ -52,6 +52,8 @@ import System.Timeout (timeout)
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import Data.Functor.Identity
 
+import System.IO.Unsafe (unsafePerformIO)
+
 
 to_out       = liftIO . putStrLn
 to_log log s = liftIO $ appendFile log $ s ++ "\n"
@@ -392,8 +394,8 @@ ctxt_add_to_results entry verified = do
 
   to_log log $ "Return behavior: " ++ show_return_behavior ret  
 
-  to_log log $ summarize_preconditions_long ctxt vcs
-  to_log log $ summarize_assertions_long ctxt vcs
+  --to_log log $ summarize_preconditions_long ctxt vcs -- TODO make configurable
+  --to_log log $ summarize_assertions_long ctxt vcs
   to_log log $ summarize_function_constraints_long ctxt vcs
   to_log log $ summarize_sourceless_memwrites_long ctxt vcs
   to_log log $ summarize_function_pointers ctxt vcs
@@ -489,7 +491,8 @@ ctxt_generate_end_report = do
     to_log log $ "#memwrites (approximation):           " ++ show (sum_total count_all_mem_writes               $ ctxt_cfgs  ctxt)
     to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
     to_log log $ "#edges:                               " ++ show (sum_total num_of_edges                       $ ctxt_cfgs ctxt)
-    to_log log $ "#resolved indirections:               " ++ show (num_of_resolved_indirections ctxt)
+    to_log log $ "#resolved indirection jumps:          " ++ show (num_of_resolved_indirection_jumps ctxt)
+    to_log log $ "#resolved indirection calls:          " ++ show (num_of_resolved_indirection_calls ctxt)
 
     to_log log $ "\n\n"
     to_log log $ summarize_function_pointers ctxt (S.unions $ ctxt_vcs ctxt)
@@ -517,7 +520,8 @@ ctxt_generate_end_report = do
 
 
 
-  num_of_resolved_indirections ctxt         = IM.size $ ctxt_inds ctxt
+  num_of_resolved_indirection_calls ctxt         = IM.size $ IM.filterWithKey (indirectionIsCall ctxt) $ ctxt_inds ctxt
+  num_of_resolved_indirection_jumps ctxt         = IM.size $ IM.filterWithKey (indirectionIsJump ctxt) $ ctxt_inds ctxt
 
   num_of_verified        = IM.size . IM.filter ((==) VerificationSuccess)
   num_of_verifiedw       = IM.size . IM.filter ((==) VerificationSuccesWithAssumptions)
@@ -533,6 +537,14 @@ ctxt_generate_end_report = do
   show_return_behavior Terminating        = "Terminating"
   show_return_behavior UnknownRetBehavior = "Unknown"
 
+  indirectionIsCall ctxt a _ =
+    case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
+      Nothing -> False
+      Just i  -> isCall $ Instr.opcode i
+  indirectionIsJump ctxt a _ =
+    case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
+      Nothing -> False
+      Just i  -> not $ isCall $ Instr.opcode i
   
 
 num_of_instructions           g = sum (map length $ IM.elems $ cfg_blocks g)
@@ -942,7 +954,7 @@ usage_msg = intercalate "\n" [
   "",
   "Example usage:",
   "",
-  "  foxdec-exe ./config/config.dhall ../examples/du/ du",
+  "  foxdec-exe ./config/config.dhall ./examples/du/ du",
   "",
   "For information on how to generate .dump, .symbols, .sections and .entry file, see the README."
  ] 

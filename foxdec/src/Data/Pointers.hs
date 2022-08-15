@@ -259,7 +259,7 @@ join_exprs' msg ctxt es =
           if S.size srcs <= get_max_num_of_sources then
             Bottom (FromSources srcs)
           else
-            trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) rock_bottom
+            {--trace ("Hitting max num of sources: " ++ show get_max_num_of_sources)--} rock_bottom
  where
   get_max_num_of_cases   = ctxt_max_num_of_cases $ f_ctxt ctxt
   get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
@@ -291,7 +291,7 @@ join_single ctxt e =
       if S.size srcs <= get_max_num_of_sources then
         Bottom (FromSources srcs)
       else
-        trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) rock_bottom
+        {--trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) --} rock_bottom
 
 
 
@@ -567,7 +567,7 @@ unfold_non_determinism ctxt e                                = [e]
 -- | If the size of an expression becomes too large, we simply turn it into Bottom.
 trim_expr ctxt e =
   if expr_size e > get_max_expr_size then 
-    traceShow ("Hitting expr_size limit of " ++ show get_max_expr_size ++ ".") rock_bottom -- Bottom (FromSources $ srcs_of_expr e)
+    {--trace ("Hitting expr_size limit of " ++ show get_max_expr_size ++ ".")--} rock_bottom -- Bottom (FromSources $ srcs_of_expr e)
   else
     e
  where
