@@ -58,7 +58,7 @@ perrf (char *fmt, ...)
 void
 report (char *file, count_t ccount, count_t wcount, count_t lcount)
 {
-	  printf ("%6lu %6lu %6lu %s\n", lcount, wcount, ccount, file);
+printf ("%6lu %6lu %6lu %s\n", lcount, wcount, ccount, file);
 }
 
 /* Return true if C is a valid word constituent */
@@ -110,7 +110,6 @@ void
 counter (char *file)
 {
 	  FILE *fp = fopen (file, "r");
-	    
 	    if (!fp)
 		        perrf ("cannot open file `%s'", file);
 
@@ -129,7 +128,6 @@ int
 main (int argc, char **argv)
 {
 	  int i;
-	    
 	    if (argc < 2)
 		        errf ("usage: wc FILE [FILE...]");
 	      
@@ -138,5 +136,6 @@ main (int argc, char **argv)
 	        
 	        if (argc > 2)
 			    report ("total", total_ccount, total_wcount, total_lcount);
+
 		  return 0;
 }

@@ -1,27 +1,27 @@
-(__TEXT,__text)
-  addr = 0x0000000100000790
-  size = 0x00000000000006f7
-(__TEXT,__stubs)
-  addr = 0x0000000100000e88
-  size = 0x0000000000000042
-(__TEXT,__stub_helper)
-  addr = 0x0000000100000ecc
-  size = 0x000000000000007e
-(__TEXT,__cstring)
-  addr = 0x0000000100000f4a
-  size = 0x000000000000004e
-(__TEXT,__unwind_info)
-  addr = 0x0000000100000f98
-  size = 0x000000000000005c
-(__DATA_CONST,__got)
-  addr = 0x0000000100001000
-  size = 0x0000000000000018
-(__DATA,__la_symbol_ptr)
-  addr = 0x0000000100002000
-  size = 0x0000000000000058
-(__DATA,__data)
-  addr = 0x0000000100002058
-  size = 0x0000000000000008
-(__DATA,__common)
-  addr = 0x0000000100002060
-  size = 0x0000000000000030
+(,.init)
+  addr = 0x0000000000001000
+  size = 0x00001b
+(,.plt)
+  addr = 0x0000000000001020
+  size = 0x0000c0
+(,.plt.got)
+  addr = 0x00000000000010e0
+  size = 0x000010
+(,.plt.sec)
+  addr = 0x00000000000010f0
+  size = 0x0000b0
+(,.text)
+  addr = 0x00000000000011a0
+  size = 0x0005f1
+(,.rodata)
+  addr = 0x0000000000002000
+  size = 0x000050
+(,.got)
+  addr = 0x0000000000003f68
+  size = 0x000098
+(,.data)
+  addr = 0x0000000000004000
+  size = 0x000010
+(,.bss)
+  addr = 0x0000000000004020
+  size = 0x000040
