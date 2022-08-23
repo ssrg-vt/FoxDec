@@ -118,12 +118,12 @@ do
    if [[ $line == *".init_array"* ]]; then
       current_sect_name=".init_array"
       found_section=true;
-      found_data_section=true;
+      found_relevant_section=true;
    fi
    if [[ $line == *".fini_array"* ]]; then
       current_sect_name=".fini_array"
       found_section=true;
-      found_data_section=true;
+      found_relevant_section=true;
    fi
 
    if [ "$found_relevant_section" = true ] ; then
