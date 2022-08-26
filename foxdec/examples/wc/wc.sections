@@ -22,6 +22,9 @@
 (,.fini_array)
   addr = 0x000000000000ca38
   size = 0x000008
+(,.data.rel.ro)
+  addr = 0x000000000000ca40
+  size = 0x000178
 (,.got)
   addr = 0x000000000000cda8
   size = 0x000250

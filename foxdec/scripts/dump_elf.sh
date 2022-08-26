@@ -125,6 +125,11 @@ do
       found_section=true;
       found_relevant_section=true;
    fi
+   if [[ $line == *".data.rel.ro"* ]]; then
+      current_sect_name=".data.rel.ro"
+      found_section=true;
+      found_relevant_section=true;
+   fi
 
    if [ "$found_relevant_section" = true ] ; then
       # dump section, remove empty lines, remove lines with "Hex dump", trim spaces (leading and end), remove double spaces, takes columns 1 to 5
