@@ -1931,9 +1931,11 @@ instance Data.Serialize.Serialize Data.Binary.Relocation
 --   JSON object, whose schema is defined by the <a>JSON</a> datatype
 --   below. That datatype provides its fields, such as <a>instructions</a>
 --   and <a>control_flow</a>. This is an overview of some of the
---   information retrievable from FoxDec. However, if more information is
---   required, or if there is a request for information in a different
---   form, then let us know.
+--   information retrievable from FoxDec. For example, we have omitted
+--   control flow graphs and per-instruction invariants to keep the size of
+--   the JSON object manageable. However, if more information is required,
+--   or if there is a request for information in a different form, then let
+--   us know.
 --   
 --   On the right hand side, see the synopsis for an overview.
 module Data.JSON_Taxonomy
@@ -1964,8 +1966,8 @@ JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64
 -- | A list of <a>Instruction</a>s.
 [instructions] :: JSON -> [Instruction]
 
--- | A mapping from instruction addresses to lists of instruction
---   addresses.
+-- | The <b><a>ControlFlow</a></b> essentially is graph with as nodes
+--   instruction addresses.
 [control_flow] :: JSON -> ControlFlow
 
 -- | A mapping from function entry addresses to pretty-printed function
