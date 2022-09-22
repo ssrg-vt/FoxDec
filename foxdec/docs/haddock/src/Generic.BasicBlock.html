@@ -1,0 +1,418 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveTraversable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NamedFieldPuns #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Generic.BasicBlock</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.BasicBlock.html#GenericBasicBlock"><span class="hs-identifier">GenericBasicBlock</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">intercalate</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span id="local-6989586621679294879"><span id="local-6989586621679294880"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="GenericBasicBlock"><span class="annot"><a href="Generic.BasicBlock.html#GenericBasicBlock"><span class="hs-identifier hs-var">GenericBasicBlock</span></a></span></span><span> </span><span id="local-6989586621679294878"><span class="annot"><a href="#local-6989586621679294878"><span class="hs-identifier hs-type">instr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BasicBlock"><span class="annot"><a href="Generic.BasicBlock.html#BasicBlock"><span class="hs-identifier hs-var">BasicBlock</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="instructions"><span class="annot"><span class="annottext">GenericBasicBlock instr -&gt; [instr]
+</span><a href="Generic.BasicBlock.html#instructions"><span class="hs-identifier hs-var hs-var">instructions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679294878"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679294872"><span id="local-6989586621679294874"><span class="annot"><span class="annottext">GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+(GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; Eq (GenericBasicBlock instr)
+forall instr.
+Eq instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c/= :: forall instr.
+Eq instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+== :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c== :: forall instr.
+Eq instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294856"><span id="local-6989586621679294858"><span id="local-6989586621679294860"><span id="local-6989586621679294862"><span id="local-6989586621679294864"><span id="local-6989586621679294866"><span id="local-6989586621679294868"><span class="annot"><span class="annottext">Eq (GenericBasicBlock instr)
+Eq (GenericBasicBlock instr)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Ordering)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; (GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool)
+-&gt; (GenericBasicBlock instr
+    -&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr)
+-&gt; (GenericBasicBlock instr
+    -&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr)
+-&gt; Ord (GenericBasicBlock instr)
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Ordering
+GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall instr. Ord instr =&gt; Eq (GenericBasicBlock instr)
+forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Ordering
+forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+min :: GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+$cmin :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+max :: GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+$cmax :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr
+-&gt; GenericBasicBlock instr -&gt; GenericBasicBlock instr
+&gt;= :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c&gt;= :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+&gt; :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c&gt; :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+&lt;= :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c&lt;= :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+&lt; :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+$c&lt; :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Bool
+compare :: GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Ordering
+$ccompare :: forall instr.
+Ord instr =&gt;
+GenericBasicBlock instr -&gt; GenericBasicBlock instr -&gt; Ordering
+$cp1Ord :: forall instr. Ord instr =&gt; Eq (GenericBasicBlock instr)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294851"><span id="local-6989586621679294853"><span class="annot"><span class="annottext">a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+(a -&gt; b) -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+(forall a b.
+ (a -&gt; b) -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b)
+-&gt; (forall a b. a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a)
+-&gt; Functor GenericBasicBlock
+forall a b. a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+forall a b. (a -&gt; b) -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+$c&lt;$ :: forall a b. a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+fmap :: (a -&gt; b) -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+$cfmap :: forall a b. (a -&gt; b) -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294816"><span id="local-6989586621679294818"><span id="local-6989586621679294820"><span id="local-6989586621679294822"><span id="local-6989586621679294824"><span id="local-6989586621679294826"><span id="local-6989586621679294828"><span id="local-6989586621679294830"><span id="local-6989586621679294832"><span id="local-6989586621679294834"><span id="local-6989586621679294836"><span id="local-6989586621679294838"><span id="local-6989586621679294840"><span id="local-6989586621679294842"><span id="local-6989586621679294844"><span id="local-6989586621679294846"><span id="local-6989586621679294848"><span class="annot"><span class="annottext">a -&gt; GenericBasicBlock a -&gt; Bool
+GenericBasicBlock m -&gt; m
+GenericBasicBlock a -&gt; [a]
+GenericBasicBlock a -&gt; Bool
+GenericBasicBlock a -&gt; Int
+GenericBasicBlock a -&gt; a
+GenericBasicBlock a -&gt; a
+GenericBasicBlock a -&gt; a
+GenericBasicBlock a -&gt; a
+(a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+(a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+(a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+(a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+(b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+(b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+(a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+(a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+(forall m. Monoid m =&gt; GenericBasicBlock m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a)
+-&gt; (forall a. GenericBasicBlock a -&gt; [a])
+-&gt; (forall a. GenericBasicBlock a -&gt; Bool)
+-&gt; (forall a. GenericBasicBlock a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; GenericBasicBlock a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; GenericBasicBlock a -&gt; a)
+-&gt; (forall a. Ord a =&gt; GenericBasicBlock a -&gt; a)
+-&gt; (forall a. Num a =&gt; GenericBasicBlock a -&gt; a)
+-&gt; (forall a. Num a =&gt; GenericBasicBlock a -&gt; a)
+-&gt; Foldable GenericBasicBlock
+forall a. Eq a =&gt; a -&gt; GenericBasicBlock a -&gt; Bool
+forall a. Num a =&gt; GenericBasicBlock a -&gt; a
+forall a. Ord a =&gt; GenericBasicBlock a -&gt; a
+forall m. Monoid m =&gt; GenericBasicBlock m -&gt; m
+forall a. GenericBasicBlock a -&gt; Bool
+forall a. GenericBasicBlock a -&gt; Int
+forall a. GenericBasicBlock a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+product :: GenericBasicBlock a -&gt; a
+$cproduct :: forall a. Num a =&gt; GenericBasicBlock a -&gt; a
+sum :: GenericBasicBlock a -&gt; a
+$csum :: forall a. Num a =&gt; GenericBasicBlock a -&gt; a
+minimum :: GenericBasicBlock a -&gt; a
+$cminimum :: forall a. Ord a =&gt; GenericBasicBlock a -&gt; a
+maximum :: GenericBasicBlock a -&gt; a
+$cmaximum :: forall a. Ord a =&gt; GenericBasicBlock a -&gt; a
+elem :: a -&gt; GenericBasicBlock a -&gt; Bool
+$celem :: forall a. Eq a =&gt; a -&gt; GenericBasicBlock a -&gt; Bool
+length :: GenericBasicBlock a -&gt; Int
+$clength :: forall a. GenericBasicBlock a -&gt; Int
+null :: GenericBasicBlock a -&gt; Bool
+$cnull :: forall a. GenericBasicBlock a -&gt; Bool
+toList :: GenericBasicBlock a -&gt; [a]
+$ctoList :: forall a. GenericBasicBlock a -&gt; [a]
+foldl1 :: (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+foldr1 :: (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; GenericBasicBlock a -&gt; a
+foldl' :: (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+foldl :: (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+foldr' :: (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+foldr :: (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; GenericBasicBlock a -&gt; b
+foldMap' :: (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+foldMap :: (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; GenericBasicBlock a -&gt; m
+fold :: GenericBasicBlock m -&gt; m
+$cfold :: forall m. Monoid m =&gt; GenericBasicBlock m -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294805"><span id="local-6989586621679294807"><span id="local-6989586621679294809"><span id="local-6989586621679294811"><span class="annot"><span class="annottext">Functor GenericBasicBlock
+Foldable GenericBasicBlock
+Functor GenericBasicBlock
+-&gt; Foldable GenericBasicBlock
+-&gt; (forall (f :: * -&gt; *) a b.
+    Applicative f =&gt;
+    (a -&gt; f b) -&gt; GenericBasicBlock a -&gt; f (GenericBasicBlock b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    GenericBasicBlock (f a) -&gt; f (GenericBasicBlock a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; GenericBasicBlock a -&gt; m (GenericBasicBlock b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    GenericBasicBlock (m a) -&gt; m (GenericBasicBlock a))
+-&gt; Traversable GenericBasicBlock
+(a -&gt; f b) -&gt; GenericBasicBlock a -&gt; f (GenericBasicBlock b)
+forall (t :: * -&gt; *).
+Functor t
+-&gt; Foldable t
+-&gt; (forall (f :: * -&gt; *) a b.
+    Applicative f =&gt;
+    (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+GenericBasicBlock (m a) -&gt; m (GenericBasicBlock a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+GenericBasicBlock (f a) -&gt; f (GenericBasicBlock a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; GenericBasicBlock a -&gt; m (GenericBasicBlock b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; GenericBasicBlock a -&gt; f (GenericBasicBlock b)
+sequence :: GenericBasicBlock (m a) -&gt; m (GenericBasicBlock a)
+$csequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+GenericBasicBlock (m a) -&gt; m (GenericBasicBlock a)
+mapM :: (a -&gt; m b) -&gt; GenericBasicBlock a -&gt; m (GenericBasicBlock b)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; GenericBasicBlock a -&gt; m (GenericBasicBlock b)
+sequenceA :: GenericBasicBlock (f a) -&gt; f (GenericBasicBlock a)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+GenericBasicBlock (f a) -&gt; f (GenericBasicBlock a)
+traverse :: (a -&gt; f b) -&gt; GenericBasicBlock a -&gt; f (GenericBasicBlock b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; GenericBasicBlock a -&gt; f (GenericBasicBlock b)
+$cp2Traversable :: Foldable GenericBasicBlock
+$cp1Traversable :: Functor GenericBasicBlock
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294793"><span id="local-6989586621679294795"><span id="local-6989586621679294797"><span id="local-6989586621679294799"><span id="local-6989586621679294801"><span class="annot"><span class="annottext">Functor GenericBasicBlock
+a -&gt; GenericBasicBlock a
+Functor GenericBasicBlock
+-&gt; (forall a. a -&gt; GenericBasicBlock a)
+-&gt; (forall a b.
+    GenericBasicBlock (a -&gt; b)
+    -&gt; GenericBasicBlock a -&gt; GenericBasicBlock b)
+-&gt; (forall a b c.
+    (a -&gt; b -&gt; c)
+    -&gt; GenericBasicBlock a
+    -&gt; GenericBasicBlock b
+    -&gt; GenericBasicBlock c)
+-&gt; (forall a b.
+    GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b)
+-&gt; (forall a b.
+    GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a)
+-&gt; Applicative GenericBasicBlock
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+GenericBasicBlock (a -&gt; b)
+-&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+(a -&gt; b -&gt; c)
+-&gt; GenericBasicBlock a
+-&gt; GenericBasicBlock b
+-&gt; GenericBasicBlock c
+forall a. a -&gt; GenericBasicBlock a
+forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+forall a b.
+GenericBasicBlock (a -&gt; b)
+-&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; GenericBasicBlock a
+-&gt; GenericBasicBlock b
+-&gt; GenericBasicBlock c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+$c&lt;* :: forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock a
+*&gt; :: GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+$c*&gt; :: forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+liftA2 :: (a -&gt; b -&gt; c)
+-&gt; GenericBasicBlock a
+-&gt; GenericBasicBlock b
+-&gt; GenericBasicBlock c
+$cliftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; GenericBasicBlock a
+-&gt; GenericBasicBlock b
+-&gt; GenericBasicBlock c
+&lt;*&gt; :: GenericBasicBlock (a -&gt; b)
+-&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+$c&lt;*&gt; :: forall a b.
+GenericBasicBlock (a -&gt; b)
+-&gt; GenericBasicBlock a -&gt; GenericBasicBlock b
+pure :: a -&gt; GenericBasicBlock a
+$cpure :: forall a. a -&gt; GenericBasicBlock a
+$cp1Applicative :: Functor GenericBasicBlock
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679294785"><span id="local-6989586621679294787"><span id="local-6989586621679294789"><span class="annot"><span class="annottext">Applicative GenericBasicBlock
+a -&gt; GenericBasicBlock a
+Applicative GenericBasicBlock
+-&gt; (forall a b.
+    GenericBasicBlock a
+    -&gt; (a -&gt; GenericBasicBlock b) -&gt; GenericBasicBlock b)
+-&gt; (forall a b.
+    GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b)
+-&gt; (forall a. a -&gt; GenericBasicBlock a)
+-&gt; Monad GenericBasicBlock
+GenericBasicBlock a
+-&gt; (a -&gt; GenericBasicBlock b) -&gt; GenericBasicBlock b
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+forall a. a -&gt; GenericBasicBlock a
+forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+forall a b.
+GenericBasicBlock a
+-&gt; (a -&gt; GenericBasicBlock b) -&gt; GenericBasicBlock b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: a -&gt; GenericBasicBlock a
+$creturn :: forall a. a -&gt; GenericBasicBlock a
+&gt;&gt; :: GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+$c&gt;&gt; :: forall a b.
+GenericBasicBlock a -&gt; GenericBasicBlock b -&gt; GenericBasicBlock b
+&gt;&gt;= :: GenericBasicBlock a
+-&gt; (a -&gt; GenericBasicBlock b) -&gt; GenericBasicBlock b
+$c&gt;&gt;= :: forall a b.
+GenericBasicBlock a
+-&gt; (a -&gt; GenericBasicBlock b) -&gt; GenericBasicBlock b
+$cp1Monad :: Applicative GenericBasicBlock
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span>
+</span><span id="line-15"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(forall x.
+ GenericBasicBlock instr -&gt; Rep (GenericBasicBlock instr) x)
+-&gt; (forall x.
+    Rep (GenericBasicBlock instr) x -&gt; GenericBasicBlock instr)
+-&gt; Generic (GenericBasicBlock instr)
+forall x.
+Rep (GenericBasicBlock instr) x -&gt; GenericBasicBlock instr
+forall x.
+GenericBasicBlock instr -&gt; Rep (GenericBasicBlock instr) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall instr x.
+Rep (GenericBasicBlock instr) x -&gt; GenericBasicBlock instr
+forall instr x.
+GenericBasicBlock instr -&gt; Rep (GenericBasicBlock instr) x
+$cto :: forall instr x.
+Rep (GenericBasicBlock instr) x -&gt; GenericBasicBlock instr
+$cfrom :: forall instr x.
+GenericBasicBlock instr -&gt; Rep (GenericBasicBlock instr) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span id="local-6989586621679294780"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294776"><span id="local-6989586621679294778"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679294780"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.BasicBlock.html#GenericBasicBlock"><span class="hs-identifier hs-type">GenericBasicBlock</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294780"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span id="local-6989586621679294774"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294769"><span id="local-6989586621679294772"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679294774"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.BasicBlock.html#GenericBasicBlock"><span class="hs-identifier hs-type">GenericBasicBlock</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294774"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>  </span><span id="local-6989586621679294767"><span class="annot"><span class="annottext">show :: GenericBasicBlock instr -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="annot"><a href="Generic.BasicBlock.html#BasicBlock"><span class="hs-identifier hs-type">BasicBlock</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621679294765"><span class="annot"><span class="annottext">[instr]
+instructions :: [instr]
+instructions :: forall a. GenericBasicBlock a -&gt; [a]
+</span><a href="#local-6989586621679294765"><span class="hs-identifier hs-var hs-var">instructions</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">instr -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(instr -&gt; String) -&gt; [instr] -&gt; [String]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[instr]
+</span><a href="#local-6989586621679294765"><span class="hs-identifier hs-var">instructions</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-21"></span></pre></body></html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, StandaloneDeriving, DeriveGeneric, ExistentialQuantification #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Binary</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- |  Information on the sections in the binary</span><span>
+</span><span id="line-19"></span><span id="local-6989586621679294271"><span id="local-6989586621679294272"></span></span><span class="hs-keyword">data</span><span> </span><span id="SectionsInfo"><span class="annot"><a href="Data.Binary.html#SectionsInfo"><span class="hs-identifier hs-var">SectionsInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SectionsInfo"><span class="annot"><a href="Data.Binary.html#SectionsInfo"><span class="hs-identifier hs-var">SectionsInfo</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-20"></span><span>  </span><span id="si_sections"><span class="annot"><span class="annottext">SectionsInfo -&gt; [(String, String, Word64, Word64)]
+</span><a href="Data.Binary.html#si_sections"><span class="hs-identifier hs-var hs-var">si_sections</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ Sections: segment names, section names, addresses and sizes.</span><span>
+</span><span id="line-21"></span><span>  </span><span id="si_min_address"><span class="annot"><span class="annottext">SectionsInfo -&gt; Word64
+</span><a href="Data.Binary.html#si_min_address"><span class="hs-identifier hs-var hs-var">si_min_address</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span id="si_max_address"><span class="annot"><span class="annottext">SectionsInfo -&gt; Word64
+</span><a href="Data.Binary.html#si_max_address"><span class="hs-identifier hs-var hs-var">si_max_address</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-23"></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-24"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679294261"><span id="local-6989586621679294263"><span id="local-6989586621679294265"><span class="annot"><span class="annottext">Int -&gt; SectionsInfo -&gt; ShowS
+[SectionsInfo] -&gt; ShowS
+SectionsInfo -&gt; String
+(Int -&gt; SectionsInfo -&gt; ShowS)
+-&gt; (SectionsInfo -&gt; String)
+-&gt; ([SectionsInfo] -&gt; ShowS)
+-&gt; Show SectionsInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SectionsInfo] -&gt; ShowS
+$cshowList :: [SectionsInfo] -&gt; ShowS
+show :: SectionsInfo -&gt; String
+$cshow :: SectionsInfo -&gt; String
+showsPrec :: Int -&gt; SectionsInfo -&gt; ShowS
+$cshowsPrec :: Int -&gt; SectionsInfo -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. SectionsInfo -&gt; Rep SectionsInfo x)
+-&gt; (forall x. Rep SectionsInfo x -&gt; SectionsInfo)
+-&gt; Generic SectionsInfo
+forall x. Rep SectionsInfo x -&gt; SectionsInfo
+forall x. SectionsInfo -&gt; Rep SectionsInfo x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep SectionsInfo x -&gt; SectionsInfo
+$cfrom :: forall x. SectionsInfo -&gt; Rep SectionsInfo x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679294253"><span id="local-6989586621679294255"><span class="annot"><span class="annottext">SectionsInfo -&gt; SectionsInfo -&gt; Bool
+(SectionsInfo -&gt; SectionsInfo -&gt; Bool)
+-&gt; (SectionsInfo -&gt; SectionsInfo -&gt; Bool) -&gt; Eq SectionsInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SectionsInfo -&gt; SectionsInfo -&gt; Bool
+$c/= :: SectionsInfo -&gt; SectionsInfo -&gt; Bool
+== :: SectionsInfo -&gt; SectionsInfo -&gt; Bool
+$c== :: SectionsInfo -&gt; SectionsInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | Relocations</span><span>
+</span><span id="line-28"></span><span id="local-6989586621679294250"><span id="local-6989586621679294251"></span></span><span class="hs-keyword">data</span><span> </span><span id="Relocation"><span class="annot"><a href="Data.Binary.html#Relocation"><span class="hs-identifier hs-var">Relocation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="R_X86_64_RELATIVE"><span class="annot"><a href="Data.Binary.html#R_X86_64_RELATIVE"><span class="hs-identifier hs-var">R_X86_64_RELATIVE</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-comment">-- ^ At address a0, address a1 has been written</span><span>
+</span><span id="line-29"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679294243"><span id="local-6989586621679294245"><span id="local-6989586621679294247"><span class="annot"><span class="annottext">Int -&gt; Relocation -&gt; ShowS
+[Relocation] -&gt; ShowS
+Relocation -&gt; String
+(Int -&gt; Relocation -&gt; ShowS)
+-&gt; (Relocation -&gt; String)
+-&gt; ([Relocation] -&gt; ShowS)
+-&gt; Show Relocation
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Relocation] -&gt; ShowS
+$cshowList :: [Relocation] -&gt; ShowS
+show :: Relocation -&gt; String
+$cshow :: Relocation -&gt; String
+showsPrec :: Int -&gt; Relocation -&gt; ShowS
+$cshowsPrec :: Int -&gt; Relocation -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. Relocation -&gt; Rep Relocation x)
+-&gt; (forall x. Rep Relocation x -&gt; Relocation) -&gt; Generic Relocation
+forall x. Rep Relocation x -&gt; Relocation
+forall x. Relocation -&gt; Rep Relocation x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Relocation x -&gt; Relocation
+$cfrom :: forall x. Relocation -&gt; Rep Relocation x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679294237"><span id="local-6989586621679294239"><span class="annot"><span class="annottext">Relocation -&gt; Relocation -&gt; Bool
+(Relocation -&gt; Relocation -&gt; Bool)
+-&gt; (Relocation -&gt; Relocation -&gt; Bool) -&gt; Eq Relocation
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Relocation -&gt; Relocation -&gt; Bool
+$c/= :: Relocation -&gt; Relocation -&gt; Bool
+== :: Relocation -&gt; Relocation -&gt; Bool
+$c== :: Relocation -&gt; Relocation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679294222"><span id="local-6989586621679294224"><span id="local-6989586621679294226"><span id="local-6989586621679294228"><span id="local-6989586621679294230"><span id="local-6989586621679294232"><span id="local-6989586621679294234"><span class="annot"><span class="annottext">Eq Relocation
+Eq Relocation
+-&gt; (Relocation -&gt; Relocation -&gt; Ordering)
+-&gt; (Relocation -&gt; Relocation -&gt; Bool)
+-&gt; (Relocation -&gt; Relocation -&gt; Bool)
+-&gt; (Relocation -&gt; Relocation -&gt; Bool)
+-&gt; (Relocation -&gt; Relocation -&gt; Bool)
+-&gt; (Relocation -&gt; Relocation -&gt; Relocation)
+-&gt; (Relocation -&gt; Relocation -&gt; Relocation)
+-&gt; Ord Relocation
+Relocation -&gt; Relocation -&gt; Bool
+Relocation -&gt; Relocation -&gt; Ordering
+Relocation -&gt; Relocation -&gt; Relocation
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Relocation -&gt; Relocation -&gt; Relocation
+$cmin :: Relocation -&gt; Relocation -&gt; Relocation
+max :: Relocation -&gt; Relocation -&gt; Relocation
+$cmax :: Relocation -&gt; Relocation -&gt; Relocation
+&gt;= :: Relocation -&gt; Relocation -&gt; Bool
+$c&gt;= :: Relocation -&gt; Relocation -&gt; Bool
+&gt; :: Relocation -&gt; Relocation -&gt; Bool
+$c&gt; :: Relocation -&gt; Relocation -&gt; Bool
+&lt;= :: Relocation -&gt; Relocation -&gt; Bool
+$c&lt;= :: Relocation -&gt; Relocation -&gt; Bool
+&lt; :: Relocation -&gt; Relocation -&gt; Bool
+$c&lt; :: Relocation -&gt; Relocation -&gt; Bool
+compare :: Relocation -&gt; Relocation -&gt; Ordering
+$ccompare :: Relocation -&gt; Relocation -&gt; Ordering
+$cp1Ord :: Eq Relocation
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span id="pp_reloc"><span class="annot"><span class="annottext">pp_reloc :: Relocation -&gt; String
+</span><a href="Data.Binary.html#pp_reloc"><span class="hs-identifier hs-var hs-var">pp_reloc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#R_X86_64_RELATIVE"><span class="hs-identifier hs-type">R_X86_64_RELATIVE</span></a></span><span> </span><span id="local-6989586621679294219"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679294219"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679294218"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679294218"><span class="hs-identifier hs-var">a1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
+forall a. (Integral a, Show a) =&gt; a -&gt; String
+</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679294219"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; --&gt; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
+forall a. (Integral a, Show a) =&gt; a -&gt; String
+</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679294218"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | Symbol Table</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">type</span><span> </span><span id="SymbolTable"><span class="annot"><a href="Data.Binary.html#SymbolTable"><span class="hs-identifier hs-var">SymbolTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">class</span><span> </span><span id="BinaryClass"><span class="annot"><a href="Data.Binary.html#BinaryClass"><span class="hs-identifier hs-var">BinaryClass</span></a></span></span><span> </span><span id="local-6989586621679294281"><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="binary_read_ro_data"><span class="annot"><a href="Data.Binary.html#binary_read_ro_data"><span class="hs-identifier hs-type">binary_read_ro_data</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>  </span><span id="binary_read_data"><span class="annot"><a href="Data.Binary.html#binary_read_data"><span class="hs-identifier hs-type">binary_read_data</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>  </span><span id="binary_get_sections_info"><span class="annot"><a href="Data.Binary.html#binary_get_sections_info"><span class="hs-identifier hs-type">binary_get_sections_info</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Binary.html#SectionsInfo"><span class="hs-identifier hs-type">SectionsInfo</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span id="binary_get_relocs"><span class="annot"><a href="Data.Binary.html#binary_get_relocs"><span class="hs-identifier hs-type">binary_get_relocs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Binary.html#Relocation"><span class="hs-identifier hs-type">Relocation</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>  </span><span id="binary_get_symbols"><span class="annot"><a href="Data.Binary.html#binary_get_symbols"><span class="hs-identifier hs-type">binary_get_symbols</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Binary.html#SymbolTable"><span class="hs-identifier hs-type">SymbolTable</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="binary_pp"><span class="annot"><a href="Data.Binary.html#binary_pp"><span class="hs-identifier hs-type">binary_pp</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294281"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="Binary"><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-var">Binary</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679294209"><span class="annot"><a href="#local-6989586621679294209"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.Binary.html#BinaryClass"><span class="hs-identifier hs-type">BinaryClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294209"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Binary"><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-var">Binary</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679294209"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Binary.html#BinaryClass"><span class="hs-identifier hs-type">BinaryClass</span></a></span><span> </span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679294200"><span class="annot"><span class="annottext">binary_read_ro_data :: Binary -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+</span><a href="#local-6989586621679294200"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_read_ro_data</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294199"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294199"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+forall a. BinaryClass a =&gt; a -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+</span><a href="Data.Binary.html#binary_read_ro_data"><span class="hs-identifier hs-var">binary_read_ro_data</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294199"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679294198"><span class="annot"><span class="annottext">binary_read_data :: Binary -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+</span><a href="#local-6989586621679294198"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_read_data</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294197"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294197"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+forall a. BinaryClass a =&gt; a -&gt; Word64 -&gt; Int -&gt; Maybe [Word8]
+</span><a href="Data.Binary.html#binary_read_data"><span class="hs-identifier hs-var">binary_read_data</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294197"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679294196"><span class="annot"><span class="annottext">binary_get_sections_info :: Binary -&gt; SectionsInfo
+</span><a href="#local-6989586621679294196"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_get_sections_info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294195"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294195"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; SectionsInfo
+forall a. BinaryClass a =&gt; a -&gt; SectionsInfo
+</span><a href="Data.Binary.html#binary_get_sections_info"><span class="hs-identifier hs-var">binary_get_sections_info</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294195"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679294194"><span class="annot"><span class="annottext">binary_get_relocs :: Binary -&gt; [Relocation]
+</span><a href="#local-6989586621679294194"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_get_relocs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294193"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294193"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; [Relocation]
+forall a. BinaryClass a =&gt; a -&gt; [Relocation]
+</span><a href="Data.Binary.html#binary_get_relocs"><span class="hs-identifier hs-var">binary_get_relocs</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294193"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679294192"><span class="annot"><span class="annottext">binary_get_symbols :: Binary -&gt; SymbolTable
+</span><a href="#local-6989586621679294192"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_get_symbols</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294191"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294191"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; SymbolTable
+forall a. BinaryClass a =&gt; a -&gt; SymbolTable
+</span><a href="Data.Binary.html#binary_get_symbols"><span class="hs-identifier hs-var">binary_get_symbols</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294191"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679294190"><span class="annot"><span class="annottext">binary_pp :: Binary -&gt; String
+</span><a href="#local-6989586621679294190"><span class="hs-identifier hs-var hs-var hs-var hs-var">binary_pp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679294189"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294189"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; String
+forall a. BinaryClass a =&gt; a -&gt; String
+</span><a href="Data.Binary.html#binary_pp"><span class="hs-identifier hs-var">binary_pp</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679294189"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span></pre></body></html>

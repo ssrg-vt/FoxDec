@@ -1,0 +1,82 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_JEtbXOBholG4I8yqTXSa1w"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">IR.Opcode</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="IR.Opcode.html#Opcode"><span class="hs-identifier">Opcode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="X86.Opcode.html"><span class="hs-identifier">X86.Opcode</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X86</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span id="local-6989586621679296607"><span id="local-6989586621679296608"></span></span><span class="hs-keyword">data</span><span> </span><span id="Opcode"><span class="annot"><a href="IR.Opcode.html#Opcode"><span class="hs-identifier hs-var">Opcode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OpcodeX86"><span class="annot"><a href="IR.Opcode.html#OpcodeX86"><span class="hs-identifier hs-var">OpcodeX86</span></a></span></span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">X86.Opcode</span></a></span><span>
+</span><span id="line-10"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="OpcodePhi"><span class="annot"><a href="IR.Opcode.html#OpcodePhi"><span class="hs-identifier hs-var">OpcodePhi</span></a></span></span><span>
+</span><span id="line-11"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="OpcodeConvert"><span class="annot"><a href="IR.Opcode.html#OpcodeConvert"><span class="hs-identifier hs-var">OpcodeConvert</span></a></span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679296600"><span id="local-6989586621679296602"><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
+(Opcode -&gt; Opcode -&gt; Bool)
+-&gt; (Opcode -&gt; Opcode -&gt; Bool) -&gt; Eq Opcode
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Opcode -&gt; Opcode -&gt; Bool
+$c/= :: Opcode -&gt; Opcode -&gt; Bool
+== :: Opcode -&gt; Opcode -&gt; Bool
+$c== :: Opcode -&gt; Opcode -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296584"><span id="local-6989586621679296586"><span id="local-6989586621679296588"><span id="local-6989586621679296590"><span id="local-6989586621679296592"><span id="local-6989586621679296594"><span id="local-6989586621679296596"><span class="annot"><span class="annottext">Eq Opcode
+Eq Opcode
+-&gt; (Opcode -&gt; Opcode -&gt; Ordering)
+-&gt; (Opcode -&gt; Opcode -&gt; Bool)
+-&gt; (Opcode -&gt; Opcode -&gt; Bool)
+-&gt; (Opcode -&gt; Opcode -&gt; Bool)
+-&gt; (Opcode -&gt; Opcode -&gt; Bool)
+-&gt; (Opcode -&gt; Opcode -&gt; Opcode)
+-&gt; (Opcode -&gt; Opcode -&gt; Opcode)
+-&gt; Ord Opcode
+Opcode -&gt; Opcode -&gt; Bool
+Opcode -&gt; Opcode -&gt; Ordering
+Opcode -&gt; Opcode -&gt; Opcode
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Opcode -&gt; Opcode -&gt; Opcode
+$cmin :: Opcode -&gt; Opcode -&gt; Opcode
+max :: Opcode -&gt; Opcode -&gt; Opcode
+$cmax :: Opcode -&gt; Opcode -&gt; Opcode
+&gt;= :: Opcode -&gt; Opcode -&gt; Bool
+$c&gt;= :: Opcode -&gt; Opcode -&gt; Bool
+&gt; :: Opcode -&gt; Opcode -&gt; Bool
+$c&gt; :: Opcode -&gt; Opcode -&gt; Bool
+&lt;= :: Opcode -&gt; Opcode -&gt; Bool
+$c&lt;= :: Opcode -&gt; Opcode -&gt; Bool
+&lt; :: Opcode -&gt; Opcode -&gt; Bool
+$c&lt; :: Opcode -&gt; Opcode -&gt; Bool
+compare :: Opcode -&gt; Opcode -&gt; Ordering
+$ccompare :: Opcode -&gt; Opcode -&gt; Ordering
+$cp1Ord :: Eq Opcode
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(forall x. Opcode -&gt; Rep Opcode x)
+-&gt; (forall x. Rep Opcode x -&gt; Opcode) -&gt; Generic Opcode
+forall x. Rep Opcode x -&gt; Opcode
+forall x. Opcode -&gt; Rep Opcode x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Opcode x -&gt; Opcode
+$cfrom :: forall x. Opcode -&gt; Rep Opcode x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679296576"><span id="local-6989586621679296578"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="IR.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679296570"><span id="local-6989586621679296573"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="IR.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>  </span><span id="local-6989586621679296568"><span class="annot"><span class="annottext">show :: Opcode -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="IR.Opcode.html#OpcodeX86"><span class="hs-identifier hs-type">OpcodeX86</span></a></span><span> </span><span id="local-6989586621679296566"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679296566"><span class="hs-identifier hs-var">x86</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679296566"><span class="hs-identifier hs-var">x86</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="IR.Opcode.html#OpcodePhi"><span class="hs-identifier hs-var">OpcodePhi</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&#934;&quot;</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="IR.Opcode.html#OpcodeConvert"><span class="hs-identifier hs-var">OpcodeConvert</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;conv&quot;</span></span></pre></body></html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_FGYzw5ngvsPHCiZGMMrIwt"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">X86.Flag</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86.Flag.html#Flag"><span class="hs-identifier">Flag</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Flags</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">data</span><span> </span><span id="Flag"><span class="annot"><a href="X86.Flag.html#Flag"><span class="hs-identifier hs-var">Flag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ZF"><span class="annot"><a href="X86.Flag.html#ZF"><span class="hs-identifier hs-var">ZF</span></a></span></span><span>
+</span><span id="line-5"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="CF"><span class="annot"><a href="X86.Flag.html#CF"><span class="hs-identifier hs-var">CF</span></a></span></span><span>
+</span><span id="line-6"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="SF"><span class="annot"><a href="X86.Flag.html#SF"><span class="hs-identifier hs-var">SF</span></a></span></span><span>
+</span><span id="line-7"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="OF"><span class="annot"><a href="X86.Flag.html#OF"><span class="hs-identifier hs-var">OF</span></a></span></span><span>
+</span><span id="line-8"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="PF"><span class="annot"><a href="X86.Flag.html#PF"><span class="hs-identifier hs-var">PF</span></a></span></span><span>
+</span><span id="line-9"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="InvalidFlag"><span class="annot"><a href="X86.Flag.html#InvalidFlag"><span class="hs-identifier hs-var">InvalidFlag</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679295885"><span id="local-6989586621679295887"><span id="local-6989586621679295889"><span class="annot"><span class="annottext">Int -&gt; Flag -&gt; ShowS
+[Flag] -&gt; ShowS
+Flag -&gt; String
+(Int -&gt; Flag -&gt; ShowS)
+-&gt; (Flag -&gt; String) -&gt; ([Flag] -&gt; ShowS) -&gt; Show Flag
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Flag] -&gt; ShowS
+$cshowList :: [Flag] -&gt; ShowS
+show :: Flag -&gt; String
+$cshow :: Flag -&gt; String
+showsPrec :: Int -&gt; Flag -&gt; ShowS
+$cshowsPrec :: Int -&gt; Flag -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679295880"><span id="local-6989586621679295882"><span class="annot"><span class="annottext">Flag -&gt; Flag -&gt; Bool
+(Flag -&gt; Flag -&gt; Bool) -&gt; (Flag -&gt; Flag -&gt; Bool) -&gt; Eq Flag
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Flag -&gt; Flag -&gt; Bool
+$c/= :: Flag -&gt; Flag -&gt; Bool
+== :: Flag -&gt; Flag -&gt; Bool
+$c== :: Flag -&gt; Flag -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679295864"><span id="local-6989586621679295866"><span id="local-6989586621679295868"><span id="local-6989586621679295870"><span id="local-6989586621679295872"><span id="local-6989586621679295874"><span id="local-6989586621679295876"><span class="annot"><span class="annottext">Eq Flag
+Eq Flag
+-&gt; (Flag -&gt; Flag -&gt; Ordering)
+-&gt; (Flag -&gt; Flag -&gt; Bool)
+-&gt; (Flag -&gt; Flag -&gt; Bool)
+-&gt; (Flag -&gt; Flag -&gt; Bool)
+-&gt; (Flag -&gt; Flag -&gt; Bool)
+-&gt; (Flag -&gt; Flag -&gt; Flag)
+-&gt; (Flag -&gt; Flag -&gt; Flag)
+-&gt; Ord Flag
+Flag -&gt; Flag -&gt; Bool
+Flag -&gt; Flag -&gt; Ordering
+Flag -&gt; Flag -&gt; Flag
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Flag -&gt; Flag -&gt; Flag
+$cmin :: Flag -&gt; Flag -&gt; Flag
+max :: Flag -&gt; Flag -&gt; Flag
+$cmax :: Flag -&gt; Flag -&gt; Flag
+&gt;= :: Flag -&gt; Flag -&gt; Bool
+$c&gt;= :: Flag -&gt; Flag -&gt; Bool
+&gt; :: Flag -&gt; Flag -&gt; Bool
+$c&gt; :: Flag -&gt; Flag -&gt; Bool
+&lt;= :: Flag -&gt; Flag -&gt; Bool
+$c&lt;= :: Flag -&gt; Flag -&gt; Bool
+&lt; :: Flag -&gt; Flag -&gt; Bool
+$c&lt; :: Flag -&gt; Flag -&gt; Bool
+compare :: Flag -&gt; Flag -&gt; Ordering
+$ccompare :: Flag -&gt; Flag -&gt; Ordering
+$cp1Ord :: Eq Flag
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span></pre></body></html>

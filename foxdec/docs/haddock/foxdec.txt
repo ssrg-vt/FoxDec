@@ -9,6 +9,90 @@
 @version 0.1.0.0
 
 
+module Base
+
+-- | Show the integer in hex.
+showHex :: (Integral a, Show a) => a -> String
+
+-- | Show an integer list as hex-list.
+showHex_list :: (Integral a, Show a) => [a] -> [Char]
+
+-- | Show an integer set as hex-list.
+showHex_set :: IntSet -> [Char]
+
+-- | Show an optional integer as an optional hex.
+showHex_option :: (Integral a, Show a) => Maybe a -> [Char]
+
+-- | Read an int from a string storing a hex.
+readHex' :: (Eq a, Num a) => String -> a
+
+-- | Lookup and produce error message if key does not exists in map.
+im_lookup :: [Char] -> IntMap p -> Key -> p
+
+-- | use a default value in case of <tt>Nothing</tt>
+orElse :: Maybe p -> p -> p
+
+-- | create a tuple
+pair :: a -> b -> (a, b)
+
+-- | Find the index of one string in another.
+findString :: Eq a => [a] -> [a] -> Maybe Int
+
+-- | Take until the occurrence of the string
+takeUntilString :: String -> String -> String
+
+-- | Strip outer parentheses from a string, if it has them.
+strip_parentheses :: [Char] -> [Char]
+
+-- | In little endian, convert a byte-list to a 64 bit word. Assume the
+--   list is at most length 8.
+bytes_to_word :: [Word8] -> Word64
+
+-- | Convert first <tt>n</tt> bytes of a word to an integer. Assume
+--   <tt>n&lt;8</tt>.
+word_to_sint :: Int -> Word64 -> Int
+
+-- | Generic graph with ints as vertices.
+data Graph
+Edges :: IntMap IntSet -> Graph
+
+-- | add edges from v to all vertices vs
+graph_add_edges :: Graph -> Key -> IntSet -> Graph
+
+-- | delete all edges with v as parent or child
+graph_delete :: Graph -> Key -> Graph
+
+-- | is v parent of an edge?
+graph_is_parent :: Graph -> Key -> Bool
+
+-- | is v a vertex in the graph?
+graph_is_vertex :: Graph -> Key -> Bool
+
+-- | is (v0,v1) an edge?
+graph_is_edge :: Graph -> Key -> Key -> Bool
+
+-- | retrieve a non-trivial SCC, if any exists
+graph_nontrivial_scc :: Graph -> IntSet
+
+-- | find next vertex to consider: either a terminal vertex (if any) or the
+--   head of an SCC
+graph_find_next :: Graph -> Maybe Int
+
+-- | decide whether text should be white or black based on background color
+hex_color_of_text :: String -> String
+
+-- | A list of RGB colors
+hex_colors :: [[Char]]
+allp :: [a -> Bool] -> a -> Bool
+instance GHC.Show.Show Base.Graph
+instance GHC.Generics.Generic Base.Graph
+instance Data.Serialize.Serialize Base.Graph
+instance Algorithm.SCC.IntGraph Base.Graph
+
+module Algorithm.Dominance
+domFrontier :: Graph -> Graph -> Int -> IntSet
+
+
 module Config
 
 -- | A datastructure storing all configurable options
@@ -69,246 +153,206 @@ instance GHC.Generics.Generic Config.Config
 instance Dhall.Marshal.Decode.FromDhall Config.Config
 instance Data.Serialize.Serialize Config.Config
 
+module Data.Binary
 
-module Base
+-- | Information on the sections in the binary
+data SectionsInfo
+SectionsInfo :: [(String, String, Word64, Word64)] -> Word64 -> Word64 -> SectionsInfo
 
--- | Show the integer in hex.
-showHex :: (Integral a, Show a) => a -> String
+-- | Sections: segment names, section names, addresses and sizes.
+[si_sections] :: SectionsInfo -> [(String, String, Word64, Word64)]
+[si_min_address] :: SectionsInfo -> Word64
+[si_max_address] :: SectionsInfo -> Word64
 
--- | Show an integer list as hex-list.
-showHex_list :: (Integral a, Show a) => [a] -> [Char]
+-- | Relocations
+data Relocation
 
--- | Show an integer set as hex-list.
-showHex_set :: IntSet -> [Char]
+-- | At address a0, address a1 has been written
+R_X86_64_RELATIVE :: Word64 -> Word64 -> Relocation
+pp_reloc :: Relocation -> [Char]
 
--- | Show an optional integer as an optional hex.
-showHex_option :: (Integral a, Show a) => Maybe a -> [Char]
+-- | Symbol Table
+type SymbolTable = IntMap String
+class BinaryClass a
+binary_read_ro_data :: BinaryClass a => a -> Word64 -> Int -> Maybe [Word8]
+binary_read_data :: BinaryClass a => a -> Word64 -> Int -> Maybe [Word8]
+binary_get_sections_info :: BinaryClass a => a -> SectionsInfo
+binary_get_relocs :: BinaryClass a => a -> [Relocation]
+binary_get_symbols :: BinaryClass a => a -> SymbolTable
+binary_pp :: BinaryClass a => a -> String
+data Binary
+Binary :: b -> Binary
+instance GHC.Classes.Eq Data.Binary.SectionsInfo
+instance GHC.Generics.Generic Data.Binary.SectionsInfo
+instance GHC.Show.Show Data.Binary.SectionsInfo
+instance GHC.Classes.Ord Data.Binary.Relocation
+instance GHC.Classes.Eq Data.Binary.Relocation
+instance GHC.Generics.Generic Data.Binary.Relocation
+instance GHC.Show.Show Data.Binary.Relocation
+instance Data.Binary.BinaryClass Data.Binary.Binary
 
--- | Read an int from a string storing a hex.
-readHex' :: (Eq a, Num a) => String -> a
+module Data.BinaryElf
+elf_read_file :: ByteString -> Elf
+instance GHC.Generics.Generic Data.Elf.ElfMachine
+instance GHC.Generics.Generic Data.Elf.ElfSegmentType
+instance GHC.Generics.Generic Data.Elf.ElfSegmentFlag
+instance GHC.Generics.Generic Data.Elf.ElfSegment
+instance GHC.Generics.Generic Data.Elf.ElfType
+instance GHC.Generics.Generic Data.Elf.ElfOSABI
+instance GHC.Generics.Generic Data.Elf.ElfClass
+instance GHC.Generics.Generic Data.Elf.ElfData
+instance GHC.Generics.Generic Data.Elf.ElfSectionFlags
+instance GHC.Generics.Generic Data.Elf.ElfSectionType
+instance GHC.Generics.Generic Data.Elf.ElfSection
+instance GHC.Generics.Generic Data.Elf.Elf
+instance Data.Serialize.Serialize Data.Elf.ElfMachine
+instance Data.Serialize.Serialize Data.Elf.ElfSegmentType
+instance Data.Serialize.Serialize Data.Elf.ElfSegmentFlag
+instance Data.Serialize.Serialize Data.Elf.ElfSegment
+instance Data.Serialize.Serialize Data.Elf.ElfType
+instance Data.Serialize.Serialize Data.Elf.ElfOSABI
+instance Data.Serialize.Serialize Data.Elf.ElfClass
+instance Data.Serialize.Serialize Data.Elf.ElfData
+instance Data.Serialize.Serialize Data.Elf.ElfSectionFlags
+instance Data.Serialize.Serialize Data.Elf.ElfSectionType
+instance Data.Serialize.Serialize Data.Elf.ElfSection
+instance Data.Serialize.Serialize Data.Elf.Elf
+instance Data.Binary.BinaryClass Data.Elf.Elf
 
--- | Lookup and produce error message if key does not exists in map.
-im_lookup :: [Char] -> IntMap p -> Key -> p
+module Generic.Address
 
--- | use a default value in case of <tt>Nothing</tt>
-orElse :: Maybe p -> p -> p
+-- | An unresolved address, within the operand of an instruction, based on
+--   polymorphic type <tt>storage</tt>.
+data GenericAddress storage
 
--- | create a tuple
-pair :: a -> b -> (a, b)
+-- | Reading a pointer from a storage
+AddressStorage :: storage -> GenericAddress storage
 
--- | Find the index of one string in another.
-findString :: Eq a => [a] -> [a] -> Maybe Int
+-- | Immediate value
+AddressImm :: Word64 -> GenericAddress storage
 
--- | Take until the occurence of the string
-takeUntilString :: String -> String -> String
+-- | Minus
+AddressMinus :: GenericAddress storage -> GenericAddress storage -> GenericAddress storage
 
--- | Strip outer parentheses from a string, if it has them.
-strip_parentheses :: [Char] -> [Char]
+-- | Plus
+AddressPlus :: GenericAddress storage -> GenericAddress storage -> GenericAddress storage
 
--- | In little endian, convert a byte-list to a 64 bit word. Assume the
---   list is at most length 8.
-bytes_to_word :: [Word8] -> Word64
+-- | Times
+AddressTimes :: GenericAddress storage -> GenericAddress storage -> GenericAddress storage
 
--- | Convert first <tt>n</tt> bytes of a word to an integer. Assume
---   <tt>n&lt;8</tt>.
-word_to_sint :: Int -> Word64 -> Int
+-- | A type for encapsulating an immediate (allows to always show hex)
+newtype AddressWord64
+AddressWord64 :: Word64 -> AddressWord64
+instance GHC.Generics.Generic Generic.Address.AddressWord64
+instance GHC.Classes.Ord Generic.Address.AddressWord64
+instance GHC.Classes.Eq Generic.Address.AddressWord64
+instance GHC.Generics.Generic (Generic.Address.GenericAddress storage)
+instance GHC.Classes.Ord storage => GHC.Classes.Ord (Generic.Address.GenericAddress storage)
+instance GHC.Classes.Eq storage => GHC.Classes.Eq (Generic.Address.GenericAddress storage)
+instance Data.Serialize.Serialize storage => Data.Serialize.Serialize (Generic.Address.GenericAddress storage)
+instance GHC.Show.Show storage => GHC.Show.Show (Generic.Address.GenericAddress storage)
+instance GHC.Base.Functor Generic.Address.GenericAddress
+instance Data.Serialize.Serialize Generic.Address.AddressWord64
+instance GHC.Show.Show Generic.Address.AddressWord64
 
--- | Generic graph with ints as vertices.
-data Graph
-Edges :: IntMap IntSet -> Graph
+module Generic.BasicBlock
+newtype GenericBasicBlock instr
+BasicBlock :: [instr] -> GenericBasicBlock instr
+[instructions] :: GenericBasicBlock instr -> [instr]
+instance GHC.Generics.Generic (Generic.BasicBlock.GenericBasicBlock instr)
+instance GHC.Base.Monad Generic.BasicBlock.GenericBasicBlock
+instance GHC.Base.Applicative Generic.BasicBlock.GenericBasicBlock
+instance Data.Traversable.Traversable Generic.BasicBlock.GenericBasicBlock
+instance Data.Foldable.Foldable Generic.BasicBlock.GenericBasicBlock
+instance GHC.Base.Functor Generic.BasicBlock.GenericBasicBlock
+instance GHC.Classes.Ord instr => GHC.Classes.Ord (Generic.BasicBlock.GenericBasicBlock instr)
+instance GHC.Classes.Eq instr => GHC.Classes.Eq (Generic.BasicBlock.GenericBasicBlock instr)
+instance Data.Serialize.Serialize instr => Data.Serialize.Serialize (Generic.BasicBlock.GenericBasicBlock instr)
+instance GHC.Show.Show instr => GHC.Show.Show (Generic.BasicBlock.GenericBasicBlock instr)
 
--- | add edges from v to all vertices vs
-graph_add_edges :: Graph -> Key -> IntSet -> Graph
+module Generic.Program
+data GenericProgram instr
+Program :: IntMap (GenericBasicBlock instr) -> Rooted -> GenericProgram instr
 
--- | delete all edges with v as parent or child
-graph_delete :: Graph -> Key -> Graph
+-- | A mapping from blockIDs to lists of statements
+[basicBlocks] :: GenericProgram instr -> IntMap (GenericBasicBlock instr)
 
--- | is v parent of an edge?
-graph_is_parent :: Graph -> Key -> Bool
+-- | A graph based on integers (blockIDs)
+[controlFlow] :: GenericProgram instr -> Rooted
+mapBasicBlocks :: (GenericBasicBlock instr1 -> GenericBasicBlock instr2) -> GenericProgram instr1 -> GenericProgram instr2
+mapInstructions :: (instr1 -> instr2) -> GenericProgram instr1 -> GenericProgram instr2
+foldBasicBlocks :: (a -> GenericBasicBlock instr -> a) -> a -> GenericProgram instr -> a
+foldInstructions :: (instr -> a -> a) -> a -> GenericProgram instr -> a
+instance GHC.Base.Functor Generic.Program.GenericProgram
+instance Data.Foldable.Foldable Generic.Program.GenericProgram
+instance GHC.Show.Show instr => GHC.Show.Show (Generic.Program.GenericProgram instr)
 
--- | is v a vertex in the graph?
-graph_is_vertex :: Graph -> Key -> Bool
+module Typeclasses.HasAddress
+class HasAddress a
+addressof :: HasAddress a => a -> Word64
 
--- | is (v0,v1) an edge?
-graph_is_edge :: Graph -> Key -> Key -> Bool
+module Typeclasses.HasSize
 
--- | retrieve a non-trivial SCC, if any exists
-graph_nontrivial_scc :: Graph -> IntSet
+-- | Class for things that have a size
+class HasSize a
+sizeof :: HasSize a => a -> Int
 
--- | find next vertex to consider: either a terminal vertex (if any) or the
---   head of an SCC
-graph_find_next :: Graph -> Maybe Int
+module Generic.Operand
 
--- | decide whether text should be white or black based on background color
-hex_color_of_text :: String -> String
+-- | A generic statepart, based on polymorphic type <tt>storage</tt>.
+data GenericOperand storage
 
--- | A list of RGB colors
-hex_colors :: [[Char]]
-instance GHC.Show.Show Base.Graph
-instance GHC.Generics.Generic Base.Graph
-instance Data.Serialize.Serialize Base.Graph
-instance SCC.IntGraph Base.Graph
+-- | A region in memory, whose address is stored in the given state part
+--   and whose size in bytes is given in the Int
+Memory :: GenericAddress storage -> Int -> GenericOperand storage
 
+-- | An address itself, but not the value stored at the address.
+EffectiveAddress :: GenericAddress storage -> GenericOperand storage
 
-module X86_Datastructures
+-- | A storage location such as a register or a variable
+Storage :: storage -> GenericOperand storage
 
--- | An instruction
-data Instr
-Instr :: Int -> Maybe Prefix -> Opcode -> Maybe Operand -> Maybe Operand -> Maybe Operand -> Maybe String -> Int -> Instr
+-- | An immediate value
+Immediate :: Word64 -> GenericOperand storage
+instance GHC.Generics.Generic (Generic.Operand.GenericOperand storage)
+instance GHC.Classes.Ord storage => GHC.Classes.Ord (Generic.Operand.GenericOperand storage)
+instance GHC.Classes.Eq storage => GHC.Classes.Eq (Generic.Operand.GenericOperand storage)
+instance Data.Serialize.Serialize storage => Data.Serialize.Serialize (Generic.Operand.GenericOperand storage)
+instance GHC.Show.Show storage => GHC.Show.Show (Generic.Operand.GenericOperand storage)
+instance Typeclasses.HasSize.HasSize storage => Typeclasses.HasSize.HasSize (Generic.Operand.GenericOperand storage)
+instance GHC.Base.Functor Generic.Operand.GenericOperand
 
--- | address
-[i_addr] :: Instr -> Int
+module Generic.Instruction
 
--- | prefix, e.g., lock or repz
-[i_prefix] :: Instr -> Maybe Prefix
+-- | A generic instruction
+data GenericInstruction label storage prefix opcode annotation
+Instruction :: label -> Maybe prefix -> opcode -> Maybe (GenericOperand storage) -> [GenericOperand storage] -> Maybe annotation -> GenericInstruction label storage prefix opcode annotation
+
+-- | unique identifier of the instruction: can be an immediate address, or
+--   a string label
+[label] :: GenericInstruction label storage prefix opcode annotation -> label
+
+-- | optional: prefix, e.g., lock or repz
+[prefix] :: GenericInstruction label storage prefix opcode annotation -> Maybe prefix
 
 -- | opcode/mnemonic
-[i_opcode] :: Instr -> Opcode
+[opcode] :: GenericInstruction label storage prefix opcode annotation -> opcode
 
--- | optional: operand
-[i_op1] :: Instr -> Maybe Operand
+-- | destination operand, possibly none
+[dest] :: GenericInstruction label storage prefix opcode annotation -> Maybe (GenericOperand storage)
 
--- | optional: operand
-[i_op2] :: Instr -> Maybe Operand
+-- | source operands, possibly empty
+[srcs] :: GenericInstruction label storage prefix opcode annotation -> [GenericOperand storage]
 
--- | optional: operand
-[i_op3] :: Instr -> Maybe Operand
+-- | optional: an annotation, such as the instruction size
+[annot] :: GenericInstruction label storage prefix opcode annotation -> Maybe annotation
+instance GHC.Generics.Generic (Generic.Instruction.GenericInstruction label storage prefix opcode annotation)
+instance (GHC.Classes.Ord label, GHC.Classes.Ord prefix, GHC.Classes.Ord opcode, GHC.Classes.Ord storage, GHC.Classes.Ord annotation) => GHC.Classes.Ord (Generic.Instruction.GenericInstruction label storage prefix opcode annotation)
+instance (GHC.Classes.Eq label, GHC.Classes.Eq prefix, GHC.Classes.Eq opcode, GHC.Classes.Eq storage, GHC.Classes.Eq annotation) => GHC.Classes.Eq (Generic.Instruction.GenericInstruction label storage prefix opcode annotation)
+instance (Data.Serialize.Serialize label, Data.Serialize.Serialize storage, Data.Serialize.Serialize prefix, Data.Serialize.Serialize opcode, Data.Serialize.Serialize annotation) => Data.Serialize.Serialize (Generic.Instruction.GenericInstruction label storage prefix opcode annotation)
+instance (GHC.Show.Show storage, GHC.Show.Show label, GHC.Show.Show prefix, GHC.Show.Show opcode, GHC.Show.Show annotation) => GHC.Show.Show (Generic.Instruction.GenericInstruction label storage prefix opcode annotation)
 
--- | optional: annotation, e.g., "&lt;malloc@plt + 10&gt;"
-[i_annot] :: Instr -> Maybe String
-
--- | size of instruction
-[i_size] :: Instr -> Int
-
--- | Instruction prefixes
-data Prefix
-InvalidPrefix :: Prefix
-REP :: Prefix
-REPZ :: Prefix
-LOCK :: Prefix
-BND :: Prefix
-
--- | Registers
-data Register
-InvalidRegister :: Register
-RIP :: Register
-EIP :: Register
-RAX :: Register
-EAX :: Register
-AX :: Register
-AH :: Register
-AL :: Register
-RBX :: Register
-EBX :: Register
-BX :: Register
-BH :: Register
-BL :: Register
-RCX :: Register
-ECX :: Register
-CX :: Register
-CH :: Register
-CL :: Register
-RDX :: Register
-EDX :: Register
-DX :: Register
-DH :: Register
-DL :: Register
-RDI :: Register
-EDI :: Register
-DI :: Register
-DIL :: Register
-RSI :: Register
-ESI :: Register
-SI :: Register
-SIL :: Register
-RSP :: Register
-ESP :: Register
-SP :: Register
-SPL :: Register
-RBP :: Register
-EBP :: Register
-BP :: Register
-BPL :: Register
-R15 :: Register
-R15D :: Register
-R15W :: Register
-R15B :: Register
-R14 :: Register
-R14D :: Register
-R14W :: Register
-R14B :: Register
-R13 :: Register
-R13D :: Register
-R13W :: Register
-R13B :: Register
-R12 :: Register
-R12D :: Register
-R12W :: Register
-R12B :: Register
-R11 :: Register
-R11D :: Register
-R11W :: Register
-R11B :: Register
-R10 :: Register
-R10D :: Register
-R10W :: Register
-R10B :: Register
-R9 :: Register
-R9D :: Register
-R9W :: Register
-R9B :: Register
-R8 :: Register
-R8D :: Register
-R8W :: Register
-R8B :: Register
-CS :: Register
-DS :: Register
-ES :: Register
-FS :: Register
-GS :: Register
-SS :: Register
-EIZ :: Register
-RIZ :: Register
-ST0 :: Register
-ST1 :: Register
-ST2 :: Register
-ST3 :: Register
-ST4 :: Register
-ST5 :: Register
-ST6 :: Register
-ST7 :: Register
-YMM0 :: Register
-YMM1 :: Register
-YMM2 :: Register
-YMM3 :: Register
-YMM4 :: Register
-YMM5 :: Register
-YMM6 :: Register
-YMM7 :: Register
-YMM8 :: Register
-YMM9 :: Register
-YMM10 :: Register
-YMM11 :: Register
-YMM12 :: Register
-YMM13 :: Register
-YMM14 :: Register
-YMM15 :: Register
-XMM0 :: Register
-XMM1 :: Register
-XMM2 :: Register
-XMM3 :: Register
-XMM4 :: Register
-XMM5 :: Register
-XMM6 :: Register
-XMM7 :: Register
-XMM8 :: Register
-XMM9 :: Register
-XMM10 :: Register
-XMM11 :: Register
-XMM12 :: Register
-XMM13 :: Register
-XMM14 :: Register
-XMM15 :: Register
+module X86.Flag
 
 -- | Flags
 data Flag
@@ -318,39 +362,11 @@ SF :: Flag
 OF :: Flag
 PF :: Flag
 InvalidFlag :: Flag
+instance GHC.Classes.Ord X86.Flag.Flag
+instance GHC.Classes.Eq X86.Flag.Flag
+instance GHC.Show.Show X86.Flag.Flag
 
--- | An unresolved address, within the operand of an instruction.
-data Address
-
--- | Reading a pointer from a register
-AddrReg :: Register -> Address
-
--- | Immediate address
-AddrImm :: Int -> Address
-
--- | Minus
-AddrMinus :: Address -> Address -> Address
-
--- | Plus
-AddrPlus :: Address -> Address -> Address
-
--- | Times
-AddrTimes :: Address -> Address -> Address
-
--- | Size directive, e.g., qword ptr, in bytes
-SizeDir :: Int -> Address -> Address
-
--- | Operands of an instruction
-data Operand
-
--- | Unresolved addresses
-Address :: Address -> Operand
-
--- | Registers
-Reg :: Register -> Operand
-
--- | Immediates
-Immediate :: Word64 -> Operand
+module X86.Opcode
 
 -- | Opcodes / mnemonics
 data Opcode
@@ -426,6 +442,7 @@ CMOVZ :: Opcode
 CMP :: Opcode
 CMPEQSD :: Opcode
 CMPNEQSD :: Opcode
+CMPNLESD :: Opcode
 CMPLTSD :: Opcode
 CMPS :: Opcode
 CMPSB :: Opcode
@@ -661,6 +678,7 @@ MOVNTPS :: Opcode
 MOVNTQ :: Opcode
 MOVQ :: Opcode
 MOVS :: Opcode
+MOVSB :: Opcode
 MOVSD :: Opcode
 MOVSLDUP :: Opcode
 MOVSS :: Opcode
@@ -704,6 +722,7 @@ PANDN :: Opcode
 PAUSE :: Opcode
 PAVGB :: Opcode
 PAVGW :: Opcode
+PBLENDW :: Opcode
 PCLMULQDQ :: Opcode
 PCMPEQB :: Opcode
 PCMPEQD :: Opcode
@@ -712,6 +731,7 @@ PCMPGTD :: Opcode
 PEXTRB :: Opcode
 PEXTRD :: Opcode
 PEXTRQ :: Opcode
+PHADDD :: Opcode
 PINSRB :: Opcode
 PINSRD :: Opcode
 PINSRQ :: Opcode
@@ -854,7 +874,9 @@ STD :: Opcode
 STI :: Opcode
 STMXCSR :: Opcode
 STOS :: Opcode
+STOSB :: Opcode
 STOSD :: Opcode
+STOSQ :: Opcode
 STR :: Opcode
 SUB :: Opcode
 SUBPD :: Opcode
@@ -934,6 +956,7 @@ WRGSBASE :: Opcode
 WRMSR :: Opcode
 XADD :: Opcode
 XCHG :: Opcode
+XGETBV :: Opcode
 XLAT :: Opcode
 XLATB :: Opcode
 XSETBV :: Opcode
@@ -943,116 +966,338 @@ XOR :: Opcode
 XORPD :: Opcode
 XORPS :: Opcode
 
--- | Showing unresolved address (inner part within a ptr[...])
-show_address' :: Address -> [Char]
-
--- | Showing unresolved address
-show_address :: Address -> [Char]
-
--- | Showing a size directive
-show_size_directive :: (Eq a, Num a, Show a) => a -> [Char]
-
--- | Showing an operand
-show_operand' :: Operand -> [Char]
-
--- | Showing an optional operand
-show_operand :: Show a => Maybe a -> [Char]
-
--- | Showing an optional annotation
-show_annot :: Maybe [Char] -> [Char]
-
--- | Showing an optional prefix
-show_prefix :: Show a => Maybe a -> [Char]
-
--- | Showing an instruction
-show_instruction :: Instr -> [Char]
-
--- | The size of the operand, in bytes
-operand_size :: Operand -> Int
+-- | Returns true iff m is the mnemonic of a jump
+isJump :: Opcode -> Bool
 
 -- | Returns true iff m is the mnemonic of a conditional jump
-is_cond_jump :: Opcode -> Bool
-
--- | Returns true iff m is the mnemonic of a halting instruction
-is_halt :: Opcode -> Bool
-
--- | Returns true iff m is the mnemonic of a jump
-is_jump :: Opcode -> Bool
+isCondJump :: Opcode -> Bool
 
 -- | Returns true iff m is the mnemonic of a call
-is_call :: Opcode -> Bool
+isCall :: Opcode -> Bool
 
 -- | Returns true iff m is the mnemonic of a return
-is_ret :: Opcode -> Bool
+isRet :: Opcode -> Bool
 
--- | List of 256 bit registers
-reg256 :: [Register]
+-- | Returns true iff m is the mnemonic of a halting instruction
+isHalt :: Opcode -> Bool
+instance GHC.Generics.Generic X86.Opcode.Opcode
+instance GHC.Classes.Ord X86.Opcode.Opcode
+instance GHC.Classes.Eq X86.Opcode.Opcode
+instance GHC.Show.Show X86.Opcode.Opcode
+instance Data.Serialize.Serialize X86.Opcode.Opcode
 
--- | List of 128 bit registers
-reg128 :: [Register]
+module IR.Opcode
+data Opcode
+OpcodeX86 :: Opcode -> Opcode
+OpcodePhi :: Opcode
+OpcodeConvert :: Opcode
+instance GHC.Generics.Generic IR.Opcode.Opcode
+instance GHC.Classes.Ord IR.Opcode.Opcode
+instance GHC.Classes.Eq IR.Opcode.Opcode
+instance Data.Serialize.Serialize IR.Opcode.Opcode
+instance GHC.Show.Show IR.Opcode.Opcode
 
--- | List of 80 bit registers
-reg80 :: [Register]
+module X86.Prefix
+data Prefix
+InvalidPrefix :: Prefix
+REP :: Prefix
+REPZ :: Prefix
+REPNE :: Prefix
+LOCK :: Prefix
+BND :: Prefix
+instance GHC.Generics.Generic X86.Prefix.Prefix
+instance GHC.Read.Read X86.Prefix.Prefix
+instance GHC.Classes.Ord X86.Prefix.Prefix
+instance GHC.Classes.Eq X86.Prefix.Prefix
+instance GHC.Show.Show X86.Prefix.Prefix
+instance Data.Serialize.Serialize X86.Prefix.Prefix
 
--- | List of 64 bit registers
-reg64 :: [Register]
-
--- | List of 32 bit registers
-reg32 :: [Register]
-
--- | List of 16 bit registers
-reg16 :: [Register]
+module X86.Register
+data Register
+InvalidRegister :: Register
+RIP :: Register
+EIP :: Register
+RAX :: Register
+EAX :: Register
+AX :: Register
+AH :: Register
+AL :: Register
+RBX :: Register
+EBX :: Register
+BX :: Register
+BH :: Register
+BL :: Register
+RCX :: Register
+ECX :: Register
+CX :: Register
+CH :: Register
+CL :: Register
+RDX :: Register
+EDX :: Register
+DX :: Register
+DH :: Register
+DL :: Register
+RDI :: Register
+EDI :: Register
+DI :: Register
+DIL :: Register
+RSI :: Register
+ESI :: Register
+SI :: Register
+SIL :: Register
+RSP :: Register
+ESP :: Register
+SP :: Register
+SPL :: Register
+RBP :: Register
+EBP :: Register
+BP :: Register
+BPL :: Register
+R15 :: Register
+R15D :: Register
+R15W :: Register
+R15B :: Register
+R14 :: Register
+R14D :: Register
+R14W :: Register
+R14B :: Register
+R13 :: Register
+R13D :: Register
+R13W :: Register
+R13B :: Register
+R12 :: Register
+R12D :: Register
+R12W :: Register
+R12B :: Register
+R11 :: Register
+R11D :: Register
+R11W :: Register
+R11B :: Register
+R10 :: Register
+R10D :: Register
+R10W :: Register
+R10B :: Register
+R9 :: Register
+R9D :: Register
+R9W :: Register
+R9B :: Register
+R8 :: Register
+R8D :: Register
+R8W :: Register
+R8B :: Register
+CS :: Register
+DS :: Register
+ES :: Register
+FS :: Register
+GS :: Register
+SS :: Register
+EIZ :: Register
+RIZ :: Register
+ST0 :: Register
+ST1 :: Register
+ST2 :: Register
+ST3 :: Register
+ST4 :: Register
+ST5 :: Register
+ST6 :: Register
+ST7 :: Register
+YMM0 :: Register
+YMM1 :: Register
+YMM2 :: Register
+YMM3 :: Register
+YMM4 :: Register
+YMM5 :: Register
+YMM6 :: Register
+YMM7 :: Register
+YMM8 :: Register
+YMM9 :: Register
+YMM10 :: Register
+YMM11 :: Register
+YMM12 :: Register
+YMM13 :: Register
+YMM14 :: Register
+YMM15 :: Register
+XMM0 :: Register
+XMM1 :: Register
+XMM2 :: Register
+XMM3 :: Register
+XMM4 :: Register
+XMM5 :: Register
+XMM6 :: Register
+XMM7 :: Register
+XMM8 :: Register
+XMM9 :: Register
+XMM10 :: Register
+XMM11 :: Register
+XMM12 :: Register
+XMM13 :: Register
+XMM14 :: Register
+XMM15 :: Register
 
 -- | List of 8 bit registers
 reg8 :: [Register]
 
--- | The size of the given register, in bytes.
-reg_size :: Num p => Register -> p
+-- | List of 16 bit registers
+reg16 :: [Register]
+
+-- | List of 32 bit registers
+reg32 :: [Register]
+
+-- | List of 64 bit registers
+reg64 :: [Register]
+
+-- | List of 80 bit registers
+reg80 :: [Register]
+
+-- | List of 128 bit registers
+reg128 :: [Register]
+
+-- | List of 256 bit registers
+reg256 :: [Register]
 
 -- | Matches register names to the real registers E.g.: EAX is actually a
 --   part of RAX
-real_reg :: Register -> Register
-instance GHC.Generics.Generic X86_Datastructures.Prefix
-instance GHC.Read.Read X86_Datastructures.Prefix
-instance GHC.Classes.Ord X86_Datastructures.Prefix
-instance GHC.Classes.Eq X86_Datastructures.Prefix
-instance GHC.Show.Show X86_Datastructures.Prefix
-instance GHC.Generics.Generic X86_Datastructures.Register
-instance GHC.Classes.Ord X86_Datastructures.Register
-instance GHC.Read.Read X86_Datastructures.Register
-instance GHC.Classes.Eq X86_Datastructures.Register
-instance GHC.Show.Show X86_Datastructures.Register
-instance GHC.Classes.Ord X86_Datastructures.Flag
-instance GHC.Classes.Eq X86_Datastructures.Flag
-instance GHC.Show.Show X86_Datastructures.Flag
-instance GHC.Generics.Generic X86_Datastructures.Address
-instance GHC.Classes.Ord X86_Datastructures.Address
-instance GHC.Classes.Eq X86_Datastructures.Address
-instance GHC.Generics.Generic X86_Datastructures.Operand
-instance GHC.Classes.Ord X86_Datastructures.Operand
-instance GHC.Classes.Eq X86_Datastructures.Operand
-instance GHC.Generics.Generic X86_Datastructures.Opcode
-instance GHC.Classes.Ord X86_Datastructures.Opcode
-instance GHC.Classes.Eq X86_Datastructures.Opcode
-instance GHC.Show.Show X86_Datastructures.Opcode
-instance GHC.Generics.Generic X86_Datastructures.Instr
-instance GHC.Classes.Ord X86_Datastructures.Instr
-instance GHC.Classes.Eq X86_Datastructures.Instr
-instance Data.Serialize.Serialize X86_Datastructures.Instr
-instance GHC.Show.Show X86_Datastructures.Instr
-instance Data.Serialize.Serialize X86_Datastructures.Opcode
-instance Data.Serialize.Serialize X86_Datastructures.Operand
-instance GHC.Show.Show X86_Datastructures.Operand
-instance Data.Serialize.Serialize X86_Datastructures.Address
-instance GHC.Show.Show X86_Datastructures.Address
-instance Data.Serialize.Serialize X86_Datastructures.Register
-instance Data.Serialize.Serialize X86_Datastructures.Prefix
+real :: Register -> Register
+
+-- | Finds for a register all register that overlap with it. | These have
+--   the same <a>real</a> register (apart from special cases). | For
+--   example, RAX is overlapping with EAX, AX, AL, AH | AH is only
+--   overlapping with RAX, EAX, AX; but not AL
+overlapping :: Register -> [Register]
+instance GHC.Enum.Bounded X86.Register.Register
+instance GHC.Enum.Enum X86.Register.Register
+instance GHC.Generics.Generic X86.Register.Register
+instance GHC.Classes.Ord X86.Register.Register
+instance GHC.Read.Read X86.Register.Register
+instance GHC.Classes.Eq X86.Register.Register
+instance GHC.Show.Show X86.Register.Register
+instance Data.Serialize.Serialize X86.Register.Register
+instance Typeclasses.HasSize.HasSize X86.Register.Register
+
+module X86.Operand
+type Operand = GenericOperand Register
+
+-- | A generic statepart, based on polymorphic type <tt>storage</tt>.
+data GenericOperand storage
+
+module X86.Instruction
+type Instruction = GenericInstruction AddressWord64 Register Prefix Opcode Int
+
+-- | Canonicalizes an instruction by making sure there is at most one
+--   output and inputs/outputs are syntactically clear. | For example, the
+--   IMUL instruction comes in different flavors that hide the actual
+--   inputs and outputs to multiple registers
+canonicalize :: Instruction -> [Instruction]
+instance Typeclasses.HasSize.HasSize X86.Instruction.Instruction
+instance Typeclasses.HasAddress.HasAddress X86.Instruction.Instruction
+
+module X86.BasicBlock
+type BasicBlock = GenericBasicBlock Instruction
+
+
+module X86.Conventions
+
+-- | A list of function names of functions that never return.
+is_exiting_function_call :: [Char] -> Bool
+strip_GLIBC :: String -> String
+
+-- | Overview of sections with instructions.
+sections_with_instructions :: [([Char], [Char])]
+
+-- | Sections in the following list are assumed not to be modifiable during
+--   execution, i.e., constant.
+section_is_unwritable :: ([Char], [Char]) -> Bool
+
+-- | A list if registers that are non-volatile, i.e., that must be
+--   preserved by a function (callee-saved)
+callee_saved_registers :: [Register]
+
+-- | A list of registers that may be used for return values
+return_registers :: [Register]
+
+-- | A list of registers used as parameters
+parameter_registers :: [Register]
+
+module X86.Address
+type Address = GenericAddress Register
+
+module Data.Variable
+
+-- | A mutable or immutable variable
+data Variable
+Variable :: !String -> !Maybe Int -> !Int -> Variable
+
+-- | Name of the variable
+[name] :: Variable -> !String
+
+-- | Index for immutable (SSA) variables, Nothing otherwise
+[index] :: Variable -> !Maybe Int
+
+-- | Size in byte
+[size] :: Variable -> !Int
+
+-- | Copies the value of one variable to another while extracting (or
+--   extending) the correct bits
+data VariableConversion
+VariableConversion :: !Variable -> !Variable -> !Bool -> VariableConversion
+
+-- | The variable to copy from
+[source] :: VariableConversion -> !Variable
+
+-- | The variable to copy to
+[destination] :: VariableConversion -> !Variable
+
+-- | Used when we don't want to extract the lowest 8 bits, but rather the
+--   highest 8 of the lowest 16 bits
+[isLow] :: VariableConversion -> !Bool
+isSSA :: Variable -> Bool
+fromRegister :: Register -> Variable
+instance GHC.Generics.Generic Data.Variable.Variable
+instance GHC.Classes.Ord Data.Variable.Variable
+instance GHC.Classes.Eq Data.Variable.Variable
+instance GHC.Generics.Generic Data.Variable.VariableConversion
+instance GHC.Classes.Ord Data.Variable.VariableConversion
+instance GHC.Classes.Eq Data.Variable.VariableConversion
+instance Data.Serialize.Serialize Data.Variable.VariableConversion
+instance GHC.Show.Show Data.Variable.VariableConversion
+instance Data.Serialize.Serialize Data.Variable.Variable
+instance GHC.Show.Show Data.Variable.Variable
+
+module IR.Operand
+type Operand = GenericOperand Variable
+
+module IR.Instruction
+type Instruction = GenericInstruction AddressWord64 Variable Prefix Opcode Void
+instance Typeclasses.HasAddress.HasAddress IR.Instruction.Instruction
+
+module IR.Program
+type Program = GenericProgram Instruction
+
+module IR.BasicBlock
+type BasicBlock = GenericBasicBlock Instruction
+
+module IR.Address
+type Address = GenericAddress Variable
+
+module Data.Phi
+
+-- | Phi node with one destination and multiple sources
+data Phi
+Phi :: !Variable -> ![Variable] -> Phi
+[destination] :: Phi -> !Variable
+[sources] :: Phi -> ![Variable]
+
+-- | Creates an initial Phi node for the variable with n incoming edges
+phiForVariable :: Variable -> Int -> Phi
+instance GHC.Classes.Ord Data.Phi.Phi
+instance GHC.Classes.Eq Data.Phi.Phi
+instance GHC.Show.Show Data.Phi.Phi
 
 
 -- | A datatype for symbolic predicates, tailored to storing information on
 --   equalities between the current values stored in state parts (lhs) and
 --   constant expressions (rhs).
-module SimplePred
+module Data.SimplePred
 
 -- | A symbolic predicate consists of:
 --   
@@ -1093,7 +1338,7 @@ SE_Var :: StatePart -> SimpleExpr
 SE_StatePart :: StatePart -> SimpleExpr
 
 -- | A malloc return value with possibly an ID
-SE_Malloc :: Maybe Int -> Maybe String -> SimpleExpr
+SE_Malloc :: Maybe Word64 -> Maybe String -> SimpleExpr
 
 -- | Application of an <tt><a>Operator</a></tt> to the list of arguments
 SE_Op :: Operator -> [SimpleExpr] -> SimpleExpr
@@ -1166,7 +1411,7 @@ Src_Var :: StatePart -> BotSrc
 Src_StackPointer :: String -> BotSrc
 
 -- | A malloced address
-Src_Malloc :: Maybe Int -> Maybe String -> BotSrc
+Src_Malloc :: Maybe Word64 -> Maybe String -> BotSrc
 
 -- | An immediate used in the computation of the pointer
 Src_ImmediateAddress :: Word64 -> BotSrc
@@ -1211,7 +1456,7 @@ StackPointer :: String -> PointerBase
 
 -- | A malloc (at the <i>heap</i>) at a given address (hash is unused for
 --   now)
-Malloc :: Maybe Int -> Maybe String -> PointerBase
+Malloc :: Maybe Word64 -> Maybe String -> PointerBase
 
 -- | A <i>global</i> address in the range of the sections of the binary.
 GlobalAddress :: Word64 -> PointerBase
@@ -1240,7 +1485,8 @@ all_bot_satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
 -- | Simplification of symbolic expressions.
 --   
 --   Must always produce an expression logically equivalent to the
---   original.
+--   original. TODO:
+--   overwrite(8,Bot[src|RSP_0x1000070ec,malloc<tt>100007204()|],b8(Bot[m|RSP_0x1000070ec,malloc</tt>100007204()|]))
 simp :: SimpleExpr -> SimpleExpr
 
 -- | The lowest botom element
@@ -1253,69 +1499,46 @@ pp_expr :: SimpleExpr -> [Char]
 pp_pred :: Pred -> String
 
 expr_size :: SimpleExpr -> Int
-instance GHC.Classes.Ord SimplePred.PointerBase
-instance GHC.Classes.Eq SimplePred.PointerBase
-instance GHC.Generics.Generic SimplePred.PointerBase
-instance GHC.Generics.Generic SimplePred.Operator
-instance GHC.Classes.Ord SimplePred.Operator
-instance GHC.Classes.Eq SimplePred.Operator
-instance GHC.Generics.Generic SimplePred.BotSrc
-instance GHC.Classes.Ord SimplePred.BotSrc
-instance GHC.Classes.Eq SimplePred.BotSrc
-instance GHC.Generics.Generic SimplePred.BotTyp
-instance GHC.Classes.Ord SimplePred.BotTyp
-instance GHC.Classes.Eq SimplePred.BotTyp
-instance GHC.Generics.Generic SimplePred.SimpleExpr
-instance GHC.Classes.Ord SimplePred.SimpleExpr
-instance GHC.Classes.Eq SimplePred.SimpleExpr
-instance GHC.Generics.Generic SimplePred.StatePart
-instance GHC.Classes.Ord SimplePred.StatePart
-instance GHC.Classes.Eq SimplePred.StatePart
-instance GHC.Classes.Ord SimplePred.FlagStatus
-instance GHC.Classes.Eq SimplePred.FlagStatus
-instance GHC.Generics.Generic SimplePred.FlagStatus
-instance GHC.Classes.Ord SimplePred.Pred
-instance GHC.Classes.Eq SimplePred.Pred
-instance GHC.Generics.Generic SimplePred.Pred
-instance Data.Serialize.Serialize SimplePred.Pred
-instance GHC.Show.Show SimplePred.Pred
-instance Data.Serialize.Serialize SimplePred.FlagStatus
-instance GHC.Show.Show SimplePred.FlagStatus
-instance GHC.Show.Show SimplePred.BotSrc
-instance GHC.Show.Show SimplePred.BotTyp
-instance GHC.Show.Show SimplePred.SimpleExpr
-instance GHC.Show.Show SimplePred.StatePart
-instance Data.Serialize.Serialize SimplePred.BotTyp
-instance Data.Serialize.Serialize SimplePred.BotSrc
-instance Data.Serialize.Serialize SimplePred.StatePart
-instance Data.Serialize.Serialize SimplePred.SimpleExpr
-instance GHC.Show.Show SimplePred.Operator
-instance Data.Serialize.Serialize SimplePred.Operator
-instance GHC.Show.Show SimplePred.PointerBase
-instance Data.Serialize.Serialize SimplePred.PointerBase
-
-
-module Conventions
-
--- | A list of function names of functions that never return.
-is_exiting_function_call :: [Char] -> Bool
-
--- | Overview of sections with instructions.
-sections_with_instructions :: [([Char], [Char])]
-
--- | Sections in the following list are assumed not to be modifiable during
---   execution, i.e., constant.
-section_is_unwritable :: ([Char], [Char]) -> Bool
-
--- | A list if registers that are non-volatile, i.e., that must be
---   preserved by a function (callee-saved)
-callee_saved_registers :: [Register]
-
--- | A list of registers that may be used for return values
-return_registers :: [Register]
-
--- | A list of registers used as parameters
-parameter_registers :: [Register]
+instance GHC.Classes.Ord Data.SimplePred.PointerBase
+instance GHC.Classes.Eq Data.SimplePred.PointerBase
+instance GHC.Generics.Generic Data.SimplePred.PointerBase
+instance GHC.Generics.Generic Data.SimplePred.Operator
+instance GHC.Classes.Ord Data.SimplePred.Operator
+instance GHC.Classes.Eq Data.SimplePred.Operator
+instance GHC.Generics.Generic Data.SimplePred.BotSrc
+instance GHC.Classes.Ord Data.SimplePred.BotSrc
+instance GHC.Classes.Eq Data.SimplePred.BotSrc
+instance GHC.Generics.Generic Data.SimplePred.BotTyp
+instance GHC.Classes.Ord Data.SimplePred.BotTyp
+instance GHC.Classes.Eq Data.SimplePred.BotTyp
+instance GHC.Generics.Generic Data.SimplePred.SimpleExpr
+instance GHC.Classes.Ord Data.SimplePred.SimpleExpr
+instance GHC.Classes.Eq Data.SimplePred.SimpleExpr
+instance GHC.Generics.Generic Data.SimplePred.StatePart
+instance GHC.Classes.Ord Data.SimplePred.StatePart
+instance GHC.Classes.Eq Data.SimplePred.StatePart
+instance GHC.Classes.Ord Data.SimplePred.FlagStatus
+instance GHC.Classes.Eq Data.SimplePred.FlagStatus
+instance GHC.Generics.Generic Data.SimplePred.FlagStatus
+instance GHC.Classes.Ord Data.SimplePred.Pred
+instance GHC.Classes.Eq Data.SimplePred.Pred
+instance GHC.Generics.Generic Data.SimplePred.Pred
+instance Data.Serialize.Serialize Data.SimplePred.Pred
+instance GHC.Show.Show Data.SimplePred.Pred
+instance Data.Serialize.Serialize Data.SimplePred.FlagStatus
+instance GHC.Show.Show Data.SimplePred.FlagStatus
+instance GHC.Show.Show Data.SimplePred.BotSrc
+instance GHC.Show.Show Data.SimplePred.BotTyp
+instance GHC.Show.Show Data.SimplePred.SimpleExpr
+instance GHC.Show.Show Data.SimplePred.StatePart
+instance Data.Serialize.Serialize Data.SimplePred.BotTyp
+instance Data.Serialize.Serialize Data.SimplePred.BotSrc
+instance Data.Serialize.Serialize Data.SimplePred.StatePart
+instance Data.Serialize.Serialize Data.SimplePred.SimpleExpr
+instance GHC.Show.Show Data.SimplePred.Operator
+instance Data.Serialize.Serialize Data.SimplePred.Operator
+instance GHC.Show.Show Data.SimplePred.PointerBase
+instance Data.Serialize.Serialize Data.SimplePred.PointerBase
 
 
 -- | The context stores, among others, information obtained during
@@ -1323,13 +1546,14 @@ parameter_registers :: [Register]
 --   <tt><a>Context</a></tt>). Module <a>VerificationReportInterface</a>
 --   provides functions for obtaining and interfacing with a
 --   <tt>Context</tt>.
-module Context
+module Analysis.Context
+read_binary :: String -> IO (Maybe Binary)
 
 -- | A control flow graph with blocks and edges. A blockID (represented as
 --   an <tt>Int</tt>) is a unique identifier of a basic block. We store
 --   basic blocks twice: once as addresses, and once as instructions.
 data CFG
-CFG :: IntMap [Int] -> IntMap IntSet -> IntMap Int -> Int -> IntMap [Instr] -> CFG
+CFG :: IntMap [Int] -> IntMap IntSet -> IntMap Int -> Int -> IntMap [Instruction] -> CFG
 
 -- | A mapping of blockIDs to instruction addresses
 [cfg_blocks] :: CFG -> IntMap [Int]
@@ -1344,7 +1568,7 @@ CFG :: IntMap [Int] -> IntMap IntSet -> IntMap Int -> Int -> IntMap [Instr] -> C
 [cfg_fresh] :: CFG -> Int
 
 -- | A mapping of blockIDs to lists of disassembled instructions.
-[cfg_instrs] :: CFG -> IntMap [Instr]
+[cfg_instrs] :: CFG -> IntMap [Instruction]
 
 -- | A jump table Let the actual indirection be <tt>JMP RAX</tt>, implying
 --   jt_trgt_operand == RAX. This jump table can be implemented with
@@ -1387,15 +1611,6 @@ IndirectionJumpTable :: JumpTable -> Indirection
 
 -- | Per instruction address, a a jump table
 type Indirections = IntMap Indirection
-
--- | Information on the sections in the binary
-data SectionsInfo
-SectionsInfo :: [(String, String, Int, Int)] -> Int -> Int -> SectionsInfo
-
--- | Sections: segment names, section names, addresses and sizes.
-[si_sections] :: SectionsInfo -> [(String, String, Int, Int)]
-[si_min_address] :: SectionsInfo -> Int
-[si_max_address] :: SectionsInfo -> Int
 
 -- | An enumeration indicating the result of verification over a function
 data VerificationResult
@@ -1440,10 +1655,10 @@ data MemWriteIdentifier
 
 -- | A function with <tt>name</tt> at address <tt>i_a</tt> wrote to a
 --   statepart
-MemWriteFunction :: String -> Int -> StatePart -> MemWriteIdentifier
+MemWriteFunction :: String -> Word64 -> StatePart -> MemWriteIdentifier
 
 -- | An instruction wrote to an operand, resolving to an address
-MemWriteInstruction :: Int -> Operand -> SimpleExpr -> MemWriteIdentifier
+MemWriteInstruction :: Word64 -> Operand -> SimpleExpr -> MemWriteIdentifier
 
 -- | A verification condition is either: * A precondition of the form: &gt;
 --   Precondition (a0,si0) (a1,si1) This formulates that at the initial
@@ -1463,13 +1678,13 @@ Precondition :: SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
 Assertion :: SimpleExpr -> SimpleExpr -> Int -> SimpleExpr -> Int -> VerificationCondition
 
 -- | Function name, address, of call, with param registers
-FunctionConstraint :: String -> Int -> [(Register, SimpleExpr)] -> Set StatePart -> VerificationCondition
+FunctionConstraint :: String -> Word64 -> [(Register, SimpleExpr)] -> Set StatePart -> VerificationCondition
 
 -- | A write to a statepart for which no information was available
 SourcelessMemWrite :: MemWriteIdentifier -> VerificationCondition
 
 -- | A set of function pointers passed to a function
-FunctionPointers :: Int -> IntSet -> VerificationCondition
+FunctionPointers :: Word64 -> IntSet -> VerificationCondition
 
 -- | An acornym for a set of verification conditions
 type VCS = Set VerificationCondition
@@ -1502,91 +1717,128 @@ UnknownRetBehavior :: FReturnBehavior
 --   binary
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
-data Context
-Context :: Config -> IntMap Word8 -> IntMap Word8 -> IntMap String -> SectionsInfo -> String -> String -> Graph -> IntMap CFG -> IntMap FReturnBehavior -> IntMap Invariants -> IntMap Postconditions -> Indirections -> IntMap FInit -> IntMap VCS -> IntMap VerificationResult -> IntMap IntSet -> Context
+data Context_
+Context_ :: !Config -> !IntMap String -> !SectionsInfo -> !String -> !String -> !Int -> ![Relocation] -> !Graph -> !IntMap CFG -> !IntMap FReturnBehavior -> !IntMap Invariants -> !IntMap Postconditions -> !Indirections -> !IntMap FInit -> !IntMap VCS -> !IntMap VerificationResult -> !IntMap IntSet -> Context_
 
--- | <b>S</b>: the configuration file in ./config
-[ctxt_config] :: Context -> Config
-
--- | <b>S</b>: mapping from addresses to bytes (constant data and
---   instructions from the binary/executable)
-[ctxt_dump] :: Context -> IntMap Word8
-
--- | <b>S</b>: mapping from addresses to bytes (writable data section)
-[ctxt_data] :: Context -> IntMap Word8
+-- | <b>S</b>: the configuration file in ./config ctxt<b>data ::
+--   !(IM.IntMap Word8), -- ^ </b>S__: mapping from addresses to bytes
+--   (writable data section)
+[ctxt__config] :: Context_ -> !Config
 
 -- | <b>S</b>: the symbol table: a mapping of addresses to function names
 --   for external functions
-[ctxt_syms] :: Context -> IntMap String
+[ctxt__syms] :: Context_ -> !IntMap String
 
 -- | <b>S</b>: information on segments/section
-[ctxt_sections] :: Context -> SectionsInfo
+[ctxt__sections] :: Context_ -> !SectionsInfo
 
 -- | <b>S</b>: the name of the directory where the .dump, .entry, .sections
 --   and .symbols files reside
-[ctxt_dirname] :: Context -> String
+[ctxt__dirname] :: Context_ -> !String
 
 -- | <b>S</b>: the name of the binary
-[ctxt_name] :: Context -> String
+[ctxt__name] :: Context_ -> !String
+
+-- | <b>S</b>: the address of the _start symbol
+[ctxt__start] :: Context_ -> !Int
+
+-- | <b>S</b>: relocation entries
+[ctxt__relocs] :: Context_ -> ![Relocation]
 
 -- | <b>D</b>: a graph with an edge (e0,e1) if entry address e0 calls entry
 --   address e1, and e0 and e1 have not been verified yet
-[ctxt_entries] :: Context -> Graph
+[ctxt__entries] :: Context_ -> !Graph
 
 -- | <b>D</b>: the currently known control flow graphs per function entry
-[ctxt_cfgs] :: Context -> IntMap CFG
+[ctxt__cfgs] :: Context_ -> !IntMap CFG
 
 -- | <b>D</b>: the currently known and verified entry addresses of
 --   functions mapped to return-information
-[ctxt_calls] :: Context -> IntMap FReturnBehavior
+[ctxt__calls] :: Context_ -> !IntMap FReturnBehavior
 
 -- | <b>D</b>: the currently known invariants
-[ctxt_invs] :: Context -> IntMap Invariants
+[ctxt__invs] :: Context_ -> !IntMap Invariants
 
 -- | <b>D</b>: the currently known postconditions
-[ctxt_posts] :: Context -> IntMap Postconditions
+[ctxt__posts] :: Context_ -> !IntMap Postconditions
 
 -- | <b>D</b>: the currently known indirections
-[ctxt_inds] :: Context -> Indirections
+[ctxt__inds] :: Context_ -> !Indirections
 
 -- | <b>D</b>: the currently known function initialisations
-[ctxt_finits] :: Context -> IntMap FInit
+[ctxt__finits] :: Context_ -> !IntMap FInit
 
 -- | <b>D</b>: the verification conditions
-[ctxt_vcs] :: Context -> IntMap VCS
+[ctxt__vcs] :: Context_ -> !IntMap VCS
 
 -- | <b>D</b>: the verification result
-[ctxt_results] :: Context -> IntMap VerificationResult
+[ctxt__results] :: Context_ -> !IntMap VerificationResult
 
 -- | <b>D</b>: a mapping from function entries to the set of mutually
 --   recursive functions entries they occur in
-[ctxt_recursions] :: Context -> IntMap IntSet
+[ctxt__recursions] :: Context_ -> !IntMap IntSet
+data Context
+Context :: !Binary -> IORef (IntMap Instruction) -> !Context_ -> Context
+[ctxt_binary] :: Context -> !Binary
+[ctxt_ioref] :: Context -> IORef (IntMap Instruction)
+[ctxt_ctxt_] :: Context -> !Context_
+ctxt_config :: Context -> Config
+ctxt_syms :: Context -> IntMap String
+ctxt_sections :: Context -> SectionsInfo
+ctxt_dirname :: Context -> String
+ctxt_name :: Context -> String
+ctxt_start :: Context -> Int
+ctxt_relocs :: Context -> [Relocation]
+ctxt_entries :: Context -> Graph
+ctxt_cfgs :: Context -> IntMap CFG
+ctxt_calls :: Context -> IntMap FReturnBehavior
+ctxt_invs :: Context -> IntMap Invariants
+ctxt_posts :: Context -> IntMap Postconditions
+ctxt_inds :: Context -> Indirections
+ctxt_finits :: Context -> IntMap FInit
+ctxt_vcs :: Context -> IntMap VCS
+ctxt_results :: Context -> IntMap VerificationResult
+ctxt_recursions :: Context -> IntMap IntSet
+set_ctxt_syms :: IntMap String -> Context -> Context
+set_ctxt_sections :: SectionsInfo -> Context -> Context
+set_ctxt_start :: Int -> Context -> Context
+set_ctxt_entries :: Graph -> Context -> Context
+set_ctxt_calls :: IntMap FReturnBehavior -> Context -> Context
+set_ctxt_inds :: Indirections -> Context -> Context
+set_ctxt_posts :: IntMap Postconditions -> Context -> Context
+set_ctxt_vcs :: IntMap VCS -> Context -> Context
+set_ctxt_finits :: IntMap FInit -> Context -> Context
+set_ctxt_invs :: IntMap Invariants -> Context -> Context
+set_ctxt_cfgs :: IntMap CFG -> Context -> Context
+set_ctxt_relocs :: [Relocation] -> Context -> Context
+set_ctxt_results :: IntMap VerificationResult -> Context -> Context
+set_ctxt_recursions :: IntMap IntSet -> Context -> Context
 
 -- | intialize an empty context based on the command-line parameters
-init_context :: Config -> String -> String -> Context
+init_context :: Binary -> IORef (IntMap Instruction) -> Config -> String -> String -> Context
 
 -- | purge the context before exporting it (may save a lot of disk space)
-purge_context :: Context -> Context
+purge_context :: Context -> Context_
 
--- | Reading from a data section.
+-- | Reading from a read-only data section.
 --   
 --   Reads maximally up to 8 bytes. Returns <tt>Nothing</tt> if the given
 --   address is out-of-range.
-read_from_datasection :: Context -> Word64 -> Int -> Maybe Word64
+read_from_ro_datasection :: Context -> Word64 -> Int -> Maybe Word64
 
 -- | Is the immediate roughly in range to be an address?
-is_roughly_an_address :: Context -> Int -> Bool
+is_roughly_an_address :: Context -> Word64 -> Bool
 
 -- | Find a section for an address (see <tt><a>SectionsInfo</a></tt>)
-find_section_for_address :: Context -> Int -> Maybe (String, String, Int, Int)
+find_section_for_address :: Context -> Word64 -> Maybe (String, String, Word64, Word64)
 
 -- | Fetching an instruction
 --   
 --   Returns <tt>Nothing</tt> if the given address is out-of-range.
-fetch_instruction :: Context -> Int -> IO (Maybe Instr)
+fetch_instruction :: Context -> Word64 -> IO (Maybe Instruction)
 
 -- | Pretty printing an instruction
-pp_instruction :: Context -> Instr -> String
+pp_instruction :: Context -> Instruction -> String
 
 -- | Show function initialisaExpr
 show_finit :: FInit -> String
@@ -1623,63 +1875,334 @@ ctxt_max_num_of_bases :: Context -> Int
 ctxt_max_num_of_sources :: Context -> Int
 ctxt_max_jump_table_size :: Context -> Int
 ctxt_max_expr_size :: Context -> Int
-instance GHC.Classes.Eq Context.CFG
-instance GHC.Generics.Generic Context.CFG
-instance GHC.Show.Show Context.CFG
-instance GHC.Classes.Eq Context.JumpTable
-instance GHC.Generics.Generic Context.JumpTable
-instance GHC.Show.Show Context.JumpTable
-instance GHC.Classes.Ord Context.ResolvedJumpTarget
-instance GHC.Generics.Generic Context.ResolvedJumpTarget
-instance GHC.Show.Show Context.ResolvedJumpTarget
-instance GHC.Classes.Eq Context.ResolvedJumpTarget
-instance GHC.Classes.Eq Context.Indirection
-instance GHC.Generics.Generic Context.Indirection
-instance GHC.Show.Show Context.Indirection
-instance GHC.Classes.Eq Context.SectionsInfo
-instance GHC.Generics.Generic Context.SectionsInfo
-instance GHC.Show.Show Context.SectionsInfo
-instance GHC.Generics.Generic Context.VerificationResult
-instance GHC.Classes.Eq Context.VerificationResult
-instance GHC.Classes.Ord Context.NodeInfo
-instance GHC.Classes.Eq Context.NodeInfo
-instance GHC.Generics.Generic Context.NodeInfo
-instance GHC.Show.Show Context.NodeInfo
-instance GHC.Classes.Ord Context.MemWriteIdentifier
-instance GHC.Classes.Eq Context.MemWriteIdentifier
-instance GHC.Generics.Generic Context.MemWriteIdentifier
-instance GHC.Classes.Ord Context.VerificationCondition
-instance GHC.Classes.Eq Context.VerificationCondition
-instance GHC.Generics.Generic Context.VerificationCondition
-instance GHC.Classes.Ord Context.PointerDomain
-instance GHC.Classes.Eq Context.PointerDomain
-instance GHC.Generics.Generic Context.PointerDomain
-instance GHC.Classes.Ord Context.FReturnBehavior
-instance GHC.Classes.Eq Context.FReturnBehavior
-instance GHC.Generics.Generic Context.FReturnBehavior
-instance GHC.Show.Show Context.FReturnBehavior
-instance GHC.Generics.Generic Context.Context
-instance Data.Serialize.Serialize Context.Context
-instance Data.Serialize.Serialize Context.FReturnBehavior
-instance Data.Serialize.Serialize Context.PointerDomain
-instance GHC.Show.Show Context.PointerDomain
-instance Data.Serialize.Serialize Context.VerificationCondition
-instance GHC.Show.Show Context.VerificationCondition
-instance Data.Serialize.Serialize Context.MemWriteIdentifier
-instance GHC.Show.Show Context.MemWriteIdentifier
-instance Data.Serialize.Serialize Context.NodeInfo
-instance Data.Serialize.Serialize Context.VerificationResult
-instance GHC.Show.Show Context.VerificationResult
-instance Data.Serialize.Serialize Context.SectionsInfo
-instance Data.Serialize.Serialize Context.Indirection
-instance Data.Serialize.Serialize Context.ResolvedJumpTarget
-instance Data.Serialize.Serialize Context.JumpTable
-instance Data.Serialize.Serialize Context.CFG
+instance GHC.Classes.Eq Analysis.Context.CFG
+instance GHC.Generics.Generic Analysis.Context.CFG
+instance GHC.Show.Show Analysis.Context.CFG
+instance GHC.Classes.Eq Analysis.Context.JumpTable
+instance GHC.Generics.Generic Analysis.Context.JumpTable
+instance GHC.Show.Show Analysis.Context.JumpTable
+instance GHC.Classes.Ord Analysis.Context.ResolvedJumpTarget
+instance GHC.Generics.Generic Analysis.Context.ResolvedJumpTarget
+instance GHC.Show.Show Analysis.Context.ResolvedJumpTarget
+instance GHC.Classes.Eq Analysis.Context.ResolvedJumpTarget
+instance GHC.Classes.Eq Analysis.Context.Indirection
+instance GHC.Generics.Generic Analysis.Context.Indirection
+instance GHC.Show.Show Analysis.Context.Indirection
+instance GHC.Generics.Generic Analysis.Context.VerificationResult
+instance GHC.Classes.Eq Analysis.Context.VerificationResult
+instance GHC.Classes.Ord Analysis.Context.NodeInfo
+instance GHC.Classes.Eq Analysis.Context.NodeInfo
+instance GHC.Generics.Generic Analysis.Context.NodeInfo
+instance GHC.Show.Show Analysis.Context.NodeInfo
+instance GHC.Classes.Ord Analysis.Context.MemWriteIdentifier
+instance GHC.Classes.Eq Analysis.Context.MemWriteIdentifier
+instance GHC.Generics.Generic Analysis.Context.MemWriteIdentifier
+instance GHC.Classes.Ord Analysis.Context.VerificationCondition
+instance GHC.Classes.Eq Analysis.Context.VerificationCondition
+instance GHC.Generics.Generic Analysis.Context.VerificationCondition
+instance GHC.Classes.Ord Analysis.Context.PointerDomain
+instance GHC.Classes.Eq Analysis.Context.PointerDomain
+instance GHC.Generics.Generic Analysis.Context.PointerDomain
+instance GHC.Classes.Ord Analysis.Context.FReturnBehavior
+instance GHC.Classes.Eq Analysis.Context.FReturnBehavior
+instance GHC.Generics.Generic Analysis.Context.FReturnBehavior
+instance GHC.Show.Show Analysis.Context.FReturnBehavior
+instance GHC.Generics.Generic Analysis.Context.Context_
+instance Data.Serialize.Serialize Analysis.Context.Context_
+instance Data.Serialize.Serialize Analysis.Context.FReturnBehavior
+instance Data.Serialize.Serialize Analysis.Context.PointerDomain
+instance GHC.Show.Show Analysis.Context.PointerDomain
+instance Data.Serialize.Serialize Analysis.Context.VerificationCondition
+instance GHC.Show.Show Analysis.Context.VerificationCondition
+instance Data.Serialize.Serialize Analysis.Context.MemWriteIdentifier
+instance GHC.Show.Show Analysis.Context.MemWriteIdentifier
+instance Data.Serialize.Serialize Analysis.Context.NodeInfo
+instance Data.Serialize.Serialize Analysis.Context.VerificationResult
+instance GHC.Show.Show Analysis.Context.VerificationResult
+instance Data.Serialize.Serialize Analysis.Context.Indirection
+instance Data.Serialize.Serialize Analysis.Context.ResolvedJumpTarget
+instance Data.Serialize.Serialize Analysis.Context.JumpTable
+instance Data.Serialize.Serialize Analysis.Context.CFG
+instance Data.Serialize.Serialize Data.Binary.SectionsInfo
+instance Data.Serialize.Serialize Data.Binary.Relocation
+
+
+-- | Provides a taxonomy for output generated by FoxDec. The output is a
+--   JSON object, whose schema is defined by the <a>JSON</a> datatype
+--   below. That datatype provides its fields, such as <a>instructions</a>
+--   and <a>control_flow</a>. This is an overview of some of the
+--   information retrievable from FoxDec. However, if more information is
+--   required, or if there is a request for information in a different
+--   form, then let us know.
+--   
+--   On the right hand side, see the synopsis for an overview.
+module Data.JSON_Taxonomy
+
+-- | The top-level JSON datastructure consists of the following fields:
+--   
+--   <ul>
+--   <li><a>instructions</a>: All instructions with their addresses and
+--   sizes.</li>
+--   <li><a>control_flow</a>: For each instruction address, this provides
+--   the set of successor instruction addresses. This includes
+--   indirections, if they were resolved.</li>
+--   <li><a>function_boundaries</a>: For each function entry address, this
+--   provides an overview of all instruction addresses belonging to that
+--   function.</li>
+--   <li><a>function_summaries</a>: For each function entry address, this
+--   provides a pre- and postcondition.</li>
+--   </ul>
+--   
+--   Example of the entire JSON output:
+--   
+--   <pre>
+--   { "instructions": [...], "control_flow": [...], ... }
+--   </pre>
+data JSON
+JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64, FunctionSummary)] -> JSON
+
+-- | A list of <a>Instruction</a>s.
+[instructions] :: JSON -> [Instruction]
+
+-- | A mapping from instruction addresses to lists of instruction
+--   addresses.
+[control_flow] :: JSON -> ControlFlow
+
+-- | A mapping from function entry addresses to pretty-printed function
+--   boundaries.
+[function_boundaries] :: JSON -> [(Word64, FunctionBoundary)]
+
+-- | A mapping from function entry addresses to <a>FunctionSummary</a>s.
+[function_summaries] :: JSON -> [(Word64, FunctionSummary)]
+
+-- | The <b>ControlFlow</b> is provided as a mapping from instruction
+--   addresses to lists of instruction addresses.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   [5907,[5909,5929]]
+--   </pre>
+--   
+--   This states the instruction at address 5907 has two possible successor
+--   instruction addresses (5909 and 5929).
+type ControlFlow = [(Word64, [Word64])]
+
+-- | The <b>FunctionBoundary</b> is provided as a pretty-printed
+--   representation of all instruction addresses covered by the function.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   "1200--&gt;1238 ; 1280--&gt;1284"
+--   </pre>
+--   
+--   This <b>Function Boundary</b> states that the function spans two
+--   non-consecutive ranges of instruction addresses.
+type FunctionBoundary = String
+
+-- | A <b>FunctionSummary</b> contains:
+--   
+--   <ul>
+--   <li>a preconditon: a <b><a>Predicate</a></b> that holds whenever the
+--   function is called within the binary.</li>
+--   <li>a postconditon: a <b><a>Postcondition</a></b> that holds whenever
+--   the function is returning, if the function returns normally.</li>
+--   </ul>
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   {"precondition" : [...], "postcondition" : [...]}
+--   </pre>
+data FunctionSummary
+FunctionSummary :: Predicate -> Postcondition -> FunctionSummary
+[precondition] :: FunctionSummary -> Predicate
+[postcondition] :: FunctionSummary -> Postcondition
+
+-- | A <b>Postcondition</b> provides information on the return status of a
+--   function.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   {"Terminating" : [] }
+--   </pre>
+data Postcondition
+
+-- | The function does never return
+Terminating :: Postcondition
+
+-- | The function returns in a state satisfying the <b><a>Predicate</a></b>
+ReturningWith :: Predicate -> Postcondition
+
+-- | It is unknown whether the function returns or not
+UnknownRetBehavior :: Postcondition
+
+-- | A <b>Predicate</b> is a mapping from state parts (registers, memory,
+--   flags) to symbolic expressions.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   [
+--     [{"SP_Reg":"RDI"},{"Bottom":{"FromPointerBases":[{"Malloc":[4420,""]}]}}],
+--     [{"SP_Reg":"RSI"},{"SE_Immediate":8217}]
+--   ]
+--   </pre>
+--   
+--   This predicate states that register <tt>RDI</tt> is a pointer with as
+--   base the return value of <tt>malloc</tt>, called at address
+--   <tt>4420</tt>. Register <tt>RSI</tt> contains an immediate value.
+type Predicate = Map StatePart SimpleExpr
+
+-- | An <b>Instruction</b> has an address, a prefix (which may also be
+--   <tt>null</tt>), a mnemonic/opcode, a list of operands (possibly empty)
+--   and a size in bytes.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   {"size":7,"prefix":"BND","addr":4420,"opcode":"JMP","operands":[{"Memory":[{"AddressImm":11869},8]}]}
+--   </pre>
+data Instruction
+Instruction :: Word64 -> Maybe Prefix -> Opcode -> [Operand] -> Int -> Instruction
+
+-- | address
+[addr] :: Instruction -> Word64
+
+-- | prefix, e.g., lock or repz
+[prefix] :: Instruction -> Maybe Prefix
+
+-- | opcode/mnemonic
+[opcode] :: Instruction -> Opcode
+
+-- | possibly empty list of operands
+[operands] :: Instruction -> [Operand]
+
+-- | size of instruction
+[size] :: Instruction -> Int
+
+-- | An <b>Operand</b> is either a memory operand, an effective address (in
+--   case of <tt>LEA</tt>), a register or an immediate value.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   {"Memory":[{"AddressPlus":[{"AddressRegister":"RIP"},{"AddressImm":11869}]},8]
+--   </pre>
+data Operand
+
+-- | A region in memory, with an <a>Address</a> and a size in bytes
+Memory :: Address -> Int -> Operand
+
+-- | An address itself, but not the value stored at the address.
+EffectiveAddress :: Address -> Operand
+
+-- | A storage location such as a register or a variable
+Register :: Register -> Operand
+
+-- | An immediate value
+Immediate :: Word64 -> Operand
+
+-- | An <b>Address</b> is the unresolved address computation in the memory
+--   operand of an instruction.
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   {"AddressPlus":[{"AddressRegister":"RIP"},{"AddressImm":11869}]}
+--   </pre>
+data Address
+
+-- | Reading a pointer from a storage
+AddressRegister :: Register -> Address
+
+-- | Immediate value
+AddressImm :: Word64 -> Address
+
+-- | Plus
+AddressPlus :: Address -> Address -> Address
+
+-- | Minus
+AddressMinus :: Address -> Address -> Address
+
+-- | Times
+AddressTimes :: Address -> Address -> Address
+instance GHC.Generics.Generic Data.JSON_Taxonomy.Postcondition
+instance GHC.Generics.Generic Data.JSON_Taxonomy.FunctionSummary
+instance GHC.Generics.Generic Data.JSON_Taxonomy.Address
+instance GHC.Generics.Generic Data.JSON_Taxonomy.Operand
+instance GHC.Generics.Generic Data.JSON_Taxonomy.Instruction
+instance GHC.Generics.Generic Data.JSON_Taxonomy.JSON
+
+
+module Data.JSON
+
+-- | <b>Address</b>
+data Address
+
+-- | Reading a pointer from a storage
+AddressRegister :: Register -> Address
+
+-- | Immediate value
+AddressImm :: Word64 -> Address
+
+-- | Plus
+AddressPlus :: Address -> Address -> Address
+
+-- | Minus
+AddressMinus :: Address -> Address -> Address
+
+-- | Times
+AddressTimes :: Address -> Address -> Address
+
+-- | <b>Operand</b>
+data Operand
+
+-- | A region in memory, whose address is stored in the given state part
+--   and whose size in bytes is given in the Int
+Memory :: Address -> Int -> Operand
+
+-- | An address itself, but not the value stored at the address.
+EffectiveAddress :: Address -> Operand
+
+-- | A storage location such as a register or a variable
+Reg :: Register -> Operand
+
+-- | An immediate value
+Immediate :: Word64 -> Operand
+
+-- | <b>Instruction</b>
+data Instruction
+Instruction :: Word64 -> Maybe Prefix -> Opcode -> Maybe Operand -> [Operand] -> Int -> Instruction
+
+-- | address
+[addr] :: Instruction -> Word64
+
+-- | prefix, e.g., lock or repz
+[prefix] :: Instruction -> Maybe Prefix
+
+-- | opcode/mnemonic
+[opcode] :: Instruction -> Opcode
+
+-- | <ul>
+--   <li>- ^ optional: destination operand</li>
+--   </ul>
+[dest] :: Instruction -> Maybe Operand
+
+-- | optional: operand
+[srcs] :: Instruction -> [Operand]
+
+-- | size of instruction
+[size] :: Instruction -> Int
+instance GHC.Generics.Generic Data.JSON.Address
+instance GHC.Generics.Generic Data.JSON.Operand
 
 
 -- | Contains function relating to control flow, including functions for
 --   resolving the targets of jumps and calls.
-module ControlFlow
+module Data.ControlFlow
 
 -- | Resolving the operand of a jump/call can produce one of the following.
 data ResolvedJumpTarget
@@ -1697,7 +2220,7 @@ ImmediateAddress :: Word64 -> ResolvedJumpTarget
 post :: CFG -> Key -> IntSet
 
 -- | Fetching an instruction list given a block ID
-fetch_block :: CFG -> Int -> [Instr]
+fetch_block :: CFG -> Int -> [Instruction]
 
 -- | Returns true iff an instruction can be fetched from the address.
 address_has_instruction :: Integral a => Context -> a -> Bool
@@ -1705,7 +2228,7 @@ address_has_instruction :: Integral a => Context -> a -> Bool
 -- | Returns true iff a symbol is associated with the address.
 address_has_symbol :: Integral a => Context -> a -> Bool
 
--- | Returns truee if the adress is external, i.e., has no instruction or
+-- | Returns true if the adress is external, i.e., has no instruction or
 --   has a symbol.
 address_is_external :: Integral a => Context -> a -> Bool
 
@@ -1718,7 +2241,7 @@ address_is_external :: Integral a => Context -> a -> Bool
 --   <tt>10005464e: call qword ptr [RIP + 1751660]</tt> read from address
 --   1002000c0, but address has a symbol associated to it. This function
 --   call will resolve to an external function.
-operand_static_resolve :: Context -> Instr -> Maybe Operand -> ResolvedJumpTarget
+operand_static_resolve :: Context -> Instruction -> Operand -> ResolvedJumpTarget
 
 -- | Resolves the first operand of a call or jump instruction. First tries
 --   to see if the instruction is an indirection, that has already been
@@ -1729,14 +2252,14 @@ operand_static_resolve :: Context -> Instr -> Maybe Operand -> ResolvedJumpTarge
 --   
 --   Returns a list of <tt><a>ResolvedJumpTarget</a></tt>, since an
 --   indirection may be resolved to multiple targets.
-resolve_jump_target :: Context -> Instr -> [ResolvedJumpTarget]
+resolve_jump_target :: Context -> Instruction -> [ResolvedJumpTarget]
 
 -- | Given a resolved jump target, get a possibly empty list of internal
 --   addresses to which the jump target can jump.
 get_internal_addresses :: ResolvedJumpTarget -> [Int]
 
 -- | Returns true iff the instruction resolves to external targets only.
-instruction_jumps_to_external :: Context -> Instr -> Bool
+instruction_jumps_to_external :: Context -> Instruction -> Bool
 
 -- | Shows the block associated to the givern blockID.
 show_block :: CFG -> Int -> String
@@ -1757,40 +2280,18 @@ function_name_of_entry :: Context -> Int -> String
 --   
 --   Returns the empty string if the given instruction is not a call or a
 --   jump.
-function_name_of_instruction :: Context -> Instr -> String
-instance SCC.IntGraph Context.CFG
+function_name_of_instruction :: Context -> Instruction -> String
+isTerminal :: CFG -> Key -> Bool
+instance Algorithm.SCC.IntGraph Analysis.Context.CFG
+
+module X86.Program
+type Program = GenericProgram Instruction
+
+module Pass.Reg2Var
+reg2var :: Program -> Program
 
 
--- | We assume a class where we can do predicate transformation through
---   function <tt>tau</tt>, and we can merge two predicates through
---   function <tt>join</tt>. Moreover, we assume an implementation of a
---   function <tt>implies</tt> that implements symbolic implication. Given
---   these functions, we provide a generic abstract interpretation
---   algorithm.
-module Propagation
-
--- | A class that allows propagation of predicates over a CFG.
-class (Show pred) => Propagator ctxt pred
-
--- | Predicate transformation for an edge in in a CFG, over a basic blocks.
-tau :: Propagator ctxt pred => ctxt -> [Instr] -> Maybe [Instr] -> pred -> (pred, Set VerificationCondition)
-
--- | A lattice-join
-join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
-
--- | Symbolic implication
-implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
-
--- | Start propagation at the given entry address with the given initial
---   predicate. Returns a set of invariants, i.e., a mapping of instruction
---   addresses to predicates.
-do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
-
--- | The supremum of a list of predicates
-supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
-
-
-module Pointers
+module Data.Pointers
 
 -- | The context augmented with information on the current function
 data FContext
@@ -1838,9 +2339,8 @@ join_exprs :: [Char] -> FContext -> [SimpleExpr] -> SimpleExpr
 join_single :: FContext -> SimpleExpr -> SimpleExpr
 
 -- | Returns true iff the two given expressions can be shown to be
---   separate. This means that either: * They both have spearate pointer
---   domains. * One of them is an immediate and the other is local.
-separate_pointer_domains :: FContext -> Bool -> SimpleExpr -> SimpleExpr -> Bool
+--   separate.
+separate_pointer_domains :: (Integral a1, Integral a2) => FContext -> Bool -> SimpleExpr -> a1 -> SimpleExpr -> a2 -> Bool
 pointer_bases_separate_necessarily :: FContext -> PointerBase -> PointerBase -> Bool
 pointer_bases_separate_possibly :: FContext -> PointerBase -> PointerBase -> Bool
 sources_separate_necessarily :: FContext -> BotSrc -> BotSrc -> Bool
@@ -1863,7 +2363,7 @@ necessarily_equal_stateparts :: StatePart -> StatePart -> Bool
 --   the expressions are separate, we check whether the expressions can be
 --   proven separate based on their domains (see
 --   <a>separate_pointer_domains</a>).
-necessarily_separate :: (Ord a, Num a) => FContext -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
+necessarily_separate :: Integral a => FContext -> SimpleExpr -> a -> SimpleExpr -> a -> Bool
 
 -- | Returns true iff the given symbolic stateparts are necessarily
 --   separate.
@@ -1888,13 +2388,13 @@ trim_expr :: FContext -> SimpleExpr -> SimpleExpr
 -- | These functions are defined using the <tt>State (Pred,VCS)</tt> monad.
 --   Both the read- and write function may update the current predicate, as
 --   well as introduce new verification conditions.
-module MachineState
+module Data.MachineState
 
 -- | Read from a register
 read_reg :: FContext -> Register -> State (Pred, VCS) SimpleExpr
 
 -- | Write to a register
-write_reg :: FContext -> Int -> Register -> SimpleExpr -> State (Pred, VCS) ()
+write_reg :: FContext -> Word64 -> Register -> SimpleExpr -> State (Pred, VCS) ()
 
 -- | Read from memory
 read_mem :: FContext -> Operand -> State (Pred, VCS) SimpleExpr
@@ -1908,13 +2408,13 @@ write_mem :: FContext -> MemWriteIdentifier -> SimpleExpr -> Int -> SimpleExpr -
 read_operand :: FContext -> Operand -> State (Pred, VCS) SimpleExpr
 
 -- | Write to an operand of an instruction
-write_operand :: FContext -> Int -> Operand -> SimpleExpr -> State (Pred, VCS) ()
+write_operand :: FContext -> Word64 -> Operand -> SimpleExpr -> State (Pred, VCS) ()
 
 -- | Read from an statepart
 read_sp :: FContext -> StatePart -> State (Pred, VCS) SimpleExpr
 
 -- | Write to a statepart
-write_sp :: FContext -> Int -> (Int -> StatePart -> MemWriteIdentifier) -> (StatePart, SimpleExpr) -> State (Pred, VCS) ()
+write_sp :: FContext -> Word64 -> (Word64 -> StatePart -> MemWriteIdentifier) -> (StatePart, SimpleExpr) -> State (Pred, VCS) ()
 
 -- | Returns true if a pointer is not suitable for writing to memory. This
 --   may happen if the symbolic expression provides no information, i.e.,
@@ -1930,17 +2430,46 @@ address_is_unwritable :: Context -> SimpleExpr -> Bool
 -- | Given the address of an operand of an instruction, resolve it given
 --   the current state.
 resolve_address :: FContext -> Address -> State (Pred, VCS) SimpleExpr
-instance GHC.Classes.Eq MachineState.SeparationStatus
+instance GHC.Classes.Eq Data.MachineState.SeparationStatus
 
 
-module SymbolicExecution
+-- | We assume a class where we can do predicate transformation through
+--   function <tt>tau</tt>, and we can merge two predicates through
+--   function <tt>join</tt>. Moreover, we assume an implementation of a
+--   function <tt>implies</tt> that implements symbolic implication. Given
+--   these functions, we provide a generic abstract interpretation
+--   algorithm.
+module Analysis.Propagation
+
+-- | A class that allows propagation of predicates over a CFG.
+class (Show pred) => Propagator ctxt pred
+
+-- | Predicate transformation for an edge in in a CFG, over a basic blocks.
+tau :: Propagator ctxt pred => ctxt -> [Instruction] -> Maybe [Instruction] -> pred -> (pred, Set VerificationCondition)
+
+-- | A lattice-join
+join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
+
+-- | Symbolic implication
+implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
+
+-- | Start propagation at the given entry address with the given initial
+--   predicate. Returns a set of invariants, i.e., a mapping of instruction
+--   addresses to predicates.
+do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
+
+-- | The supremum of a list of predicates
+supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
+
+
+module Analysis.SymbolicExecution
 
 -- | Do predicate transformation over a basic block in a CFG. Given an edge
 --   in the CFG from none block to another, perform predicate
 --   transformation. Parameter insts' is needed to set the flags properly.
 --   If <tt>Nothing</tt> is supplied, the flags are overapproximatively set
 --   to <tt><a>None</a></tt>.
-tau_block :: FContext -> [Instr] -> Maybe [Instr] -> Pred -> (Pred, VCS)
+tau_block :: FContext -> [Instruction] -> Maybe [Instruction] -> Pred -> (Pred, VCS)
 
 -- | The initial predicate.
 init_pred :: FContext -> Invariants -> Set (NodeInfo, Pred) -> Pred
@@ -1958,10 +2487,10 @@ join_finit :: FContext -> FInit -> FInit -> FInit
 -- | Get the invariant for a given instruction address for a given function
 --   entry
 get_invariant :: FContext -> Int -> Maybe Pred
-instance Propagation.Propagator Pointers.FContext SimplePred.Pred
+instance Analysis.Propagation.Propagator Data.Pointers.FContext Data.SimplePred.Pred
 
 
-module CFG_Gen
+module Pass.CFG_Gen
 
 -- | Produce a CFG
 --   
@@ -1970,7 +2499,7 @@ module CFG_Gen
 --   are function entries called by the current function, but for which we
 --   do not know yet whether they terminate or not. If a CFG is returned,
 --   then all function calls in that CFG have already been analyzed.
-cfg_gen :: Context -> Int -> IO (Set (Instr, Int), CFG)
+cfg_gen :: Context -> Int -> IO (Set (Instruction, Int), CFG)
 
 -- | Export a CFG to .dot file
 --   
@@ -2000,7 +2529,7 @@ node_info_of :: Context -> CFG -> Int -> NodeInfo
 --   belongs to a <tt>call</tt>
 --   
 --   TODO the Lefts are ignored so need no to return them
-stepA :: Context -> Int -> Int -> IO (Either (Set (Instr, Int)) [(Int, Bool)])
+stepA :: Context -> Int -> Int -> IO (Either (Set (Instruction, Int)) [(Int, Bool)])
 
 
 -- | The interface to the <tt>.report</tt> generated after running FoxDec.
@@ -2023,7 +2552,7 @@ stepA :: Context -> Int -> Int -> IO (Either (Set (Instr, Int)) [(Int, Bool)])
 --   <pre>
 --   main = do
 --     args &lt;- getArgs
---     ctxt &lt;- ctxt_read_report $ head args
+--     ctxt &lt;- ctxt_read_report (args !! 0) (args !! 1)
 --     putStrLn $ show $ ctxt_get_function_entries ctxt
 --   </pre>
 --   
@@ -2044,15 +2573,13 @@ type InstructionAddress = Int
 -- | Read in the .report file from a file with the given file name. May
 --   produce an error if no report can be read from the file. Returns the
 --   verification report stored in the .report file.
-ctxt_read_report :: String -> IO Context
+ctxt_read_report :: String -> String -> IO Context
 
 -- | Retrieve information from a <tt><a>Context</a></tt> read from a
 --   .report file, or die with an error message. For example:
 --   
 --   <pre>
---   do
---     ctxt &lt;- ctxt_read_report filename
---     retrieve_io $ ctxt_get_instruction a ctxt
+--   retrieve_io $ ctxt_get_instruction a ctxt
 --   </pre>
 --   
 --   This code reads in a .report file with the given <tt>filename</tt>,
@@ -2077,7 +2604,7 @@ ctxt_get_indirections :: Retrieve Indirections
 
 -- | Retrieve instruction for a given instruction address, both as
 --   datastructure and pretty-printed
-ctxt_get_instruction :: InstructionAddress -> Retrieve (Instr, String)
+ctxt_get_instruction :: InstructionAddress -> Retrieve (Instruction, String)
 
 -- | Retrieve invariant for a given function entry and instruction address
 --   
@@ -2092,3 +2619,9 @@ ctxt_get_internal_function_calls :: FunctionEntry -> Retrieve (Set FunctionEntry
 
 -- | Retrieve a CFG for a given function entry
 ctxt_get_cfg :: FunctionEntry -> Retrieve CFG
+
+-- | Retrieve a function initialization for a given function entry
+ctxt_get_function_init :: FunctionEntry -> Retrieve FInit
+
+-- | Retrieve a function initialization for a given function entry
+ctxt_get_postcondition :: FunctionEntry -> Retrieve FReturnBehavior

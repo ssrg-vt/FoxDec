@@ -1,0 +1,137 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Algorithm.Dominance</span><span>
+</span><span id="line-2"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Algorithm.Dominance.html#domFrontier"><span class="hs-identifier">domFrontier</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Graph.Dom</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span>                    </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span>                    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">IntSet</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span>                   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Base.html#orElse"><span class="hs-identifier">orElse</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Computes the dominance frontier</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- see https://www.ed.tus.ac.jp/j-mune/keio/m/ssa2.pdf</span><span>
+</span><span id="line-13"></span><span class="annot"><a href="Algorithm.Dominance.html#domFrontier"><span class="hs-identifier hs-type">domFrontier</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Graph</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Graph</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span>
+</span><span id="line-14"></span><span id="domFrontier"><span class="annot"><span class="annottext">domFrontier :: Graph -&gt; Graph -&gt; Int -&gt; IntSet
+</span><a href="Algorithm.Dominance.html#domFrontier"><span class="hs-identifier hs-var hs-var">domFrontier</span></a></span></span><span> </span><span id="local-6989586621679294105"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294105"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679294104"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294104"><span class="hs-identifier hs-var">tree</span></a></span></span><span> </span><span id="local-6989586621679294103"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294103"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.union</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294101"><span class="hs-identifier hs-var">df_local</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294100"><span class="hs-identifier hs-var">df_up</span></a></span><span>
+</span><span id="line-15"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-comment">-- the local part DF_{local}</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-comment">-- &quot;idom y = n&quot; is determined by looking up the edge (n,y) in the dominance tree</span><span>
+</span><span id="line-18"></span><span>  </span><span id="local-6989586621679294101"><span class="annot"><span class="annottext">df_local :: IntSet
+</span><a href="#local-6989586621679294101"><span class="hs-identifier hs-var hs-var">df_local</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Int -&gt; Bool) -&gt; Int -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Graph -&gt; Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294096"><span class="hs-identifier hs-var">is_edge</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294104"><span class="hs-identifier hs-var">tree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294103"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; IntSet) -&gt; IntSet -&gt; IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Graph -&gt; IntSet
+</span><a href="#local-6989586621679294095"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294103"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294105"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-comment">-- the up part DF_{up}</span><span>
+</span><span id="line-20"></span><span>  </span><span id="local-6989586621679294100"><span class="annot"><span class="annottext">df_up :: IntSet
+</span><a href="#local-6989586621679294100"><span class="hs-identifier hs-var hs-var">df_up</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[IntSet] -&gt; IntSet
+forall (f :: * -&gt; *). Foldable f =&gt; f IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.unions</span></span><span> </span><span class="annot"><span class="annottext">([IntSet] -&gt; IntSet) -&gt; [IntSet] -&gt; IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><a href="#local-6989586621679294093"><span class="hs-identifier hs-var">get_df_up_child</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IntSet) -&gt; [Int] -&gt; [IntSet]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IS.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Graph -&gt; IntSet
+</span><a href="#local-6989586621679294095"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294103"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294104"><span class="hs-identifier hs-var">tree</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679294093"><span class="annot"><span class="annottext">get_df_up_child :: Int -&gt; IntSet
+</span><a href="#local-6989586621679294093"><span class="hs-identifier hs-var hs-var">get_df_up_child</span></a></span></span><span> </span><span id="local-6989586621679294090"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294090"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679294089"><span class="annot"><span class="annottext">df_children :: IntSet
+</span><a href="#local-6989586621679294089"><span class="hs-identifier hs-var hs-var">df_children</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Graph -&gt; Graph -&gt; Int -&gt; IntSet
+</span><a href="Algorithm.Dominance.html#domFrontier"><span class="hs-identifier hs-var">domFrontier</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294105"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294104"><span class="hs-identifier hs-var">tree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294090"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-23"></span><span>      </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Int -&gt; Bool) -&gt; Int -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294088"><span class="hs-identifier hs-var">strictly_dominates</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294103"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294089"><span class="hs-identifier hs-var">df_children</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-comment">-- does n strictly dominate w?</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-comment">-- See if w is reachable from n in the dominance tree, i.e., if n is an ancestor of w.</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679294087"><span class="annot"><span class="annottext">dominates :: Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294087"><span class="hs-identifier hs-var hs-var">dominates</span></a></span></span><span> </span><span id="local-6989586621679294086"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294086"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679294085"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294085"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294086"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294085"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679294083"><span class="annot"><span class="annottext">post :: IntSet
+</span><a href="#local-6989586621679294083"><span class="hs-identifier hs-var hs-var">post</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Graph -&gt; IntSet
+</span><a href="#local-6989586621679294095"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294086"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294104"><span class="hs-identifier hs-var">tree</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IS.member</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294085"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294083"><span class="hs-identifier hs-var">post</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; [Int] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294087"><span class="hs-operator hs-var">`dominates`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294085"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IS.toList</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294083"><span class="hs-identifier hs-var">post</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679294088"><span class="annot"><span class="annottext">strictly_dominates :: Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294088"><span class="hs-identifier hs-var hs-var">strictly_dominates</span></a></span></span><span> </span><span id="local-6989586621679294080"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294080"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679294079"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294079"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294080"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294079"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294087"><span class="hs-identifier hs-var">dominates</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294080"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294079"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-comment">-- the successors of vertex v in graph g</span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679294095"><span class="annot"><span class="annottext">succ :: Int -&gt; Graph -&gt; IntSet
+</span><a href="#local-6989586621679294095"><span class="hs-identifier hs-var hs-var">succ</span></a></span></span><span> </span><span id="local-6989586621679294076"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294076"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679294075"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294075"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Graph -&gt; Maybe IntSet
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294076"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294075"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; IntSet -&gt; IntSet
+forall p. Maybe p -&gt; p -&gt; p
+</span><a href="Base.html#orElse"><span class="hs-operator hs-var">`orElse`</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-comment">-- is (v,v') an edge in the graph?</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679294096"><span class="annot"><span class="annottext">is_edge :: Graph -&gt; Int -&gt; Int -&gt; Bool
+</span><a href="#local-6989586621679294096"><span class="hs-identifier hs-var hs-var">is_edge</span></a></span></span><span> </span><span id="local-6989586621679294072"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294072"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679294071"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294071"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679294070"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294070"><span class="hs-identifier hs-var">v'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Graph -&gt; Maybe IntSet
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294071"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679294072"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679294069"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294069"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IS.member</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679294070"><span class="hs-identifier hs-var">v'</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679294069"><span class="hs-identifier hs-var">vs</span></a></span></pre></body></html>

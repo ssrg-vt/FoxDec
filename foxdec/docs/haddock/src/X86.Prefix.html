@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_9z2I8jJ4VrX1a2epIyDpf6"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">X86.Prefix</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86.Prefix.html#Prefix"><span class="hs-identifier">Prefix</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span id="local-6989586621679296677"><span id="local-6989586621679296678"></span></span><span class="hs-keyword">data</span><span> </span><span id="Prefix"><span class="annot"><a href="X86.Prefix.html#Prefix"><span class="hs-identifier hs-var">Prefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InvalidPrefix"><span class="annot"><a href="X86.Prefix.html#InvalidPrefix"><span class="hs-identifier hs-var">InvalidPrefix</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="REP"><span class="annot"><a href="X86.Prefix.html#REP"><span class="hs-identifier hs-var">REP</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="REPZ"><span class="annot"><a href="X86.Prefix.html#REPZ"><span class="hs-identifier hs-var">REPZ</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="REPNE"><span class="annot"><a href="X86.Prefix.html#REPNE"><span class="hs-identifier hs-var">REPNE</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="LOCK"><span class="annot"><a href="X86.Prefix.html#LOCK"><span class="hs-identifier hs-var">LOCK</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="BND"><span class="annot"><a href="X86.Prefix.html#BND"><span class="hs-identifier hs-var">BND</span></a></span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679296665"><span id="local-6989586621679296667"><span id="local-6989586621679296669"><span class="annot"><span class="annottext">Int -&gt; Prefix -&gt; ShowS
+[Prefix] -&gt; ShowS
+Prefix -&gt; String
+(Int -&gt; Prefix -&gt; ShowS)
+-&gt; (Prefix -&gt; String) -&gt; ([Prefix] -&gt; ShowS) -&gt; Show Prefix
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Prefix] -&gt; ShowS
+$cshowList :: [Prefix] -&gt; ShowS
+show :: Prefix -&gt; String
+$cshow :: Prefix -&gt; String
+showsPrec :: Int -&gt; Prefix -&gt; ShowS
+$cshowsPrec :: Int -&gt; Prefix -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679296660"><span id="local-6989586621679296662"><span class="annot"><span class="annottext">Prefix -&gt; Prefix -&gt; Bool
+(Prefix -&gt; Prefix -&gt; Bool)
+-&gt; (Prefix -&gt; Prefix -&gt; Bool) -&gt; Eq Prefix
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Prefix -&gt; Prefix -&gt; Bool
+$c/= :: Prefix -&gt; Prefix -&gt; Bool
+== :: Prefix -&gt; Prefix -&gt; Bool
+$c== :: Prefix -&gt; Prefix -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679296644"><span id="local-6989586621679296646"><span id="local-6989586621679296648"><span id="local-6989586621679296650"><span id="local-6989586621679296652"><span id="local-6989586621679296654"><span id="local-6989586621679296656"><span class="annot"><span class="annottext">Eq Prefix
+Eq Prefix
+-&gt; (Prefix -&gt; Prefix -&gt; Ordering)
+-&gt; (Prefix -&gt; Prefix -&gt; Bool)
+-&gt; (Prefix -&gt; Prefix -&gt; Bool)
+-&gt; (Prefix -&gt; Prefix -&gt; Bool)
+-&gt; (Prefix -&gt; Prefix -&gt; Bool)
+-&gt; (Prefix -&gt; Prefix -&gt; Prefix)
+-&gt; (Prefix -&gt; Prefix -&gt; Prefix)
+-&gt; Ord Prefix
+Prefix -&gt; Prefix -&gt; Bool
+Prefix -&gt; Prefix -&gt; Ordering
+Prefix -&gt; Prefix -&gt; Prefix
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Prefix -&gt; Prefix -&gt; Prefix
+$cmin :: Prefix -&gt; Prefix -&gt; Prefix
+max :: Prefix -&gt; Prefix -&gt; Prefix
+$cmax :: Prefix -&gt; Prefix -&gt; Prefix
+&gt;= :: Prefix -&gt; Prefix -&gt; Bool
+$c&gt;= :: Prefix -&gt; Prefix -&gt; Bool
+&gt; :: Prefix -&gt; Prefix -&gt; Bool
+$c&gt; :: Prefix -&gt; Prefix -&gt; Bool
+&lt;= :: Prefix -&gt; Prefix -&gt; Bool
+$c&lt;= :: Prefix -&gt; Prefix -&gt; Bool
+&lt; :: Prefix -&gt; Prefix -&gt; Bool
+$c&lt; :: Prefix -&gt; Prefix -&gt; Bool
+compare :: Prefix -&gt; Prefix -&gt; Ordering
+$ccompare :: Prefix -&gt; Prefix -&gt; Ordering
+$cp1Ord :: Eq Prefix
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679296635"><span id="local-6989586621679296637"><span id="local-6989586621679296639"><span id="local-6989586621679296641"><span class="annot"><span class="annottext">ReadPrec [Prefix]
+ReadPrec Prefix
+Int -&gt; ReadS Prefix
+ReadS [Prefix]
+(Int -&gt; ReadS Prefix)
+-&gt; ReadS [Prefix]
+-&gt; ReadPrec Prefix
+-&gt; ReadPrec [Prefix]
+-&gt; Read Prefix
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Prefix]
+$creadListPrec :: ReadPrec [Prefix]
+readPrec :: ReadPrec Prefix
+$creadPrec :: ReadPrec Prefix
+readList :: ReadS [Prefix]
+$creadList :: ReadS [Prefix]
+readsPrec :: Int -&gt; ReadS Prefix
+$creadsPrec :: Int -&gt; ReadS Prefix
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. Prefix -&gt; Rep Prefix x)
+-&gt; (forall x. Rep Prefix x -&gt; Prefix) -&gt; Generic Prefix
+forall x. Rep Prefix x -&gt; Prefix
+forall x. Prefix -&gt; Rep Prefix x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Prefix x -&gt; Prefix
+$cfrom :: forall x. Prefix -&gt; Rep Prefix x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679296627"><span id="local-6989586621679296629"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="X86.Prefix.html#Prefix"><span class="hs-identifier hs-type">Prefix</span></a></span></span></span></pre></body></html>
