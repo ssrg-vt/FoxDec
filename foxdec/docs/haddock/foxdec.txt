@@ -1937,7 +1937,7 @@ instance Data.Serialize.Serialize Data.Binary.Relocation
 --   or if there is a request for information in a different form, then let
 --   us know.
 --   
---   On the right hand side, see the synopsis for an overview.
+--   On the right hand side, unfold the <b>synopsis</b> for an overview.
 module Data.JSON_Taxonomy
 
 -- | The top-level JSON datastructure consists of the following fields:
@@ -2091,7 +2091,7 @@ Instruction :: Word64 -> Maybe Prefix -> Opcode -> [Operand] -> Int -> Instructi
 --   Example of JSON output:
 --   
 --   <pre>
---   {"Memory":[{"AddressPlus":[{"AddressRegister":"RIP"},{"AddressImm":11869}]},8]
+--   {"Memory":[{"AddressPlus":[{"AddressRegister":"RIP"},{"AddressImm":11869}]},8]}
 --   </pre>
 data Operand
 

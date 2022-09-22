@@ -11,7 +11,7 @@ This is an overview of some of the information retrievable from FoxDec.
 For example, we have omitted control flow graphs and per-instruction invariants to keep the size of the JSON object manageable.
 However, if more information is required, or if there is a request for information in a different form, then let us know.
 
-On the right hand side, see the synopsis for an overview.
+On the right hand side, unfold the __synopsis__ for an overview.
 -}</span><span>
 </span><span id="line-16"></span><span>
 </span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.JSON_Taxonomy</span><span> </span><span class="hs-keyword">where</span><span>
@@ -198,7 +198,7 @@ $cfrom :: forall x. Instruction -&gt; Rep Instruction x
 </span><span id="line-152"></span><span class="hs-comment">--</span><span>
 </span><span id="line-153"></span><span class="hs-comment">-- Example of JSON output:</span><span>
 </span><span id="line-154"></span><span class="hs-comment">--</span><span>
-</span><span id="line-155"></span><span class="hs-comment">-- &gt; {&quot;Memory&quot;:[{&quot;AddressPlus&quot;:[{&quot;AddressRegister&quot;:&quot;RIP&quot;},{&quot;AddressImm&quot;:11869}]},8]</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- &gt; {&quot;Memory&quot;:[{&quot;AddressPlus&quot;:[{&quot;AddressRegister&quot;:&quot;RIP&quot;},{&quot;AddressImm&quot;:11869}]},8]}</span><span>
 </span><span id="line-156"></span><span id="local-6989586621679300431"><span id="local-6989586621679300432"></span></span><span class="hs-keyword">data</span><span> </span><span id="Operand"><span class="annot"><a href="Data.JSON_Taxonomy.html#Operand"><span class="hs-identifier hs-var">Operand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-157"></span><span>    </span><span id="Memory"><span class="annot"><a href="Data.JSON_Taxonomy.html#Memory"><span class="hs-identifier hs-var">Memory</span></a></span></span><span> </span><span class="annot"><a href="Data.JSON_Taxonomy.html#Address"><span class="hs-identifier hs-type">Address</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>           </span><span class="hs-comment">-- ^ A region in memory, with an `Address` and a size in bytes</span><span>
 </span><span id="line-158"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EffectiveAddress"><span class="annot"><a href="Data.JSON_Taxonomy.html#EffectiveAddress"><span class="hs-identifier hs-var">EffectiveAddress</span></a></span></span><span> </span><span class="annot"><a href="Data.JSON_Taxonomy.html#Address"><span class="hs-identifier hs-type">Address</span></a></span><span>     </span><span class="hs-comment">-- ^ An address itself, but not the value stored at the address.</span><span>
