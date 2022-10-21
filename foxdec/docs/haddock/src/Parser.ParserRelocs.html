@@ -83,8 +83,8 @@ forall i st. Integral i =&gt; CharParser st i
 </span><span id="line-43"></span><span>
 </span><span id="line-44"></span><span id="reloc"><span class="annot"><span class="annottext">reloc :: ParsecT [Char] u Identity Relocation
 </span><a href="Parser.ParserRelocs.html#reloc"><span class="hs-identifier hs-var hs-var">reloc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-45"></span><span>  </span><span id="local-6989586621679300320"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300320"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Word64
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679300444"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300444"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Word64
 forall u. ParsecT [Char] u Identity Word64
 </span><a href="Parser.ParserRelocs.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-46"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
@@ -108,8 +108,8 @@ Stream s m Char =&gt;
 </span><span id="line-50"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserRelocs.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-51"></span><span>  </span><span id="local-6989586621679300319"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300319"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Word64
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621679300443"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300443"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Word64
 forall u. ParsecT [Char] u Identity Word64
 </span><a href="Parser.ParserRelocs.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-52"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Char
@@ -122,14 +122,14 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Relocation
 </span><a href="Data.Binary.html#R_X86_64_RELATIVE"><span class="hs-identifier hs-var">R_X86_64_RELATIVE</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300320"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300319"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><a href="#local-6989586621679300444"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300443"><span class="hs-identifier hs-var">a1</span></a></span><span>
 </span><span id="line-54"></span><span> </span><span>
 </span><span id="line-55"></span><span>
 </span><span id="line-56"></span><span id="relocs"><span class="annot"><span class="annottext">relocs :: ParsecT [Char] u Identity [Relocation]
 </span><a href="Parser.ParserRelocs.html#relocs"><span class="hs-identifier hs-var hs-var">relocs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-57"></span><span>  </span><span id="local-6989586621679300315"><span class="annot"><span class="annottext">[Relocation]
-</span><a href="#local-6989586621679300315"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Relocation
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679300439"><span class="annot"><span class="annottext">[Relocation]
+</span><a href="#local-6989586621679300439"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Relocation
 -&gt; ParsecT [Char] u Identity [Relocation]
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Relocation
@@ -143,21 +143,21 @@ ParsecT s u m ()
 </span><span id="line-59"></span><span>  </span><span class="annot"><span class="annottext">[Relocation] -&gt; ParsecT [Char] u Identity [Relocation]
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">[Relocation]
-</span><a href="#local-6989586621679300315"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><a href="#local-6989586621679300439"><span class="hs-identifier hs-var">rs</span></a></span><span>
 </span><span id="line-60"></span><span>
 </span><span id="line-61"></span><span class="hs-comment">-- The parse function.</span><span>
 </span><span id="line-62"></span><span class="hs-comment">-- Takes as input a filename f and produces a list of instructions</span><span>
 </span><span id="line-63"></span><span class="hs-comment">-- to lists of instructions.</span><span>
 </span><span id="line-64"></span><span class="annot"><a href="Parser.ParserRelocs.html#parse_relocs"><span class="hs-identifier hs-type">parse_relocs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Binary.html#Relocation"><span class="hs-identifier hs-type">Relocation</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
 </span><span id="line-65"></span><span id="parse_relocs"><span class="annot"><span class="annottext">parse_relocs :: [Char] -&gt; IO (Either ParseError [Relocation])
-</span><a href="Parser.ParserRelocs.html#parse_relocs"><span class="hs-identifier hs-var hs-var">parse_relocs</span></a></span></span><span> </span><span id="local-6989586621679300310"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679300310"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser [Relocation]
+</span><a href="Parser.ParserRelocs.html#parse_relocs"><span class="hs-identifier hs-var hs-var">parse_relocs</span></a></span></span><span> </span><span id="local-6989586621679300434"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300434"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser [Relocation]
 -&gt; [Char] -&gt; IO (Either ParseError [Relocation])
 forall a. Parser a -&gt; [Char] -&gt; IO (Either ParseError a)
 </span><span class="hs-identifier hs-var">parseFromFile</span></span><span> </span><span class="annot"><span class="annottext">Parser [Relocation]
 forall u. ParsecT [Char] u Identity [Relocation]
 </span><a href="Parser.ParserRelocs.html#relocs"><span class="hs-identifier hs-var">relocs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679300310"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><a href="#local-6989586621679300434"><span class="hs-identifier hs-var">f</span></a></span><span>
 </span><span id="line-66"></span><span>
 </span><span id="line-67"></span><span>
 </span><span id="line-68"></span></pre></body></html>

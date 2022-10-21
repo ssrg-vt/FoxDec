@@ -17,7 +17,7 @@
 </span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Typeclasses.HasSize.html"><span class="hs-identifier">Typeclasses.HasSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Typeclasses.HasSize.html#HasSize"><span class="hs-identifier">HasSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Base.html#allp"><span class="hs-identifier">allp</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-19"></span><span>
-</span><span id="line-20"></span><span id="local-6989586621679296905"><span id="local-6989586621679296906"></span></span><span class="hs-keyword">data</span><span> </span><span id="Register"><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-var">Register</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-20"></span><span id="local-6989586621679297029"><span id="local-6989586621679297030"></span></span><span class="hs-keyword">data</span><span> </span><span id="Register"><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-var">Register</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-21"></span><span>    </span><span id="InvalidRegister"><span class="annot"><a href="X86.Register.html#InvalidRegister"><span class="hs-identifier hs-var">InvalidRegister</span></a></span></span><span>
 </span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RIP"><span class="annot"><a href="X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span></span><span>
 </span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EIP"><span class="annot"><a href="X86.Register.html#EIP"><span class="hs-identifier hs-var">EIP</span></a></span></span><span>
@@ -137,7 +137,7 @@
 </span><span id="line-137"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XMM13"><span class="annot"><a href="X86.Register.html#XMM13"><span class="hs-identifier hs-var">XMM13</span></a></span></span><span>
 </span><span id="line-138"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XMM14"><span class="annot"><a href="X86.Register.html#XMM14"><span class="hs-identifier hs-var">XMM14</span></a></span></span><span>
 </span><span id="line-139"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XMM15"><span class="annot"><a href="X86.Register.html#XMM15"><span class="hs-identifier hs-var">XMM15</span></a></span></span><span>
-</span><span id="line-140"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679296780"><span id="local-6989586621679296782"><span id="local-6989586621679296784"><span class="annot"><span class="annottext">Int -&gt; Register -&gt; ShowS
+</span><span id="line-140"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679296904"><span id="local-6989586621679296906"><span id="local-6989586621679296908"><span class="annot"><span class="annottext">Int -&gt; Register -&gt; ShowS
 [Register] -&gt; ShowS
 Register -&gt; String
 (Int -&gt; Register -&gt; ShowS)
@@ -150,7 +150,7 @@ show :: Register -&gt; String
 $cshow :: Register -&gt; String
 showsPrec :: Int -&gt; Register -&gt; ShowS
 $cshowsPrec :: Int -&gt; Register -&gt; ShowS
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296775"><span id="local-6989586621679296777"><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296899"><span id="local-6989586621679296901"><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
 (Register -&gt; Register -&gt; Bool)
 -&gt; (Register -&gt; Register -&gt; Bool) -&gt; Eq Register
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
@@ -158,7 +158,7 @@ forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
 $c/= :: Register -&gt; Register -&gt; Bool
 == :: Register -&gt; Register -&gt; Bool
 $c== :: Register -&gt; Register -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296766"><span id="local-6989586621679296768"><span id="local-6989586621679296770"><span id="local-6989586621679296772"><span class="annot"><span class="annottext">ReadPrec [Register]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296890"><span id="local-6989586621679296892"><span id="local-6989586621679296894"><span id="local-6989586621679296896"><span class="annot"><span class="annottext">ReadPrec [Register]
 ReadPrec Register
 Int -&gt; ReadS Register
 ReadS [Register]
@@ -178,7 +178,7 @@ readList :: ReadS [Register]
 $creadList :: ReadS [Register]
 readsPrec :: Int -&gt; ReadS Register
 $creadsPrec :: Int -&gt; ReadS Register
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296750"><span id="local-6989586621679296752"><span id="local-6989586621679296754"><span id="local-6989586621679296756"><span id="local-6989586621679296758"><span id="local-6989586621679296760"><span id="local-6989586621679296762"><span class="annot"><span class="annottext">Eq Register
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296874"><span id="local-6989586621679296876"><span id="local-6989586621679296878"><span id="local-6989586621679296880"><span id="local-6989586621679296882"><span id="local-6989586621679296884"><span id="local-6989586621679296886"><span class="annot"><span class="annottext">Eq Register
 Eq Register
 -&gt; (Register -&gt; Register -&gt; Ordering)
 -&gt; (Register -&gt; Register -&gt; Bool)
@@ -224,7 +224,7 @@ forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
 $cto :: forall x. Rep Register x -&gt; Register
 $cfrom :: forall x. Register -&gt; Rep Register x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296730"><span id="local-6989586621679296732"><span id="local-6989586621679296734"><span id="local-6989586621679296736"><span id="local-6989586621679296738"><span id="local-6989586621679296740"><span id="local-6989586621679296742"><span id="local-6989586621679296744"><span class="annot"><span class="annottext">Int -&gt; Register
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296854"><span id="local-6989586621679296856"><span id="local-6989586621679296858"><span id="local-6989586621679296860"><span id="local-6989586621679296862"><span id="local-6989586621679296864"><span id="local-6989586621679296866"><span id="local-6989586621679296868"><span class="annot"><span class="annottext">Int -&gt; Register
 Register -&gt; Int
 Register -&gt; [Register]
 Register -&gt; Register
@@ -265,7 +265,7 @@ pred :: Register -&gt; Register
 $cpred :: Register -&gt; Register
 succ :: Register -&gt; Register
 $csucc :: Register -&gt; Register
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296725"><span id="local-6989586621679296727"><span class="annot"><span class="annottext">Register
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679296849"><span id="local-6989586621679296851"><span class="annot"><span class="annottext">Register
 Register -&gt; Register -&gt; Bounded Register
 forall a. a -&gt; a -&gt; Bounded a
 maxBound :: Register
@@ -274,7 +274,7 @@ minBound :: Register
 $cminBound :: Register
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
 </span><span id="line-141"></span><span>
-</span><span id="line-142"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679296720"><span id="local-6989586621679296722"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span></span></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679296844"><span id="local-6989586621679296846"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span></span></span><span>
 </span><span id="line-143"></span><span>
 </span><span id="line-144"></span><span class="hs-comment">-- | List of 256 bit registers</span><span>
 </span><span id="line-145"></span><span class="annot"><a href="X86.Register.html#reg256"><span class="hs-identifier hs-type">reg256</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span class="hs-special">]</span><span>
@@ -754,9 +754,9 @@ $cminBound :: Register
 </span><span id="line-350"></span><span class="annot"><a href="X86.Register.html#real"><span class="hs-identifier hs-var">real</span></a></span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86.Register.html#DH"><span class="hs-identifier hs-var">DH</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Register
 </span><a href="X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span>
-</span><span id="line-351"></span><span class="annot"><a href="X86.Register.html#real"><span class="hs-identifier hs-var">real</span></a></span><span> </span><span id="local-6989586621679296718"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296718"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296718"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><span id="line-351"></span><span class="annot"><a href="X86.Register.html#real"><span class="hs-identifier hs-var">real</span></a></span><span> </span><span id="local-6989586621679296842"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296842"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296842"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg64"><span class="hs-identifier hs-var">reg64</span></a></span><span> </span><span class="annot"><span class="annottext">[Register] -&gt; [Register] -&gt; [Register]
@@ -764,7 +764,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg256"><span class="hs-identifier hs-var">reg256</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-352"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296718"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><a href="#local-6989586621679296842"><span class="hs-identifier hs-var">r</span></a></span><span>
 </span><span id="line-353"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; Register
 forall a. HasCallStack =&gt; String -&gt; a
 </span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Register) -&gt; String -&gt; Register
@@ -775,53 +775,53 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Register -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296718"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679296842"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot; to real register&quot;</span></span><span>
 </span><span id="line-354"></span><span>
 </span><span id="line-355"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Typeclasses.HasSize.html#HasSize"><span class="hs-identifier hs-type">HasSize</span></a></span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-356"></span><span>  </span><span id="local-6989586621679296712"><span class="annot"><span class="annottext">sizeof :: Register -&gt; Int
-</span><a href="Typeclasses.HasSize.html#sizeof"><span class="hs-identifier hs-var hs-var hs-var hs-var">sizeof</span></a></span></span><span> </span><span id="local-6989586621679296710"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span></span><span>
+</span><span id="line-356"></span><span>  </span><span id="local-6989586621679296836"><span class="annot"><span class="annottext">sizeof :: Register -&gt; Int
+</span><a href="Typeclasses.HasSize.html#sizeof"><span class="hs-identifier hs-var hs-var hs-var hs-var">sizeof</span></a></span></span><span> </span><span id="local-6989586621679296834"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span></span><span>
 </span><span id="line-357"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg256"><span class="hs-identifier hs-var">reg256</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">32</span></span><span>
 </span><span id="line-358"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg128"><span class="hs-identifier hs-var">reg128</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">16</span></span><span>
 </span><span id="line-359"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg80"><span class="hs-identifier hs-var">reg80</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">10</span></span><span>
 </span><span id="line-360"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg64"><span class="hs-identifier hs-var">reg64</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">8</span></span><span>
 </span><span id="line-361"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg32"><span class="hs-identifier hs-var">reg32</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">4</span></span><span>
 </span><span id="line-362"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg16"><span class="hs-identifier hs-var">reg16</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">2</span></span><span>
 </span><span id="line-363"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; [Register] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#reg8"><span class="hs-identifier hs-var">reg8</span></a></span><span> </span><span class="annot"><span class="annottext">[Register] -&gt; [Register] -&gt; [Register]
@@ -843,7 +843,7 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Register -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296710"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679296834"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot; unknown&quot;</span></span><span>
@@ -854,8 +854,8 @@ forall a. [a] -&gt; [a] -&gt; [a]
 </span><span id="line-369"></span><span class="hs-comment">-- | AH is only overlapping with RAX, EAX, AX; but not AL</span><span>
 </span><span id="line-370"></span><span class="annot"><a href="X86.Register.html#overlapping"><span class="hs-identifier hs-type">overlapping</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span class="hs-special">]</span><span>
 </span><span id="line-371"></span><span id="overlapping"><span class="annot"><span class="annottext">overlapping :: Register -&gt; [Register]
-</span><a href="X86.Register.html#overlapping"><span class="hs-identifier hs-var hs-var">overlapping</span></a></span></span><span> </span><span id="local-6989586621679296709"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296709"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><a href="X86.Register.html#overlapping"><span class="hs-identifier hs-var hs-var">overlapping</span></a></span></span><span> </span><span id="local-6989586621679296833"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296833"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-372"></span><span>  </span><span class="annot"><span class="annottext">(Register -&gt; Bool) -&gt; [Register] -&gt; [Register]
 forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
 </span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Register -&gt; Bool] -&gt; Register -&gt; Bool
@@ -863,11 +863,11 @@ forall a. [a -&gt; Bool] -&gt; a -&gt; Bool
 </span><a href="Base.html#allp"><span class="hs-identifier hs-var">allp</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">(/=)</span></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296709"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
+</span><a href="#local-6989586621679296833"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
 </span><a href="X86.Register.html#haveSameRealReg"><span class="hs-identifier hs-var">haveSameRealReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296709"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
+</span><a href="#local-6989586621679296833"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
 </span><a href="X86.Register.html#areNotSeparate"><span class="hs-identifier hs-var">areNotSeparate</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296709"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Register]
+</span><a href="#local-6989586621679296833"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Register]
 </span><a href="X86.Register.html#allRegisters"><span class="hs-identifier hs-var">allRegisters</span></a></span><span>
 </span><span id="line-373"></span><span>
 </span><span id="line-374"></span><span class="annot"><a href="X86.Register.html#allRegisters"><span class="hs-identifier hs-type">allRegisters</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span class="hs-special">]</span><span>
@@ -891,18 +891,18 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span id="line-379"></span><span>
 </span><span id="line-380"></span><span class="annot"><a href="X86.Register.html#haveSameRealReg"><span class="hs-identifier hs-type">haveSameRealReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-381"></span><span id="haveSameRealReg"><span class="annot"><span class="annottext">haveSameRealReg :: Register -&gt; Register -&gt; Bool
-</span><a href="X86.Register.html#haveSameRealReg"><span class="hs-identifier hs-var hs-var">haveSameRealReg</span></a></span></span><span> </span><span id="local-6989586621679296700"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296700"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span id="local-6989586621679296699"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296699"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Bool
+</span><a href="X86.Register.html#haveSameRealReg"><span class="hs-identifier hs-var hs-var">haveSameRealReg</span></a></span></span><span> </span><span id="local-6989586621679296824"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296824"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span id="local-6989586621679296823"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679296823"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Register -&gt; Bool
 </span><a href="X86.Register.html#hasRealReg"><span class="hs-identifier hs-var">hasRealReg</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296699"><span class="hs-identifier hs-var">r2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="#local-6989586621679296823"><span class="hs-identifier hs-var">r2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
 </span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; Register
 </span><a href="X86.Register.html#real"><span class="hs-identifier hs-var">real</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296700"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
+</span><a href="#local-6989586621679296824"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Register -&gt; Register
 </span><a href="X86.Register.html#real"><span class="hs-identifier hs-var">real</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679296699"><span class="hs-identifier hs-var">r2</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679296823"><span class="hs-identifier hs-var">r2</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-382"></span><span>
 </span><span id="line-383"></span><span class="hs-comment">-- | True if they are not separate in the sense that they have the same real registers,</span><span>
 </span><span id="line-384"></span><span class="hs-comment">-- | but their values don't influence each other.</span><span>

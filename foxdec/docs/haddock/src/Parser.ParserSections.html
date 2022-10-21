@@ -96,8 +96,8 @@ Stream s m Char =&gt;
 String -&gt; ParsecT s u m String
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;(&quot;</span></span><span>
-</span><span id="line-47"></span><span>  </span><span id="local-6989586621679300235"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679300235"><span class="hs-identifier hs-var">segname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679300359"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679300359"><span class="hs-identifier hs-var">segname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ParsecT String u Identity Char
 forall s (m :: * -&gt; *) u.
@@ -111,8 +111,8 @@ Stream s m Char =&gt;
 String -&gt; ParsecT s u m String
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;,&quot;</span></span><span>
-</span><span id="line-49"></span><span>  </span><span id="local-6989586621679300233"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679300233"><span class="hs-identifier hs-var">sectname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679300357"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679300357"><span class="hs-identifier hs-var">sectname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ParsecT String u Identity Char
 forall s (m :: * -&gt; *) u.
@@ -154,8 +154,8 @@ String -&gt; ParsecT s u m String
 </span><span id="line-58"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="Parser.ParserSections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-59"></span><span>  </span><span id="local-6989586621679300232"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300232"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Word64
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679300356"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300356"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Word64
 forall u. ParsecT String u Identity Word64
 </span><a href="Parser.ParserSections.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-60"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity Char
@@ -183,8 +183,8 @@ String -&gt; ParsecT s u m String
 </span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity ()
 forall u. ParsecT String u Identity ()
 </span><a href="Parser.ParserSections.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-67"></span><span>  </span><span id="local-6989586621679300231"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300231"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Word64
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679300355"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300355"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity Word64
 forall u. ParsecT String u Identity Word64
 </span><a href="Parser.ParserSections.html#hexnum_with_0x"><span class="hs-identifier hs-var">hexnum_with_0x</span></a></span><span>
 </span><span id="line-68"></span><span>  </span><span class="annot"><span class="annottext">ParsecT String u Identity Char -&gt; ParsecT String u Identity String
@@ -201,15 +201,15 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; ParsecT String u Identity (String, String, Word64, Word64)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679300235"><span class="hs-identifier hs-var">segname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679300233"><span class="hs-identifier hs-var">sectname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300232"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300231"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679300359"><span class="hs-identifier hs-var">segname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679300357"><span class="hs-identifier hs-var">sectname</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300356"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300355"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-70"></span><span>
 </span><span id="line-71"></span><span id="sections_info"><span class="annot"><span class="annottext">sections_info :: ParsecT String u Identity SectionsInfo
 </span><a href="Parser.ParserSections.html#sections_info"><span class="hs-identifier hs-var hs-var">sections_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-72"></span><span>  </span><span id="local-6989586621679300229"><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
-</span><a href="#local-6989586621679300229"><span class="hs-identifier hs-var">sis</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Word64, Word64)
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679300353"><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
+</span><a href="#local-6989586621679300353"><span class="hs-identifier hs-var">sis</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Word64, Word64)
 -&gt; ParsecT String u Identity [(String, String, Word64, Word64)]
 forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">ParsecT String u Identity (String, String, Word64, Word64)
@@ -221,8 +221,8 @@ forall s (m :: * -&gt; *) t u.
 (Stream s m t, Show t) =&gt;
 ParsecT s u m ()
 </span><span class="hs-identifier hs-var">eof</span></span><span>
-</span><span id="line-74"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679300227"><span class="annot"><span class="annottext">min :: Word64
-</span><a href="#local-6989586621679300227"><span class="hs-identifier hs-var hs-var">min</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; Word64
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679300351"><span class="annot"><span class="annottext">min :: Word64
+</span><a href="#local-6989586621679300351"><span class="hs-identifier hs-var hs-var">min</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; Word64
 forall (t :: * -&gt; *) a. (Foldable t, Ord a) =&gt; t a -&gt; a
 </span><span class="hs-identifier hs-var">minimum</span></span><span> </span><span class="annot"><span class="annottext">([Word64] -&gt; Word64) -&gt; [Word64] -&gt; Word64
 forall a b. (a -&gt; b) -&gt; a -&gt; b
@@ -231,10 +231,10 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(String, String, Word64, Word64) -&gt; Word64
 forall a b c d. (a, b, c, d) -&gt; c
-</span><a href="#local-6989586621679300225"><span class="hs-identifier hs-var">get_min_address</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
-</span><a href="#local-6989586621679300229"><span class="hs-identifier hs-var">sis</span></a></span><span>
-</span><span id="line-75"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679300224"><span class="annot"><span class="annottext">max :: Word64
-</span><a href="#local-6989586621679300224"><span class="hs-identifier hs-var hs-var">max</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; Word64
+</span><a href="#local-6989586621679300349"><span class="hs-identifier hs-var">get_min_address</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
+</span><a href="#local-6989586621679300353"><span class="hs-identifier hs-var">sis</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679300348"><span class="annot"><span class="annottext">max :: Word64
+</span><a href="#local-6989586621679300348"><span class="hs-identifier hs-var hs-var">max</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; Word64
 forall (t :: * -&gt; *) a. (Foldable t, Ord a) =&gt; t a -&gt; a
 </span><span class="hs-identifier hs-var">maximum</span></span><span> </span><span class="annot"><span class="annottext">([Word64] -&gt; Word64) -&gt; [Word64] -&gt; Word64
 forall a b. (a -&gt; b) -&gt; a -&gt; b
@@ -243,8 +243,8 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(String, String, Word64, Word64) -&gt; Word64
 forall a a b. Num a =&gt; (a, b, a, a) -&gt; a
-</span><a href="#local-6989586621679300222"><span class="hs-identifier hs-var">get_max_address</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
-</span><a href="#local-6989586621679300229"><span class="hs-identifier hs-var">sis</span></a></span><span>
+</span><a href="#local-6989586621679300346"><span class="hs-identifier hs-var">get_max_address</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
+</span><a href="#local-6989586621679300353"><span class="hs-identifier hs-var">sis</span></a></span><span>
 </span><span id="line-76"></span><span>  </span><span class="annot"><span class="annottext">SectionsInfo -&gt; ParsecT String u Identity SectionsInfo
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(SectionsInfo -&gt; ParsecT String u Identity SectionsInfo)
@@ -253,27 +253,27 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
 -&gt; Word64 -&gt; Word64 -&gt; SectionsInfo
 </span><a href="Data.Binary.html#SectionsInfo"><span class="hs-identifier hs-var">SectionsInfo</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String, Word64, Word64)]
-</span><a href="#local-6989586621679300229"><span class="hs-identifier hs-var">sis</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300227"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679300224"><span class="hs-identifier hs-var">max</span></a></span><span>
+</span><a href="#local-6989586621679300353"><span class="hs-identifier hs-var">sis</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300351"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679300348"><span class="hs-identifier hs-var">max</span></a></span><span>
 </span><span id="line-77"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-78"></span><span>  </span><span id="local-6989586621679300225"><span class="annot"><span class="annottext">get_min_address :: (a, b, c, d) -&gt; c
-</span><a href="#local-6989586621679300225"><span class="hs-identifier hs-var hs-var">get_min_address</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679300349"><span class="annot"><span class="annottext">get_min_address :: (a, b, c, d) -&gt; c
+</span><a href="#local-6989586621679300349"><span class="hs-identifier hs-var hs-var">get_min_address</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
 </span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
-</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679300220"><span class="annot"><span class="annottext">c
-</span><a href="#local-6989586621679300220"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679300344"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679300344"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
 </span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c
-</span><a href="#local-6989586621679300220"><span class="hs-identifier hs-var">a</span></a></span><span>
-</span><span id="line-79"></span><span>  </span><span id="local-6989586621679300222"><span class="annot"><span class="annottext">get_max_address :: (a, b, a, a) -&gt; a
-</span><a href="#local-6989586621679300222"><span class="hs-identifier hs-var hs-var">get_max_address</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679300344"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621679300346"><span class="annot"><span class="annottext">get_max_address :: (a, b, a, a) -&gt; a
+</span><a href="#local-6989586621679300346"><span class="hs-identifier hs-var hs-var">get_max_address</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
 </span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
-</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679300219"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679300219"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679300218"><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679300218"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679300219"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679300343"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679300343"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679300342"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679300342"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679300343"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
-</span><a href="#local-6989586621679300218"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679300342"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
 </span><span class="hs-number">1</span></span><span>

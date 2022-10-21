@@ -1953,6 +1953,12 @@ module Data.JSON_Taxonomy
 --   function.</li>
 --   <li><a>function_summaries</a>: For each function entry address, this
 --   provides a pre- and postcondition.</li>
+--   <li><a>invariants</a>: For each each instruction address, for each
+--   function address that contains the instruction, this provides an
+--   invariant.</li>
+--   <li><a>pointer_domains</a>: For each each instruction address, for
+--   each function address that contains the instruction, this provides a
+--   symbolic expression for the pointer of each memory operand.</li>
 --   </ul>
 --   
 --   Example of the entire JSON output:
@@ -1961,7 +1967,7 @@ module Data.JSON_Taxonomy
 --   { "instructions": [...], "control_flow": [...], ... }
 --   </pre>
 data JSON
-JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64, FunctionSummary)] -> JSON
+JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64, FunctionSummary)] -> [(Word64, [Invariant])] -> [(Word64, Word64, [Maybe SimpleExpr])] -> JSON
 
 -- | A list of <a>Instruction</a>s.
 [instructions] :: JSON -> [Instruction]
@@ -1970,12 +1976,20 @@ JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64
 --   instruction addresses.
 [control_flow] :: JSON -> ControlFlow
 
--- | A mapping from function entry addresses to pretty-printed function
---   boundaries.
+-- | A mapping from function entry addresses to pretty-printed
+--   <b><a>FunctionBoundary</a></b>s.
 [function_boundaries] :: JSON -> [(Word64, FunctionBoundary)]
 
--- | A mapping from function entry addresses to <a>FunctionSummary</a>s.
+-- | A mapping from function entry addresses to
+--   <b><a>FunctionSummary</a></b>s.
 [function_summaries] :: JSON -> [(Word64, FunctionSummary)]
+
+-- | A mapping from instruction addresses to <b><a>Invariant</a></b>s.
+[invariants] :: JSON -> [(Word64, [Invariant])]
+
+-- | Per instruction address, per function entry, the
+--   <b><a>PointerDomain</a></b> for each memory operand.
+[pointer_domains] :: JSON -> [(Word64, Word64, [Maybe SimpleExpr])]
 
 -- | The <b>ControlFlow</b> is provided as a mapping from instruction
 --   addresses to lists of instruction addresses.
@@ -2021,6 +2035,26 @@ data FunctionSummary
 FunctionSummary :: Predicate -> Postcondition -> FunctionSummary
 [precondition] :: FunctionSummary -> Predicate
 [postcondition] :: FunctionSummary -> Postcondition
+
+-- | An <b>Invariant</b> contains:
+--   
+--   <ul>
+--   <li>the entry address of the function in which the instruction occurs.
+--   Note that (rarely) the same instruction can occur in multiple
+--   functions. Therefore, we provide an invariant per entry.</li>
+--   <li>an invariant: a <a>Predicate</a>.</li>
+--   </ul>
+--   
+--   Example of JSON output:
+--   
+--   <pre>
+--   [4320,[[{"SP_Reg":"RIP"},{"SE_Immediate":4324}],[{"SP_Reg":"RAX"},...]]]
+--   </pre>
+--   
+--   The instruction occurs in the function with entry address
+--   <tt>4320</tt>. Register <tt>RIP</tt> is set to <tt>4324</tt>. Register
+--   <tt>RAX</tt> is always equal to iths initial value.
+type Invariant = (Word64, Predicate)
 
 -- | A <b>Postcondition</b> provides information on the return status of a
 --   function.

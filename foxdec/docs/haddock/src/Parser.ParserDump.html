@@ -76,8 +76,8 @@ ParsecT s u m a -&gt; [Char] -&gt; ParsecT s u m a
 </span><span id="line-44"></span><span class="hs-comment">-- E.g.: 10631e00</span><span>
 </span><span id="line-45"></span><span id="bytes"><span class="annot"><span class="annottext">bytes :: ParsecT [Char] u Identity [Word8]
 </span><a href="Parser.ParserDump.html#bytes"><span class="hs-identifier hs-var hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-46"></span><span>  </span><span id="local-6989586621679295296"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679295296"><span class="hs-identifier hs-var">digits</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Char -&gt; ParsecT [Char] u Identity [Char]
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679295420"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679295420"><span class="hs-identifier hs-var">digits</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Char -&gt; ParsecT [Char] u Identity [Char]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
 ParsecT s u m a -&gt; ParsecT s u m [a]
@@ -116,7 +116,7 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall e. Int -&gt; [e] -&gt; [[e]]
 </span><span class="hs-identifier hs-var">chunksOf</span></span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679295296"><span class="hs-identifier hs-var">digits</span></a></span><span>
+</span><a href="#local-6989586621679295420"><span class="hs-identifier hs-var">digits</span></a></span><span>
 </span><span id="line-49"></span><span>
 </span><span id="line-50"></span><span id="data_line"><span class="annot"><span class="annottext">data_line :: ParsecT [Char] u Identity [(Int, Word8)]
 </span><a href="Parser.ParserDump.html#data_line"><span class="hs-identifier hs-var hs-var">data_line</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
@@ -128,8 +128,8 @@ forall u. ParsecT [Char] u Identity Char
 </span><span id="line-52"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserDump.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-53"></span><span>  </span><span id="local-6989586621679295290"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679295290"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Int -&gt; GenParser Char u Int
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679295414"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679295414"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Int -&gt; GenParser Char u Int
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; ParsecT [Char] u Identity [Char]
 forall s (m :: * -&gt; *) u.
@@ -153,8 +153,8 @@ forall i st. Integral i =&gt; CharParser st i
 </span><span id="line-56"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserDump.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-57"></span><span>  </span><span id="local-6989586621679295285"><span class="annot"><span class="annottext">[[Word8]]
-</span><a href="#local-6989586621679295285"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity [Word8]
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679295409"><span class="annot"><span class="annottext">[[Word8]]
+</span><a href="#local-6989586621679295409"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity [Word8]
 -&gt; ParsecT [Char] u Identity [[Word8]]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -181,15 +181,15 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Word8] -&gt; [(Int, Word8)]
 forall a b. [a] -&gt; [b] -&gt; [(a, b)]
 </span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679295290"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Word8]] -&gt; [Word8]
+</span><a href="#local-6989586621679295414"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Word8]] -&gt; [Word8]
 forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
 </span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">[[Word8]]
-</span><a href="#local-6989586621679295285"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679295409"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-61"></span><span> </span><span>
 </span><span id="line-62"></span><span id="dump"><span class="annot"><span class="annottext">dump :: ParsecT [Char] u Identity (IntMap Word8)
 </span><a href="Parser.ParserDump.html#dump"><span class="hs-identifier hs-var hs-var">dump</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-63"></span><span>  </span><span id="local-6989586621679295279"><span class="annot"><span class="annottext">[[(Int, Word8)]]
-</span><a href="#local-6989586621679295279"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity [(Int, Word8)]
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679295403"><span class="annot"><span class="annottext">[[(Int, Word8)]]
+</span><a href="#local-6989586621679295403"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity [(Int, Word8)]
 -&gt; ParsecT [Char] u Identity [[(Int, Word8)]]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -212,13 +212,13 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[(Int, Word8)]] -&gt; [(Int, Word8)]
 forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
 </span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">[[(Int, Word8)]]
-</span><a href="#local-6989586621679295279"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><a href="#local-6989586621679295403"><span class="hs-identifier hs-var">ds</span></a></span><span>
 </span><span id="line-65"></span><span>  </span><span>
 </span><span id="line-66"></span><span>
 </span><span id="line-67"></span><span id="dumps"><span class="annot"><span class="annottext">dumps :: ParsecT [Char] u Identity (IntMap Word8)
 </span><a href="Parser.ParserDump.html#dumps"><span class="hs-identifier hs-var hs-var">dumps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
-</span><span id="line-68"></span><span>  </span><span id="local-6989586621679295276"><span class="annot"><span class="annottext">[IntMap Word8]
-</span><a href="#local-6989586621679295276"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (IntMap Word8)
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679295400"><span class="annot"><span class="annottext">[IntMap Word8]
+</span><a href="#local-6989586621679295400"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (IntMap Word8)
 -&gt; ParsecT [Char] u Identity [IntMap Word8]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -244,20 +244,20 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[IntMap Word8] -&gt; IntMap Word8
 forall (f :: * -&gt; *) a. Foldable f =&gt; f (IntMap a) -&gt; IntMap a
 </span><span class="hs-identifier hs-var">IM.unions</span></span><span> </span><span class="annot"><span class="annottext">[IntMap Word8]
-</span><a href="#local-6989586621679295276"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><a href="#local-6989586621679295400"><span class="hs-identifier hs-var">ds</span></a></span><span>
 </span><span id="line-72"></span><span>
 </span><span id="line-73"></span><span class="hs-comment">-- The parse function.</span><span>
 </span><span id="line-74"></span><span class="hs-comment">-- Takes as input a filename f and produces a mapping of addresses (Int) to bytes (Word8)</span><span>
 </span><span id="line-75"></span><span class="annot"><a href="Parser.ParserDump.html#parse_dump"><span class="hs-identifier hs-type">parse_dump</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-76"></span><span id="parse_dump"><span class="annot"><span class="annottext">parse_dump :: [Char] -&gt; IO (Either ParseError (IntMap Word8))
-</span><a href="Parser.ParserDump.html#parse_dump"><span class="hs-identifier hs-var hs-var">parse_dump</span></a></span></span><span> </span><span id="local-6989586621679295271"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679295271"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Word8)
+</span><a href="Parser.ParserDump.html#parse_dump"><span class="hs-identifier hs-var hs-var">parse_dump</span></a></span></span><span> </span><span id="local-6989586621679295395"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679295395"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Word8)
 -&gt; [Char] -&gt; IO (Either ParseError (IntMap Word8))
 forall a. Parser a -&gt; [Char] -&gt; IO (Either ParseError a)
 </span><span class="hs-identifier hs-var">parseFromFile</span></span><span> </span><span class="annot"><span class="annottext">Parser (IntMap Word8)
 forall u. ParsecT [Char] u Identity (IntMap Word8)
 </span><a href="Parser.ParserDump.html#dumps"><span class="hs-identifier hs-var">dumps</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679295271"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><a href="#local-6989586621679295395"><span class="hs-identifier hs-var">f</span></a></span><span>
 </span><span id="line-77"></span><span>
 </span><span id="line-78"></span><span>
 </span><span id="line-79"></span><span>
