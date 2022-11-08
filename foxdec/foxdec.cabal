@@ -31,8 +31,13 @@ library
       Analysis.SymbolicExecution
       Base
       Config
+      Data.Binary
+      Data.BinaryElf
+      Data.BinaryMacho
       Data.CallGraph
       Data.ControlFlow
+      Data.JSON
+      Data.JSON_Taxonomy
       Data.MachineState
       Data.Phi
       Data.Pointers
@@ -52,6 +57,7 @@ library
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
+      Parser.ParserRelocs
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction
@@ -77,91 +83,17 @@ library
   hs-source-dirs:
       src
   build-depends:
-      argparser >=0.3.4
+      aeson >=1.5.6.0
+    , argparser >=0.3.4
     , base >=4.7 && <5
-    , bytestring
+    , bytestring >=0.10.12
     , cereal >=0.5.8.1
     , containers
     , dhall >=1.39
     , directory
     , dom-lt >=0.2.3
+    , elf >=0.31
     , extra >=1.7.9
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-controlflow-exe
-  main-is: ControlFlowResolver.hs
-  other-modules:
-      Disassembler
-      Functions
-      Invariants
-      Isabelle
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is ControlFlowResolver
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-disassembler-exe
-  main-is: Disassembler.hs
-  other-modules:
-      ControlFlowResolver
-      Functions
-      Invariants
-      Isabelle
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Disassembler
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
     , mtl
     , parsec >=3.1
@@ -176,13 +108,9 @@ executable foxdec-disassembler-exe
 executable foxdec-exe
   main-is: Main.hs
   other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
       Isabelle
+      JSON
       Pkcs11
-      Postconditions
       Symbolizer
       Transformer
       Paths_foxdec
@@ -190,14 +118,16 @@ executable foxdec-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      argparser >=0.3.4
+      aeson >=1.5.6.0
+    , argparser >=0.3.4
     , base >=4.7 && <5
-    , bytestring
+    , bytestring >=0.10.12
     , cereal >=0.5.8.1
     , containers
     , dhall >=1.39
     , directory
     , dom-lt >=0.2.3
+    , elf >=0.31
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -211,165 +141,9 @@ executable foxdec-exe
     , transformers >=0.5.6
   default-language: Haskell2010
 
-executable foxdec-functions-exe
-  main-is: Functions.hs
+executable foxdec-json-exe
+  main-is: JSON.hs
   other-modules:
-      ControlFlowResolver
-      Disassembler
-      Invariants
-      Isabelle
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Functions
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-invariants-exe
-  main-is: Invariants.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Isabelle
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Invariants
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-isabelle-exe
-  main-is: Isabelle.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Isabelle
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-pkcs11-exe
-  main-is: Pkcs11.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
-      Isabelle
-      Main
-      Postconditions
-      Symbolizer
-      Transformer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Pkcs11
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-postconditions-exe
-  main-is: Postconditions.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
       Isabelle
       Main
       Pkcs11
@@ -378,16 +152,18 @@ executable foxdec-postconditions-exe
       Paths_foxdec
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Postconditions
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is JSON
   build-depends:
-      argparser >=0.3.4
+      aeson >=1.5.6.0
+    , argparser >=0.3.4
     , base >=4.7 && <5
-    , bytestring
+    , bytestring >=0.10.12
     , cereal >=0.5.8.1
     , containers
     , dhall >=1.39
     , directory
     , dom-lt >=0.2.3
+    , elf >=0.31
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -404,66 +180,26 @@ executable foxdec-postconditions-exe
 executable foxdec-symbolizer-exe
   main-is: Symbolizer.hs
   other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
       Isabelle
+      JSON
       Main
       Pkcs11
-      Postconditions
       Transformer
       Paths_foxdec
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Symbolizer
   build-depends:
-      argparser >=0.3.4
+      aeson >=1.5.6.0
+    , argparser >=0.3.4
     , base >=4.7 && <5
-    , bytestring
+    , bytestring >=0.10.12
     , cereal >=0.5.8.1
     , containers
     , dhall >=1.39
     , directory
     , dom-lt >=0.2.3
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , mtl
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-executable foxdec-transformer-exe
-  main-is: Transformer.hs
-  other-modules:
-      ControlFlowResolver
-      Disassembler
-      Functions
-      Invariants
-      Isabelle
-      Main
-      Pkcs11
-      Postconditions
-      Symbolizer
-      Paths_foxdec
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is Transformer
-  build-depends:
-      argparser >=0.3.4
-    , base >=4.7 && <5
-    , bytestring
-    , cereal >=0.5.8.1
-    , containers
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
+    , elf >=0.31
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1
@@ -486,14 +222,16 @@ test-suite foxdec-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      argparser >=0.3.4
+      aeson >=1.5.6.0
+    , argparser >=0.3.4
     , base >=4.7 && <5
-    , bytestring
+    , bytestring >=0.10.12
     , cereal >=0.5.8.1
     , containers
     , dhall >=1.39
     , directory
     , dom-lt >=0.2.3
+    , elf >=0.31
     , extra >=1.7.9
     , foxdec
     , hapstone >=0.2.0.1 && <=0.2.0.1

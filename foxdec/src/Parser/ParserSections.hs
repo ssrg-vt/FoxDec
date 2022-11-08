@@ -17,11 +17,10 @@
 
 module Parser.ParserSections where
 
+import Data.Binary
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
-
-import Analysis.Context
 
 isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True

@@ -18,6 +18,7 @@ import qualified Data.IntSet as IS
 import Data.Word (Word8)
 import Numeric (readHex)
 import Data.List.Split (chunksOf)
+import Data.Char
 
 isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True
@@ -25,9 +26,8 @@ isWhiteSpace '\v' = True
 isWhiteSpace ' ' = True
 isWhiteSpace _ = False 
 
-whitespace = satisfy isWhiteSpace <?> "white space"
-whitespaces = skipMany whitespace <?> "white spaces"
-
+whitespace  = satisfy isWhiteSpace <?> "space"
+whitespaces = skipMany whitespace  <?> "white space"
 
 call = do
   whitespaces

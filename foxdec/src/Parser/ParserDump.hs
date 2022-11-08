@@ -30,15 +30,19 @@ import qualified Data.IntMap as IM
 import Data.Word (Word8)
 import Numeric (readHex)
 import Data.List.Split (chunksOf)
+import Data.Char
 
-isWhiteSpace '\t' = True
-isWhiteSpace '\f' = True
-isWhiteSpace '\v' = True
-isWhiteSpace ' ' = True
-isWhiteSpace _ = False 
+isWhiteSpace :: Char -> Bool
+isWhiteSpace c
+  | uc <= 0x377 = uc == 32 || uc == 9
+  | otherwise = isSpace c
+  where
+    uc = fromIntegral (ord c) :: Word
 
-whitespace = satisfy isWhiteSpace <?> "white space"
-whitespaces = skipMany whitespace <?> "white spaces"
+
+
+whitespace  = satisfy isWhiteSpace <?> "space"
+whitespaces = skipMany whitespace  <?> "white space"
 
 -- a hex sequence of 1 or more bytes
 -- E.g.: 10631e00

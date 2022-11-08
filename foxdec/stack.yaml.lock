@@ -25,6 +25,13 @@ packages:
       sha256: 7daf5082515248f0d0d0b7d164d079f970318e26d39f1ffd15519bd22bbe559a
   original:
     hackage: dom-lt-0.2.3@sha256:89f17bbeb0d23f5a46fe7099b81cc9b4b5df32aadb5080fc171c874aafc802c0,1850
+- completed:
+    hackage: elf-0.31@sha256:036e37ce966dddf691efba492dc632ae6472442f46fab4a1a797ed4f65c96f48,1382
+    pantry-tree:
+      size: 703
+      sha256: 3f35f29d53a1b0c0ace078a0cc5ac126a3ddcd887b8442fa9d68592ff8492884
+  original:
+    hackage: elf-0.31@sha256:036e37ce966dddf691efba492dc632ae6472442f46fab4a1a797ed4f65c96f48,1382
 snapshots:
 - completed:
     size: 586292

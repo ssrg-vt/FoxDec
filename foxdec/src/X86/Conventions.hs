@@ -29,8 +29,8 @@ is_exiting_function_call f =
       "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx",
       "obstack_alloc_failed_handler"
     ]
- where
-  strip_GLIBC = takeUntilString "@GLIBC"
+
+strip_GLIBC = takeUntilString "@GLIBC"
 
 
 

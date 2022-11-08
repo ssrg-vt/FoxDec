@@ -17,7 +17,7 @@ The following example reads in a .report file provided as first command-line par
 
 >  main = do
 >    args <- getArgs
->    ctxt <- ctxt_read_report $ head args
+>    ctxt <- ctxt_read_report (args !! 0) (args !! 1)
 >    putStrLn $ show $ ctxt_get_function_entries ctxt
 
 Some of the information is automatically also exported in plain-text format, for easy access.
@@ -45,11 +45,13 @@ import Analysis.Context
 import Analysis.SymbolicExecution
 import Base
 import Data.CallGraph
+import Data.Binary
 import Data.ControlFlow
 import Data.Pointers
 import Data.SimplePred
 import Pass.CFG_Gen
 
+import Data.IORef
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
@@ -78,19 +80,21 @@ type InstructionAddress = Int
 --   May produce an error if no report can be read from the file.
 --   Returns the verification report stored in the .report file.
 ctxt_read_report :: 
-   String        -- ^ The filename
-   -> IO Context 
-ctxt_read_report fname = do
-  fcontents <- BS.readFile fname
-  case Cereal.decode fcontents of
-    Left err   -> error $ "Could not read verification report in file " ++ fname 
-    Right ctxt -> return ctxt
+      String     -- ^ The directory name
+   -> String     -- ^ The file name of the binary
+   -> IO Context
+ctxt_read_report dirname name = do
+  rcontents <- BS.readFile (dirname ++ name ++ ".report")
+  ioref     <- newIORef IM.empty
+  bcontents <- read_binary dirname name
+  case (Cereal.decode rcontents, bcontents) of
+    (Left err,_)           -> error $ "Could not read verification report in file " ++ (dirname ++ name ++ ".report") ++  "\n" ++ show err
+    (_,Nothing)            -> error $ "Cannot read binary file: " ++ dirname ++ name
+    (Right ctxt_,Just bin) -> return $ Context bin ioref ctxt_
 
 -- | Retrieve information from a @"Context"@ read from a .report file, or die with an error message.
 -- For example:
 --
--- > do
--- >   ctxt <- ctxt_read_report filename
 -- >   retrieve_io $ ctxt_get_instruction a ctxt
 --
 -- This code reads in a .report file with the given @filename@,  and reads the instruction at address @a@ if any.
@@ -131,7 +135,7 @@ ctxt_get_indirections = Right . ctxt_inds
 -- | Retrieve instruction for a given instruction address, both as datastructure and pretty-printed
 ctxt_get_instruction :: InstructionAddress -> Retrieve (X86.Instruction,String)
 ctxt_get_instruction a ctxt =
-  case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
+  case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
     Nothing -> Left $ "Could not disassemble instruction at address: " ++ showHex a
     Just i  -> Right (i,pp_instruction ctxt i)
 

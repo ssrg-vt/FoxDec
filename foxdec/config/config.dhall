@@ -63,5 +63,5 @@
   max_expr_size = 3000
   -- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
   -- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.
-  -- Sane default: 3000
+  -- Sane default: 2000
 }

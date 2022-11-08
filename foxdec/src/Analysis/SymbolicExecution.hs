@@ -17,11 +17,12 @@ module Analysis.SymbolicExecution (
 
 import Analysis.Context
 import Analysis.Propagation
+import Data.Binary
 import Base
 import Config
 import Data.ControlFlow
 import Data.MachineState
-import Data.Pointers
+import Data.Pointers 
 import Data.SimplePred
 import X86.Conventions
 
@@ -29,6 +30,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
+import qualified Data.Map.Internal as MI
+
 
 import Data.Maybe (fromJust)
 import Data.List.Extra (firstJust)
@@ -125,7 +128,7 @@ invariant_to_finit ctxt (Predicate eqs _) = M.fromList $ mapMaybe mk_finit_entry
 
 -- | The join between two function initialisations
 join_finit :: FContext -> FInit -> FInit -> FInit
-join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr ctxt) f0 f1
+join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (join_expr "finit" ctxt) f0 f1
  where
   keep (Bottom (FromPointerBases _)) = True
   keep (Bottom _)                    = False
@@ -211,17 +214,18 @@ functions_returning_fresh_pointers = [
      "_malloc", "malloc", "_malloc_create_zone", "_malloc_default_zone", "_malloc_zone_malloc", "_calloc", "calloc", "_malloc_zone_calloc", "_mmap", "_av_mallocz",
      "strdup", "_strdup", "___error", "_fts_read$INODE64", "_fts_open$INODE64", "_opendir$INODE64", "fopen", "_fopen", "_getenv", "_open",
      "_localeconv", "localeconv", "_setlocale", "_wsetlocale", "_fgetln", "fgetln",
-     "strerror", "_strerror", "_wcserror", "__wcserror"
+     "strerror", "_strerror", "_wcserror", "__wcserror",
+     "_EVP_CIPHER_CTX_new"
    ]
 
 -- | A list of some functions that are assumed not to change the state in any significant way, and that return an unknown bottom value through RAX
 functions_returning_bottom = [
      "feof", "_feof", "_getc", "getc", "fgetc", "_fgetc", "_fgetwc", "fgetwc", "_fnmatch", "_fputc",
      "_close", "_fstat$INODE64", "_fstatfs$INODE64", "_statfs$INODE64", "___maskrune", "_sysctlbyname", "_getbsize",
-     "_printf", "printf", "_fprintf", "fprintf", "_fprintf_l", "fwprintf", "_fwprintf_l",
+     "_printf", "printf", "_fprintf", "fprintf", "_fprintf_l", "fwprintf", "_fwprintf_l", "_vsnprintf",
      "_putchar", "_puts",
      "_btowc", "btowc", "mbtowc", "_mbtowc", "_mbrtowc", "mbrtowc", "_atof", "atof",
-     "_strcmp", "strcmp",
+     "_strcmp", "strcmp", "_strlen",
      "_ilogb", "_atoi",
      "_getopt", "_free",
      "_warn", "_warnx", "__errno_location"
@@ -235,6 +239,7 @@ function_semantics :: FContext -> X86.Instruction -> String -> State (Pred,VCS) 
 function_semantics ctxt i "_realloc"             = function_semantics ctxt i "realloc"
 function_semantics ctxt i "_malloc_zone_realloc" = function_semantics ctxt i "realloc"
 function_semantics ctxt i "realloc"              = read_reg ctxt RDI >>= write_reg ctxt (addressof i) RAX >> return True
+function_semantics ctxt i "_recallocarray"       = read_reg ctxt RDI >>= write_reg ctxt (addressof i) RAX >> return True
 function_semantics ctxt i "_strcpy"              = function_semantics ctxt i "strcpy"
 function_semantics ctxt i "strcpy"               = read_reg ctxt RDI >>= write_reg ctxt (addressof i) RAX >> return True
 function_semantics ctxt i "_strrchr"             = function_semantics ctxt i "strrchr"
@@ -362,7 +367,7 @@ call ctxt i = do
       if sp == SP_Reg RSP then do
         -- register RSP must be set to its original value + 8, force this and add an annotation
         let add_vc = not is_external && v' /= simp (SE_Op (Plus 64) [SE_Var $ SP_StackPointer f',SE_Immediate 8])
-        forced_insert_sp sp (SE_Op (Plus 64) [v,SE_Immediate 8])
+        forced_insert_sp sp (simp $ SE_Op (Plus 64) [v,SE_Immediate 8])
         return $ if add_vc then S.singleton sp else S.empty
       else if or [
            is_external && statepart_preserved_after_external_function_call ctxt is_external sp && (must_be_preserved p_eqs sp v || is_reg_sp sp),
@@ -382,7 +387,7 @@ call ctxt i = do
         Nothing     -> do
           -- the statepart was possibly overwritten by the function, so use its old and new value joined
           --(if v /=v' then trace ("Transferring (" ++ show i ++ ") " ++ show (sp,v) ++ " --> " ++ show (join_expr ctxt v v')) else id) $
-          write_sp ctxt (addressof i) mk_mid (sp,join_expr ctxt v v')
+          write_sp ctxt (addressof i) mk_mid (sp,join_expr "transfer" ctxt v v')
           return S.empty
 
 
@@ -566,43 +571,60 @@ movsxd ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op1 (SE_SExtend (8 * sizeof op2) (8 * sizeof op1) e2)
 
+movsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movsd = mov
 
+movss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movss = mov
 
+movaps :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movaps = mov
 
+movapd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movapd = mov
 
+movups :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movups = mov
 
+movupd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movupd = mov
 
+movabs :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movabs = mov
 
+movdqu :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movdqu = mov
 
+movdqa :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movdqa = mov
 
+movlpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movlpd = mov
 
+movlps :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movlps = mov
 
+movd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 movd   = mov
 
-movq   = mov
+movq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
+movq = mov
 
+vmovd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vmovd = mov
 
+vmovapd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vmovapd = mov
 
+vmovaps :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vmovaps = mov
 
 
+cmov :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cmov ctxt i_a op1 op2 = do
   e0 <- read_operand ctxt op1
   e1 <- read_operand ctxt op2
-  write_operand ctxt i_a op1 $ join_exprs ("cmov") ctxt [e0,e1]
+  write_operand ctxt i_a op1 $ join_expr ("cmov") ctxt e0 e1
 
 xchg :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xchg ctxt i_a op1 op2 = do
@@ -612,20 +634,28 @@ xchg ctxt i_a op1 op2 = do
   write_operand ctxt i_a op2 e1
 
 
+cmp :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cmp ctxt i_a = write_flags $ FS_CMP Nothing
 
+add :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 add ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Plus (8 * sizeof op1))) True op1
 
+sub :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 sub ctxt i_a op1 = mov_with_func ctxt i_a (\ctxt -> SE_Op (Minus (8 * sizeof op1))) True op1
 
+neg :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
 neg ctxt i_a op1 = mov_with_func1 ctxt i_a (\ctxt e -> SE_Op (Minus (8 * sizeof op1)) (SE_Immediate 0 : e) ) True op1
 
+test :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 test ctxt i_a = write_flags (\_ _ -> None) --TODO needed?
 
+ucomisd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 ucomisd ctxt i_a = write_flags (\_ _ -> None)
 
+ucomiss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 ucomiss ctxt i_a = write_flags (\_ _ -> None)
 
+comiss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 comiss ctxt i_a = write_flags (\_ _ -> None)
 
 inc :: FContext -> Word64 -> X86.Operand -> State (Pred,VCS) ()
@@ -662,6 +692,7 @@ not' ctxt i_a op1 = do
   write_flags (\_ _ -> None) op1 op1
 
 
+xor :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xor ctxt i_a op1 op2 = do
   if op1 == op2 then
     mov_with_func ctxt i_a (\ctxt x -> SE_Immediate 0) True op1 op2
@@ -673,134 +704,194 @@ xor ctxt i_a op1 op2 = do
 
 setxx ctxt i_a = mov_with_func1 ctxt i_a mk_bottom False -- TODO ND 0/1
 
+pxor :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pxor = xor --TODO flags?
 
+pand :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pand ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pandn :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pandn ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+por :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 por ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+ptest :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 ptest ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+vpxor :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vpxor = xor --TODO flags?
 
+vpand :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vpand ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+vpandn :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vpandn ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+vpor :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 vpor ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+xorpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xorpd = xor --TODO flags?
 
-
+xorps :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 xorps = xor -- TODO flags?
 
+andpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 andpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+andnpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 andnpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+orpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 orpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+subpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 subpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+addpd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 addpd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+subss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 subss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+addss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 addss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+mulss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 mulss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+divss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 divss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+roundss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 roundss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+subsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 subsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+addsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 addsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+mulsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 mulsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+divsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 divsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+roundsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 roundsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 bt :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 bt ctxt i_a op1 op2 = do
   write_flags (\_ _ -> None) op1 op2
 
+btc :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 btc ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+btr :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 btr ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+bsr :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 bsr ctxt i_a op1 op2 = do
   e2 <- read_operand ctxt op2
   write_operand ctxt i_a op1 $ SE_Op (Bsr (8 * sizeof op1)) [e2]
   write_flags (\_ _ -> None) op1 op2
 
+bsf :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 bsf ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+bts :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 bts ctxt i_a = mov_with_func ctxt i_a mk_bottom True
 
+paddd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 paddd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+paddb :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 paddb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+paddq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 paddq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psubd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psubd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psubb :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psubb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psubq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psubq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psrld :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psrld ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psrlw :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psrlw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psrldq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psrldq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pslldq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pslldq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psllq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psllq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psrlq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psrlq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pmulld :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pmulld ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pminud :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pminud ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pminsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pminsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pmaxsd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pmaxsd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pmaxud :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pmaxud ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+pmaxuq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 pmaxuq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psubusb :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psubusb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+psubusw :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 psubusw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+packssdw :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 packssdw ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+packsswb :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 packsswb ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvtss2sd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvtss2sd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvtsd2ss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvtsd2ss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvtsi2sd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvtsi2sd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvtsi2ss :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvtsi2ss ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvttss2si :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvttss2si ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvttsd2si :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvttsd2si ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvttpd2dq :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvttpd2dq ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
+cvtdq2pd :: FContext -> Word64 -> X86.Operand -> X86.Operand -> State (Pred,VCS) ()
 cvtdq2pd ctxt i_a = mov_with_func ctxt i_a mk_bottom False
 
 is_st_reg_operand (Storage r) = take 2 (show r) == "ST"
@@ -1674,70 +1765,72 @@ tau_block ctxt insts insts' p@(Predicate eqs flg) =
 
 
 
-join_expr ctxt e0 e1 = join_exprs "join" ctxt $ map simp [e0,e1]
-join_expr' ctxt p q e0 e1 = join_exprs ("join") ctxt $ map simp [e0,e1] -- \n" ++ show p ++ "\n\n" ++ show q
-
+join_expr msg ctxt e0 e1 = join_exprs msg ctxt $ map simp [e0,e1]
+join_expr' ctxt p q e0 e1 = 
+  let rip = evalState (read_reg ctxt RIP) (p,S.empty) in
+         join_exprs ("join @(" ++ show rip  ++ "):") ctxt $ map simp [e0,e1] -- \n" ++ show p ++ "\n\n" ++ show q $ 
 
 
 -- the join of two predicates
 -- 1.) keep any key-value pair (sp,v) that is in both predicates
--- 2.) for any remaining key-value pair (sp,v) in either of the predicates, add (sp,Bottom)
+-- 2.) for any remaining key-value pair (sp,v) in either of the predicates, join v with reading sp from the other predicate
 -- 3.) the flag expression is kept based on strict equality
 --
 --
 -- Assumes any statepart not currently in the state is unwritten to.
-
-
-temp_trace v v' sp = id -- if S.size (srcs_of_expr v'') == 0 && S.size (srcs_of_expr v) > 0 && S.size (srcs_of_expr v') > 0 then traceShow ("temp_trace",sp,v,v',v'') v'' else v''
-
-
-join_preds ctxt p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
-  let m    = M.mapWithKey mk_entry eqs0
-      flg' = if flg0 == flg1 then flg0 else None
-      q    = Predicate m flg' in
-    foldr mk_entry' q $ M.toList eqs1
+join_preds ctxt p@(Predicate eqs_p flg0) p'@(Predicate eqs_p' flg1) =
+  let (p0,eqs0,p1,eqs1) = if M.size eqs_p >= M.size eqs_p' then (p,eqs_p,p',eqs_p') else (p',eqs_p',p,eqs_p)
+      step0  = MI.merge (MI.mapMissing $ mk_entry p0 p1) MI.dropMissing (MI.zipWithMatched do_join) eqs0 eqs1
+      flg'   = if flg0 == flg1 then flg0 else None
+      q      = Predicate step0 flg'
+      diff1  = M.difference eqs1 eqs0 in
+    fst $ execState (M.traverseWithKey (mk_entry' p0 p1) diff1) (q,S.empty)
  where
-  mk_entry sp v =
-    case find (\(sp',v') -> necessarily_equal_stateparts sp sp') $ M.toList eqs1 of
-      Nothing ->
-        if is_initial sp v then
-          v
-        else
-          let v' = evalState (read_sp ctxt sp) (p',S.empty) in
-            temp_trace v v' sp $ join_expr' ctxt p p' v v'
-      Just (sp',v') ->
-        if necessarily_equal v v' || v == v' then
-          v
-        else
-          temp_trace v v' sp $ join_expr' ctxt p p' v v'
+  do_join _ v v'
+    | v == v' = v
+    | otherwise = join_expr' ctxt p p' v v'
 
-  mk_entry' (sp',v' ) q =
-    case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
-      Nothing ->
-        if is_initial sp' v' then
-          fst $ execState (write_sp ctxt 0 mk_mid (sp', v')) (q,S.empty)
-        else
-          let v = evalState (read_sp ctxt sp') (p,S.empty) in
-            fst $ execState (write_sp ctxt 0 mk_mid (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) (q,S.empty)
-      Just _  -> q
+  mk_entry p p' sp v
+   | is_initial sp v = v
+   | otherwise = 
+       let v' = evalState (read_sp ctxt sp) (p',S.empty) in
+         temp_trace v v' sp $ do_join sp v v'
+
+  mk_entry' p p' sp' v'
+    | is_initial sp' v' = write_sp ctxt 0 mk_mid (sp', v')
+    | otherwise = do
+        let v = evalState (read_sp ctxt sp') (p,S.empty)
+        write_sp ctxt 0 mk_mid (sp', temp_trace v v' sp' $ do_join sp' v v')
+
+  temp_trace v v' sp = id -- if S.size (srcs_of_expr v'') == 0 && S.size (srcs_of_expr v) > 0 && S.size (srcs_of_expr v') > 0 then traceShow ("temp_trace",sp,v,v',v'') v'' else v''
 
   mk_mid = MemWriteFunction "joining" -- never used
 
 
--- TODO in case of bot, check whether sources of P1 are larger than P0
-implies_preds ctxt (Predicate eqs0 flg0) (Predicate eqs1 flg1) =
- flg1 `elem` [None,flg0] && (all implied_by_eqs0 $ M.toList eqs1) -- && (all_sps_in_eqs1 $ M.keys eqs0)
- where
-  implied_by_eqs0 (SP_Reg RIP, _) = True -- technicality 
-  implied_by_eqs0 (sp1,Bottom _)  = True
-  implied_by_eqs0 (sp1,v1) =
-    if contains_bot v1 then
-      True
-    else case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
-      Nothing -> is_initial sp1 v1
-      Just (sp0,v0) -> necessarily_equal v0 v1  || join_expr ctxt v0 v1 == v1
 
-  all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
+
+
+implies_preds ctxt p@(Predicate eqs0 flg0) q@(Predicate eqs1 flg1) =
+  flg0 `elem` [None,flg1] && (all implied_by_eqs0 $ M.toList $ M.differenceWith pick_unequal eqs1 eqs0)
+ where
+  pick_unequal v1 v0
+    | v1 /= v0 = Just v1
+    | otherwise = Nothing
+
+  implied_by_eqs0 (SP_Reg RIP, _) = True -- technicality 
+  implied_by_eqs0 (sp1,v1) =
+    let v0  = evalState (read_sp ctxt sp1) (p,S.empty) in
+      -- if v0 `expr_implies` v1  then True else traceShow (sp1,v0,v1) False
+      v0 `expr_implies` v1 
+
+  (Bottom (FromPointerBases bs0)) `expr_implies` (Bottom (FromPointerBases bs1)) = bs1 `S.isSubsetOf` bs0
+  e0  `expr_implies` e1 
+    | contains_bot e0 || contains_bot e1 =
+      let srcs0 = srcs_of_expr ctxt e0
+          srcs1 = srcs_of_expr ctxt e1 in
+        S.null srcs0 || srcs1 `S.isSubsetOf` srcs0
+    | otherwise = e0 == e1
+
 
 
 -- | The initial predicate.
@@ -1745,8 +1838,9 @@ init_pred ::
   FContext                 -- ^ The current context
   -> Invariants            -- ^ The currently available invariants
   -> S.Set (NodeInfo,Pred) -- ^ The currently known postconditions
+  -> S.Set StatePart       -- ^ The currently known stateparts of the function
   -> Pred
-init_pred ctxt curr_invs curr_posts =
+init_pred ctxt curr_invs curr_posts curr_sps =
   let f                    = f_name ctxt
       finit                = f_init ctxt
       finit'               = M.filter (not . contains_bot) finit
@@ -1755,7 +1849,7 @@ init_pred ctxt curr_invs curr_posts =
       rsp0                 = SE_Var $ SP_StackPointer f
       write_stack_pointer  = M.insert (SP_Reg RSP)    $ rsp0
       write_return_address = M.insert (SP_Mem rsp0 8) $ SE_Var (SP_Mem rsp0 8)
-      sps  = S.delete (SP_Reg RIP) $ gather_stateparts curr_invs curr_posts
+      sps  = S.union curr_sps (S.delete (SP_Reg RIP) $ gather_stateparts curr_invs curr_posts)
       eqs  = write_stack_pointer $ write_return_address $ M.union finit' $ M.fromList (map (\sp -> (sp,SE_Var sp)) $ S.toList sps) in
     Predicate eqs None
 
@@ -1790,7 +1884,6 @@ get_invariant fctxt a = do
   let entry  = f_entry fctxt
   g         <- IM.lookup entry $ ctxt_cfgs   ctxt
   invs      <- IM.lookup entry $ ctxt_invs   ctxt
-  finit     <- IM.lookup entry $ ctxt_finits ctxt
   blockId   <- IM.lookup a $ cfg_addr_to_blockID g
   p         <- IM.lookup blockId invs
   instrs    <- IM.lookup blockId $ cfg_instrs g
@@ -1804,7 +1897,7 @@ get_invariant fctxt a = do
 
 
 
-instance Propagator FContext Pred where
+instance Propagator (FContext) Pred where
   tau     = tau_block
   join    = join_preds
   implies = implies_preds

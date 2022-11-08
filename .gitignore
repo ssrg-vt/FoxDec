@@ -36,6 +36,7 @@ foxdec/docs/manual/*/*
 *.swp
 *.log
 *.out
+*.output
 *.o
 *.fdb_latexmk
 *.fls

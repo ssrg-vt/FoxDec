@@ -7,6 +7,7 @@
 module Data.CallGraph where
 
 import Analysis.Context
+import Data.Binary
 import Base
 import Data.ControlFlow
 import Data.MachineState

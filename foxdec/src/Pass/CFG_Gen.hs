@@ -23,6 +23,8 @@ import Data.ControlFlow
 import Data.MachineState
 import Data.SimplePred
 import X86.Conventions
+import Data.Binary
+
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -211,12 +213,12 @@ resolve_call ctxt entry i =
 --
 --   TODO the Lefts are ignored so need no to return them
 stepA :: 
-     Context -- ^ The context
-  -> Int     -- ^ The entry address
-  -> Int     -- ^ The instruction address
+     Context   -- ^ The context
+  -> Int       -- ^ The entry address
+  -> Int       -- ^ The instruction address
   -> IO (Either (S.Set (X86.Instruction,Int)) [(Int,Bool)])
 stepA ctxt entry a = do
-  instr <- fetch_instruction ctxt a
+  instr <- fetch_instruction ctxt $ fromIntegral a
   case instr of
     Nothing -> return $ Right [] -- error $ "Cannot find instruction at addres: " ++ showHex a
     Just i -> 
@@ -262,7 +264,7 @@ cfg_add_instrs ctxt g = do
   return $ g { cfg_instrs = IM.fromList instrs }
  where
     block_to_instrs (a,as) = do 
-      instrs <- mapM (fetch_instruction ctxt) as
+      instrs <- mapM (fetch_instruction ctxt . fromIntegral) as
       return $ (a, map (fromJust' as) instrs)
 
 -- | Produce a CFG
@@ -271,7 +273,7 @@ cfg_add_instrs ctxt g = do
 -- The set of new entry points are function entries called by the current function, but for which we do not know yet whether they terminate or not.
 -- If a CFG is returned, then all function calls in that CFG have already been analyzed.
 cfg_gen ::
-  Context    -- ^ The context
+     Context -- ^ The context
   -> Int     -- ^ The entry point of the function
   -> IO (S.Set (X86.Instruction,Int),CFG)
 cfg_gen ctxt entry = do
@@ -301,7 +303,7 @@ is_unresolved_indirection ctxt i = (isCall (Instr.opcode i) || isJump (Instr.opc
 --
 -- Assumes the given blockID corresponds to a leaf-node.
 node_info_of ::
-  Context
+     Context -- ^ The context
   -> CFG
   -> Int
   -> NodeInfo 
@@ -330,8 +332,8 @@ node_info_of ctxt g blockId =
 --
 -- Strongly connected components get the same color.
 cfg_to_dot ::
-  Context  -- ^ The context
-  -> CFG   -- ^ The CFG
+     Context -- ^ The context
+  -> CFG     -- ^ The CFG
   -> String
 cfg_to_dot ctxt g =
  let name  = ctxt_name ctxt

@@ -95,12 +95,12 @@ prop ctxt g = do
        -- first time visit, store q and explore all outgoing edges
        put (IM.insert v1 q m, S.union bag $ out_edges g v1, vcs)
      Just p -> do
-       let j = join ctxt p q
-       if implies ctxt q p then
+       if implies ctxt p q then
          -- previously visited, no need for further exploration
-         put (IM.insert v1 j m, bag, vcs)
+         return () -- put (IM.insert v1 j m, bag, vcs)
        else do
-         -- previously visited, no need to weaken invariant by joining
+         let j = join ctxt p q
+         -- previously visited, need to weaken invariant by joining
          put (IM.insert v1 j m,S.union bag $ out_edges g v1, vcs)
 
 -- | Start propagation at the given entry address with the given initial predicate.

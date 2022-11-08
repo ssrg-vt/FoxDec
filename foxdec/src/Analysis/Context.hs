@@ -1,7 +1,7 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict, StandaloneDeriving, BangPatterns #-}
 
 {-|
-Module      : CFG_Gen
+Module      : Context
 Description : A @"Context"@ stores all the information retrieved from the binary, as well as the command-line parameters passed to FoxDec.
 
 The context stores, among others, information obtained during verification, such as CFGs, invariants, etc. (see @`Context`@).
@@ -15,6 +15,9 @@ import Base
 import Config
 import Pass.DisassembleCapstone
 import Data.SimplePred
+import Data.Binary
+import Data.BinaryElf
+import Data.BinaryMacho
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -23,7 +26,8 @@ import qualified Data.IntSet as IS
 import Data.List ( find, intercalate )
 import Data.Word (Word8,Word64)
 import Data.Maybe (mapMaybe,fromJust)
-
+import qualified Data.ByteString as BS
+import Data.IORef
 
 import GHC.Generics
 import GHC.Natural (naturalToInteger)
@@ -35,6 +39,33 @@ import qualified X86.Operand as X86
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 import qualified Generic.Instruction as Instr
+
+import System.Directory (doesFileExist)
+
+
+read_binary :: String -> String -> IO (Maybe Binary)
+read_binary dirname name = do
+  let filename = dirname ++ name
+  exists <- doesFileExist filename
+  if exists then do
+    -- if the original binary is given, we now assume it its an ELF
+    content <-  BS.readFile filename
+    if (BS.unpack $ BS.take 4 content) == [0x7f, 0x45, 0x4C, 0x46] then
+      return $ Just $ Binary $ elf_read_file content
+    else
+      return Nothing
+  else do
+    -- otherwise, see if the binary is contained in the following files (MachO)
+    exists1 <- doesFileExist (filename ++ ".dump")
+    exists2 <- doesFileExist (filename ++ ".data")
+    exists3 <- doesFileExist (filename ++ ".sections")
+    exists4 <- doesFileExist (filename ++ ".symbols")
+    exists5 <- doesFileExist (filename ++ ".entry")
+    if and [exists1,exists2,exists3,exists4,exists5] then do
+      macho <- macho_read_file dirname name
+      return $ Just $ Binary $ macho
+    else
+      return Nothing
 
 
 
@@ -80,13 +111,7 @@ data Indirection =
 -- | Per instruction address, a a jump table
 type Indirections = IM.IntMap Indirection
 
--- |  Information on the sections in the binary
-data SectionsInfo = SectionsInfo {
-  si_sections    :: [(String,String,Int,Int)], -- ^ Sections: segment names, section names, addresses and sizes.
-  si_min_address :: Int,
-  si_max_address :: Int
- }
- deriving (Show,Generic,Eq)
+
 
 
 -- | An enumeration indicating the result of verification over a function
@@ -162,6 +187,9 @@ data FReturnBehavior =
  deriving (Show,Generic,Eq,Ord)
 
 
+
+
+
 -----------------------------------------------------------------------------
 -- |
 -- The context datastructure.
@@ -170,29 +198,70 @@ data FReturnBehavior =
 --
 -- __D__: Information __D__ynamically updated during verification
 -------------------------------------------------------------------------------
-data Context = Context {
-   ctxt_config        :: Config,                         -- ^ __S__: the configuration file in ./config
-   ctxt_dump          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (constant data and instructions from the binary/executable)
-   ctxt_data          :: IM.IntMap Word8,                -- ^ __S__: mapping from addresses to bytes (writable data section)
-   ctxt_syms          :: IM.IntMap String,               -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
-   ctxt_sections      :: SectionsInfo,                   -- ^ __S__: information on segments/section
-   ctxt_dirname       :: String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
-   ctxt_name          :: String,                         -- ^ __S__: the name of the binary
+data Context_ = Context_ {
+   ctxt__config        :: !Config,                         -- ^ __S__: the configuration file in ./config
+   ctxt__syms          :: !(IM.IntMap String),             -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
+   ctxt__sections      :: !SectionsInfo,                   -- ^ __S__: information on segments/section
+   ctxt__dirname       :: !String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
+   ctxt__name          :: !String,                         -- ^ __S__: the name of the binary
+   ctxt__start         :: !Int,                            -- ^ __S__: the address of the _start symbol
+   ctxt__relocs        :: ![Relocation],                   -- ^ __S__: relocation entries
 
-   ctxt_entries       :: Graph,                          -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
-   ctxt_cfgs          :: IM.IntMap CFG,                  -- ^ __D__: the currently known control flow graphs per function entry
-   ctxt_calls         :: IM.IntMap FReturnBehavior,      -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
-   ctxt_invs          :: IM.IntMap Invariants,           -- ^ __D__: the currently known invariants
-   ctxt_posts         :: IM.IntMap Postconditions,       -- ^ __D__: the currently known postconditions
-   ctxt_inds          :: Indirections,                   -- ^ __D__: the currently known indirections
-   ctxt_finits        :: IM.IntMap FInit,                -- ^ __D__: the currently known function initialisations
-   ctxt_vcs           :: IM.IntMap VCS,                  -- ^ __D__: the verification conditions
-   ctxt_results       :: IM.IntMap VerificationResult,   -- ^ __D__: the verification result
-   ctxt_recursions    :: IM.IntMap IS.IntSet             -- ^ __D__: a mapping from function entries to the set of mutually recursive functions entries they occur in
+   ctxt__entries       :: !Graph,                          -- ^ __D__: a graph with an edge (e0,e1) if entry address e0 calls entry address e1, and e0 and e1 have not been verified yet
+   ctxt__cfgs          :: !(IM.IntMap CFG),                -- ^ __D__: the currently known control flow graphs per function entry
+   ctxt__calls         :: !(IM.IntMap FReturnBehavior),    -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
+   ctxt__invs          :: !(IM.IntMap Invariants),         -- ^ __D__: the currently known invariants
+   ctxt__posts         :: !(IM.IntMap Postconditions),     -- ^ __D__: the currently known postconditions
+   ctxt__stateparts    :: !(IM.IntMap (S.Set StatePart)),  -- ^ __D__: the state parts read from/written to be the function
+   ctxt__inds          :: !Indirections,                   -- ^ __D__: the currently known indirections
+   ctxt__finits        :: !(IM.IntMap FInit),              -- ^ __D__: the currently known function initialisations
+   ctxt__vcs           :: !(IM.IntMap VCS),                -- ^ __D__: the verification conditions
+   ctxt__results       :: !(IM.IntMap VerificationResult), -- ^ __D__: the verification result
+   ctxt__recursions    :: !(IM.IntMap IS.IntSet)           -- ^ __D__: a mapping from function entries to the set of mutually recursive functions entries they occur in
  }
  deriving Generic
 
+data Context = Context {
+  ctxt_binary :: !Binary,
+  ctxt_ioref  :: IORef (IM.IntMap X86.Instruction),
+  ctxt_ctxt_  :: !Context_
+ }
 
+
+ctxt_config      = ctxt__config     . ctxt_ctxt_
+ctxt_syms        = ctxt__syms       . ctxt_ctxt_
+ctxt_sections    = ctxt__sections   . ctxt_ctxt_
+ctxt_dirname     = ctxt__dirname    . ctxt_ctxt_
+ctxt_name        = ctxt__name       . ctxt_ctxt_
+ctxt_start       = ctxt__start      . ctxt_ctxt_
+ctxt_relocs      = ctxt__relocs     . ctxt_ctxt_
+ctxt_entries     = ctxt__entries    . ctxt_ctxt_
+ctxt_cfgs        = ctxt__cfgs       . ctxt_ctxt_
+ctxt_calls       = ctxt__calls      . ctxt_ctxt_
+ctxt_invs        = ctxt__invs       . ctxt_ctxt_
+ctxt_posts       = ctxt__posts      . ctxt_ctxt_
+ctxt_stateparts  = ctxt__stateparts . ctxt_ctxt_
+ctxt_inds        = ctxt__inds       . ctxt_ctxt_
+ctxt_finits      = ctxt__finits     . ctxt_ctxt_
+ctxt_vcs         = ctxt__vcs        . ctxt_ctxt_
+ctxt_results     = ctxt__results    . ctxt_ctxt_
+ctxt_recursions  = ctxt__recursions . ctxt_ctxt_
+
+set_ctxt_syms       syms     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__syms = syms})
+set_ctxt_sections   sections (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__sections = sections})
+set_ctxt_start      start    (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__start = start})
+set_ctxt_entries    entries  (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__entries = entries})
+set_ctxt_calls      calls    (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__calls = calls})
+set_ctxt_inds       inds     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__inds = inds})
+set_ctxt_posts      posts    (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__posts = posts})
+set_ctxt_stateparts sps      (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__stateparts = sps})
+set_ctxt_vcs        vcs      (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__vcs = vcs})
+set_ctxt_finits     finits   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__finits = finits})
+set_ctxt_invs       invs     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__invs = invs})
+set_ctxt_cfgs       cfgs     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__cfgs = cfgs})
+set_ctxt_relocs     relocs   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__relocs = relocs})
+set_ctxt_results    results  (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__results = results})
+set_ctxt_recursions recs   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__recursions = recs})
 
 instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
@@ -205,24 +274,26 @@ instance Cereal.Serialize MemWriteIdentifier
 instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize PointerDomain
 instance Cereal.Serialize SectionsInfo
-instance Cereal.Serialize Context
+instance Cereal.Serialize Relocation
+instance Cereal.Serialize Context_
 
 
 
 -- | intialize an empty context based on the command-line parameters
-init_context config dirname name =
-  let dirname'       = if last dirname  == '/' then dirname else dirname ++ "/"
-      empty_sections = SectionsInfo [] 0 0 in
-    Context config IM.empty IM.empty  IM.empty empty_sections dirname' name (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
+init_context binary ioref config dirname name =
+  let !sections = binary_get_sections_info binary
+      !symbols  = binary_get_symbols binary
+      !relocs   = binary_get_relocs binary in
+    Context binary ioref $ Context_ config symbols sections dirname name 0 relocs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
 
 
 -- | purge the context before exporting it (may save a lot of disk space)
-purge_context  :: Context -> Context
-purge_context (Context config dump dat syms sections dirname name entries cfgs calls invs posts inds finits vcs results recursions) =
+purge_context  :: Context -> Context_
+purge_context (Context binary _ (Context_ config syms sections dirname name start relocs entries cfgs calls invs posts stateparts inds finits vcs results recursions)) =
   let keep_preconditions = store_preconditions_in_report config
       keep_assertions    = store_assertions_in_report config
       vcs'               = IM.filter (not . S.null) $ IM.map (purge keep_preconditions keep_assertions) vcs in
-    Context config dump dat syms sections dirname name (Edges IM.empty) cfgs calls invs posts inds finits vcs' results IM.empty
+    Context_ config syms sections dirname name start relocs (Edges IM.empty) cfgs calls invs posts IM.empty inds finits vcs' results IM.empty
  where
   purge keep_preconditions keep_assertions vcs = S.filter (keep_vcs keep_preconditions keep_assertions) vcs
 
@@ -232,37 +303,32 @@ purge_context (Context config dump dat syms sections dirname name entries cfgs c
 
 
 
--- | Reading from a data section.
+-- | Reading from a read-only data section.
 --
 -- Reads maximally up to 8 bytes. Returns @Nothing@ if the given address is out-of-range.
-read_from_datasection ::
-  Context          -- ^ The context 
+read_from_ro_datasection ::
+     Context       -- ^ The context 
   -> Word64        -- ^ An address
   -> Int           -- ^ Size, i.e., the number of bytes to read
   -> Maybe Word64
-read_from_datasection ctxt a si =
-  let ds    = ctxt_dump ctxt
-      bytes = map (\a ->  IM.lookup a ds) [fromIntegral a..(fromIntegral a)+si-1] in
-    if si <= 8 && not (Nothing `elem` bytes) then -- TODO 256 bits
-      Just $ bytes_to_word $ map fromJust bytes
-    else
-      Nothing
+read_from_ro_datasection ctxt a si = bytes_to_word <$> binary_read_ro_data (ctxt_binary ctxt) a si
+
 
 
 -- | Is the immediate roughly in range to be an address?
 is_roughly_an_address ::
-   Context                              -- ^ The context
-   -> Int                               -- ^ An address
-   -> Bool
-is_roughly_an_address ctxt a =
+  Context                              -- ^ The context
+  -> Word64                            -- ^ An address
+  -> Bool
+is_roughly_an_address ctxt a = 
   let si = ctxt_sections ctxt in
     a >= si_min_address si && a <= si_max_address si
 
 -- | Find a section for an address (see @`SectionsInfo`@)
 find_section_for_address ::
    Context                              -- ^ The context
-   -> Int                               -- ^ An address
-   -> Maybe (String, String, Int, Int)
+   -> Word64                            -- ^ An address
+   -> Maybe (String, String, Word64, Word64)
 find_section_for_address ctxt a =
   if is_roughly_an_address ctxt a then
     find (address_in_section a) (si_sections $ ctxt_sections ctxt)
@@ -281,11 +347,12 @@ find_section_for_address ctxt a =
 -- Returns @Nothing@ if the given address is out-of-range.
 fetch_instruction ::
   Context              -- ^ The context
-  -> Int               -- ^ An address
+  -> Word64            -- ^ An address
   -> IO (Maybe X86.Instruction)
-fetch_instruction ctxt a = do
-  let dump = ctxt_dump ctxt
-  disassemble dump a
+fetch_instruction ctxt a =
+  case binary_read_ro_data (ctxt_binary ctxt) a 20 of -- maximum instruction length == 15
+    Nothing -> return Nothing
+    Just bytes -> disassemble (ctxt_ioref ctxt) bytes a
 
 
 -- | Pretty printing an instruction
@@ -398,5 +465,4 @@ ctxt_max_jump_table_size = fromIntegral . max_jump_table_size . ctxt_config
 
 ctxt_max_expr_size :: Context -> Int
 ctxt_max_expr_size = fromIntegral . max_expr_size . ctxt_config
-
 

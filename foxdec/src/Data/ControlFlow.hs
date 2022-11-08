@@ -29,6 +29,7 @@ module Data.ControlFlow (
  )
  where
 
+import Data.Binary
 import Algorithm.SCC
 import Analysis.Context
 import Base
@@ -120,7 +121,7 @@ static_resolve_rip_expr ctxt i f si =
   let rip     = addressof i + (fromIntegral $ sizeof i)
       a'      = f rip
       syms    = ctxt_syms    ctxt in
-    case (IM.lookup (fromIntegral a') syms,read_from_datasection ctxt a' si) of
+    case (IM.lookup (fromIntegral a') syms,read_from_ro_datasection ctxt a' si) of
       (Just s,  a'')      ->
         -- Example:
         --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
@@ -186,7 +187,7 @@ function_name_of_entry ctxt a =
   case IM.lookup a $ ctxt_syms ctxt of
     Just sym -> sym
     Nothing  ->
-      case unsafePerformIO $ fetch_instruction ctxt a of -- TODO. However, should be safe as result is immutable.
+      case unsafePerformIO $ fetch_instruction ctxt (fromIntegral a) of -- TODO. However, should be safe as result is immutable.
         Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
           case operand_static_resolve ctxt i op1 of
             External sym -> sym

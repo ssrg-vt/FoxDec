@@ -292,6 +292,7 @@ sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 -- | Simplification of symbolic expressions. 
 --
 -- Must always produce an expression logically equivalent to the original.
+-- TODO: overwrite(8,Bot[src|RSP_0x1000070ec,malloc@100007204()|],b8(Bot[m|RSP_0x1000070ec,malloc@100007204()|]))
 simp :: SimpleExpr -> SimpleExpr
 simp e = 
   let e' = simp' e in
@@ -301,6 +302,7 @@ simp' (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp' e
 simp' (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp' e1) else SE_Bit i $ SE_Overwrite i' (simp' e0) (simp' e1)
 
 simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
+
 simp' (SE_SExtend l h (SE_Bit i e))  = if i == l then SE_SExtend l h (simp' e) else SE_SExtend l h (SE_Bit i $ simp' e)
 
 simp' (SE_Op (Minus b0) [SE_Op (Minus b1) [a0,a1], a2]) = simp' $ SE_Op (Minus b0) [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0-a1)-a2 ==> a0 - (a1 + a2)

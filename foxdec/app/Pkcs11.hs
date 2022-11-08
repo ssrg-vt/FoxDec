@@ -70,6 +70,7 @@ import Data.List (intercalate,delete,isInfixOf,partition)
 import Data.Foldable
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.ByteString as BS (readFile,writeFile) 
+import Data.IORef
 
 import Debug.Trace
 import System.IO
@@ -84,14 +85,14 @@ import Data.Functor.Identity
 run_with_ctxt :: Int -> StateT Context IO ()
 run_with_ctxt entry = do
   -- read the dump
-  ctxt_read_dump
+  -- ctxt_read_dump
   ctxt <- get
   fctxt <- ctxt_mk_fcontext entry
 
   -- generate CFG for entry
   (new_calls,g) <- liftIO $ cfg_gen ctxt entry
   -- generate invariants for the entry function
-  let p          = init_pred fctxt IM.empty S.empty
+  let p          = init_pred fctxt IM.empty S.empty S.empty
   let (invs,vcs) = do_prop fctxt g 0 p
 
   case IM.toList invs of
@@ -110,29 +111,10 @@ read_pointer_table ctxt a = do
   liftIO $ putStrLn $ intercalate "\n" $ map (\a -> "0x" ++ showHex a) as
  where
   do_read a =
-    case read_from_datasection ctxt a 8 of
+    case read_from_ro_datasection ctxt a 8 of
       Nothing  -> []
       Just 0   -> []
       Just ptr -> ptr:do_read (a+8)
-
--- Read dump from file producing dump :: IM.IntMap Word8
--- Per address a byte
-ctxt_read_dump :: StateT Context IO ()
-ctxt_read_dump = do
-  ctxt <- get
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  let fname       = dirname ++ name ++ ".dump"
-
-  ds <- liftIO $ parse fname
-  put $ ctxt { ctxt_dump = ds }
- where
-  parse fname = do
-    ret0 <- parse_dump fname
-    case ret0 of
-      Left err -> error $ show err
-      Right syms -> return syms
-
 
 
 ctxt_mk_fcontext :: Int -> StateT Context IO FContext
@@ -153,8 +135,14 @@ run (Args entry_str dirname name) = do
   config <- parse_config "./config/config.dhall"
 
   let entry = readHex' entry_str
-  let ctxt  = init_context config dirname name
-  evalStateT (run_with_ctxt entry) ctxt
+  let dirname' = if last dirname  == '/' then dirname else dirname ++ "/"
+  binary <- read_binary dirname' name
+  case binary of
+    Nothing -> putStrLn $ "Cannot read binary file: " ++ dirname' ++ name
+    Just b  -> do
+                 ioref <- newIORef IM.empty
+                 evalStateT (run_with_ctxt entry) $! init_context b ioref config dirname' name
+
   
 -- Parse the command line arguments and run
 main = do

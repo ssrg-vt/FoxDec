@@ -9,11 +9,13 @@ import System.Console.ArgParser
 import Base
 import Analysis.Context
 import Config
+import Data.Binary
 import Parser.ParserDump
 import Parser.ParserSymbols
 import Parser.ParserSections
 import Parser.ParserIndirections
 import Parser.ParserCalls 
+import Parser.ParserRelocs 
 import Pass.CFG_Gen
 import Analysis.SymbolicExecution
 import Data.SimplePred
@@ -31,6 +33,7 @@ import qualified Generic.Instruction as Instr
 import Generic.Operand (GenericOperand(..))
 import Generic.Address (AddressWord64(AddressWord64))
 import Typeclasses.HasAddress (addressof)
+import Pass.DisassembleCapstone
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -44,6 +47,7 @@ import Data.List (intercalate,delete,isInfixOf,partition,nub)
 import Data.Foldable
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.ByteString as BS (readFile,writeFile) 
+import Data.IORef
 
 import Debug.Trace
 import System.IO
@@ -64,9 +68,9 @@ to_log log s = liftIO $ appendFile log $ s ++ "\n"
 run_with_ctxt :: StateT Context IO ()
 run_with_ctxt = do
   -- 1.) read instructions, data, symbols, section info, the entry point(s), and the currently known indirections
-  ctxt_read_dump
-  ctxt_read_syms
-  ctxt_read_sections
+  -- ctxt_read_dump
+  -- ctxt_read_syms
+  --ctxt_read_sections
   ctxt_read_and_set_entries
   ctxt_init_indirections
 
@@ -84,7 +88,10 @@ run_with_ctxt = do
     case reconsider of
       Just (entry,trgts) -> do
         to_out $ "\n\nReconsidering (due to mutual recursion) entry " ++ showHex entry ++ " as all entries " ++ showHex_set trgts ++ " are now done."
-        modify (\ctxt -> ctxt { ctxt_recursions = IM.delete entry $ ctxt_recursions ctxt, ctxt_calls = IM.delete entry $ ctxt_calls ctxt, ctxt_entries = graph_add_edges (ctxt_entries ctxt) entry IS.empty })
+        ctxt <- get
+        modify $ set_ctxt_recursions (IM.delete entry $ ctxt_recursions ctxt)
+        modify $ set_ctxt_calls (IM.delete entry $ ctxt_calls ctxt)
+        modify $ set_ctxt_entries (graph_add_edges (ctxt_entries ctxt) entry IS.empty)
         repeat
       Nothing -> do
         entries <- gets ctxt_entries
@@ -123,16 +130,19 @@ run_with_ctxt = do
         to_out $ "\n\nEntry " ++ showHex a
         -- 2.2.3) Entry is new, generate a CFG
         curr_g                            <- gets (IM.lookup a . ctxt_cfgs)
-        (curr_finit,curr_invs,curr_posts) <- ctxt_get_curr_posts a
+        (curr_finit,curr_invs,curr_posts,curr_sps) <- ctxt_get_curr_posts a
 
 
         to_out $ "Entry " ++ showHex a ++ ": starting CFG generation."
         ctxt_generate_cfg a
-        ctxt_generate_invs a curr_invs curr_posts   
+        ctxt_generate_invs a curr_invs curr_posts curr_sps
 
         g                  <- gets (IM.lookup a . ctxt_cfgs)
-        (finit,invs,posts) <- ctxt_get_curr_posts a
-        let do_repeat = curr_g /= g || posts /= curr_posts
+        (finit,invs,posts,sps) <- ctxt_get_curr_posts a
+        let do_repeat = curr_g /= g || curr_sps /= sps
+
+        fctxt  <- ctxt_mk_fcontext a
+
         new_calls <- ctxt_get_new_calls a
 
 
@@ -200,7 +210,7 @@ ctxt_get_recursive_calls entry = do
   let g = ctxt_cfgs ctxt IM.! entry
   let recursions = IS.fromList $ catMaybes $ concat $ concatMap (get_new_calls ctxt) $ IM.elems $ cfg_instrs g
   when (not $ IS.null recursions) $ do
-    modify (\ctxt -> ctxt { ctxt_recursions = IM.insertWith IS.union entry recursions (ctxt_recursions ctxt) })
+    modify $ set_ctxt_recursions (IM.insertWith IS.union entry recursions (ctxt_recursions ctxt))
     to_out $ "Entry " ++ showHex entry ++ " is part of mutual recursion and treated entries " ++ showHex_set recursions ++ " as external. It will be reconsidered after those entries have been done."
  where
   get_new_calls ctxt is = map (get_new_call ctxt) is
@@ -254,6 +264,7 @@ ctxt_get_new_calls entry = do
           return (fromIntegral trgt,finit') -- trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit ctxt finit_of_entry inv) ++ "\n" ++ show finit') $ 
         else
           Nothing
+      (_,_,Nothing) -> Nothing -- time out
       (x,y,z) -> error (show (x,y,z))
   trgt_to_finit ctxt i _ = Nothing
 
@@ -280,19 +291,21 @@ ctxt_serialize_ctxt = do
 
 ctxt_add_entry_edge :: Int -> (Int,FInit) -> StateT Context IO ()
 ctxt_add_entry_edge a (trgt,finit) = do
-  modify (\ctxt -> ctxt { ctxt_entries = graph_add_edges (ctxt_entries ctxt) a (IS.singleton trgt) })
-  modify (\ctxt -> ctxt { ctxt_finits  = IM.insert trgt finit $ ctxt_finits ctxt })
-  modify (\ctxt -> ctxt { ctxt_calls   = IM.delete trgt $ ctxt_calls ctxt })
-  modify (\ctxt -> ctxt { ctxt_invs    = IM.delete trgt $ ctxt_invs  ctxt })
-  modify (\ctxt -> ctxt { ctxt_posts   = IM.delete trgt $ ctxt_posts ctxt })
+  ctxt <- get
+  modify $ set_ctxt_entries (graph_add_edges (ctxt_entries ctxt) a (IS.singleton trgt))
+  modify $ set_ctxt_finits  (IM.insert trgt finit $ ctxt_finits ctxt)
+  modify $ set_ctxt_calls   (IM.delete trgt $ ctxt_calls ctxt)
+  modify $ set_ctxt_invs    (IM.delete trgt $ ctxt_invs  ctxt)
+  modify $ set_ctxt_posts   (IM.delete trgt $ ctxt_posts ctxt)
 
 
-ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Pred))
+ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Pred),S.Set StatePart)
 ctxt_get_curr_posts entry = do
   finits <- gets ctxt_finits
   invs   <- gets ctxt_invs
   posts  <- gets ctxt_posts
-  return (IM.lookup entry finits `orElse` M.empty, IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty)
+  sps    <- gets ctxt_stateparts
+  return (IM.lookup entry finits `orElse` M.empty, IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty,IM.lookup entry sps `orElse` S.empty)
 
 
 
@@ -305,7 +318,7 @@ ctxt_verify_proper_return entry = do
   ctxt            <- get
   fctxt           <- ctxt_mk_fcontext entry
   let vcs          = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
-  (_,_,posts)     <- ctxt_get_curr_posts entry
+  (_,_,posts,_)   <- ctxt_get_curr_posts entry
   all_checks      <- mapM (correct fctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
 
   if S.null posts then
@@ -365,7 +378,7 @@ ctxt_verify_proper_return entry = do
 -- After a succesfull effort, store the current CFG, the invariants,...,  in the "report"-field of the context
 ctxt_add_to_results entry verified = do
   results <- gets ctxt_results
-  modify (\ctxt -> ctxt { ctxt_results = IM.insert entry verified results } )
+  modify $ set_ctxt_results (IM.insert entry verified results)
 
   ctxt     <- get
   base     <- ctxt_base_name entry
@@ -538,11 +551,11 @@ ctxt_generate_end_report = do
   show_return_behavior UnknownRetBehavior = "Unknown"
 
   indirectionIsCall ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
+    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
       Nothing -> False
       Just i  -> isCall $ Instr.opcode i
   indirectionIsJump ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt a of -- Should be safe as result is immutable.
+    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
       Nothing -> False
       Just i  -> not $ isCall $ Instr.opcode i
   
@@ -569,7 +582,7 @@ ctxt_read_syms = do
   let syms_fname  = dirname ++ name ++ ".symbols" 
 
   symbols <- liftIO $ parse syms_fname
-  put $ ctxt { ctxt_syms = symbols }
+  modify $ set_ctxt_syms symbols
  where
   parse sfilename = do
     ret0 <- parse_symbols $! sfilename
@@ -587,7 +600,7 @@ ctxt_read_sections = do
   let sects_fname = dirname ++ name ++ ".sections" 
 
   sections <- liftIO $ parse sects_fname
-  put $ ctxt { ctxt_sections = sections }
+  modify $ set_ctxt_sections sections
  where
   parse sfilename = do
     ret0 <- parse_sections $! sfilename
@@ -604,19 +617,32 @@ ctxt_read_dump = do
   ctxt <- get
   let dirname     = ctxt_dirname ctxt
   let name        = ctxt_name ctxt
-  let fname       = dirname ++ name ++ ".dump"
-  let dname       = dirname ++ name ++ ".data"
+  --let fname       = dirname ++ name ++ ".dump"
+  --let dname       = dirname ++ name ++ ".data"
+  let rname       = dirname ++ name ++ ".relocs"
 
-  dump <- liftIO $ parse fname
-  dat  <- liftIO $ parse dname
+  --dump   <- liftIO $ parse fname
+  --dat    <- liftIO $ parse dname
+  relocs <- liftIO $ parse_relocs' rname
 
-  put $ ctxt { ctxt_dump = dump, ctxt_data = dat }
+ -- modify $ set_ctxt_data dat
+  modify $ set_ctxt_relocs relocs
  where
   parse fname = do
     ret0 <- parse_dump $! fname
     case ret0 of
       Left err -> error $ show err
       Right syms -> return syms
+
+  parse_relocs' fname = do
+    exists <- doesFileExist fname
+    if exists then do
+      ret0 <- parse_relocs $! fname
+      case ret0 of
+        Left err -> error $ show err
+        Right relocs -> return relocs
+    else
+      return []
 
 
 -- Read entry from file producing entries :: [Int]
@@ -642,8 +668,26 @@ ctxt_read_entries = do
 ctxt_read_and_set_entries :: StateT Context IO ()
 ctxt_read_and_set_entries = do
   entries <- ctxt_read_entries
-  modify $ (\ctxt -> ctxt { ctxt_entries = Edges $ IM.fromList (zip entries $ repeat IS.empty) })
+  read_arrays <- ctxt_read_init_fini_arrays
+  let extra_ptrs = map fromIntegral $ filter ((/=) 0) $ filter ((/=) (0-1)) $ concat read_arrays
+  modify $ set_ctxt_entries (Edges $ IM.fromList (zip (entries ++ extra_ptrs) $ repeat IS.empty))
+  modify $ set_ctxt_start (head entries)
+ where
+  ctxt_read_init_fini_arrays = gets (si_sections . ctxt_sections) >>= mapM ctxt_read_init_fini_array 
 
+  ctxt_read_init_fini_array ("", ".init_array",a0,si) = read_pointers_from_ro_data_section a0 si
+  ctxt_read_init_fini_array ("", ".fini_array",a0,si) = read_pointers_from_ro_data_section a0 si
+  ctxt_read_init_fini_array _                         = return []
+
+  read_pointers_from_ro_data_section a0 si =
+    if si < 8 then
+      return []
+    else do
+      ctxt <- get
+      let ptr = read_from_ro_datasection ctxt a0 (fromIntegral si)
+      ptrs <- read_pointers_from_ro_data_section (a0+8) (si-8)
+      return $ (fromJust ptr):ptrs
+      
 
 
 
@@ -673,7 +717,7 @@ ctxt_init_indirections = do
   --  put $ ctxt { ctxt_inds = inds }
   --else do
   liftIO $ writeFile fname ""
-  modify $ (\ctxt ->  ctxt { ctxt_inds = IM.empty })
+  modify $ set_ctxt_inds IM.empty
  where
   parse fname = do
     ret0 <- parse_indirections fname
@@ -698,7 +742,7 @@ ctxt_generate_cfg entry = do
   (new_calls,g) <- liftIO $ cfg_gen ctxt entry
 
   cfgs <- gets ctxt_cfgs
-  modify (\ctxt -> ctxt { ctxt_cfgs = IM.insert entry g cfgs })
+  modify (set_ctxt_cfgs $ IM.insert entry g cfgs)
 
   if S.null new_calls then do
     liftIO $ writeFile fname $ cfg_to_dot ctxt g
@@ -714,12 +758,19 @@ ctxt_generate_cfg entry = do
      
 
 
-ctxt_add_invariants entry finit invs posts vcs = do
+ctxt_add_invariants entry finit invs posts vcs sps = do
   all_invs   <- gets ctxt_invs
   all_posts  <- gets ctxt_posts
   all_vcs    <- gets ctxt_vcs
   all_finits <- gets ctxt_finits
-  modify (\ctxt -> ctxt { ctxt_invs = IM.insert entry invs all_invs, ctxt_posts = IM.insert entry posts all_posts, ctxt_vcs = IM.insert entry vcs all_vcs, ctxt_finits = IM.insert entry finit all_finits } )
+  all_sps    <- gets ctxt_stateparts
+
+  modify (set_ctxt_invs       $ IM.insert entry invs all_invs)
+  modify (set_ctxt_posts      $ IM.insert entry posts all_posts)
+  modify (set_ctxt_vcs        $ IM.insert entry vcs all_vcs)
+  modify (set_ctxt_finits     $ IM.insert entry finit all_finits)
+  modify (set_ctxt_stateparts $ IM.insert entry sps all_sps)
+
 
 
 
@@ -728,8 +779,8 @@ ctxt_mk_fcontext entry = do
   ctxt        <- get
   return $ mk_fcontext ctxt entry
 
-ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> StateT Context IO ()
-ctxt_generate_invs entry curr_invs curr_posts = do
+ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> S.Set StatePart -> StateT Context IO ()
+ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
   -- Generate invariants
   ctxt  <- get
   let get_max_time         = ctxt_max_time ctxt
@@ -743,20 +794,20 @@ ctxt_generate_invs entry curr_invs curr_posts = do
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
-  let p       = init_pred fctxt curr_invs curr_posts
+  let p       = init_pred fctxt curr_invs curr_posts curr_sps
 
   result  <- liftIO (timeout get_max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
 
   case result of
     Nothing         -> do
       to_out $ "Entry " ++ showHex entry ++ ": time out of " ++ show get_max_time_minutes ++ " minutes reached."
-      ctxt_add_invariants entry finit IM.empty S.empty S.empty
+      ctxt_add_invariants entry finit IM.empty S.empty S.empty S.empty
     Just (invs,vcs) -> do
       let blocks  = IM.keys $ cfg_blocks g
       postss     <- catMaybes <$> mapM (get_post fctxt g invs) blocks
       let posts   = S.fromList $ map fst postss
       let vcs'    = S.unions $ map snd postss 
-      ctxt_add_invariants entry finit invs posts (S.union vcs vcs')
+      ctxt_add_invariants entry finit invs posts (S.union vcs vcs') (S.union curr_sps $ gather_stateparts invs posts)
  where
   get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
   get_post fctxt g invs b = do
@@ -779,7 +830,9 @@ ctxt_generate_invs entry curr_invs curr_posts = do
 
 
 ctxt_del_entry :: Int -> StateT Context IO ()
-ctxt_del_entry entry = modify (\ctxt -> ctxt { ctxt_entries = graph_delete (ctxt_entries ctxt) entry })
+ctxt_del_entry entry = do
+  ctxt <- get
+  modify $ set_ctxt_entries $ graph_delete (ctxt_entries ctxt) entry
 
 ctxt_add_call entry verified = do
   ctxt <- get
@@ -789,7 +842,7 @@ ctxt_add_call entry verified = do
   let name        = ctxt_name ctxt
   let fname       = dirname ++ name ++ ".calls"
 
-  (_,invs,posts) <- ctxt_get_curr_posts entry
+  (_,invs,posts,_) <- ctxt_get_curr_posts entry
   
   (ret,msg) <-
     if (any ((==) UnresolvedIndirection) $ S.map fst posts) || verified `notElem` [VerificationSuccesWithAssumptions,VerificationSuccess] then
@@ -799,7 +852,7 @@ ctxt_add_call entry verified = do
     else let q = supremum fctxt $ map snd $ S.toList $ S.filter ((==) Normal . fst) $ posts in
       return (ReturningWith q, "normally returning.")
 
-  put $ ctxt { ctxt_calls = IM.insert entry ret $ calls }
+  modify $ set_ctxt_calls (IM.insert entry ret $ calls)
   to_out $ "Function at entry: " ++ showHex entry ++ " analyzed, return behavior is " ++ msg
 
 
@@ -812,13 +865,16 @@ ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool
 ctxt_analyze_unresolved_indirections entry = do
   ctxt <- get
 
-  (finit,invs,posts) <- ctxt_get_curr_posts entry
+  (finit,invs,posts,_) <- ctxt_get_curr_posts entry
   let f        = function_name_of_entry ctxt entry
   let g        =  ctxt_cfgs ctxt IM.! entry
 
   let bs = filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) $ IM.keys $ cfg_blocks g
   if bs == [] then do
     to_out $ "No unresolved indirections."
+    return False
+  else if IM.null invs then do
+    -- time out
     return False
   else do
     results <- forM bs $ try_to_resolve_indirection f g invs
@@ -840,7 +896,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
     let values0 = evalState (try' fctxt f g b trgt) (p,S.empty)
 
-    if values0 /= Nothing then do -- TODO is this case needed oafter dealing with libc_start_main properly?
+    if values0 /= Nothing && S.size (fromJust values0) == 1 then do -- TODO is this case needed oafter dealing with libc_start_main properly?
       let value = fromJust values0
       to_out $ "Resolved indirection at block " ++ show b
       to_out $ "Instruction = " ++ show i
@@ -850,7 +906,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
       inds <- gets ctxt_inds
       let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionResolved value) inds -- TODO check if already exists
-      put $ ctxt { ctxt_inds = inds' }
+      modify $ set_ctxt_inds inds'
 
       return True
     else case flagstatus_to_tries max_tries flg of
@@ -873,7 +929,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
           inds <- gets ctxt_inds
           let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
-          put $ ctxt { ctxt_inds = inds' }
+          modify $ set_ctxt_inds inds'
 
           return True
         else
@@ -924,7 +980,7 @@ data Args =  Args String String String Bool
 argsParser = Args
   `parsedBy` optPos [] "config"   `Descr` "Name of config file (default: ./config/config.dhall)"
   `andBy`    optPos [] "dirname"  `Descr` "Name of directory (including ending /)"
-  `andBy`    optPos [] "filename" `Descr` "Basename of file (without directory) without dot and without file-extension"
+  `andBy`    optPos [] "filename" `Descr` "Name of binary (without path)"
   `andBy`    boolFlag "usage"     `Descr` "Show information on usage and quit."
   
 -- if the -u flag is not set, check whether a config file has been given.
@@ -936,7 +992,14 @@ run (Args configname dirname name False) =
     (_,_,[]) -> putStrLn "No base-filename given. Use -u for information on usage."
     _        -> do
       config <- parse_config configname
-      evalStateT run_with_ctxt $! init_context config dirname name
+      let dirname' = if last dirname  == '/' then dirname else dirname ++ "/"
+      binary <- read_binary dirname' name
+      case binary of
+        Nothing -> putStrLn $ "Cannot read binary file: " ++ dirname' ++ name
+        Just b  -> do
+                     putStrLn $ binary_pp b
+                     ioref <- newIORef IM.empty
+                     evalStateT run_with_ctxt $! init_context b ioref config dirname' name
 
 -- if the -u flag is set, output the message on usage
 run (Args _ _ _ True) =

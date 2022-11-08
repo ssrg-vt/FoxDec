@@ -33,6 +33,7 @@ module Data.Pointers (
   where
 
 import Analysis.Context
+import Data.Binary
 import Base
 import Config
 import Data.ControlFlow
@@ -50,13 +51,13 @@ import Debug.Trace
 
 -- | The context augmented with information on the current function
 data FContext = FContext {
-  f_ctxt  :: Context, -- ^ The context
-  f_entry :: Int,     -- ^ The entry address of the current function
-  f_name  :: String,  -- ^ The name of the current function
-  f_init  :: FInit    -- ^ The initialization of the current function
+  f_ctxt  :: Context,   -- ^ The context
+  f_entry :: Int,       -- ^ The entry address of the current function
+  f_name  :: String,    -- ^ The name of the current function
+  f_init  :: FInit      -- ^ The initialization of the current function
  }
 
-mk_fcontext :: Context -> Int -> FContext 
+mk_fcontext :: Context -> Int -> FContext
 mk_fcontext ctxt entry =
   let f     = function_name_of_entry ctxt entry
       finit = IM.lookup entry $ ctxt_finits ctxt
@@ -80,7 +81,7 @@ statepart_to_finit_expr ctxt sp = M.lookup sp $ f_init ctxt
 -- They are either 1.) all known, or 2.) all unknown.
 get_pointer_domain ::
   FContext             -- ^ The current context
-  -> SimpleExpr        -- ^ A sybmolic expression 
+  -> SimpleExpr        -- ^ A symbolic expression 
   -> PointerDomain     -- ^ A pointer domain
 get_pointer_domain ctxt e =
   let bs  = get_pointer_bases' True $ simp e in
@@ -146,11 +147,11 @@ expr_is_global_immediate ctxt _                = False
 expr_is_highly_likely_local_pointer ctxt e = is_highly_likely_local_pointer_domain ctxt $ get_pointer_domain ctxt e
 
 -- | Returns true iff the give domain is highly likelty local to the current function
-is_highly_likely_local_pointer_domain ctxt (Domain_Bases bs)     = all is_local_base bs
+is_highly_likely_local_pointer_domain ctxt (Domain_Bases bs)     = not (S.null bs) && all is_local_base bs
  where
   is_local_base (StackPointer f)     = f == f_name ctxt
   is_local_base _                    = False
-is_highly_likely_local_pointer_domain ctxt (Domain_Sources srcs) = all is_local_src srcs
+is_highly_likely_local_pointer_domain ctxt (Domain_Sources srcs) = not (S.null srcs) && all is_local_src srcs
  where
   is_local_src (Src_StackPointer f)  = f == f_name ctxt
   is_local_src _                     = False
@@ -171,10 +172,11 @@ is_malloc _            = False
 -- * Sources
 
 -- | Returns the set of sources (inputs used to compute the expression) of an expression.
-srcs_of_expr ctxt e = 
+srcs_of_expr ctxt e = srcs_of_expr' ctxt True e {--
   let srcs       = srcs_of_expr' ctxt True e
       known_srcs = S.filter is_known_source srcs in
    if S.null known_srcs then srcs else known_srcs
+--}
 
 is_known_source (Src_StackPointer _)     = True
 is_known_source (Src_Malloc _ _)         = True
@@ -241,7 +243,7 @@ srcs_of_base ctxt use_finit (PointerToSymbol a sym) = S.singleton $ Src_Var $ SP
 -- TODO: joining immediates
 join_exprs' :: String -> FContext -> [SimpleExpr] -> SimpleExpr
 join_exprs' msg ctxt es = 
-  let es' = S.unions $ map (S.fromList . unfold_non_determinism ctxt) es in
+  let es' = S.map simp $ S.unions $ map (S.fromList . unfold_non_determinism ctxt) es in
     if S.size es' == 0 then
       rock_bottom
     else if S.size es' == 1 then
@@ -305,16 +307,19 @@ pointers_from_different_global_section ctxt a0 a1 = find_section_for_address ctx
 
 
 domains_separate ctxt necc (Domain_Bases bs0) (Domain_Bases bs1) = 
-  let quant = if necc then all else any in
-    quant (uncurry $ pointer_bases_separate ctxt necc) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
+  if necc then
+    all (uncurry $ pointer_bases_separate ctxt necc) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
+  else
+    S.disjoint bs0 bs1 && any (uncurry $ pointer_bases_separate ctxt necc) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
 domains_separate ctxt necc dom0 dom1 =
-  let quant = if necc then all else any
-      srcs0 = sources_of_domain ctxt dom0
+  let srcs0 = sources_of_domain ctxt dom0
       srcs1 = sources_of_domain ctxt dom1 in
     if S.null srcs0 || S.null srcs1 then
       False
+    else if necc then
+      all (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0, src1 <- S.toList srcs1]
     else
-      quant (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0, src1 <- S.toList srcs1]
+      S.disjoint srcs0 srcs1 && any (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0, src1 <- S.toList srcs1]
 
 
 

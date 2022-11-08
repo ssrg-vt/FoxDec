@@ -27,9 +27,11 @@ module Data.MachineState (
 import Analysis.Context
 import Base
 import Data.ControlFlow
+import Data.Binary
 import Data.Pointers
 import Data.SimplePred
 import X86.Conventions
+import Config
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -88,6 +90,9 @@ write_rreg :: FContext -> MemWriteIdentifier -> Register -> SimpleExpr -> State 
 write_rreg ctxt mid r e = 
   if take 2 (show r) == "ST" then
     return ()
+  --else if r == RSP && not (is_valid_rsp_value e) then do
+  --  (p,_) <- get
+  --  error $ "Illegal value for RSP: " ++ show e ++ "\n" ++ show p
   else do
     modify do_write
  where
@@ -96,7 +101,13 @@ write_rreg ctxt mid r e =
         flg' = clean_flg (SP_Reg r) flg in
       (Predicate eqs' flg',vcs)
 
-get_immediate_forced (SE_Immediate imm) = fromIntegral imm
+
+is_valid_rsp_value (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate _]) = True
+is_valid_rsp_value (SE_Op (Plus _) [SE_Var (SP_StackPointer _), SE_Immediate _]) = True
+is_valid_rsp_value (SE_Op (And _) [SE_Op (Plus _) [SE_Var (SP_StackPointer _), SE_Immediate _],SE_Immediate _]) = True
+is_valid_rsp_value (SE_Op (Minus _) [SE_Op (And _) [SE_Op (Plus _) [SE_Var (SP_StackPointer _), SE_Immediate _],SE_Immediate _],SE_Immediate _]) = True
+is_valid_rsp_value (SE_Var (SP_StackPointer _)) = True
+is_valid_rsp_value v = False
  
 -- | Write to a register
 write_reg :: FContext -> Word64 -> Register -> SimpleExpr -> State (Pred,VCS) ()
@@ -213,7 +224,11 @@ is_assertable ctxt a0 si0 a1 si1 =
 
 
 -- | Add an assertion to the given symbolic predicate
-add_assertion rip a0 si0 a1 si1 (p,vcs)  = (p,S.insert (Assertion rip a0 si0 a1 si1) vcs)
+add_assertion ctxt rip a0 si0 a1 si1 (p,vcs) =
+  if store_assertions_in_report $ ctxt_config $ f_ctxt ctxt then
+    (p,S.insert (Assertion rip a0 si0 a1 si1) vcs)
+  else
+    (p,vcs)
 
 
 
@@ -293,6 +308,9 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
   deriving Eq
 
 
+is_rock_bottom (Bottom (FromSources srcs)) = S.null srcs
+is_rock_bottom _ = False
+
 read_from_address :: FContext -> Maybe X86.Operand -> SimpleExpr -> Int -> State (Pred,VCS) SimpleExpr
 read_from_address ctxt operand a si0 = do
   let as = map simp $ unfold_non_determinism ctxt a
@@ -300,7 +318,7 @@ read_from_address ctxt operand a si0 = do
   return $ join_exprs ("Read") ctxt vs
  where
   read_from_address' (SE_Immediate imm) = 
-    case read_from_datasection (f_ctxt ctxt) imm si0 of 
+    case read_from_ro_datasection (f_ctxt ctxt) imm si0 of 
       Just imm -> -- trace ("Read immediate from datasection: " ++ show (a0,si0) ++ " := " ++ show imm) $ return $ SE_Immediate imm
                   return $ SE_Immediate imm  
       Nothing  -> read_from_state $ SE_Immediate imm
@@ -327,7 +345,7 @@ read_from_address ctxt operand a si0 = do
           let bot       = Bottom (FromUninitializedMemory srcs)
           return bot 
         else do
-          let srcs      = srcs_of_exprs ctxt $ map snd (new_eqs ++ overlapping)
+          let srcs      = if any is_rock_bottom (map snd overlapping) then S.empty else srcs_of_exprs ctxt $ map snd (new_eqs ++ overlapping)
           let bot       = Bottom (FromOverlap srcs)
           return bot 
     else if address_is_unwritable (f_ctxt ctxt) a0 then do
@@ -369,7 +387,7 @@ read_from_address ctxt operand a si0 = do
     else if is_assertable ctxt a0 si0 a1 si1 then do
       rip <- read_reg ctxt RIP
       assertion <- generate_assertion ctxt (mk_address operand) a0
-      modify $ add_assertion rip assertion si0 a1 si1
+      modify $ add_assertion ctxt rip assertion si0 a1 si1
       --trace ("ASSERTION (READ@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
       return Separated
     else do
@@ -467,13 +485,13 @@ write_mem ctxt mid a si0 v = do
     else if is_assertable ctxt a0 si0 a1 si1 then do
       assertion <- generate_assertion ctxt (address mid) a0
       rip <- read_reg ctxt RIP
-      modify $ add_assertion rip assertion si0 a1 si1
+      modify $ add_assertion ctxt rip assertion si0 a1 si1
       --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
       return Separated
     else if invalid_bottom_pointer ctxt a0 && expr_is_highly_likely_local_pointer ctxt a1 then do
       assertion <- generate_assertion ctxt (address mid) a0
       rip <- read_reg ctxt RIP
-      modify $ add_assertion rip assertion si0 a1 si1
+      modify $ add_assertion ctxt rip assertion si0 a1 si1
       --trace ("ASSERTION (WRITE@" ++ show rip ++ "): SEPARATION BETWEEN " ++ show (assertion,si0,a0) ++ " and " ++ show (a1,si1)) $
       return Separated
     else
@@ -525,7 +543,7 @@ write_operand ctxt instr_a (Storage r)   v = write_reg ctxt instr_a r v
 write_operand ctxt instr_a (Memory a si) v = do
   resolved_address <- resolve_address ctxt a
   write_mem ctxt (MemWriteInstruction instr_a (Memory a si) resolved_address) resolved_address si v
-write_operand ctxt instr_a op1 e                      = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
+write_operand ctxt instr_a op1 e           = trace ("Writing to immediate operand: " ++ show (op1,e)) $ return ()-- Should not happen
  
 
 mk_reg_write_identifier instr_a r = MemWriteInstruction instr_a (Storage r) (SE_StatePart $ SP_Reg r)
@@ -534,8 +552,8 @@ mk_reg_write_identifier instr_a r = MemWriteInstruction instr_a (Storage r) (SE_
 -- * Stateparts 
 -- | Read from an statepart
 read_sp :: FContext -> StatePart -> State (Pred,VCS) SimpleExpr
-read_sp ctxt (SP_Reg r)          = simp <$> read_reg ctxt r
-read_sp ctxt (SP_Mem a si)       = simp <$> read_from_address ctxt Nothing a si
+read_sp ctxt (SP_Reg r)          = read_reg ctxt r
+read_sp ctxt (SP_Mem a si)       = read_from_address ctxt Nothing a si
 
 -- | Write to a statepart
 write_sp :: 

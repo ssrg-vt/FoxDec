@@ -7,18 +7,20 @@ import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 import           Data.Maybe (isNothing)
 import           Data.ControlFlow (isTerminal)
-import           Analysis.Context (Context(..), CFG(..))
+import           Analysis.Context 
 import           Generic.Program (GenericProgram(..))
 import           Generic.BasicBlock (GenericBasicBlock(..))
 import qualified Generic.Program as Prog
 import qualified X86.Instruction as Instr
 import qualified X86.Instruction as X86
+import Data.Binary
+
 
 type Program = GenericProgram X86.Instruction
 
 -- | From a context stored in a .report file, retrieve an X86 program for a given function entry.
-fromContext :: Context -- ^ The context
-            -> Int     -- ^ The function entry of interest
+fromContext :: Context   -- ^ The context
+            -> Int       -- ^ The function entry of interest
             -> Program
 fromContext ctxt entry = case IM.lookup entry $ ctxt_cfgs ctxt of
   Just cfg -> cfgToX86 cfg

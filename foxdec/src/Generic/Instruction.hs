@@ -42,7 +42,7 @@ instance (Show storage, Show label, Show prefix, Show opcode, Show annotation)
     ++ showAnnot annot
     where
       showPrefix Nothing = ""
-      showPrefix (Just pre) = show pre
+      showPrefix (Just pre) = show pre ++ " "
 
       showAnnot Nothing = ""
       showAnnot (Just annot) = " (" ++ show annot ++ ")"

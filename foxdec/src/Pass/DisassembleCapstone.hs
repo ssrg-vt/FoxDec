@@ -11,7 +11,7 @@ import Hapstone.Capstone
 import qualified Hapstone.Internal.Capstone as Capstone
 import Data.List
 import Data.List.Split (splitOn)
-import Data.Char (toUpper)
+import Data.Char (toUpper,isSpace)
 import Text.ParserCombinators.Parsec
 import Data.Word (Word64,Word8)
 import Debug.Trace
@@ -25,7 +25,7 @@ import Generic.Address (AddressWord64(..))
 import Generic.Instruction (GenericInstruction(..))
 
 
-
+import Data.IORef
 
 -- This file provides a function 
 --      disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe Instr)
@@ -51,7 +51,7 @@ disasm_config bytes a = Disassembler {
   -- buffer to disassemble, as [Word8]
   buffer = bytes,
   -- address of first byte in the buffer, as Word64
-  addr = fromIntegral a,
+  addr = a,
   -- number of instructions to disassemble (0 for maximum)
   num = 1,
   -- include detailed information? True/False
@@ -79,17 +79,17 @@ mk_operands cs_instr cs_ops = map mk_operand [0,1,2]
 
 trim = dropWhileEnd isWhiteSpace . dropWhile isWhiteSpace
 
-mk_instr :: Capstone.CsInsn -> X86.Instruction
-mk_instr cs_instr =
-  let addr          = AddressWord64 $ Capstone.address cs_instr
+mk_instr :: Capstone.CsInsn -> Word64 -> X86.Instruction
+mk_instr cs_instr a =
+  let addr          = AddressWord64 a
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
       i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
     if m == InvalidOpcode then
-      error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
+      error ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i)
     else if prefix == Just InvalidPrefix then
-      error ("Error during disassembling (translation of Capstone to datastructure): " ++ show cs_instr  ++ ": " ++ show i)
+      error ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i)
     else
        i
  where
@@ -100,17 +100,21 @@ mk_instr cs_instr =
 
 
 
-disassemble :: IM.IntMap Word8 -> Int -> IO (Maybe X86.Instruction)
-disassemble dump a = do
-  let buffer = readBuffer
-  if head buffer == Nothing then 
-    return Nothing
-  else do
-    let config = disasm_config (map fromJust $ takeWhile ((/=) Nothing) buffer) a
-    result <- disasmIO config 
-    case result of
-      Left err      -> error ("Error during disassembling of address " ++ showHex a ++ ": " ++ show err)
-      Right [(i,_)] -> return $ Just $ mk_instr i
-      Right x       -> error $ "Error during disassembling of address " ++ showHex a ++ ": parsing result Capstone == " ++ show x ++ " @ address " ++ showHex a ++ " buffer == " ++ showHex_list (map fromJust buffer)
- where
-  readBuffer = map (\n -> IM.lookup (a+n) dump) [0..20] -- 15 == maximum instruction length
+-- disassemble an instruction from a bytestream
+-- the bytestream "buffer" is assumed to be located at virtual address "a"
+-- we use memoization: each instruction is disassembled at most once
+disassemble :: IORef (IM.IntMap X86.Instruction) -> [Word8] -> Word64 -> IO (Maybe X86.Instruction)
+disassemble ioref buffer a = do
+  instructions <- readIORef ioref
+  case IM.lookup (fromIntegral a) instructions of
+    Just i -> return $ Just i -- memoized
+    Nothing -> do
+      let config = disasm_config buffer a
+      result <- disasmIO config
+      case result of
+        Left err      -> error ("Error during disassembling of address " ++ showHex a ++ ": " ++ show err)
+        Right [(i,_)] -> do
+                           let instr = mk_instr i a
+                           modifyIORef' ioref (IM.insert (fromIntegral a) instr)
+                           return $ Just instr
+        Right x       -> error $ "Error during disassembling of address " ++ showHex a ++ ": parsing result Capstone == " ++ show x ++ " @ address " ++ showHex a ++ " buffer == " ++ showHex_list buffer

@@ -6,6 +6,7 @@ module Isabelle where
 
 import Base
 import Data.SimplePred
+import Data.Binary
 import Analysis.Context
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(..), isJump, isCall)
@@ -35,14 +36,15 @@ import System.Environment (getArgs)
 main = do
   args <- getArgs
   if args == [] then
-    putStrLn $ "Usage:\n\n  foxdec-isabelle-exe NAME.report\n\nHere NAME refers to the NAME used when running foxdec-exe.\nRun this program from the same directory foxdec-exe was run."
+    putStrLn $ "Usage:\n\n  foxdec-isabelle-exe DIRNAME NAME.report\n\nHere NAME refers to the NAME used when running foxdec-exe.\nRun this program from the same directory foxdec-exe was run."
   else do
-    exists <- doesFileExist $ head args
+    let dirname = if last (args!!0)  == '/' then args!!0 else args!!0 ++ "/"
+    exists <- doesFileExist $ dirname ++ args!!1 ++ ".report"
     if exists then do
-      ctxt <- ctxt_read_report $ head args
+      ctxt <- ctxt_read_report dirname (args !! 1)
       ctxt_create_hoare_triples ctxt
     else
-      putStrLn $ "File: " ++ show (head args) ++ " does not exist."
+      putStrLn $ "File: " ++ show (dirname ++ args!!1 ++ ".report") ++ " does not exist."
 
 -- Produce a base file name (without .extension) based on the current entry under consideration
 -- If necessary, make the directory

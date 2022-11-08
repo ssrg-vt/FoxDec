@@ -39,17 +39,24 @@ import Generic.Operand (GenericOperand(..))
 import Generic.Address (GenericAddress(..),AddressWord64(..))
 import Generic.Instruction ( GenericInstruction(Instruction) ) 
 
+isWhiteSpace :: Char -> Bool
+isWhiteSpace c
+  | uc <= 0x377 = uc == 32 || uc == 9
+  | otherwise = isSpace c
+  where
+    uc = fromIntegral (ord c) :: Word
+
+
+
+whitespace  = satisfy isWhiteSpace <?> "space"
+whitespaces = skipMany whitespace  <?> "white space"
+
+
+
+
+
 jumps_and_calls_are_relative = False -- TODO make configurable
 
-
-isWhiteSpace '\t' = True
-isWhiteSpace '\f' = True
-isWhiteSpace '\v' = True
-isWhiteSpace ' '  = True
-isWhiteSpace _    = False
-
-whitespace  = satisfy isWhiteSpace <?> "white space"
-whitespaces = skipMany whitespace <?> "white spaces"
 
 
 hexToWord64 :: [Char] -> Word64
