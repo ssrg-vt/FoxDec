@@ -58,11 +58,10 @@ For Mac, these are `otool` and `nm`.
 
     stack build --profile
     time stack exec --profile -- foxdec-exe ./config/config.dhall examples/tar tar +RTS -p
-    less foxdec-exe-.prof
+    less foxdec-exe.prof
 
 ## How to use <a name="usage"></a>
-These are instructions for a quickstart on ELF files. For more information, we refer to the [user manual](./foxdec/docs/manual/foxdec_manual.pdf).
-
+These are instructions for a quickstart on ELF files. For more information, see [here](#docs).
 <p style="text-align: center;">
   <img style="border: 3px solid #555;" src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
 </p>
