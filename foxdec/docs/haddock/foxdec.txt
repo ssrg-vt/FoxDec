@@ -180,6 +180,7 @@ binary_get_sections_info :: BinaryClass a => a -> SectionsInfo
 binary_get_relocs :: BinaryClass a => a -> [Relocation]
 binary_get_symbols :: BinaryClass a => a -> SymbolTable
 binary_pp :: BinaryClass a => a -> String
+binary_entry :: BinaryClass a => a -> Word64
 data Binary
 Binary :: b -> Binary
 instance GHC.Classes.Eq Data.Binary.SectionsInfo
@@ -286,6 +287,10 @@ foldInstructions :: (instr -> a -> a) -> a -> GenericProgram instr -> a
 instance GHC.Base.Functor Generic.Program.GenericProgram
 instance Data.Foldable.Foldable Generic.Program.GenericProgram
 instance GHC.Show.Show instr => GHC.Show.Show (Generic.Program.GenericProgram instr)
+
+module Data.BinaryMacho
+macho_read_file :: String -> String -> IO Macho
+instance Data.Binary.BinaryClass Data.BinaryMacho.Macho
 
 module Typeclasses.HasAddress
 class HasAddress a
@@ -1547,7 +1552,7 @@ instance Data.Serialize.Serialize Data.SimplePred.PointerBase
 --   provides functions for obtaining and interfacing with a
 --   <tt>Context</tt>.
 module Analysis.Context
-read_binary :: String -> IO (Maybe Binary)
+read_binary :: String -> String -> IO (Maybe Binary)
 
 -- | A control flow graph with blocks and edges. A blockID (represented as
 --   an <tt>Int</tt>) is a unique identifier of a basic block. We store
@@ -1718,11 +1723,9 @@ UnknownRetBehavior :: FReturnBehavior
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context_
-Context_ :: !Config -> !IntMap String -> !SectionsInfo -> !String -> !String -> !Int -> ![Relocation] -> !Graph -> !IntMap CFG -> !IntMap FReturnBehavior -> !IntMap Invariants -> !IntMap Postconditions -> !Indirections -> !IntMap FInit -> !IntMap VCS -> !IntMap VerificationResult -> !IntMap IntSet -> Context_
+Context_ :: !Config -> !IntMap String -> !SectionsInfo -> !String -> !String -> !Int -> ![Relocation] -> !Graph -> !IntMap CFG -> !IntMap FReturnBehavior -> !IntMap Invariants -> !IntMap Postconditions -> !IntMap (Set StatePart) -> !Indirections -> !IntMap FInit -> !IntMap VCS -> !IntMap VerificationResult -> !IntMap IntSet -> Context_
 
--- | <b>S</b>: the configuration file in ./config ctxt<b>data ::
---   !(IM.IntMap Word8), -- ^ </b>S__: mapping from addresses to bytes
---   (writable data section)
+-- | <b>S</b>: the configuration file in ./config
 [ctxt__config] :: Context_ -> !Config
 
 -- | <b>S</b>: the symbol table: a mapping of addresses to function names
@@ -1762,6 +1765,9 @@ Context_ :: !Config -> !IntMap String -> !SectionsInfo -> !String -> !String -> 
 -- | <b>D</b>: the currently known postconditions
 [ctxt__posts] :: Context_ -> !IntMap Postconditions
 
+-- | <b>D</b>: the state parts read from/written to be the function
+[ctxt__stateparts] :: Context_ -> !IntMap (Set StatePart)
+
 -- | <b>D</b>: the currently known indirections
 [ctxt__inds] :: Context_ -> !Indirections
 
@@ -1794,6 +1800,7 @@ ctxt_cfgs :: Context -> IntMap CFG
 ctxt_calls :: Context -> IntMap FReturnBehavior
 ctxt_invs :: Context -> IntMap Invariants
 ctxt_posts :: Context -> IntMap Postconditions
+ctxt_stateparts :: Context -> IntMap (Set StatePart)
 ctxt_inds :: Context -> Indirections
 ctxt_finits :: Context -> IntMap FInit
 ctxt_vcs :: Context -> IntMap VCS
@@ -1806,6 +1813,7 @@ set_ctxt_entries :: Graph -> Context -> Context
 set_ctxt_calls :: IntMap FReturnBehavior -> Context -> Context
 set_ctxt_inds :: Indirections -> Context -> Context
 set_ctxt_posts :: IntMap Postconditions -> Context -> Context
+set_ctxt_stateparts :: IntMap (Set StatePart) -> Context -> Context
 set_ctxt_vcs :: IntMap VCS -> Context -> Context
 set_ctxt_finits :: IntMap FInit -> Context -> Context
 set_ctxt_invs :: IntMap Invariants -> Context -> Context
@@ -2508,7 +2516,7 @@ module Analysis.SymbolicExecution
 tau_block :: FContext -> [Instruction] -> Maybe [Instruction] -> Pred -> (Pred, VCS)
 
 -- | The initial predicate.
-init_pred :: FContext -> Invariants -> Set (NodeInfo, Pred) -> Pred
+init_pred :: FContext -> Invariants -> Set (NodeInfo, Pred) -> Set StatePart -> Pred
 
 -- | Given the currently known invariants and postconditions, gather all
 --   stateparts occurring in the current function.

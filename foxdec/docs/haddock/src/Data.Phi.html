@@ -8,14 +8,14 @@
 </span><span id="line-8"></span><span class="hs-keyword">data</span><span> </span><span id="Phi"><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-var">Phi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Phi"><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-var">Phi</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="destination"><span class="annot"><span class="annottext">Phi -&gt; Variable
 </span><a href="Data.Phi.html#destination"><span class="hs-identifier hs-var hs-var">destination</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Variable.html#Variable"><span class="hs-identifier hs-type">Variable</span></a></span><span class="hs-special">,</span><span> </span><span id="sources"><span class="annot"><span class="annottext">Phi -&gt; [Variable]
 </span><a href="Data.Phi.html#sources"><span class="hs-identifier hs-var hs-var">sources</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="Data.Variable.html#Variable"><span class="hs-identifier hs-type">Variable</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
-</span><span id="line-9"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679298779"><span id="local-6989586621679298781"><span class="annot"><span class="annottext">Phi -&gt; Phi -&gt; Bool
+</span><span id="line-9"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679300132"><span id="local-6989586621679300134"><span class="annot"><span class="annottext">Phi -&gt; Phi -&gt; Bool
 (Phi -&gt; Phi -&gt; Bool) -&gt; (Phi -&gt; Phi -&gt; Bool) -&gt; Eq Phi
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
 /= :: Phi -&gt; Phi -&gt; Bool
 $c/= :: Phi -&gt; Phi -&gt; Bool
 == :: Phi -&gt; Phi -&gt; Bool
 $c== :: Phi -&gt; Phi -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679298763"><span id="local-6989586621679298765"><span id="local-6989586621679298767"><span id="local-6989586621679298769"><span id="local-6989586621679298771"><span id="local-6989586621679298773"><span id="local-6989586621679298775"><span class="annot"><span class="annottext">Eq Phi
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300116"><span id="local-6989586621679300118"><span id="local-6989586621679300120"><span id="local-6989586621679300122"><span id="local-6989586621679300124"><span id="local-6989586621679300126"><span id="local-6989586621679300128"><span class="annot"><span class="annottext">Eq Phi
 Eq Phi
 -&gt; (Phi -&gt; Phi -&gt; Ordering)
 -&gt; (Phi -&gt; Phi -&gt; Bool)
@@ -60,27 +60,27 @@ $cp1Ord :: Eq Phi
 </span><span id="line-13"></span><span class="hs-comment">-- | Creates an initial Phi node for the variable with n incoming edges</span><span>
 </span><span id="line-14"></span><span class="annot"><a href="Data.Phi.html#phiForVariable"><span class="hs-identifier hs-type">phiForVariable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Variable.html#Variable"><span class="hs-identifier hs-type">Variable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-type">Phi</span></a></span><span>
 </span><span id="line-15"></span><span id="phiForVariable"><span class="annot"><span class="annottext">phiForVariable :: Variable -&gt; Int -&gt; Phi
-</span><a href="Data.Phi.html#phiForVariable"><span class="hs-identifier hs-var hs-var">phiForVariable</span></a></span></span><span> </span><span id="local-6989586621679298761"><span class="annot"><span class="annottext">Variable
-</span><a href="#local-6989586621679298761"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621679298760"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679298760"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Variable -&gt; [Variable] -&gt; Phi
+</span><a href="Data.Phi.html#phiForVariable"><span class="hs-identifier hs-var hs-var">phiForVariable</span></a></span></span><span> </span><span id="local-6989586621679300114"><span class="annot"><span class="annottext">Variable
+</span><a href="#local-6989586621679300114"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621679300113"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679300113"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Variable -&gt; [Variable] -&gt; Phi
 </span><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-var">Phi</span></a></span><span> </span><span class="annot"><span class="annottext">Variable
-</span><a href="#local-6989586621679298761"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">([Variable] -&gt; Phi) -&gt; [Variable] -&gt; Phi
+</span><a href="#local-6989586621679300114"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">([Variable] -&gt; Phi) -&gt; [Variable] -&gt; Phi
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Variable -&gt; [Variable]
 forall a. Int -&gt; a -&gt; [a]
 </span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679298760"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Variable
-</span><a href="#local-6989586621679298761"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><a href="#local-6989586621679300113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Variable
+</span><a href="#local-6989586621679300114"><span class="hs-identifier hs-var">var</span></a></span><span>
 </span><span id="line-16"></span><span>
-</span><span id="line-17"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679298754"><span id="local-6989586621679298757"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-type">Phi</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-18"></span><span>  </span><span id="local-6989586621679298752"><span class="annot"><span class="annottext">show :: Phi -&gt; String
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-type">Phi</span></a></span><span> </span><span id="local-6989586621679298750"><span class="annot"><span class="annottext">Variable
-</span><a href="#local-6989586621679298750"><span class="hs-identifier hs-var">dst</span></a></span></span><span> </span><span id="local-6989586621679298749"><span class="annot"><span class="annottext">[Variable]
-</span><a href="#local-6989586621679298749"><span class="hs-identifier hs-var">srcs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679300107"><span id="local-6989586621679300110"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-type">Phi</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>  </span><span id="local-6989586621679300105"><span class="annot"><span class="annottext">show :: Phi -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Phi.html#Phi"><span class="hs-identifier hs-type">Phi</span></a></span><span> </span><span id="local-6989586621679300103"><span class="annot"><span class="annottext">Variable
+</span><a href="#local-6989586621679300103"><span class="hs-identifier hs-var">dst</span></a></span></span><span> </span><span id="local-6989586621679300102"><span class="annot"><span class="annottext">[Variable]
+</span><a href="#local-6989586621679300102"><span class="hs-identifier hs-var">srcs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-19"></span><span>    </span><span class="annot"><span class="annottext">Variable -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Variable
-</span><a href="#local-6989586621679298750"><span class="hs-identifier hs-var">dst</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679300103"><span class="hs-identifier hs-var">dst</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot; = &#934;(&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
@@ -93,7 +93,7 @@ forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(Variable -&gt; String) -&gt; [Variable] -&gt; [String]
 forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
 </span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Variable]
-</span><a href="#local-6989586621679298749"><span class="hs-identifier hs-var">srcs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679300102"><span class="hs-identifier hs-var">srcs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;)&quot;</span></span></pre></body></html>

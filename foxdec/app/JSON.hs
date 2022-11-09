@@ -119,11 +119,11 @@ ctxt_generate_json ctxt pp = do
 
 
   let instrs     = S.toList $ ctxt_get_instructions ctxt
-  let addresses = [] -- S.toList $ ctxt_get_instruction_addresses ctxt
+  let addresses =  S.toList $ ctxt_get_instruction_addresses ctxt
   control_flow  <- mapM (ctxt_get_controlflow ctxt) addresses
-  let boundaries = [] --map  (ctxt_mk_function_boundary ctxt) $ S.toList entries
-  let summaries  = [] --map  (ctxt_get_function_summary ctxt) $ S.toList entries
-  let invs       = [] -- map  (ctxt_get_inv              ctxt) $ addresses
+  let boundaries = map  (ctxt_mk_function_boundary ctxt) $ S.toList entries
+  let summaries  = map  (ctxt_get_function_summary ctxt) $ S.toList entries
+  let invs       = map  (ctxt_get_inv              ctxt) $ addresses
   let mem_ops    = ctxt_resolve_mem_operands ctxt
 
   if pp then do
@@ -147,13 +147,11 @@ ctxt_generate_json ctxt pp = do
     putStrLn $ "------------------"
     putStrLn $ pp_summaries summaries
     putStrLn $ "\n\n\n"
-{--
     putStrLn $ "----------"
     putStrLn $ "INVARIANTS"
     putStrLn $ "----------"
     putStrLn $ pp_invs invs
     putStrLn $ "\n\n\n"
---}
     putStrLn $ "---------------"
     putStrLn $ "POINTER DOMAINS"
     putStrLn $ "---------------"
@@ -344,7 +342,6 @@ mk_consecutive_chunks = split_consecutives . sort
 
 
 -- | Given an address @a@, retrieve all invariants (the address may occur in multiple functions).
--- Produce the supremum of all found invariants.
 ctxt_get_inv :: C.Context -> Word64 -> (Word64,Maybe [(Word64,Pred)])
 ctxt_get_inv ctxt a = do
   let entries = ctxt_get_function_entries ctxt
