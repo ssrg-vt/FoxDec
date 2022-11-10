@@ -66,15 +66,25 @@ These are instructions for a quickstart on ELF files. For more information, see 
   <img style="border: 3px solid #555;" src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
 </p>
 
-1. Run FoxDec on the binary to generate a `.report` file.
-2. Use the `.report` file to generate JSON output, or to export to Isabelle/HOL.
+1. Extract information from the binary using the `get_elf_entry.sh` script
+2. Run FoxDec on the binary to generate a `.report` file.
+3. Use the `.report` file to generate JSON output, or to export to Isabelle/HOL.
 
-<span style="font-size: 150%">1. Run FoxDec on the binary<a name="usage1"></a></span>
+<span style="font-size: 150%">1. Extract information from the binary<a name="usage1"></a></span>
 
 For ELF files, the binary can be read by FoxDec directly. Copy-paste the executable to a new directory in the `examples` subdir.
 
 	mkdir examples/du
 	cp /usr/bin/du examples/du/
+
+Go to the directory and run a script to obtain some information, specifically the entry point of the binary.
+
+	cd examples/du
+	./get_elf_entry.sh du du
+	cd ../..
+
+<span style="font-size: 150%">2. Run FoxDec on the binary<a name="usage2"></a></span>
+
 
 Then, run FoxDec as follows:
 
@@ -93,7 +103,7 @@ The following files are generated:
 - **`ENTRY/NAME.dot`**: For each function entry `ENTRY` a control flow graph (CFG).
 
 
-<span style="font-size: 150%">2. Use the `.report` file to generate JSON output<a name="usage1"></a></span>
+<span style="font-size: 150%">3. Use the `.report` file to generate JSON output<a name="usage3"></a></span>
 
 From the same directory as where `foxdec-exe` was ran, run:
 

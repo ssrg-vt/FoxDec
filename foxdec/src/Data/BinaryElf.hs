@@ -131,7 +131,7 @@ elf_get_relocs elf = map mk_reloc $ filter is_reloc $ concatMap elfRelSectReloca
 -- E.g.:
 --    0xd0a8 --> stdout
 -- Means that "mov rdi,QWORD PTR [0xd0a8]" can be seen as "mov rdi, QWORD PTR [stdout]"
-elf_get_symbol_table elf = IM.fromList $ plt_relocations  ++ external_variables
+elf_get_symbol_table elf = IM.filter ((/=) "") $ IM.fromList $ plt_relocations  ++ external_variables
  where
   -- go through all section that contain relocations
   plt_relocations = concatMap mk_symbol_from_reloc_section $ parseRelocations elf
@@ -156,7 +156,7 @@ elf_get_symbol_table elf = IM.fromList $ plt_relocations  ++ external_variables
 isHiddenSymEntry sym_entry = steOther sym_entry .&. 0x3 == 0x2
 
 -- retrieve a mapping of addresses to symbols (internal)
-elf_get_symbol_table_internal elf = IM.fromList $ internal_symbols 
+elf_get_symbol_table_internal elf = IM.filter ((/=) "") $ IM.fromList $ internal_symbols 
  where
   -- this is how to find internal symbols:
   -- go through all symbol tables
@@ -170,8 +170,7 @@ elf_get_symbol_table_internal elf = IM.fromList $ internal_symbols
 
 -- get the name from a symbol table entry
 get_string_from_steName (_, Just name) = T.unpack $ T.decodeUtf8 name
-
-
+get_string_from_steName _ = ""
 
 elf_min_address elf = minimum $ map elfSectionAddr $ filter isRelevantElfSection $ elfSections elf
 
