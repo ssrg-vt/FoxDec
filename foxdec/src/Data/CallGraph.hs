@@ -6,29 +6,38 @@
 
 module Data.CallGraph where
 
-import Analysis.Context
-import Data.Binary
 import Base
-import Data.ControlFlow
-import Data.MachineState
-import Data.Pointers
-import Data.SimplePred
+
+import Analysis.Context
+import Analysis.ControlFlow
+import Analysis.FunctionNames
+import Analysis.Pointers
+
+import Generic.SymbolicConstituents 
+
+import Data.SymbolicExpression
+
+import X86.Opcode (isCall)
+import X86.Instruction (addressof)
+import qualified Generic.Instruction as Instr
+
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
+import qualified Data.Set.NonEmpty as NES
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
-import X86.Opcode (isCall)
-import qualified Generic.Instruction as Instr
-import Typeclasses.HasAddress (addressof)
 
-pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
-pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
+
+
+
+pp_bot (Bottom (FromSources srcs))    = if NES.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ neSetToList srcs)
+pp_bot (Bottom (FromPointerBases bs)) = if NES.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ neSetToList bs)
 pp_bot e                              = pp_expr e
 
 pp_base (StackPointer f)        = "StackPointer of " ++ f
@@ -47,8 +56,8 @@ pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]"
 pp_statepart (SP_StackPointer f) = "StackPointer of " ++ f
 pp_statepart (SP_Reg r)          = show r
 
-pp_dom (Domain_Bases bs)     = intercalate "," (map pp_base $ S.toList bs)
-pp_dom (Domain_Sources srcs) = intercalate "," (map pp_source $ S.toList srcs)
+pp_dom (Domain_Bases bs)     = intercalate "," (map pp_base $ neSetToList bs)
+pp_dom (Domain_Sources srcs) = intercalate "," (map pp_source $ neSetToList srcs)
 
 -- | Summarize preconditions
 summarize_preconditions get_info show_e vcs =
@@ -62,9 +71,8 @@ summarize_preconditions get_info show_e vcs =
   get_pointer_pair (Precondition a0 _ a1 _) = (get_info a0, get_info a1)
   show_group (a,as) = show_e a ++ " SEP " ++ (intercalate "," $ nub $ map show_e as)
 
-summarize_preconditions_short ctxt = summarize_preconditions (join_single ctxt) pp_bot
+-- summarize_preconditions_short ctxt = summarize_preconditions (join_single ctxt) pp_bot
 summarize_preconditions_long  ctxt = summarize_preconditions id show
-
 
 
 
@@ -82,11 +90,12 @@ summarize_assertions get_info show_e vcs =
   show_instr_group (rip,groups) = "@" ++ show_e rip ++ ": " ++ intercalate" && " (map show_group groups)
   show_group (a,as) = show_e a ++ " SEP " ++ (intercalate "," $ nub $ map show_e as)
 
-summarize_assertions_short ctxt = summarize_assertions (join_single ctxt) pp_bot
+--summarize_assertions_short ctxt = summarize_assertions (join_single ctxt) pp_bot
 summarize_assertions_long  ctxt = summarize_assertions id show
 
 
 -- | Summarize function constraints
+summarize_function_constraints_short :: FContext -> S.Set VerificationCondition -> String 
 summarize_function_constraints_short ctxt vcs =
   let fcs = S.filter is_func_constraint vcs in
     if S.null fcs then
@@ -97,7 +106,7 @@ summarize_function_constraints_short ctxt vcs =
   summarize_fcs (FunctionConstraint f i_a params sps) = "@" ++ showHex i_a ++ ": " ++ f ++ parens (intercalate "," $ map show_param params) ++ " PRESERVES " ++ show_sps sps
 
   show_param (r,e) = show r ++ show_param_eq_sign e ++ strip_parentheses (show_param_value e)
-  show_param_value e = if not (contains_bot e) then pp_bot e else pp_bot $ join_single ctxt e
+  show_param_value e = pp_bot e
   show_param_eq_sign e = if contains_bot e then "~=" else ":="
 
   show_sps sps =
@@ -105,7 +114,7 @@ summarize_function_constraints_short ctxt vcs =
         showed_stack_frame  = show_stack_frame stackframe in
       intercalate "," $ filter ((/=) []) $ showed_stack_frame : map pp_statepart others
 
-  is_stack_frame (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate _]) _) = True
+  is_stack_frame (SP_Mem (SE_Op Minus _ [SE_Var (SP_StackPointer _), SE_Immediate _]) _) = True
   is_stack_frame (SP_Mem (SE_Var (SP_StackPointer _)) _)                                   = True
   is_stack_frame sp                                                                        = False
 
@@ -117,10 +126,10 @@ summarize_function_constraints_short ctxt vcs =
              top    = maximum $ map get_top sps in
       "[ RSP_0 - " ++ show offset ++ " TO RSP_0" ++ (if top == 0 then "" else " + " ++ show top) ++ " ]"
 
-  get_offset (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate offset]) _) = offset
+  get_offset (SP_Mem (SE_Op Minus _ [SE_Var (SP_StackPointer _), SE_Immediate offset]) _) = offset
   get_offset (SP_Mem (SE_Var (SP_StackPointer _)) _)                                        = 0
 
-  get_top (SP_Mem (SE_Op (Minus _) [SE_Var (SP_StackPointer _), SE_Immediate offset]) si) = si - fromIntegral offset
+  get_top (SP_Mem (SE_Op Minus _ [SE_Var (SP_StackPointer _), SE_Immediate offset]) si) = si - fromIntegral offset
   get_top (SP_Mem (SE_Var (SP_StackPointer _)) si)                                        = si
 
 summarize_function_constraints_long :: Context -> S.Set VerificationCondition -> String
@@ -130,25 +139,6 @@ summarize_function_constraints_long ctxt vcs =
       ""
     else
       "FUNCTION CONSTRAINTS:\n" ++ (intercalate "\n" $ map show $ S.toList fcs) ++ "\n"
-
-
--- | Summarize sourceless memwrites
-summarize_sourceless_memwrites_short ctxt vcs =
-  let mws = S.filter is_sourceless_memwrite vcs in
-    if S.null mws then
-      ""
-    else
-      "SOURCELESS MEM WRITES:\n" ++ intercalate "\n" (map (intercalate ",") $ chunksOf 5 $ sort $ nub $ map get_location $ S.toList mws) ++ "\n"
- where
-   get_location (SourcelessMemWrite (MemWriteFunction f a sp))       = f ++ "@" ++ showHex a
-   get_location (SourcelessMemWrite (MemWriteInstruction a addr a')) = "@" ++ showHex a
-
-summarize_sourceless_memwrites_long ctxt vcs =
-  let mws = S.filter is_sourceless_memwrite vcs in
-    if S.null mws then
-      ""
-    else
-      "SOURCELESS MEM WRITES:\n" ++ (intercalate "\n" $ map show $ S.toList mws) ++ "\n"
 
 
 
@@ -163,8 +153,8 @@ summarize_function_pointers ctxt vcs =
 summarize_finit Nothing      = ""
 summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
  where
-  show_finit_entry (sp,bot@(Bottom _)) = pp_statepart sp ++ " ~= " ++ pp_bot bot
-  show_finit_entry (sp,v)              = pp_statepart sp ++ " = " ++ pp_expr v
+  -- show_finit_entry (sp,bot@(Bottom _)) = pp_statepart sp ++ " ~= " ++ pp_bot bot TODO
+  show_finit_entry (sp,v)              = show sp ++ " = " ++ show v
 
 
 
@@ -179,7 +169,6 @@ summarize_verification_conditions ctxt entry =
                    -- ++ summarize_preconditions_short fctxt vcs
                    -- ++ summarize_assertions_short ctxt vcs
                    ++ summarize_function_constraints_short fctxt vcs
-                   ++ summarize_sourceless_memwrites_short ctxt vcs
                    -- ++ summarize_function_pointer_intros ctxt vcs
                    in
     butlast summary

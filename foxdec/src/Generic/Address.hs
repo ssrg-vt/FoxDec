@@ -15,11 +15,11 @@ instance Cereal.Serialize AddressWord64
 
 -- | An unresolved address, within the operand of an instruction, based on polymorphic type `storage`.
 data GenericAddress storage =
-    AddressStorage storage                                          -- ^ Reading a pointer from a storage
-  | AddressImm Word64                                               -- ^ Immediate value 
-  | AddressMinus (GenericAddress storage) (GenericAddress storage)  -- ^ Minus
+    AddressStorage storage                                         -- ^ Reading a pointer from a storage
+  | AddressImm Word64                                              -- ^ Immediate value 
+  | AddressMinus (GenericAddress storage) (GenericAddress storage) -- ^ Minus
   | AddressPlus (GenericAddress storage) (GenericAddress storage)  -- ^ Plus
-  | AddressTimes (GenericAddress storage) (GenericAddress storage)  -- ^ Times
+  | AddressTimes (GenericAddress storage) (GenericAddress storage) -- ^ Times
   deriving (Eq, Ord, Generic)
 
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericAddress storage)

@@ -1,9 +1,14 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, DeriveGeneric, StandaloneDeriving #-}
 
-module Data.BinaryMacho (macho_read_file) where
+module Instantiation.BinaryMacho (macho_read_file) where
 
 import Base
-import Data.Binary
+
+import Generic.Binary
+
+import Parser.ParserDump
+import Parser.ParserSymbols
+import Parser.ParserSections
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -15,16 +20,11 @@ import Data.Bits
 import Data.Maybe (fromJust)
 import Data.List.Extra (firstJust)
 import qualified Data.ByteString as BS
-
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
-
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 
-import Parser.ParserDump
-import Parser.ParserSymbols
-import Parser.ParserSections
 
 
 data Macho = Macho {
@@ -58,6 +58,13 @@ macho_get_relocs _ = []
 macho_pp _ = ""
 
 
+macho_text_section_size = sum . map size_of_section . filter is_text_section . si_sections . macho_sections
+ where
+  is_text_section (seg,sec,_,_) = (seg,sec) `elem` [("__TEXT","__text")]
+  size_of_section (_,_,_,si) = fromIntegral $ si
+
+
+
 
 instance BinaryClass Macho
   where
@@ -68,6 +75,7 @@ instance BinaryClass Macho
     binary_get_symbols = macho_symbols
     binary_pp = macho_pp
     binary_entry = head . macho_entry
+    binary_text_section_size = macho_text_section_size
 
 
 macho_read_file dirname name = do

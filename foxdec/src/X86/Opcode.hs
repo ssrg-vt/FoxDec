@@ -106,6 +106,8 @@ data Opcode =
   | DAS
   | DEC
   | DIV
+  | DIV_LO
+  | DIV_HI
   | DIVPD
   | DIVPS
   | DIVSD
@@ -205,7 +207,11 @@ data Opcode =
   | HSUBPD
   | HSUBPS
   | IDIV
+  | IDIV_LO
+  | IDIV_HI
   | IMUL
+  | IMUL_LO
+  | IMUL_HI
   | BSWAP
   | IN
   | INC
@@ -330,6 +336,8 @@ data Opcode =
   | MOVZXB
   | MOVZXW
   | MUL
+  | MUL_LO
+  | MUL_HI
   | MULPD
   | MULPS
   | MULSD
@@ -641,7 +649,10 @@ isCondJump m = m
          , JPO
          , JCXZ
          , JECXZ
-         , JRCXZ]
+         , JRCXZ
+         , LOOP
+         , LOOPE
+         , LOOPNE ]
 
 -- | Returns true iff m is the mnemonic of a halting instruction
 isHalt :: Opcode -> Bool

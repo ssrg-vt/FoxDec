@@ -36,27 +36,29 @@ One can double check whether this entry address corresponds to this symbol by ex
 -}
 module Pkcs11 where
 
-import System.Console.ArgParser
 
 
 import Base
-import Analysis.Context
 import Config
+
+import Analysis.Context
+import Analysis.ControlFlow
+
+import Data.SymbolicExpression
+
 import Parser.ParserDump
 import Parser.ParserSymbols
 import Parser.ParserSections
 import Parser.ParserIndirections
 import Parser.ParserCalls 
-import Pass.CFG_Gen
-import Analysis.SymbolicExecution
-import Data.SimplePred
-import Data.MachineState
-import Pass.ACode_Gen
-import Analysis.Propagation
+
+import Generic.SymbolicConstituents
+import Instantiation.SymbolicPropagation
+
+-- import Pass.ACode_Gen
+import Generic.Propagation
 import Data.CallGraph
 import X86.Conventions
-import Data.ControlFlow
-import Data.Pointers
 import X86.Register (Register(..))
 import Generic.Address (AddressWord64(AddressWord64))
 
@@ -78,6 +80,7 @@ import System.Process (callCommand)
 import System.Timeout (timeout)
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import Data.Functor.Identity
+import System.Console.ArgParser
 
 
 
@@ -92,15 +95,15 @@ run_with_ctxt entry = do
   -- generate CFG for entry
   (new_calls,g) <- liftIO $ cfg_gen ctxt entry
   -- generate invariants for the entry function
-  let p          = init_pred fctxt IM.empty S.empty S.empty
+  let p          = init_pred fctxt "main" IM.empty S.empty S.empty
   let (invs,vcs) = do_prop fctxt g 0 p
 
   case IM.toList invs of
     [(0,p)] -> do
       -- retrieve the postcondition
-      let (Predicate q_eqs _ ) = fst $ tau_block fctxt (fetch_block g 0) Nothing p
+      let s = fst $ sexec_block fctxt (fetch_block g 0) Nothing p
       -- lookup region [RDI0,8]
-      case M.lookup (SP_Mem (SE_Var $ SP_Reg RDI) 8) q_eqs of
+      case stry_deterministic fctxt $ evalSstate (sread_mem fctxt (mk_svalue fctxt (SE_Var $ SP_Reg RDI)) (simmediate fctxt 8)) s of
         Just (SE_Immediate a) -> read_pointer_table ctxt a
         _                     -> error $ "Failed to read _C_GetFunctionList function from binary."
     _ -> error $ "Failed to read _C_GetFunctionList function from binary."

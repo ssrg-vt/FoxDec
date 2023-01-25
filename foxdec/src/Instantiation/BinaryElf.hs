@@ -1,9 +1,11 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, DeriveGeneric, StandaloneDeriving #-}
 
-module Data.BinaryElf (elf_read_file) where
+module Instantiation.BinaryElf (elf_read_file) where
 
 import Base
-import Data.Binary
+
+import Generic.Binary
+
 import Data.Elf
 
 import qualified Data.Map as M
@@ -16,10 +18,8 @@ import Data.Bits
 import Data.Maybe (fromJust)
 import Data.List.Extra (firstJust)
 import qualified Data.ByteString as BS
-
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
-
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 
@@ -73,6 +73,13 @@ sections_data = [
 sections_bss = [
    ("",".bss")
  ]
+
+
+sections_text = [
+   ("",".text")
+ ]
+
+
 
 isRelevantElfSection section = ("",elfSectionName section) `elem` sections_ro_data ++ sections_data ++ sections_bss
 
@@ -204,6 +211,12 @@ elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevan
  where
   mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section)
 
+
+
+elf_text_section_size = sum . map (fromIntegral . elfSectionSize) . filter isTextSection . elfSections
+ where
+  isTextSection sec = ("",elfSectionName sec) `elem` sections_text
+
 instance BinaryClass Elf 
   where
     binary_read_ro_data = elf_read_ro_data
@@ -213,4 +226,5 @@ instance BinaryClass Elf
     binary_get_symbols = elf_get_symbol_table
     binary_pp = pp_elf
     binary_entry = elfEntry
+    binary_text_section_size = elf_text_section_size
 

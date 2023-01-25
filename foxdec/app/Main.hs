@@ -7,33 +7,32 @@ import System.Console.ArgParser
 
 
 import Base
-import Analysis.Context
 import Config
-import Data.Binary
-import Parser.ParserDump
-import Parser.ParserSymbols
-import Parser.ParserSections
-import Parser.ParserIndirections
-import Parser.ParserCalls 
-import Parser.ParserRelocs 
-import Pass.CFG_Gen
-import Analysis.SymbolicExecution
-import Data.SimplePred
-import Data.MachineState
-import Pass.ACode_Gen
-import Analysis.Propagation
+
+import Analysis.Context
+import Analysis.FunctionNames
+import Analysis.ControlFlow
+
+import Generic.Binary
+import Generic.Propagation
+import Generic.SymbolicConstituents
+import Instantiation.SymbolicPropagation
+
+import Data.JumpTarget
+import Data.SymbolicExpression
 import Data.CallGraph
+
+import Parser.ParserIndirections
+
+-- import Pass.ACode_Gen
+
+
 import X86.Conventions
-import Data.ControlFlow
-import Data.Pointers
 import X86.Register (Register(..))
-import X86.Opcode (Opcode(..), isCall)
-import qualified X86.Instruction as X86
+import X86.Opcode
+import X86.Instruction
 import qualified Generic.Instruction as Instr
 import Generic.Operand (GenericOperand(..))
-import Generic.Address (AddressWord64(AddressWord64))
-import Typeclasses.HasAddress (addressof)
-import Pass.DisassembleCapstone
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
@@ -67,10 +66,7 @@ to_log log s = liftIO $ appendFile log $ s ++ "\n"
 -- the main algorithm
 run_with_ctxt :: StateT Context IO ()
 run_with_ctxt = do
-  -- 1.) read instructions, data, symbols, section info, the entry point(s), and the currently known indirections
-  -- ctxt_read_dump
-  -- ctxt_read_syms
-  --ctxt_read_sections
+  -- 1.) read entry points, clear .indirections file
   ctxt_read_and_set_entries
   ctxt_init_indirections
 
@@ -129,7 +125,7 @@ run_with_ctxt = do
       _ -> do
         to_out $ "\n\nEntry " ++ showHex a
         -- 2.2.3) Entry is new, generate a CFG
-        curr_g                            <- gets (IM.lookup a . ctxt_cfgs)
+        curr_g <- gets (IM.lookup a . ctxt_cfgs)
         (curr_finit,curr_invs,curr_posts,curr_sps) <- ctxt_get_curr_posts a
 
 
@@ -137,15 +133,11 @@ run_with_ctxt = do
         ctxt_generate_cfg a
         ctxt_generate_invs a curr_invs curr_posts curr_sps
 
-        g                  <- gets (IM.lookup a . ctxt_cfgs)
+        g <- gets (IM.lookup a . ctxt_cfgs)
         (finit,invs,posts,sps) <- ctxt_get_curr_posts a
-        let do_repeat = curr_g /= g || curr_sps /= sps
-
-        fctxt  <- ctxt_mk_fcontext a
+        let do_repeat = curr_g /= g || curr_sps /= sps -- TODO why sps, not posts?
 
         new_calls <- ctxt_get_new_calls a
-
-
         if new_calls == [] then do
           to_out $ "Entry " ++ showHex a ++ ": no new entries."
           ctxt_after_invgen a do_repeat 
@@ -169,7 +161,7 @@ run_with_ctxt = do
     else do
       -- if no new jumps where resolved, this function is done: store entry address as an analyzed call and pop the entry-stack
       to_out $ "Entry " ++ showHex entry ++ ": Terminating as no new indirections are resolved."
-      verified     <- ctxt_verify_proper_return entry
+      verified <- ctxt_verify_proper_return entry
       to_out $ "Entry " ++ showHex entry ++ ": Verified == " ++ show verified
 
       ctxt_add_call entry verified
@@ -182,7 +174,7 @@ run_with_ctxt = do
 
 ctxt_find_dangling_function_pointers :: StateT Context IO [(Int,Int)]
 ctxt_find_dangling_function_pointers = do
-  ctxt    <- get
+  ctxt <- get
   let ptrs = concatMap mk_function_pointer (S.toList $ S.unions $ ctxt_vcs ctxt)
   filterM is_dangling ptrs
  where
@@ -299,7 +291,7 @@ ctxt_add_entry_edge a (trgt,finit) = do
   modify $ set_ctxt_posts   (IM.delete trgt $ ctxt_posts ctxt)
 
 
-ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Pred),S.Set StatePart)
+ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Predicate),S.Set SStatePart)
 ctxt_get_curr_posts entry = do
   finits <- gets ctxt_finits
   invs   <- gets ctxt_invs
@@ -334,44 +326,45 @@ ctxt_verify_proper_return entry = do
  where
   -- is the postcondition "correct"? 
   -- A succesfull check returns Nothing, a verification error produces a "Just err" with an error-message
-  correct :: FContext -> (NodeInfo,Pred) -> StateT Context IO [Maybe String]
+  correct :: FContext -> (NodeInfo,Predicate) -> StateT Context IO [Maybe String]
   correct fctxt (_,q) = do
     return $ runIdentity $ evalStateT (do_post_check fctxt) (q,S.empty) 
 
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_post_check :: FContext -> State (Pred,VCS) [Maybe String]
+  do_post_check :: FContext -> State (Predicate,VCS) [Maybe String]
   do_post_check fctxt = do
-    let f   = f_name fctxt
-    rsp    <- simp <$> read_reg fctxt RSP
-    rip    <- simp <$> read_reg fctxt RIP
+    let f   = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
+    rsp    <- sread_reg fctxt RSP
+    rip    <- sread_reg fctxt RIP
     checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
-    return $ [rsp_check f rsp, rip_check f rip] ++ checks
+    (s,_)  <- get
+    return $ [rsp_check fctxt f rsp, rip_check fctxt s f rip] ++ checks
 
   -- check: are all caller-saved-registers restored to their initial values?
-  reg_check reg v =
-    case v of
+  reg_check fctxt reg v =
+    case stry_deterministic fctxt v of
       -- REG == REG_0
-      SE_Var (SP_Reg reg) -> Nothing
+      Just (SE_Var (SP_Reg reg)) -> Nothing
       _ -> Just $ "Verification error: " ++ show reg ++ " == " ++ show v
 
   -- check: is RSP restored to RSP_0 + 8 ?
-  rsp_check f rsp = 
-    case rsp of
+  rsp_check fctxt  f rsp = 
+    case stry_deterministic fctxt rsp of
       -- RSP == RSP_0 + 8
-      SE_Op (Plus _)  [SE_Var (SP_StackPointer f'), SE_Immediate 0x8] -> if f == f' then Nothing else v_error rsp
+      Just (SE_Op Plus _ [SE_Var (SP_StackPointer f'), SE_Immediate 0x8]) -> if f == f' then Nothing else v_error rsp
       -- RSP == RSP_0 - 0xfffffffffffffff8
-      SE_Op (Minus _) [SE_Var (SP_StackPointer f'), SE_Immediate 0xfffffffffffffff8] -> if f == f' then Nothing else v_error rsp
+      Just (SE_Op Minus _ [SE_Var (SP_StackPointer f'), SE_Immediate 0xfffffffffffffff8]) -> if f == f' then Nothing else v_error rsp
       _ -> v_error rsp
   v_error rsp = Just $ "Verification error: RSP == " ++ show rsp
 
   -- check: is RIP set to the value originally stored at the top of the stack frame?
-  rip_check f rip = 
-    case rip of
+  rip_check fctxt  s f rip = 
+    case stry_deterministic fctxt rip of
       -- RIP == *[RSP_0,8]
-      SE_Var (SP_Mem (SE_Var (SP_StackPointer f)) 8) -> Nothing
-      e -> Just $ "Verification error: RIP == " ++ show rip ++ "\n"
+      Just (SE_Var (SP_Mem (SE_Var (SP_StackPointer f)) 8)) -> Nothing
+      e -> Just $ "Verification error: RIP == " ++ show rip ++ "\nState: " ++ show s 
 
 
 
@@ -395,9 +388,8 @@ ctxt_add_to_results entry verified = do
   to_log log $ "Verification result:        " ++ show_verification_result verified
   to_log log $ "#instructions:              " ++ show (num_of_instructions g)
   to_log log $ "#assertions:                " ++ show (count_instructions_with_assertions vcs)
-  to_log log $ "#unresolved indirections:   " ++ show (num_of_unres_inds_in_cfg ctxt g)
-  to_log log $ "#sourceless memwrites:      " ++ show (count_sourceless_memwrites vcs)
-  to_log log $ "#memwrites (approximation): " ++ show (count_all_mem_writes g)
+  to_log log $ "#unresolved indirect jumps: " ++ show (num_of_unres_inds_in_cfg ctxt isJump g)
+  to_log log $ "#unresolved indirect calls: " ++ show (num_of_unres_inds_in_cfg ctxt isCall g)
   to_log log $ "#blocks:                    " ++ show (num_of_blocks       g)
   to_log log $ "#edges:                     " ++ show (num_of_edges        g)
   to_log log $ ""
@@ -410,15 +402,13 @@ ctxt_add_to_results entry verified = do
   --to_log log $ summarize_preconditions_long ctxt vcs -- TODO make configurable
   --to_log log $ summarize_assertions_long ctxt vcs
   to_log log $ summarize_function_constraints_long ctxt vcs
-  to_log log $ summarize_sourceless_memwrites_long ctxt vcs
   to_log log $ summarize_function_pointers ctxt vcs
 
 
   when (ctxt_verbose_logs ctxt) $ do
-    to_log log $ "Generated invariants:"
     to_log log $ show_invariants g invs
  where
-  show_return_behavior (ReturningWith p)  = "returning with\n" ++ pp_pred p ++ "\n\n"
+  show_return_behavior (ReturningWith p)  = "returning with\n" ++ show p ++ "\n\n"
   show_return_behavior Terminating        = "terminating"
   show_return_behavior UnknownRetBehavior = "unknown"
 
@@ -428,26 +418,17 @@ ctxt_add_to_results entry verified = do
   show_verification_result VerificationUnresolvedIndirection = "Unresolved indirections"
   show_verification_result Unverified                        = "UNVERIFIED"
 
-num_of_unres_inds_in_cfg ctxt g = 
+num_of_unres_inds_in_cfg ctxt chkKind g = 
   let blocks  = IM.keys $ cfg_blocks g in
-    length (filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) blocks)
-
-
-
--- TODO we can use the information in src/Data/X86 for this
-count_all_mem_writes g = 
-  let instrs = S.fromList $ concat $ IM.elems $ cfg_instrs g
-      writes = S.filter is_mem_write instrs in
-    S.size writes
+    length (filter (\b -> node_info_of ctxt g b == UnresolvedIndirection && ends_in_kind b) blocks)
  where
-  is_mem_write i = (is_mem_operand $ instr_op1 i) || Instr.opcode i `elem` [PUSH,POP,CALL,RET]
+  ends_in_kind b = chkKind $ Instr.opcode $ last (fetch_block g b)
 
-  instr_op1 i = case Instr.srcs i of
-                  []      -> Nothing
-                  (op1:_) -> Just op1
 
-  is_mem_operand (Just (Memory _ _)) = True
-  is_mem_operand _                   = False
+
+
+
+
 
 
 -- Generate the call graph
@@ -499,9 +480,8 @@ ctxt_generate_end_report = do
     to_log log $ "    of which verif_error              " ++ show (num_of_verif_error                           $ ctxt_results ctxt)
     to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions                $ ctxt_cfgs ctxt)
     to_log log $ "#assertions:                          " ++ show (sum_total count_instructions_with_assertions $ ctxt_vcs  ctxt)
-    to_log log $ "#unresolved indirections:             " ++ show (num_of_unres_inds ctxt                       $ ctxt_cfgs ctxt)
-    to_log log $ "#sourceless memwrites:                " ++ show (sum_total count_sourceless_memwrites         $ ctxt_vcs  ctxt)
-    to_log log $ "#memwrites (approximation):           " ++ show (sum_total count_all_mem_writes               $ ctxt_cfgs  ctxt)
+    to_log log $ "#unresolved indirect jumps:           " ++ show (num_of_unres_inds ctxt isJump                $ ctxt_cfgs ctxt)
+    to_log log $ "#unresolved indirect calls:           " ++ show (num_of_unres_inds ctxt isCall                $ ctxt_cfgs ctxt)
     to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
     to_log log $ "#edges:                               " ++ show (sum_total num_of_edges                       $ ctxt_cfgs ctxt)
     to_log log $ "#resolved indirection jumps:          " ++ show (num_of_resolved_indirection_jumps ctxt)
@@ -523,9 +503,8 @@ ctxt_generate_end_report = do
     to_log log $ "Verification result:        " ++ show result
     to_log log $ "#instructions:              " ++ show (num_of_instructions g)
     to_log log $ "#assertions:                " ++ show (count_instructions_with_assertions vcs)
-    to_log log $ "unresolved indirections:    " ++ show (num_of_unres_inds_in_cfg ctxt g)
-    to_log log $ "#sourceless memwrites:      " ++ show (count_sourceless_memwrites vcs)
-    to_log log $ "#memwrites (approximation): " ++ show (count_all_mem_writes g)
+    to_log log $ "unresolved indirect jumps:  " ++ show (num_of_unres_inds_in_cfg ctxt isJump g)
+    to_log log $ "unresolved indirect calls:  " ++ show (num_of_unres_inds_in_cfg ctxt isCall g)
     to_log log $ "#blocks:                    " ++ show (num_of_blocks       g)
     to_log log $ "#edges:                     " ++ show (num_of_edges        g)
     to_log log $ "return behavior:            " ++ show_return_behavior ret
@@ -539,7 +518,7 @@ ctxt_generate_end_report = do
   num_of_verified        = IM.size . IM.filter ((==) VerificationSuccess)
   num_of_verifiedw       = IM.size . IM.filter ((==) VerificationSuccesWithAssumptions)
   num_of_verif_error     = IM.size . IM.filter isVerificationError
-  num_of_unres_inds ctxt cfgs = sum (map (num_of_unres_inds_in_cfg ctxt) $ IM.elems cfgs)
+  num_of_unres_inds ctxt chkKind cfgs = sum (map (num_of_unres_inds_in_cfg ctxt chkKind) $ IM.elems cfgs)
 
 
 
@@ -572,77 +551,6 @@ num_of_edges                  g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
 
--- Read symbol table from file producing symbols :: IM.IntMap String
--- Per address a symbol name
-ctxt_read_syms :: StateT Context IO ()
-ctxt_read_syms = do
-  ctxt <- get
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  let syms_fname  = dirname ++ name ++ ".symbols" 
-
-  symbols <- liftIO $ parse syms_fname
-  modify $ set_ctxt_syms symbols
- where
-  parse sfilename = do
-    ret0 <- parse_symbols $! sfilename
-    case ret0 of
-      Left err -> error $ show err
-      Right syms -> return syms
-
--- Read section info from file producing sections :: IM.IntMap Int
--- Per address a symbol name
-ctxt_read_sections :: StateT Context IO ()
-ctxt_read_sections = do
-  ctxt <- get
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  let sects_fname = dirname ++ name ++ ".sections" 
-
-  sections <- liftIO $ parse sects_fname
-  modify $ set_ctxt_sections sections
- where
-  parse sfilename = do
-    ret0 <- parse_sections $! sfilename
-    case ret0 of
-      Left err -> error $ show err
-      Right sections -> return sections
-
-
-
--- Read dump from file producing dump :: IM.IntMap Word8
--- Per address a byte
-ctxt_read_dump :: StateT Context IO ()
-ctxt_read_dump = do
-  ctxt <- get
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  --let fname       = dirname ++ name ++ ".dump"
-  --let dname       = dirname ++ name ++ ".data"
-  let rname       = dirname ++ name ++ ".relocs"
-
-  --dump   <- liftIO $ parse fname
-  --dat    <- liftIO $ parse dname
-  relocs <- liftIO $ parse_relocs' rname
-
- -- modify $ set_ctxt_data dat
-  modify $ set_ctxt_relocs relocs
- where
-  parse fname = do
-    ret0 <- parse_dump $! fname
-    case ret0 of
-      Left err -> error $ show err
-      Right syms -> return syms
-
-  parse_relocs' fname = do
-    exists <- doesFileExist fname
-    if exists then do
-      ret0 <- parse_relocs $! fname
-      case ret0 of
-        Left err -> error $ show err
-        Right relocs -> return relocs
-    else
-      return []
 
 
 -- Read entry from file producing entries :: [Int]
@@ -730,7 +638,7 @@ ctxt_init_indirections = do
 
 
 -- TODO generate dot only once
-ctxt_generate_cfg :: Int -> StateT Context IO (S.Set (X86.Instruction,Int))
+ctxt_generate_cfg :: Int -> StateT Context IO (S.Set (Instruction,Int))
 ctxt_generate_cfg entry = do
   -- Generate a CFG, write dot file if no new calls discovered
   ctxt          <- get
@@ -779,22 +687,23 @@ ctxt_mk_fcontext entry = do
   ctxt        <- get
   return $ mk_fcontext ctxt entry
 
-ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Pred) -> S.Set StatePart -> StateT Context IO ()
+ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Predicate) -> S.Set SStatePart -> StateT Context IO ()
 ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
   -- Generate invariants
   ctxt  <- get
   let get_max_time         = ctxt_max_time ctxt
   let get_max_time_minutes = get_max_time `div` 60000000
 
-  fctxt  <- ctxt_mk_fcontext entry
+  fctxt    <- ctxt_mk_fcontext entry
   let finit = f_init fctxt
+  let f     = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
 
   
   when (not $ M.null finit) $ to_out $ "Function initialisation: " ++ show_finit finit
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
-  let p       = init_pred fctxt curr_invs curr_posts curr_sps
+  let p       = init_pred fctxt f curr_invs curr_posts curr_sps
 
   result  <- liftIO (timeout get_max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
 
@@ -809,7 +718,7 @@ ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
       let vcs'    = S.unions $ map snd postss 
       ctxt_add_invariants entry finit invs posts (S.union vcs vcs') (S.union curr_sps $ gather_stateparts invs posts)
  where
-  get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Pred),VCS))
+  get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Predicate),VCS))
   get_post fctxt g invs b = do
     let ctxt = f_ctxt fctxt
     if is_end_node g b then do
@@ -820,8 +729,8 @@ ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_tau :: FContext -> CFG -> Int -> State (Pred,VCS) ()
-  do_tau fctxt g b = modify $ (tau_block fctxt (fetch_block g b) Nothing . fst)
+  do_tau :: FContext -> CFG -> Int -> State (Predicate,VCS) ()
+  do_tau fctxt g b = modify $ (tau fctxt (fetch_block g b) Nothing . fst)
 
 
 
@@ -860,7 +769,6 @@ ctxt_add_call entry verified = do
 
 
 
-
 ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool
 ctxt_analyze_unresolved_indirections entry = do
   ctxt <- get
@@ -892,38 +800,20 @@ ctxt_analyze_unresolved_indirections entry = do
     let i                 = last (fetch_block g b)
     let [trgt]            = Instr.srcs i
     let p                 = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
-    let Predicate eqs flg = p
 
-    let values0 = evalState (try' fctxt f g b trgt) (p,S.empty)
 
-    if values0 /= Nothing && S.size (fromJust values0) == 1 then do -- TODO is this case needed oafter dealing with libc_start_main properly?
-      let value = fromJust values0
-      to_out $ "Resolved indirection at block " ++ show b
-      to_out $ "Instruction = " ++ show i
-      to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ show value
-      to_out $ "Updated file: " ++ fname
-      liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show [value] ++ "\n"
-
-      inds <- gets ctxt_inds
-      let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionResolved value) inds -- TODO check if already exists
-      modify $ set_ctxt_inds inds'
-
-      return True
-    else case flagstatus_to_tries max_tries flg of
-      Nothing      -> return False
+    case flagstatus_to_tries max_tries (sflags p) of
+      Nothing -> try_to_resolve_from_invariant fname f g b p i trgt
       Just (op1,n) -> do
-        let values1 = map (\n -> evalState (try fctxt f (addressof i) g b op1 trgt n) (p,S.empty)) [0..n]
-
-        if values1 == [] || any ((==) Nothing) values1 then do
-          -- error $ "UNRESOLVED INDIRECTION: " ++ show i ++ "Block:\n" ++ show (fetch_block g b) ++ " in\n" ++ show p
-          to_out $ "Unresolved block " ++ show b
-          return False
+        let values1 = map (\n -> evalSstate (try fctxt f (addressof i) g b op1 trgt n) p) [0..n]
+        if values1 == [] || any ((==) Nothing) values1 then
+          try_to_resolve_from_invariant fname f g b p i trgt
         else if all is_jump_table_entry values1 then do
           let trgts = map (fromIntegral . get_immediate . S.findMin . fromJust) values1
           to_out $ "Resolved indirection at block " ++ show b
           to_out $ "Instruction = " ++ show i
           to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
-          to_out $ "Because of bounded jump table access: " ++ show flg
+          to_out $ "Because of bounded jump table access: " ++ show (sflags p)
           to_out $ "Updated file: " ++ fname
           liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ showHex_list trgts ++ "\n"
 
@@ -934,6 +824,29 @@ ctxt_analyze_unresolved_indirections entry = do
           return True
         else
           error $ show ("resolving:",values1)
+
+
+  try_to_resolve_from_invariant fname f g b p i trgt = do
+    ctxt <- get
+    fctxt <- ctxt_mk_fcontext entry
+    let values0 = evalSstate (try' fctxt f g b trgt) p
+    if values0 /= Nothing && S.size (fromJust values0) == 1 then do
+      let value = fromJust values0
+      to_out $ "Resolved indirection at block " ++ show b
+      to_out $ "Instruction = " ++ show i
+      to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ show value
+      to_out $ "State:\n" ++ show p
+      to_out $ "Updated file: " ++ fname
+      liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show [value] ++ "\n"
+
+      inds <- gets ctxt_inds
+      let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionResolved value) inds -- TODO check if already exists
+      modify $ set_ctxt_inds inds'
+      return True
+    else do
+      to_out $ "Unresolved block " ++ show b
+      return False
+
 
   flagstatus_to_tries max_tries (FS_CMP (Just True) op1 (Immediate n)) = if n <= fromIntegral max_tries then Just (op1,n) else Nothing
   flagstatus_to_tries max_tries _ = Nothing
@@ -948,28 +861,14 @@ ctxt_analyze_unresolved_indirections entry = do
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
   try fctxt f i_a g blockId op1 trgt n = do
-    write_operand fctxt i_a op1 (SE_Immediate n)
+    swrite_operand fctxt False op1 (simmediate fctxt n)
     try' fctxt f g blockId trgt
 
   try' fctxt f g blockId trgt = do
     let ctxt = f_ctxt fctxt
-    modify $ (tau_block fctxt (init $ fetch_block g blockId) Nothing . fst)
-    val <- read_operand fctxt trgt
-    case val of
-      SE_Immediate a                     -> return $ Just $ S.singleton $ ImmediateAddress a
-      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer fctxt) es then Just $ S.map (mk_resolved_jump_target ctxt) es else Nothing
-      SE_Var (SP_Mem (SE_Immediate a) _) -> return $ if address_has_symbol ctxt a then Just $ S.singleton $ External $ ctxt_syms ctxt IM.! (fromIntegral a) else Nothing
-      e                                  -> return $ Nothing
-
-  mk_resolved_jump_target ctxt (SE_Immediate a)                     = ImmediateAddress a
-  mk_resolved_jump_target ctxt (SE_Var (SP_Mem (SE_Immediate a) _)) = if address_has_symbol ctxt a then External $ ctxt_syms ctxt IM.! (fromIntegral a) else error $ show ("indirections", showHex a) 
-  mk_resolved_jump_target ctxt a                                    = error $ show ("resolving", a)
-
-
-
-
-
-
+    modify $ (sexec_block fctxt (init $ fetch_block g blockId) Nothing . fst)
+    val <- sread_operand fctxt trgt
+    return $ stry_jump_targets fctxt val
 
 
 

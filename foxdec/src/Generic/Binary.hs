@@ -1,6 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, StandaloneDeriving, DeriveGeneric, ExistentialQuantification #-}
 
-module Data.Binary where
+module Generic.Binary where
 
 import Base
 
@@ -45,6 +45,7 @@ class BinaryClass a where
   binary_get_symbols :: a -> SymbolTable
   binary_pp :: a -> String
   binary_entry :: a -> Word64
+  binary_text_section_size :: a -> Int
 
 
 
@@ -59,7 +60,7 @@ instance BinaryClass Binary where
   binary_get_symbols (Binary b) = binary_get_symbols b
   binary_pp (Binary b) = binary_pp b
   binary_entry (Binary b) = binary_entry b
-
+  binary_text_section_size (Binary b) = binary_text_section_size b
 
 
 

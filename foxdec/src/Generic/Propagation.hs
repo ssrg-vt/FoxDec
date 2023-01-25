@@ -12,16 +12,14 @@ Given these functions, we provide a generic abstract interpretation algorithm.
 
 
 
-module Analysis.Propagation (
+module Generic.Propagation (
   Propagator(..),
-  do_prop,
-  supremum
+  do_prop
  ) where
 
 import Base
+import Analysis.ControlFlow
 import Analysis.Context
-import Data.ControlFlow
-
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -32,6 +30,9 @@ import Control.Monad.State.Strict hiding (join)
 import Debug.Trace
 import qualified X86.Instruction as X86
 
+import Generic.SymbolicConstituents 
+
+
 -- | A class that allows propagation of predicates over a CFG.
 class (Show pred) => Propagator ctxt pred where
   -- | Predicate transformation for an edge in in a CFG, over a basic blocks.
@@ -41,9 +42,6 @@ class (Show pred) => Propagator ctxt pred where
   -- | Symbolic implication
   implies :: ctxt -> pred -> pred -> Bool
 
--- | The supremum of a list of predicates
-supremum :: Propagator ctxt pred => ctxt -> [pred] -> pred
-supremum ctxt = foldr1 (join ctxt)
 
 
 -- The set of edges starting in $v$

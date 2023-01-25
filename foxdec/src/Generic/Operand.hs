@@ -7,7 +7,7 @@ import           Data.Word (Word64)
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Base (showHex)
-import           Typeclasses.HasSize (HasSize(sizeof))
+import           Generic.HasSize (HasSize(sizeof))
 
 -- | A generic statepart, based on polymorphic type `storage`.
 data GenericOperand storage =

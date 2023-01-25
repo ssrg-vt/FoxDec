@@ -39,6 +39,7 @@ dependencies:
 - elf >= 0.31
 - aeson >= 1.5.6.0
 - bytestring >= 0.10.12
+- nonempty-containers >= 0.3.4
 
 library:
   source-dirs: src
@@ -51,16 +52,6 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    dependencies:
-    - foxdec
-  foxdec-symbolizer-exe:
-    main:                Symbolizer.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    - -main-is Symbolizer
     dependencies:
     - foxdec
   foxdec-json-exe:

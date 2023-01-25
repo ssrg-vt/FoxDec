@@ -17,10 +17,9 @@
 
 module Parser.ParserRelocs where
 
-import Analysis.Context
+import Generic.Binary
 
 import Data.Word
-import Data.Binary
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number

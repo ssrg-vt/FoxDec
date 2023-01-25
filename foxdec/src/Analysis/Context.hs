@@ -13,36 +13,66 @@ module Analysis.Context where
 
 import Base
 import Config
-import Pass.DisassembleCapstone
-import Data.SimplePred
-import Data.Binary
-import Data.BinaryElf
-import Data.BinaryMacho
+
+import Analysis.Capstone
+
+import Data.JumpTarget
+import Data.SymbolicExpression
+import Data.SPointer
+
+import Generic.Binary
+import Generic.SymbolicConstituents
+
+import Instantiation.BinaryElf
+import Instantiation.BinaryMacho
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
+import qualified Data.Set.NonEmpty as NES
+
+
 import Data.List ( find, intercalate )
 import Data.Word (Word8,Word64)
 import Data.Maybe (mapMaybe,fromJust)
 import qualified Data.ByteString as BS
 import Data.IORef
 
+
 import GHC.Generics
-import GHC.Natural (naturalToInteger)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
 import X86.Opcode (isCall)
+import X86.Conventions
 import qualified X86.Instruction as X86
 import qualified X86.Operand as X86
 import X86.Operand (GenericOperand(..))
 import Generic.Operand (GenericOperand(..)) -- TODO: why is this needed?
 import qualified Generic.Instruction as Instr
+import Generic.Instruction (GenericInstruction(Instruction))
+import X86.Opcode (Opcode(JMP), isCall, isJump)
 
 import System.Directory (doesFileExist)
+import System.IO.Unsafe (unsafePerformIO)
 
 
+
+-- | The context augmented with information on the current function
+data FContext = FContext {
+  f_ctxt  :: Context,   -- ^ The context
+  f_entry :: Int,       -- ^ The entry address of the current function
+  f_init  :: FInit      -- ^ The initialization of the current function
+ }
+
+mk_fcontext :: Context -> Int -> FContext
+mk_fcontext ctxt entry =
+  let -- f     = function_name_of_entry ctxt entry
+      finit = IM.lookup entry $ ctxt_finits ctxt
+      fctxt = FContext ctxt entry (finit `orElse` M.empty) in
+    fctxt
+
+-- | Reading a binary given a filename (ELF or MachO)
 read_binary :: String -> String -> IO (Maybe Binary)
 read_binary dirname name = do
   let filename = dirname ++ name
@@ -95,12 +125,6 @@ data JumpTable = JumpTable {
  }
  deriving (Show,Generic,Eq)
 
--- | Resolving the operand of a jump/call can produce one of the following.
-data ResolvedJumpTarget =
-   Unresolved               -- ^ An indirect branch that has not been resolved yet
- | External String          -- ^ A call to external function f
- | ImmediateAddress Word64  -- ^ An internal call to the given address
- deriving (Eq,Show,Generic,Ord)
 
 -- | An indirection
 data Indirection =
@@ -124,10 +148,15 @@ data VerificationResult =
   deriving (Eq, Generic)
 
 
--- | Invariants: a mapping of blockIDs to predicates
-type Invariants = IM.IntMap Pred
+-- | Predicates: symbolic states
+type Predicate = Sstate SPointer
 
--- | For each leaf-node in a CFG we store the following info.
+
+-- | Invariants: a mapping of blockIDs to predicates
+type Invariants = IM.IntMap Predicate
+
+
+-- | For each leaf-node in a CFG we store the following info. (TODO MOVE?)
 data NodeInfo =
     Normal                -- ^ The basic block behaves normally, e.g., a ret
   | UnresolvedIndirection -- ^ The basic block ends in an unresolved indirection
@@ -135,59 +164,36 @@ data NodeInfo =
  deriving (Show,Generic,Eq,Ord)
 
 -- | Postconditions: for each final block the @NodeInfo@ and the final predicate after execution of the block
-type Postconditions = S.Set (NodeInfo,Pred)
+type Postconditions = S.Set (NodeInfo,Predicate)
 
 
--- | Identifies where a memwrite occurred
--- TODO should be generalized, is a StatePartWriteIdentifier
-data MemWriteIdentifier =
-   MemWriteFunction String Word64 StatePart          -- ^ A function with @name@ at address @i_a@ wrote to a statepart
- | MemWriteInstruction Word64 X86.Operand SimpleExpr -- ^ An instruction wrote to an operand, resolving to an address
-  deriving (Generic,Eq,Ord)
-
--- |  A verification condition is either:
--- * A precondition of the form:
--- >    Precondition (a0,si0) (a1,si1)
--- This formulates that at the initial state the two regions must be separate.
--- * An assertion of the form:
--- >    Assertion a (a0,si0) (a1,si1)
--- This formulates that dynamically, whenever address a is executed, the two regions are asserted to be separate.
--- * A function constraint of the form:
--- >    FunctionConstraint foo [(RDI, v0), (RSI, v1), ...]   { sp0,sp1,... }
--- This formulates that a function call to function foo with values v0, v1, ... stored in the registers should not overwrite certain state parts.
-data VerificationCondition =
-    Precondition          SimpleExpr Int SimpleExpr Int                           -- ^ Precondition:           lhs SEP rhs
-  | Assertion             SimpleExpr SimpleExpr Int SimpleExpr Int                -- ^ Assertion:    @address, lhs SEP rhs
-  | FunctionConstraint    String Word64 [(Register,SimpleExpr)] (S.Set StatePart) -- ^ Function name, address, of call, with param registers
-  | SourcelessMemWrite    MemWriteIdentifier                                      -- ^ A write to a statepart for which no information was available
-  | FunctionPointers      Word64 IS.IntSet                                        -- ^ A set of function pointers passed to a function
-  deriving (Generic,Eq,Ord)
-
--- | An acornym for a set of verification conditions
-type VCS = S.Set VerificationCondition
 
 
 
 -- | An abstract domain for pointers
 data PointerDomain =
-    Domain_Bases    (S.Set PointerBase)  -- a non-empty set of bases
-  | Domain_Sources  (S.Set BotSrc)       -- a possibly empty set of sources
+    Domain_Bases    (NES.NESet PointerBase)  -- a non-empty set of bases
+  | Domain_Sources  (NES.NESet BotSrc)       -- a possibly empty set of sources
   deriving (Generic,Eq,Ord)
 
 
 
--- | A function initialisation consists of a mapping of stateparts to expressions.
-type FInit = M.Map StatePart SimpleExpr
+-- | A function initialisation consists of a mapping of registers to symbolic pointers.
+type FInit = M.Map Register SPointer
 
 -- | A function call 
 data FReturnBehavior =
     Terminating              -- ^ The function does never return
-  | ReturningWith Pred       -- ^ The function returns withg the symbolic changes stored in the predicate
+  | ReturningWith Predicate  -- ^ The function returns withg the symbolic changes stored in the predicate
   | UnknownRetBehavior       -- ^  It is unknown whether the function returns or not
  deriving (Show,Generic,Eq,Ord)
 
 
-
+-- | A symbolic state part
+data SStatePart =
+    SSP_Reg Register -- ^ A register
+  | SSP_Mem SPointer Int
+ deriving (Show,Generic,Eq,Ord)
 
 
 -----------------------------------------------------------------------------
@@ -212,7 +218,7 @@ data Context_ = Context_ {
    ctxt__calls         :: !(IM.IntMap FReturnBehavior),    -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
    ctxt__invs          :: !(IM.IntMap Invariants),         -- ^ __D__: the currently known invariants
    ctxt__posts         :: !(IM.IntMap Postconditions),     -- ^ __D__: the currently known postconditions
-   ctxt__stateparts    :: !(IM.IntMap (S.Set StatePart)),  -- ^ __D__: the state parts read from/written to be the function
+   ctxt__stateparts    :: !(IM.IntMap (S.Set SStatePart)), -- ^ __D__: the state parts read from/written to be the function
    ctxt__inds          :: !Indirections,                   -- ^ __D__: the currently known indirections
    ctxt__finits        :: !(IM.IntMap FInit),              -- ^ __D__: the currently known function initialisations
    ctxt__vcs           :: !(IM.IntMap VCS),                -- ^ __D__: the verification conditions
@@ -263,18 +269,19 @@ set_ctxt_relocs     relocs   (Context bin ioref ctxt_) = Context bin ioref (ctxt
 set_ctxt_results    results  (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__results = results})
 set_ctxt_recursions recs   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__recursions = recs})
 
-instance Cereal.Serialize NodeInfo
+--instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize JumpTable
 instance Cereal.Serialize ResolvedJumpTarget
 instance Cereal.Serialize Indirection
 instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
-instance Cereal.Serialize MemWriteIdentifier
 instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize PointerDomain
 instance Cereal.Serialize SectionsInfo
 instance Cereal.Serialize Relocation
+instance Cereal.Serialize SStatePart
+instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize Context_
 
 
@@ -293,7 +300,7 @@ purge_context (Context binary _ (Context_ config syms sections dirname name star
   let keep_preconditions = store_preconditions_in_report config
       keep_assertions    = store_assertions_in_report config
       vcs'               = IM.filter (not . S.null) $ IM.map (purge keep_preconditions keep_assertions) vcs in
-    Context_ config syms sections dirname name start relocs (Edges IM.empty) cfgs calls invs posts IM.empty inds finits vcs' results IM.empty
+    Context_ config syms sections dirname name start relocs (Edges IM.empty) cfgs calls invs IM.empty IM.empty inds finits vcs' results IM.empty
  where
   purge keep_preconditions keep_assertions vcs = S.filter (keep_vcs keep_preconditions keep_assertions) vcs
 
@@ -375,8 +382,8 @@ pp_instruction ctxt i =
 
 
 instance Show PointerDomain where
-  show (Domain_Bases bs)     = show bs
-  show (Domain_Sources srcs) = show srcs
+  show (Domain_Bases bs)     = "[" ++ intercalate "," (map show $ neSetToList bs) ++ "]_B"
+  show (Domain_Sources srcs) = "[" ++ intercalate "," (map show $ neSetToList srcs) ++ "]_S"
 
 
 -- | Show function initialisaExpr
@@ -392,19 +399,11 @@ instance Show VerificationResult where
  show (VerificationError msg)           = "VerificationError: " ++ msg
 
 
-instance Show MemWriteIdentifier where
-  show (MemWriteFunction f a sp)       = f ++ "@" ++ showHex a ++ " WRITES TO " ++ show sp
-  show (MemWriteInstruction a operand a') = "@" ++ showHex a ++ " WRITES TO " ++ show operand ++ (if add_resolved operand a' then " == " ++ show a' else "")
-   where
-    add_resolved (Storage r) (SE_StatePart (SP_Reg r')) = r /= r'
-    add_resolved _           _                          = True
-
 
 
 instance Show VerificationCondition where
   show (Precondition lhs _ rhs _)      = show lhs ++ " SEP " ++ show rhs
   show (Assertion a  lhs _ rhs _)      = "@" ++ show a ++ ": " ++ show lhs ++ " SEP " ++ show rhs
-  show (SourcelessMemWrite mid)        = "UNKNOWN WRITE: " ++ show mid
   show (FunctionPointers a ptrs)       = "@" ++ showHex a ++ ": function pointers " ++ showHex_set ptrs
   show (FunctionConstraint f a ps sps) = f ++ "@" ++ showHex a ++ "(" ++ intercalate "," (map show_param ps) ++ ") PRESERVES " ++ (intercalate "," (map show $ S.toList sps))
    where
@@ -422,9 +421,6 @@ is_precondition _                      = False
 is_func_constraint (FunctionConstraint _ _ _ _) = True
 is_func_constraint _                            = False
 
--- | Is the given verification condition a sourceless memwrite?
-is_sourceless_memwrite (SourcelessMemWrite _) = True
-is_sourceless_memwrite _                      = False
 
 -- | Is the given verification condition a function pointer introduction?
 is_functionpointers (FunctionPointers _ _) = True
@@ -434,11 +430,6 @@ is_functionpointers _                      = False
 count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) -> rip) . S.filter is_assertion
 
 
--- | Count the number of sourceless memory writes in the set of verification conditions.
-count_sourceless_memwrites = S.size . S.map (\(SourcelessMemWrite mid) -> prune mid) . S.filter is_sourceless_memwrite
- where
-  prune mid@(MemWriteFunction f i_a sp)               = mid
-  prune mid@(MemWriteInstruction i_a addr a_resolved) = MemWriteInstruction i_a addr $ SE_Immediate 0
 
 
 
@@ -465,4 +456,33 @@ ctxt_max_jump_table_size = fromIntegral . max_jump_table_size . ctxt_config
 
 ctxt_max_expr_size :: Context -> Int
 ctxt_max_expr_size = fromIntegral . max_expr_size . ctxt_config
+
+
+
+-- | Read in the .report file from a file with the given file name.
+--   May produce an error if no report can be read from the file.
+--   Returns the verification report stored in the .report file.
+ctxt_read_report :: 
+   String        -- ^ The directory name
+   -> String     -- ^ The file name of the binary
+   -> IO Context
+ctxt_read_report dirname name = do
+  rcontents <- BS.readFile (dirname ++ name ++ ".report")
+  ioref     <- newIORef IM.empty
+  bcontents <- read_binary dirname name
+  case (Cereal.decode rcontents, bcontents) of
+    (Left err,_)           -> error $ "Could not read verification report in file " ++ (dirname ++ name ++ ".report") ++  "\n" ++ show err
+    (_,Nothing)            -> error $ "Cannot read binary file: " ++ dirname ++ name
+    (Right ctxt_,Just bin) -> return $ Context bin ioref ctxt_
+
+
+
+
+
+-- | Returns true iff an instruction can be fetched from the address.
+address_has_instruction ctxt a =
+  case find_section_for_address ctxt $ fromIntegral a of
+    Nothing                    -> False
+    Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions
+
 

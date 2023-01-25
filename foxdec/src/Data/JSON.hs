@@ -9,8 +9,11 @@ module Data.JSON where
 
 
 import Base
-import Data.Binary
+
+import Generic.Binary
+
 import Analysis.Context
+
 import qualified Generic.Address as GA
 import qualified Generic.Operand as GO
 import qualified Generic.Instruction as GI
@@ -18,8 +21,7 @@ import qualified X86.Instruction as X86
 import X86.Opcode
 import X86.Prefix
 import X86.Register
-
-import Typeclasses.HasSize (HasSize(sizeof))
+import Generic.HasSize (HasSize(sizeof))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -29,7 +31,6 @@ import Data.Maybe (fromJust,catMaybes,mapMaybe)
 import Data.List 
 import Data.Foldable
 import Data.Word
-
 import Data.Aeson
 import GHC.Generics
 

@@ -8,7 +8,7 @@ import           GHC.Generics (Generic)
 import           Base (orElse)
 import qualified Data.Serialize as Cereal
 import           X86.Register (Register)
-import           Typeclasses.HasSize (sizeof)
+import           Generic.HasSize (sizeof)
 
 -- | A mutable or immutable variable
 data Variable =

@@ -14,7 +14,7 @@ module X86.Register
 
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
-import           Typeclasses.HasSize (HasSize(..))
+import           Generic.HasSize (HasSize(..))
 import           Base (allp)
 
 data Register =
@@ -137,6 +137,7 @@ data Register =
   | XMM13
   | XMM14
   | XMM15
+  | TEMP
   deriving (Show, Eq, Read, Ord, Generic, Enum, Bounded)
 
 instance Cereal.Serialize Register
@@ -348,6 +349,7 @@ real AH = RAX
 real BH = RBX
 real CH = RCX
 real DH = RDX
+real TEMP = TEMP
 real r = if r `elem` (reg64 ++ reg256)
          then r
          else error $ "Cannot match register " ++ show r ++ " to real register"
@@ -361,6 +363,7 @@ instance HasSize Register where
     | r `elem` reg32 = 4
     | r `elem` reg16 = 2
     | r `elem` reg8 ++ [AH, BH, CH, DH] = 1
+    | r `elem` [TEMP] = 8
     | otherwise = error $ "Size of " ++ show r ++ " unknown"
 
 -- | Finds for a register all register that overlap with it.
@@ -375,7 +378,7 @@ allRegisters :: [Register]
 allRegisters = [minBound .. maxBound]
 
 hasRealReg :: Register -> Bool
-hasRealReg = (`notElem` [InvalidRegister, RIP, EIP, RIZ, EIZ])
+hasRealReg = (`notElem` [InvalidRegister, RIP, EIP, RIZ, EIZ, TEMP])
 
 haveSameRealReg :: Register -> Register -> Bool
 haveSameRealReg r1 r2 = hasRealReg r2 && (real r1 == real r2)

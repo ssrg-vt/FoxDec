@@ -18,8 +18,15 @@ module Data.JSON_Taxonomy where
 
 
 import Base
-import Data.Binary
+
+import Data.SPointer
+import Data.SymbolicExpression
+
+import Generic.Binary
+import Generic.SymbolicConstituents
+
 import Analysis.Context
+
 import qualified Generic.Address as GA
 import qualified Generic.Operand as GO
 import qualified Generic.Instruction as GI
@@ -27,9 +34,8 @@ import qualified X86.Instruction as X86
 import X86.Opcode
 import X86.Prefix
 import X86.Register
-import Data.SimplePred
+import Generic.HasSize (HasSize(sizeof))
 
-import Typeclasses.HasSize (HasSize(sizeof))
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -39,7 +45,6 @@ import Data.Maybe (fromJust,catMaybes,mapMaybe)
 import Data.List 
 import Data.Foldable
 import Data.Word
-
 import Data.Aeson
 import GHC.Generics
 
@@ -68,7 +73,7 @@ data JSON = JSON {
   function_boundaries :: [(Word64,FunctionBoundary)], -- ^ A mapping from function entry addresses to pretty-printed  __`FunctionBoundary`__s.
   function_summaries  :: [(Word64,FunctionSummary)],  -- ^ A mapping from function entry addresses to __`FunctionSummary`__s.
   invariants          :: [(Word64,[Invariant])],      -- ^ A mapping from instruction addresses to __`Invariant`__s.
-  pointer_domains     :: [(Word64, Word64,[Maybe SimpleExpr])] -- ^ Per instruction address, per function entry, the __`PointerDomain`__ for each memory operand.
+  pointer_domains     :: [(Word64, Word64,[Maybe SPointer])] -- ^ Per instruction address, per function entry, the __`PointerDomain`__ for each memory operand.
 
   }
   deriving Generic
@@ -105,7 +110,7 @@ type FunctionBoundary = String
 --
 -- > {"precondition" : [...], "postcondition" : [...]}
 data FunctionSummary = FunctionSummary {
-    precondition :: Predicate,
+    precondition :: Data.JSON_Taxonomy.Predicate, -- TODO
     postcondition :: Postcondition
   }
   deriving Generic
@@ -121,7 +126,7 @@ data FunctionSummary = FunctionSummary {
 -- >  [4320,[[{"SP_Reg":"RIP"},{"SE_Immediate":4324}],[{"SP_Reg":"RAX"},...]]]
 --
 -- The instruction occurs in the function with entry address @4320@. Register @RIP@ is set to @4324@. Register @RAX@ is always equal to iths initial value.
-type Invariant = (Word64,Predicate)
+type Invariant = (Word64,Data.JSON_Taxonomy.Predicate) -- TODO
 
 
 
@@ -134,12 +139,12 @@ type Invariant = (Word64,Predicate)
 -- > {"Terminating" : [] }
 data Postcondition =
     Terminating              -- ^ The function does never return
-  | ReturningWith Predicate  -- ^ The function returns in a state satisfying the __`Predicate`__
+  | ReturningWith Data.JSON_Taxonomy.Predicate  -- ^ The function returns in a state satisfying the __`Predicate`__ TODO
   | UnknownRetBehavior       -- ^  It is unknown whether the function returns or not
  deriving Generic
 
 
--- | A __Predicate__ is a mapping from state parts (registers, memory, flags) to symbolic expressions.
+-- | A __Predicate__ is a mapping from state parts (registers, memory, flags) to symbolic expressions. TODO
 -- 
 -- Example of JSON output:
 --
@@ -150,7 +155,7 @@ data Postcondition =
 --
 --  This predicate states that register @RDI@ is a pointer with as base the return value of @malloc@, called at address @4420@.
 --  Register @RSI@ contains an immediate value.
-type Predicate = M.Map StatePart SimpleExpr
+type Predicate = M.Map StatePart SPointer
 
 
 
@@ -212,7 +217,10 @@ mk_json_operand (GO.Immediate i) = Immediate i
 
 mk_json_instruction i@(GI.Instruction (GA.AddressWord64 a) p op Nothing srcs _) = Instruction a p op (map mk_json_operand srcs) (sizeof i)
 
-mk_json_predicate (Predicate m _) = m
+mk_json_predicate :: Analysis.Context.Predicate -> Data.JSON_Taxonomy.Predicate
+mk_json_predicate (Sstate regs mem flg) = M.mapKeys mk_reg regs
+ where
+  mk_reg r = SP_Reg r
 
 mk_json_post Nothing                                    = Data.JSON_Taxonomy.UnknownRetBehavior 
 mk_json_post (Just Analysis.Context.UnknownRetBehavior) = Data.JSON_Taxonomy.UnknownRetBehavior

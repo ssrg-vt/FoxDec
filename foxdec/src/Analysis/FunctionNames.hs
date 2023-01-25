@@ -1,8 +1,8 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
 
 {-|
-Module      : ControlFlow
-Description : Functions for resolving jump targets.
+Module      : FunctionNames
+Description : Provides functions to 
 
 Contains function relating to control flow, including functions for
 resolving the targets of jumps and calls.
@@ -10,30 +10,11 @@ resolving the targets of jumps and calls.
 
 
 
-module Data.ControlFlow (
-   ResolvedJumpTarget(..),
-   post,
-   fetch_block,
-   address_has_instruction,
-   address_has_symbol,
-   address_is_external,
-   operand_static_resolve,
-   resolve_jump_target,
-   get_internal_addresses,
-   instruction_jumps_to_external,
-   show_block,
-   show_invariants,
-   function_name_of_entry,
-   function_name_of_instruction,
-   isTerminal
- )
- where
+module Analysis.FunctionNames where
 
-import Data.Binary
-import Algorithm.SCC
 import Analysis.Context
 import Base
-import Data.SimplePred
+import Data.JumpTarget
 import X86.Conventions
 
 import qualified Data.IntMap as IM
@@ -49,42 +30,15 @@ import Numeric (readHex)
 import System.IO.Unsafe (unsafePerformIO)
 import X86.Register (Register(..))
 import X86.Opcode (Opcode(JMP), isCall, isJump)
-import qualified X86.Instruction as X86
+import X86.Instruction
 import qualified X86.Operand as X86
-import Typeclasses.HasSize (sizeof)
-import Typeclasses.HasAddress (addressof)
+import Generic.HasSize (sizeof)
 import Generic.Address (GenericAddress(..))
 import Generic.Operand (GenericOperand(..))
 import Generic.Instruction (GenericInstruction(Instruction))
+import Generic.SymbolicConstituents
 import qualified Generic.Instruction as Instr
 
-
-
--- | The set of next blocks from the given block in a CFG
-post :: CFG -> IS.Key -> IS.IntSet
-post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
-
-
-
--- | Fetching an instruction list given a block ID
-fetch_block ::
-  CFG    -- ^ The CFG
-  -> Int -- ^ The blockID
-  -> [X86.Instruction]
-fetch_block g blockId =
-  case IM.lookup blockId $ cfg_instrs $ g of
-    Nothing -> error $ "Block with ID" ++ show blockId ++ " not found in cfg."
-    Just b -> b
-
-isTerminal :: CFG -> IS.Key -> Bool
-isTerminal cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
-
-
--- | Returns true iff an instruction can be fetched from the address.
-address_has_instruction ctxt a =
-  case find_section_for_address ctxt $ fromIntegral a of
-    Nothing                    -> False
-    Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions
 
 -- | Returns true iff a symbol is associated with the address.
 address_has_symbol ctxt a =
@@ -106,8 +60,8 @@ address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instr
 -- @10005464e: call qword ptr [RIP + 1751660]@ read from address 1002000c0, but address has a symbol associated to it. This function call will resolve to an external function.
 operand_static_resolve ::
   Context               -- ^ The context
-  -> X86.Instruction    -- ^ The instruction
-  -> X86.Operand  -- ^ The operand of the instruction to be resolved
+  -> Instruction    -- ^ The instruction
+  -> X86.Operand        -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
 operand_static_resolve ctxt i (Immediate a')                                                         = ImmediateAddress a'
 operand_static_resolve ctxt i (EffectiveAddress (AddressPlus (AddressStorage RIP) (AddressImm imm))) = ImmediateAddress $ addressof i + fromIntegral (sizeof i) + imm
@@ -117,10 +71,11 @@ operand_static_resolve ctxt i (Memory (AddressPlus  (AddressImm imm) (AddressSto
 operand_static_resolve ctxt i (Memory (AddressMinus (AddressStorage RIP) (AddressImm imm)) si)       = static_resolve_rip_expr ctxt i (\rip -> rip - imm) si
 operand_static_resolve ctxt i _                                                                      = Unresolved
 
+static_resolve_rip_expr :: Context -> Instruction -> (Word64 -> Word64) -> Int -> ResolvedJumpTarget
 static_resolve_rip_expr ctxt i f si =
   let rip     = addressof i + (fromIntegral $ sizeof i)
       a'      = f rip
-      syms    = ctxt_syms    ctxt in
+      syms    = ctxt_syms ctxt in
     case (IM.lookup (fromIntegral a') syms,read_from_ro_datasection ctxt a' si) of
       (Just s,  a'')      ->
         -- Example:
@@ -137,41 +92,6 @@ static_resolve_rip_expr ctxt i f si =
       (Nothing,Nothing)   ->
         Unresolved
 
--- | Resolves the first operand of a call or jump instruction.
--- First tries to see if the instruction is an indirection, that has already been resolved.
--- If not, try to statically resolve the first operand using @`operand_static_resolve`@.
--- If that resolves to an immediate value, see if that immediate value corresponds to an external function or an internal function.
---
--- Returns a list of @`ResolvedJumpTarget`@, since an indirection may be resolved to multiple targets.
-resolve_jump_target ::
-  Context        -- ^ The context
-  -> X86.Instruction       -- ^ The instruction
-  -> [ResolvedJumpTarget]
-resolve_jump_target ctxt i =
-  case (IM.lookup (fromIntegral $ addressof i) $ ctxt_inds ctxt, Instr.srcs i) of
-    (Just ind,_)    -> jump_targets_of_indirection ind -- already resolved indirection
-    (Nothing,[op1]) ->
-      case operand_static_resolve ctxt i op1 of
-        Unresolved         -> [Unresolved] -- unresolved indirection
-        External sym       -> [External sym]
-        ImmediateAddress a ->
-          case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
-            Just sym -> [External sym]
-            Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
- where
-  jump_targets_of_indirection (IndirectionResolved trgts)                    = S.toList $ trgts
-  jump_targets_of_indirection (IndirectionJumpTable (JumpTable _ _ entries)) = map (ImmediateAddress . fromIntegral) entries
-
--- | Returns true iff the instruction resolves to external targets only.
-instruction_jumps_to_external ::
-  Context        -- ^ The context
-  -> X86.Instruction       -- ^ The instruction
-  -> Bool
-instruction_jumps_to_external ctxt i =
-  all resolve_is_external $ resolve_jump_target ctxt i
- where
-  resolve_is_external (External _) = True
-  resolve_is_external _            = False
 
 -- | Tries to retrieve a function name with an entry address.
 -- If the entry matches a known symbol, return that.
@@ -199,7 +119,7 @@ function_name_of_entry ctxt a =
 -- Returns the empty string if the given instruction is not a call or a jump.
 function_name_of_instruction ::
   Context            -- ^ The context
-  -> X86.Instruction -- ^ The instruction
+  -> Instruction -- ^ The instruction
   -> String
 function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
   if isCall (Instr.opcode i) || isJump (Instr.opcode i) then
@@ -213,49 +133,3 @@ function_name_of_instruction ctxt i@(Instruction _ _ _ _ ops _) =
 
 
 
-
--- | Given a resolved jump target, get a possibly empty list of internal addresses to which the jump target can jump.
-get_internal_addresses ::
-  ResolvedJumpTarget -- ^ A resolved jump target
-  -> [Int]
-get_internal_addresses (External _)         = []
-get_internal_addresses Unresolved           = []
-get_internal_addresses (ImmediateAddress a) = [fromIntegral a]
-
-
-
-
-
-
-
--- | Shows the block associated to the givern blockID.
-show_block ::
-  CFG    -- ^ The CFG
-  -> Int -- ^ The blockID
-  -> String
-show_block g b =
-  let instrs = im_lookup ("show_block: Block " ++ show b ++ "in cfg.") (cfg_blocks g) b in
-       show b ++ " ["
-    ++ showHex (head instrs)
-    ++ ","
-    ++ showHex (last instrs)
-    ++ "]"
-
--- | Shows invariants.
-show_invariants
-  :: CFG        -- ^ The CFG
-  -> Invariants -- ^ The invariants
-  -> String
-show_invariants g invs = intercalate "\n\n" $ map show_entry $ IM.toList $ invs
- where
-  show_entry (blockId, p) =  "Block " ++ show_block g blockId ++ ":\n" ++ show p
-
-
-
-
-
-
-
-instance IntGraph CFG where
-  intgraph_post = post
-  intgraph_V    = IM.keysSet . cfg_blocks

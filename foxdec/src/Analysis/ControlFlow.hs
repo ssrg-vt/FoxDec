@@ -1,37 +1,49 @@
 {-# LANGUAGE PartialTypeSignatures, Strict #-}
 
 {-|
-Module      : CFG_Gen
+Module      : ControlFlow
 Description : Contains functions pertaining to control flow graph generation.
 -}
 
-module Pass.CFG_Gen (
+module Analysis.ControlFlow (
    cfg_gen,
    cfg_to_dot,
    is_end_node,
    node_info_of,
-   stepA
+   stepA,
+   post,
+   fetch_block,
+   resolve_jump_target,
+   get_internal_addresses,
+   instruction_jumps_to_external,
+   show_block,
+   show_invariants,
+   isTerminal
  )
  where
 
-import Algorithm.SCC
-import Analysis.Context
-import Analysis.Propagation
-import Analysis.SymbolicExecution
 import Base
-import Data.ControlFlow
-import Data.MachineState
-import Data.SimplePred
-import X86.Conventions
-import Data.Binary
 
+import Algorithm.SCC
+
+import Analysis.Context
+import Analysis.FunctionNames
+
+import Data.JumpTarget
+
+import X86.Conventions
+import X86.Instruction (addressof)
+import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
+import qualified X86.Instruction as X86
+import Generic.HasSize (sizeof)
+import qualified Generic.Instruction as Instr
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Either (fromRight,fromLeft,partitionEithers)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust,fromMaybe,isNothing)
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.Word (Word64)
@@ -39,11 +51,7 @@ import Control.Monad ((>=>))
 import Debug.Trace
 import Numeric (readHex)
 import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
-import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
-import qualified X86.Instruction as X86
-import Typeclasses.HasSize (sizeof)
-import Typeclasses.HasAddress (addressof)
-import qualified Generic.Instruction as Instr
+
 
 -- the algorithm below has been formally proven correct in Isabelle/HOL
 split_graph' a g = 
@@ -158,6 +166,112 @@ is_edge g a0 a1 =
 
 
 
+
+
+-- | The set of next blocks from the given block in a CFG
+post :: CFG -> IS.Key -> IS.IntSet
+post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
+
+
+
+-- | Fetching an instruction list given a block ID
+fetch_block ::
+  CFG    -- ^ The CFG
+  -> Int -- ^ The blockID
+  -> [X86.Instruction]
+fetch_block g blockId =
+  case IM.lookup blockId $ cfg_instrs $ g of
+    Nothing -> error $ "Block with ID" ++ show blockId ++ " not found in cfg."
+    Just b -> b
+
+isTerminal :: CFG -> IS.Key -> Bool
+isTerminal cfg b = isNothing $ IM.lookup b (cfg_edges cfg)
+
+-- | Resolves the first operand of a call or jump instruction.
+-- First tries to see if the instruction is an indirection, that has already been resolved.
+-- If not, try to statically resolve the first operand using @`operand_static_resolve`@.
+-- If that resolves to an immediate value, see if that immediate value corresponds to an external function or an internal function.
+--
+-- Returns a list of @`ResolvedJumpTarget`@, since an indirection may be resolved to multiple targets.
+resolve_jump_target ::
+  Context        -- ^ The context
+  -> X86.Instruction       -- ^ The instruction
+  -> [ResolvedJumpTarget]
+resolve_jump_target ctxt i =
+  case (IM.lookup (fromIntegral $ addressof i) $ ctxt_inds ctxt, Instr.srcs i) of
+    (Just ind,_)    -> jump_targets_of_indirection ind -- already resolved indirection
+    (Nothing,[op1]) ->
+      case operand_static_resolve ctxt i op1 of
+        Unresolved         -> [Unresolved] -- unresolved indirection
+        External sym       -> [External sym]
+        ImmediateAddress a ->
+          case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
+            Just sym -> [External sym]
+            Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
+ where
+  jump_targets_of_indirection (IndirectionResolved trgts)                    = S.toList $ trgts
+  jump_targets_of_indirection (IndirectionJumpTable (JumpTable _ _ entries)) = map (ImmediateAddress . fromIntegral) entries
+
+
+
+-- | Returns true iff the instruction resolves to external targets only.
+instruction_jumps_to_external ::
+  Context        -- ^ The context
+  -> X86.Instruction       -- ^ The instruction
+  -> Bool
+instruction_jumps_to_external ctxt i =
+  all resolve_is_external $ resolve_jump_target ctxt i
+ where
+  resolve_is_external (External _) = True
+  resolve_is_external _            = False
+
+
+
+-- | Given a resolved jump target, get a possibly empty list of internal addresses to which the jump target can jump.
+get_internal_addresses ::
+  ResolvedJumpTarget -- ^ A resolved jump target
+  -> [Int]
+get_internal_addresses (External _)         = []
+get_internal_addresses Unresolved           = []
+get_internal_addresses (ImmediateAddress a) = [fromIntegral a]
+
+
+
+
+
+
+
+-- | Shows the block associated to the givern blockID.
+show_block ::
+  CFG    -- ^ The CFG
+  -> Int -- ^ The blockID
+  -> String
+show_block g b =
+  let instrs = im_lookup ("show_block: Block " ++ show b ++ "in cfg.") (cfg_blocks g) b in
+       show b ++ " ["
+    ++ showHex (head instrs)
+    ++ ","
+    ++ showHex (last instrs)
+    ++ "]"
+
+-- | Shows invariants.
+show_invariants
+  :: CFG        -- ^ The CFG
+  -> Invariants -- ^ The invariants
+  -> String
+show_invariants g invs = intercalate "\n\n" $ map show_entry $ IM.toList $ invs
+ where
+  show_entry (blockId, p) =  "Block " ++ show_block g blockId ++ ":\n" ++ show p
+
+
+
+
+
+
+
+instance IntGraph CFG where
+  intgraph_post = post
+  intgraph_V    = IM.keysSet . cfg_blocks
 
 
 

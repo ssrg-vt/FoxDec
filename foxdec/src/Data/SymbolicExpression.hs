@@ -9,8 +9,7 @@ on equalities between the current values stored in state parts (lhs)
 and constant expressions (rhs).
 -}
 
-module Data.SimplePred ( 
-  Pred (..),
+module Data.SymbolicExpression ( 
   StatePart (..),
   SimpleExpr (..),
   FlagStatus (..),
@@ -23,12 +22,12 @@ module Data.SimplePred (
   is_reg_sp,
   contains_bot,
   contains_bot_sp,
-  all_bot_satisfy,
   simp,
-  rock_bottom,
   pp_expr,
-  pp_pred,
-  expr_size
+  expr_size,
+  sextend_32_64,
+  sextend_16_64,
+  sextend_8_64
  )
  where
 
@@ -37,16 +36,20 @@ import Config
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
+import qualified Data.Set.NonEmpty as NES
+
 import Data.Word (Word64,Word32)
 import Data.Traversable (for)
 import Data.List
 import Data.Maybe (mapMaybe,fromJust)
 import Debug.Trace
 import GHC.Generics
-import Data.Bits (testBit, (.|.), (.&.))
+import Data.Bits (testBit, (.|.), (.&.), xor)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
 import qualified X86.Operand as X86
+
+
 
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
@@ -55,6 +58,7 @@ data PointerBase =
   | Malloc (Maybe Word64) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
   | GlobalAddress Word64                 -- ^ A /global/ address in the range of the sections of the binary.
   | PointerToSymbol Word64 String        -- ^ An address with an associated symbol.
+  | ThreadLocalStorage                   -- ^ A pointer to the thread-local-storage (e.g., FS register)
   deriving (Generic,Eq,Ord)
 
 
@@ -65,15 +69,15 @@ data PointerBase =
 -- The latter  six are all equal, we just use them for debugging and information.
 -- They indicate that the  value is unknown, but was computed using the set of sources.
 data BotTyp = 
-    FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
-  | FromPointerBases (S.Set PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
-  | FromCall String                         -- ^ Return value of a function call
-  | FromSources (S.Set BotSrc)              -- ^ The expression is some computation based on sources.
-  | FromOverlap (S.Set BotSrc)              -- ^ A read from two possibly overlapping regions
-  | FromMemWrite (S.Set BotSrc)             -- ^ A write to two possibly overlapping regions 
-  | FromSemantics (S.Set BotSrc)            -- ^ An instruction with unknown semantics
-  | FromBitMode (S.Set BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
-  | FromUninitializedMemory (S.Set BotSrc)  -- ^ Reading from memory not written to yet
+    FromNonDeterminism (NES.NESet SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
+  | FromPointerBases (NES.NESet PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
+  | FromCall String                             -- ^ Return value of a function call
+  | FromSources (NES.NESet BotSrc)              -- ^ The expression is some computation based on sources.
+  | FromOverlap (NES.NESet BotSrc)              -- ^ A read from two possibly overlapping regions
+  | FromMemWrite (NES.NESet BotSrc)             -- ^ A write to two possibly overlapping regions 
+  | FromSemantics (NES.NESet BotSrc)            -- ^ An instruction with unknown semantics
+  | FromBitMode (NES.NESet BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
+  | FromUninitializedMemory (NES.NESet BotSrc)  -- ^ Reading from memory not written to yet
  deriving (Eq, Ord, Generic)
 
 
@@ -84,6 +88,8 @@ data BotSrc =
   | Src_Malloc (Maybe Word64) (Maybe String) -- ^ A malloced address
   | Src_ImmediateAddress Word64              -- ^ An immediate used in the computation of the pointer
   | Src_Function String                      -- ^ A return value from a function
+  | Src_Mem (NES.NESet BotSrc)               -- ^ reading from memory
+  | Src_ImmediateConstants                   -- ^ Some immediate value
  deriving (Eq, Ord, Generic)
 
 
@@ -94,31 +100,31 @@ data BotSrc =
 -- @Udiv@ and @Times@ are operators op type @w -> w -> w@ with all words same length.
 -- @Div@ and @Div_Rem@ are operators of type @w -> w -> w -> w@ performing concatenation of the first two words and then doing division/remainder.
 data Operator = 
-    Minus Int | Plus Int | Times Int | And Int | Or Int | Xor Int | Not Int | SetXX | Bsr Int 
-  | Div_Rem Int | Div Int | Shl Int | Shr Int | Sar Int | Udiv Int | Ror Int | Rol Int
-  | Bswap Int | Pextr Int
+    Minus | Plus | Times | And | Or | Xor | Not | Bsr 
+  | Div_Rem | Div | Shl | Shr | Sar | Udiv | Ror | Rol 
+  | Bswap | Pextr
  deriving (Eq, Ord, Generic)
 
 
 instance Show Operator where
-  show (Plus    b) = "+"       ++ show b
-  show (Minus   b) = "-"       ++ show b
-  show (Times   b) = "*"       ++ show b
-  show (And     b) = "&"       ++ show b
-  show (Or      b) = "|"       ++ show b
-  show (Xor     b) = "xor"     ++ show b
-  show (Not     b) = "not"     ++ show b
-  show (Bsr     b) = "bsr"     ++ show b
-  show (Div_Rem b) = "div_rem" ++ show b
-  show (Div     b) = "div"     ++ show b
-  show (Shl     b) = "shl"     ++ show b
-  show (Shr     b) = "shr"     ++ show b
-  show (Sar     b) = "sar"     ++ show b
-  show (Udiv    b) = "udiv"    ++ show b
-  show (Ror     b) = "ror"     ++ show b
-  show (Rol     b) = "rol"     ++ show b
-  show (Bswap   b) = "bswap"   ++ show b
-  show (Pextr   b) = "pextr"   ++ show b
+  show (Plus    ) = "+"       
+  show (Minus   ) = "-"       
+  show (Times   ) = "*"       
+  show (And     ) = "&"       
+  show (Or      ) = "|"       
+  show (Xor     ) = "xor"     
+  show (Not     ) = "not"     
+  show (Bsr     ) = "bsr"     
+  show (Div_Rem ) = "div_rem" 
+  show (Div     ) = "div"     
+  show (Shl     ) = "shl"     
+  show (Shr     ) = "shr"     
+  show (Sar     ) = "sar"     
+  show (Udiv    ) = "udiv"    
+  show (Ror     ) = "ror"     
+  show (Rol     ) = "rol"
+  show (Bswap   ) = "bswap"
+  show (Pextr   ) = "pextr"
 
 -- | A symbolic expression with as leafs either immediates, variables, live values of stateparts, or malloced addresses.
 -- A variable is a constant representing some initial value, e.g., RDI_0, or [RSP_0,8]_0.
@@ -128,7 +134,7 @@ data SimpleExpr =
   | SE_Var       StatePart                     -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
   | SE_StatePart StatePart                     -- ^ The value stored currently in the statepart
   | SE_Malloc    (Maybe Word64) (Maybe String) -- ^ A malloc return value with possibly an ID
-  | SE_Op        Operator [SimpleExpr]         -- ^ Application of an @`Operator`@ to the list of arguments
+  | SE_Op        Operator Int [SimpleExpr]     -- ^ Application of an @`Operator`@ to the list of arguments
   | SE_Bit       Int SimpleExpr                -- ^ Taking the lower bits of a value
   | SE_SExtend   Int Int SimpleExpr            -- ^ Sign extension
   | SE_Overwrite Int SimpleExpr SimpleExpr     -- ^ Overwriting certain bits of a value with bits from another value
@@ -144,16 +150,18 @@ data StatePart =
 
 
 instance Show BotSrc where
-  show (Src_Var sp)             = show $ SE_Var sp
-  show (Src_StackPointer f)     = "RSP_" ++ f
-  show (Src_Malloc id h)        = show $ SE_Malloc id h
-  show (Src_ImmediateAddress a) = showHex a
-  show (Src_Function f)         = f
+  show (Src_Var sp)               = show $ SE_Var sp
+  show (Src_StackPointer f)       = "RSP_" ++ f
+  show (Src_Malloc id h)          = show $ SE_Malloc id h
+  show (Src_ImmediateAddress a)   = showHex a
+  show (Src_Function f)           = f
+  show (Src_Mem a)                = "*[" ++ intercalate "," (map show $ neSetToList a) ++ "]"
+  show (Src_ImmediateConstants)   = "constant"
 
-show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList srcs) ++ "|"
+show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList $ NES.toSet srcs) ++ "|"
 
-show_bottyp show_srcs (FromNonDeterminism es)        = "nd|" ++ intercalate "," (map show $ S.toList es) ++ "|"
-show_bottyp show_srcs (FromPointerBases bs)          = "pbs|" ++ intercalate "," (map show $ S.toList bs) ++ "|"
+show_bottyp show_srcs (FromNonDeterminism es)        = "nd|" ++ intercalate "," (map show $ S.toList $ NES.toSet es) ++ "|"
+show_bottyp show_srcs (FromPointerBases bs)          = "pbs|" ++ intercalate "," (map show $ S.toList $ NES.toSet bs) ++ "|"
 show_bottyp show_srcs (FromSources srcs)             = "src" ++ show_srcs srcs
 show_bottyp show_srcs (FromBitMode srcs)             = "b" ++ show_srcs srcs
 show_bottyp show_srcs (FromOverlap srcs)             = "o" ++ show_srcs srcs
@@ -171,13 +179,13 @@ show_expr show_srcs (SE_Malloc (Just id) _)   = "malloc@" ++ showHex id ++ "()"
 show_expr show_srcs (SE_Var sp)               = show sp ++ "_0"
 show_expr show_srcs (SE_Immediate i)          = if i > 2000 then "0x" ++ showHex i else show i
 show_expr show_srcs (SE_StatePart sp)         = show sp
-show_expr show_srcs (SE_Op (Plus  _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " + "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Minus _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " - "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Times _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " * "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (And   _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " & "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Or    _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " | "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Xor   _) [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " xor " ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op op es)             = show op ++ "(" ++ intercalate "," (map (show_expr show_srcs) es) ++ ")"
+show_expr show_srcs (SE_Op (Plus ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " + "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Minus) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " - "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Times) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " * "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (And  ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " & "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Or   ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " | "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Xor  ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " xor " ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op op si es)          = show op ++ show si ++ "(" ++ intercalate "," (map (show_expr show_srcs) es) ++ ")"
 show_expr show_srcs (SE_Bit i a)              = "b" ++ show i ++ "(" ++ show_expr show_srcs a ++ ")"
 show_expr show_srcs (SE_SExtend l h a)        = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ show_expr show_srcs a ++ ")"
 show_expr show_srcs (SE_Overwrite i a b)      = "overwrite(" ++ show i ++ "," ++ show_expr show_srcs a ++ "," ++ show_expr show_srcs b ++ ")"
@@ -212,7 +220,7 @@ contains_bot (SE_Malloc _ _)      = False
 contains_bot (SE_Var sp)          = contains_bot_sp sp
 contains_bot (SE_Immediate _)     = False
 contains_bot (SE_StatePart sp)    = contains_bot_sp sp
-contains_bot (SE_Op _ es)         = any contains_bot es
+contains_bot (SE_Op _ _ es)       = any contains_bot es
 contains_bot (SE_Bit i e)         = contains_bot e
 contains_bot (SE_SExtend _ _ e)   = contains_bot e
 contains_bot (SE_Overwrite _ a b) = contains_bot a || contains_bot b
@@ -225,16 +233,16 @@ contains_bot_sp (SP_Mem a si)       = contains_bot a
 
 
 
-
+{--
 
 -- | concatMap function p over all bottom values in the expression  
-map_all_bot :: Ord a => (BotTyp -> S.Set a) -> SimpleExpr -> S.Set a
+map_all_bot :: Ord a => (BotTyp -> NES.NESet a) -> SimpleExpr -> S.Set a
 map_all_bot p (Bottom typ)         = p typ
 map_all_bot p (SE_Malloc _ _)      = S.empty
 map_all_bot p (SE_Var sp)          = map_all_bot_sp p sp
 map_all_bot p (SE_Immediate _)     = S.empty
 map_all_bot p (SE_StatePart sp)    = map_all_bot_sp p sp
-map_all_bot p (SE_Op _ es)         = S.unions $ map (map_all_bot p) es
+map_all_bot p (SE_Op _ _ es)       = S.unions $ map (map_all_bot p) es
 map_all_bot p (SE_Bit i e)         = map_all_bot p e
 map_all_bot p (SE_SExtend _ _ e)   = map_all_bot p e
 map_all_bot p (SE_Overwrite _ a b) = S.unions [map_all_bot p a, map_all_bot p b]
@@ -246,7 +254,7 @@ map_all_bot_sp p (SP_Mem a si)       = map_all_bot p a
 
 -- | Do all occurences of Bottom satisfy the given predicate?
 all_bot_satisfy p = and . map_all_bot (S.singleton . p)
-
+--}
 
 
 
@@ -256,7 +264,7 @@ expr_size (SE_Malloc id _)     = 1
 expr_size (SE_Var sp)          = expr_size_sp sp
 expr_size (SE_Immediate _)     = 1
 expr_size (SE_StatePart sp)    = expr_size_sp sp
-expr_size (SE_Op _ es)         = 1 + (sum $ map expr_size es)
+expr_size (SE_Op _ _ es)       = 1 + (sum $ map expr_size es)
 expr_size (SE_Bit i e)         = 1 + expr_size e
 expr_size (SE_SExtend l h e)   = 1 + expr_size e
 expr_size (SE_Overwrite _ _ e) = 1 + expr_size e
@@ -265,22 +273,16 @@ expr_size_sp (SP_StackPointer _) = 1
 expr_size_sp (SP_Reg r)          = 1
 expr_size_sp (SP_Mem a si)       = 1 + expr_size a 
 
-expr_size_bottyp (FromNonDeterminism es)        = sum $ S.map expr_size es
-expr_size_bottyp (FromPointerBases bs)          = S.size bs
-expr_size_bottyp (FromSources srcs)             = S.size srcs
-expr_size_bottyp (FromBitMode srcs)             = S.size srcs
-expr_size_bottyp (FromOverlap srcs)             = S.size srcs
-expr_size_bottyp (FromSemantics srcs)           = S.size srcs
-expr_size_bottyp (FromMemWrite srcs)            = S.size srcs
-expr_size_bottyp (FromUninitializedMemory srcs) = S.size srcs
+expr_size_bottyp (FromNonDeterminism es)        = sum $ NES.map expr_size es
+expr_size_bottyp (FromPointerBases bs)          = NES.size bs
+expr_size_bottyp (FromSources srcs)             = NES.size srcs
+expr_size_bottyp (FromBitMode srcs)             = NES.size srcs
+expr_size_bottyp (FromOverlap srcs)             = NES.size srcs
+expr_size_bottyp (FromSemantics srcs)           = NES.size srcs
+expr_size_bottyp (FromMemWrite srcs)            = NES.size srcs
+expr_size_bottyp (FromUninitializedMemory srcs) = NES.size srcs
 expr_size_bottyp (FromCall _)                   = 1
 
-
-
-
-
--- | The lowest botom element
-rock_bottom = Bottom (FromSources S.empty)
 
 
 
@@ -305,24 +307,28 @@ simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite
 
 simp' (SE_SExtend l h (SE_Bit i e))  = if i == l then SE_SExtend l h (simp' e) else SE_SExtend l h (SE_Bit i $ simp' e)
 
-simp' (SE_Op (Minus b0) [SE_Op (Minus b1) [a0,a1], a2]) = simp' $ SE_Op (Minus b0) [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0-a1)-a2 ==> a0 - (a1 + a2)
-simp' (SE_Op (Plus b0)  [SE_Op (Minus b1) [a0,a1], a2]) = simp' $ SE_Op (Minus b0) [a0, SE_Op (Minus b0) [a1, a2]] -- (a0-a1)+a2 ==> a0 - (a1 - a2)
-simp' (SE_Op (Minus b0) [SE_Op (Plus b1)  [a0,a1], a2]) = simp' $ SE_Op (Plus b0)  [a0, SE_Op (Minus b0) [a1, a2]] -- (a0+a1)-a2 ==> a0 + (a1 - a2)
-simp' (SE_Op (Plus b0)  [SE_Op (Plus b1)  [a0,a1], a2]) = simp' $ SE_Op (Plus b0)  [a0, SE_Op (Plus b0)  [a1, a2]] -- (a0+a1)+a2 ==> a0 + (a1 + a2)
+simp' (SE_Op Minus si0 [SE_Op Minus _ [a0,a1], a2]) = simp' $ SE_Op Minus si0 [a0, SE_Op Plus  si0 [a1, a2]] -- (a0-a1)-a2 ==> a0 - (a1 + a2)
+simp' (SE_Op Plus  si0 [SE_Op Minus _ [a0,a1], a2]) = simp' $ SE_Op Minus si0 [a0, SE_Op Minus si0 [a1, a2]] -- (a0-a1)+a2 ==> a0 - (a1 - a2)
+simp' (SE_Op Minus si0 [SE_Op Plus  _ [a0,a1], a2]) = simp' $ SE_Op Plus  si0 [a0, SE_Op Minus si0 [a1, a2]] -- (a0+a1)-a2 ==> a0 + (a1 - a2)
+simp' (SE_Op Plus  si0 [SE_Op Plus  _ [a0,a1], a2]) = simp' $ SE_Op Plus  si0 [a0, SE_Op Plus  si0 [a1, a2]] -- (a0+a1)+a2 ==> a0 + (a1 + a2)
 
-simp' (SE_Op (Plus b0)  [SE_Immediate 0, e1]) = simp' e1 -- 0 + e1 = e1
-simp' (SE_Op (Plus b0)  [e0, SE_Immediate 0]) = simp' e0 -- e0 + 0 = e0
-simp' (SE_Op (Minus b0) [e0, SE_Immediate 0]) = simp' e0 -- e0 - 0 = e0
-simp' (SE_Op (Times b0) [e0, SE_Immediate 0]) = SE_Immediate 0
-simp' (SE_Op (Times b0) [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Plus  si0 [SE_Immediate 0, e1]) = simp' e1 -- 0 + e1 = e1
+simp' (SE_Op Plus  si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 + 0 = e0
+simp' (SE_Op Minus si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 - 0 = e0
+simp' (SE_Op Times si0 [e0, SE_Immediate 0]) = SE_Immediate 0
+simp' (SE_Op Times si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Udiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Div   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 
 simp' (SE_Overwrite i (SE_Immediate 0) e) = simp' e
 
-simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 - i1)   -- Immediate: i0 - i1
-simp' (SE_Op (Plus  b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 + i1)   -- Immediate: i0 + i1
-simp' (SE_Op (Times b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 * i1)   -- Immediate: i0 * i1
-simp' (SE_Op (Or    b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .|. i1) -- Immediate: i0 | i1
-simp' (SE_Op (And   b0) [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .&. i1) -- Immediate: i0 & i1
+simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 - i1)     -- Immediate: i0 - i1
+simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 + i1)     -- Immediate: i0 + i1
+simp' (SE_Op Times si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 * i1)     -- Immediate: i0 * i1
+simp' (SE_Op Or    si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .|. i1)   -- Immediate: i0 | i1
+simp' (SE_Op And   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .&. i1)   -- Immediate: i0 & i1
+simp' (SE_Op Xor   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `xor` i1) -- Immediate: i0 xor i1
+
 
 
 
@@ -334,36 +340,38 @@ simp' (SE_SExtend 32 64 (SE_Immediate i)) = SE_Immediate (sextend_32_64 i)
 simp' (SE_SExtend 16 64 (SE_Immediate i)) = SE_Immediate (sextend_16_64 i)
 simp' (SE_SExtend 8  64 (SE_Immediate i)) = SE_Immediate (sextend_8_64 i)
 
-simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
-simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [e1, SE_Immediate i1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
-simp' (SE_Op (Minus b0) [SE_Immediate i0, SE_Op (Plus b1)  [SE_Immediate i1, e1]]) = simp' $ SE_Op (Minus b0) [SE_Immediate (i0-i1), e1] -- i0-(i1+e1) ==> (i0-i1)-e1
-simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Minus b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
-simp' (SE_Op (Plus b0)  [SE_Immediate i0, SE_Op (Plus  b1) [e1, SE_Immediate i1]]) = simp' $ SE_Op (Plus b0)  [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
+simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
+simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
+simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [SE_Immediate i1, e1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(i1+e1) ==> (i0-i1)-e1
+simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
+simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
 
-simp' (SE_Op (Minus b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Plus b)  [simp' e,SE_Immediate (-i)] else SE_Op (Minus b) [simp' e,SE_Immediate i]
-simp' (SE_Op (Plus  b) [e,SE_Immediate i]) = if testBit i 63 then SE_Op (Minus b) [simp' e,SE_Immediate (-i)] else SE_Op (Plus  b) [simp' e,SE_Immediate i]
-
-
-simp' (SE_Bit i (SE_Op (Plus  b0) [e0, e1])) = simp' $ SE_Op (Plus i)  [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)
-simp' (SE_Bit i (SE_Op (Minus b0) [e0, e1])) = simp' $ SE_Op (Minus i) [SE_Bit i e0, SE_Bit i e1] -- b(e0-e1) = b(e0) - b(e1)
-simp' (SE_Bit i (SE_Op (Times b0) [e0, e1])) = simp' $ SE_Op (Times i) [SE_Bit i e0, SE_Bit i e1] -- b(e0*e1) = b(e0) * b(e1)
-simp' (SE_Bit i (SE_Op (And   b0) [e0, e1])) = simp' $ SE_Op (And i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0&e1) = b(e0) & b(e1)
-simp' (SE_Bit i (SE_Op (Or    b0) [e0, e1])) = simp' $ SE_Op (Or i)    [SE_Bit i e0, SE_Bit i e1] -- b(e0|e1) = b(e0) | b(e1)
-simp' (SE_Bit i (SE_Op (Xor   b0) [e0, e1])) = simp' $ SE_Op (Xor i)   [SE_Bit i e0, SE_Bit i e1] -- b(e0 xor e1) = b(e0) xor b(e1)
-simp' (SE_Bit i (SE_Op (Not   b0) [e0]))     = simp' $ SE_Op (Not i)   [SE_Bit i e0]              -- b(not e0) = b(not e0)
+simp' (SE_Op Minus si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Plus  si0 [simp' e,SE_Immediate (-i)] else SE_Op Minus si0 [simp' e,SE_Immediate i]
+simp' (SE_Op Plus  si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
+simp' (SE_Op Plus  si0 [SE_Immediate i,e]) = if testBit i 63 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
 
 
-simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ S.map simp' es
-simp' (SE_Op op es)          = SE_Op op $ map simp' es
-simp' (SE_StatePart sp)      = SE_StatePart $ simp'_sp sp
-simp' (SE_Bit i e)           = SE_Bit i $ simp' e
-simp' (SE_SExtend l h e)     = SE_SExtend l h $ simp' e
-simp' (SE_Overwrite i e0 e1) = SE_Overwrite i (simp' e0) (simp' e1)
-simp' (SE_Var sp)            = SE_Var $ simp'_sp sp
-simp' e                      = e
+simp' (SE_Bit i (SE_Op Plus  si0 [e0, e1])) = simp' $ SE_Op Plus  si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)
+simp' (SE_Bit i (SE_Op Minus si0 [e0, e1])) = simp' $ SE_Op Minus si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0-e1) = b(e0) - b(e1)
+simp' (SE_Bit i (SE_Op Times si0 [e0, e1])) = simp' $ SE_Op Times si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0*e1) = b(e0) * b(e1)
+simp' (SE_Bit i (SE_Op And   si0 [e0, e1])) = simp' $ SE_Op And   si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0&e1) = b(e0) & b(e1)
+simp' (SE_Bit i (SE_Op Or    si0 [e0, e1])) = simp' $ SE_Op Or    si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0|e1) = b(e0) | b(e1)
+simp' (SE_Bit i (SE_Op Xor   si0 [e0, e1])) = simp' $ SE_Op Xor   si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0 xor e1) = b(e0) xor b(e1)
+simp' (SE_Bit i (SE_Op Not   si0 [e0]))     = simp' $ SE_Op Not   si0 [SE_Bit i e0]              -- b(not e0) = b(not e0)
 
-simp'_sp (SP_Mem e si)    = SP_Mem (simp' e) si
-simp'_sp sp               = sp
+simp' (SE_Op Xor si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Xor si0 $ map simp' [e0,e1]
+
+simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ NES.map simp' es
+simp' (SE_Op op si0 es)                = SE_Op op si0 $ map simp' es
+simp' (SE_StatePart sp)                = SE_StatePart $ simp'_sp sp
+simp' (SE_Bit i e)                     = SE_Bit i $ simp' e
+simp' (SE_SExtend l h e)               = SE_SExtend l h $ simp' e
+simp' (SE_Overwrite i e0 e1)           = SE_Overwrite i (simp' e0) (simp' e1)
+simp' (SE_Var sp)                      = SE_Var $ simp'_sp sp
+simp' e                                = e
+
+simp'_sp (SP_Mem e si) = SP_Mem (simp' e) si
+simp'_sp sp            = sp
 
 
 
@@ -380,24 +388,28 @@ data FlagStatus =
   deriving (Generic,Eq,Ord)
 
 
+instance Show FlagStatus where
+ show None = ""
+ show (FS_CMP Nothing      op1 op2) = "flags set by CMP(" ++ show op1 ++ "," ++ show op2 ++ ")"
+ show (FS_CMP (Just True)  op1 op2) = show op1 ++ " < " ++ show op2
+ show (FS_CMP (Just False) op1 op2) = show op1 ++ " >= " ++ show op2
+
+
 instance Show PointerBase where
   show (StackPointer f)        = "StackPointer_" ++ f
   show (Malloc Nothing  _)     = "malloc()"
   show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
   show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a
   show (PointerToSymbol a sym) = "PointerToSymbol_" ++ sym
+  show ThreadLocalStorage      = "ThreadLocalStorage"
 
 
 
 
+-- | Pretty print expression, showing Bottom expressions only as Bot
+pp_expr = show_expr (\_ -> "")
 
--- | A symbolic predicate consists of:
---
---   * A mapping from stateparts to symbolic expressions.
---   * The status of the flags.
---   * A set of verification conditions.
-data Pred = Predicate (M.Map StatePart SimpleExpr) FlagStatus
-  deriving (Generic,Eq,Ord)
+
 
 instance Cereal.Serialize PointerBase
 instance Cereal.Serialize BotTyp
@@ -406,35 +418,5 @@ instance Cereal.Serialize StatePart
 instance Cereal.Serialize Operator
 instance Cereal.Serialize SimpleExpr
 instance Cereal.Serialize FlagStatus
-instance Cereal.Serialize Pred
-
-instance Show FlagStatus where
- show None = ""
- show (FS_CMP Nothing      op1 op2) = "flags set by CMP(" ++ show op1 ++ "," ++ show op2 ++ ")"
- show (FS_CMP (Just True)  op1 op2) = show op1 ++ " < " ++ show op2
- show (FS_CMP (Just False) op1 op2) = show op1 ++ " >= " ++ show op2
-
-
-instance Show Pred where
-  show (Predicate eqs flg) =
-       (intercalate "\n" $ (map (\(sp,e) -> show sp ++ " := " ++ show e) $ M.toList eqs))
-    ++ (if show flg == "" then "" else "\n" ++ show flg)
-
-
-
--- | Pretty print expression, showing Bottom expressions only as Bot
-pp_expr = show_expr (\_ -> "")
-
--- | Pretty print predicate, showing Bottom expressions only as Bot
-pp_pred :: Pred -> String
-pp_pred (Predicate eqs _) = (intercalate "\n" $ mapMaybe pp_pred_entry $ M.toList eqs)
- where
-  pp_pred_entry (sp,v) =
-    --if sp == SP_Reg RIP || contains_bot_sp sp then
-    --  Nothing
-    --else
-      Just $ show sp ++ " := " ++ pp_expr v
-
-
 
 
