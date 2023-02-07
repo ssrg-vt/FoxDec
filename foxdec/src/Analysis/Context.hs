@@ -38,6 +38,7 @@ import Data.Word (Word8,Word64)
 import Data.Maybe (mapMaybe,fromJust)
 import qualified Data.ByteString as BS
 import Data.IORef
+import Data.Int (Int64)
 
 
 import GHC.Generics
@@ -56,6 +57,7 @@ import X86.Opcode (Opcode(JMP), isCall, isJump)
 import System.Directory (doesFileExist)
 import System.IO.Unsafe (unsafePerformIO)
 
+import Control.DeepSeq
 
 
 -- | The context augmented with information on the current function
@@ -206,6 +208,7 @@ data SStatePart =
 -------------------------------------------------------------------------------
 data Context_ = Context_ {
    ctxt__config        :: !Config,                         -- ^ __S__: the configuration file in ./config
+   ctxt__verbose       :: !Bool,                           -- ^ __S__: is verbose output requested?
    ctxt__syms          :: !(IM.IntMap String),             -- ^ __S__: the symbol table: a mapping of addresses to function names for external functions
    ctxt__sections      :: !SectionsInfo,                   -- ^ __S__: information on segments/section
    ctxt__dirname       :: !String,                         -- ^ __S__: the name of the directory where the .dump, .entry, .sections and .symbols files reside
@@ -223,7 +226,8 @@ data Context_ = Context_ {
    ctxt__finits        :: !(IM.IntMap FInit),              -- ^ __D__: the currently known function initialisations
    ctxt__vcs           :: !(IM.IntMap VCS),                -- ^ __D__: the verification conditions
    ctxt__results       :: !(IM.IntMap VerificationResult), -- ^ __D__: the verification result
-   ctxt__recursions    :: !(IM.IntMap IS.IntSet)           -- ^ __D__: a mapping from function entries to the set of mutually recursive functions entries they occur in
+   ctxt__recursions    :: !(IM.IntMap IS.IntSet),          -- ^ __D__: a mapping from function entries to the set of mutually recursive functions entries they occur in
+   ctxt__runningtime   :: !Int64                           -- ^ __D__: running time of lifting effort
  }
  deriving Generic
 
@@ -234,24 +238,26 @@ data Context = Context {
  }
 
 
-ctxt_config      = ctxt__config     . ctxt_ctxt_
-ctxt_syms        = ctxt__syms       . ctxt_ctxt_
-ctxt_sections    = ctxt__sections   . ctxt_ctxt_
-ctxt_dirname     = ctxt__dirname    . ctxt_ctxt_
-ctxt_name        = ctxt__name       . ctxt_ctxt_
-ctxt_start       = ctxt__start      . ctxt_ctxt_
-ctxt_relocs      = ctxt__relocs     . ctxt_ctxt_
-ctxt_entries     = ctxt__entries    . ctxt_ctxt_
-ctxt_cfgs        = ctxt__cfgs       . ctxt_ctxt_
-ctxt_calls       = ctxt__calls      . ctxt_ctxt_
-ctxt_invs        = ctxt__invs       . ctxt_ctxt_
-ctxt_posts       = ctxt__posts      . ctxt_ctxt_
-ctxt_stateparts  = ctxt__stateparts . ctxt_ctxt_
-ctxt_inds        = ctxt__inds       . ctxt_ctxt_
-ctxt_finits      = ctxt__finits     . ctxt_ctxt_
-ctxt_vcs         = ctxt__vcs        . ctxt_ctxt_
-ctxt_results     = ctxt__results    . ctxt_ctxt_
-ctxt_recursions  = ctxt__recursions . ctxt_ctxt_
+ctxt_config      = ctxt__config      . ctxt_ctxt_
+ctxt_verbose     = ctxt__verbose     . ctxt_ctxt_
+ctxt_syms        = ctxt__syms        . ctxt_ctxt_
+ctxt_sections    = ctxt__sections    . ctxt_ctxt_
+ctxt_dirname     = ctxt__dirname     . ctxt_ctxt_
+ctxt_name        = ctxt__name        . ctxt_ctxt_
+ctxt_start       = ctxt__start       . ctxt_ctxt_
+ctxt_relocs      = ctxt__relocs      . ctxt_ctxt_
+ctxt_entries     = ctxt__entries     . ctxt_ctxt_
+ctxt_cfgs        = ctxt__cfgs        . ctxt_ctxt_
+ctxt_calls       = ctxt__calls       . ctxt_ctxt_
+ctxt_invs        = ctxt__invs        . ctxt_ctxt_
+ctxt_posts       = ctxt__posts       . ctxt_ctxt_
+ctxt_stateparts  = ctxt__stateparts  . ctxt_ctxt_
+ctxt_inds        = ctxt__inds        . ctxt_ctxt_
+ctxt_finits      = ctxt__finits      . ctxt_ctxt_
+ctxt_vcs         = ctxt__vcs         . ctxt_ctxt_
+ctxt_results     = ctxt__results     . ctxt_ctxt_
+ctxt_recursions  = ctxt__recursions  . ctxt_ctxt_
+ctxt_runningtime = ctxt__runningtime . ctxt_ctxt_
 
 set_ctxt_syms       syms     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__syms = syms})
 set_ctxt_sections   sections (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__sections = sections})
@@ -267,9 +273,9 @@ set_ctxt_invs       invs     (Context bin ioref ctxt_) = Context bin ioref (ctxt
 set_ctxt_cfgs       cfgs     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__cfgs = cfgs})
 set_ctxt_relocs     relocs   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__relocs = relocs})
 set_ctxt_results    results  (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__results = results})
-set_ctxt_recursions recs   (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__recursions = recs})
+set_ctxt_recursions recs     (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__recursions = recs})
+set_ctxt_runningtime time    (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__runningtime = time})
 
---instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize JumpTable
 instance Cereal.Serialize ResolvedJumpTarget
@@ -285,22 +291,35 @@ instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize Context_
 
 
+instance NFData VerificationResult
+instance NFData JumpTable
+instance NFData ResolvedJumpTarget
+instance NFData Indirection
+instance NFData CFG
+instance NFData FReturnBehavior
+instance NFData VerificationCondition
+instance NFData PointerDomain
+instance NFData SectionsInfo
+instance NFData Relocation
+instance NFData SStatePart
+instance NFData NodeInfo
+instance NFData Context_
 
 -- | intialize an empty context based on the command-line parameters
-init_context binary ioref config dirname name =
+init_context binary ioref config verbose dirname name =
   let !sections = binary_get_sections_info binary
       !symbols  = binary_get_symbols binary
       !relocs   = binary_get_relocs binary in
-    Context binary ioref $ Context_ config symbols sections dirname name 0 relocs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty
+    Context binary ioref $ Context_ config verbose symbols sections dirname name 0 relocs (Edges IM.empty) IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty 0
 
 
 -- | purge the context before exporting it (may save a lot of disk space)
 purge_context  :: Context -> Context_
-purge_context (Context binary _ (Context_ config syms sections dirname name start relocs entries cfgs calls invs posts stateparts inds finits vcs results recursions)) =
-  let keep_preconditions = store_preconditions_in_report config
-      keep_assertions    = store_assertions_in_report config
+purge_context (Context binary _ (Context_ config verbose syms sections dirname name start relocs entries cfgs calls invs posts stateparts inds finits vcs results recursions runningTime)) =
+  let keep_preconditions = store_preconditions_in_L0 config
+      keep_assertions    = store_assertions_in_L0 config
       vcs'               = IM.filter (not . S.null) $ IM.map (purge keep_preconditions keep_assertions) vcs in
-    Context_ config syms sections dirname name start relocs (Edges IM.empty) cfgs calls invs IM.empty IM.empty inds finits vcs' results IM.empty
+    Context_ config verbose syms sections dirname name start relocs (Edges IM.empty) cfgs calls invs IM.empty IM.empty inds finits vcs' results IM.empty runningTime
  where
   purge keep_preconditions keep_assertions vcs = S.filter (keep_vcs keep_preconditions keep_assertions) vcs
 
@@ -436,8 +455,8 @@ count_instructions_with_assertions = S.size . S.map (\(Assertion rip _ _ _ _) ->
 ctxt_continue_on_unknown_instruction = continue_on_unknown_instruction . ctxt_config
 ctxt_generate_pdfs = generate_pdfs . ctxt_config
 ctxt_verbose_logs = verbose_logs . ctxt_config
-ctxt_store_preconditions_in_report = store_preconditions_in_report . ctxt_config
-ctxt_store_assertions_in_report = store_assertions_in_report . ctxt_config
+ctxt_store_preconditions_in_L0 = store_preconditions_in_L0 . ctxt_config
+ctxt_store_assertions_in_L0 = store_assertions_in_L0 . ctxt_config
 
 ctxt_max_time :: Context -> Int
 ctxt_max_time = fromIntegral . max_time . ctxt_config
@@ -459,19 +478,19 @@ ctxt_max_expr_size = fromIntegral . max_expr_size . ctxt_config
 
 
 
--- | Read in the .report file from a file with the given file name.
---   May produce an error if no report can be read from the file.
---   Returns the verification report stored in the .report file.
-ctxt_read_report :: 
+-- | Read in the .L0 file from a file with the given file name.
+--   May produce an error if no L0 can be read from the file.
+--   Returns the L0 stored in the .L0 file.
+ctxt_read_L0 :: 
    String        -- ^ The directory name
    -> String     -- ^ The file name of the binary
    -> IO Context
-ctxt_read_report dirname name = do
-  rcontents <- BS.readFile (dirname ++ name ++ ".report")
+ctxt_read_L0 dirname name = do
+  rcontents <- BS.readFile (dirname ++ name ++ ".L0")
   ioref     <- newIORef IM.empty
   bcontents <- read_binary dirname name
   case (Cereal.decode rcontents, bcontents) of
-    (Left err,_)           -> error $ "Could not read verification report in file " ++ (dirname ++ name ++ ".report") ++  "\n" ++ show err
+    (Left err,_)           -> error $ "Could not read verification L0 in file " ++ (dirname ++ name ++ ".L0") ++  "\n" ++ show err
     (_,Nothing)            -> error $ "Cannot read binary file: " ++ dirname ++ name
     (Right ctxt_,Just bin) -> return $ Context bin ioref ctxt_
 

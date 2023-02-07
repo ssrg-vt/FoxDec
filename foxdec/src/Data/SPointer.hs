@@ -20,6 +20,7 @@ import qualified Data.Serialize as Cereal
 import Data.Bits (testBit)
 import qualified Data.Set.NonEmpty as NES
 import qualified Data.Foldable as F
+import Control.DeepSeq
 
 data SPointer = 
     Concrete (NES.NESet SimpleExpr)
@@ -49,5 +50,4 @@ isConcrete _            = False
 
 
 instance Cereal.Serialize SPointer
-
-
+instance NFData SPointer

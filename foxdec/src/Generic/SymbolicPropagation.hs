@@ -12,7 +12,7 @@ Given these functions, we provide a generic abstract interpretation algorithm.
 
 
 
-module Generic.Propagation (
+module Generic.SymbolicPropagation (
   Propagator(..),
   do_prop
  ) where

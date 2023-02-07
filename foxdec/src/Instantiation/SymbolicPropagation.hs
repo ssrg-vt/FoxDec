@@ -20,7 +20,7 @@ import Analysis.FunctionNames
 import Analysis.Context
 
 import Generic.SymbolicConstituents
-import Generic.Propagation
+import Generic.SymbolicPropagation
 
 
 import X86.Opcode (Opcode(..), isCondJump, isJump)
@@ -50,7 +50,11 @@ import Control.Applicative (liftA2)
 
 import Debug.Trace
 
-debug_top_intros = False
+debug_abstraction = False
+
+trace' ctxt msg
+  | ctxt_verbose (f_ctxt ctxt) = trace msg
+  | otherwise                  = id
 
 
 cspointer_to_exprs (Concrete es)   = NES.toSet es
@@ -81,11 +85,16 @@ cwiden :: FContext -> String -> SPointer -> SPointer
 cwiden fctxt msg v = do_trace $ cwiden' fctxt v
  where
   do_trace v'
-    | not debug_top_intros  = v'
-    | v' `moreAbstract` v   = trace ("cwiden (" ++ msg ++ ") " ++ show v ++ " --> " ++ show v') v'
+    | not debug_abstraction = v'
+    | v' `moreAbstract` v   = trace' fctxt ("cwiden (" ++ msg ++ ") " ++ show v ++ " --> " ++ show v') v'
     | otherwise             = v'
 
+  moreAbstract v' v =
+    case ctry_immediate v of
+      Just imm -> v' /= v && address_has_instruction (f_ctxt fctxt) imm
+      Nothing  -> False
 
+{--
   moreAbstract Top             v1              = v1 /= Top
   moreAbstract _               Top             = False
   moreAbstract (Sources srcs0) (Sources srcs1) = NES.size srcs0 > NES.size srcs1
@@ -94,7 +103,7 @@ cwiden fctxt msg v = do_trace $ cwiden' fctxt v
   moreAbstract (Bases   bs0)   (Bases bs1)     = NES.size bs0 > NES.size bs1
   moreAbstract (Bases   bs0)   _               = True
   moreAbstract (Concrete es0)  _               = False
-
+--}
 
 cwiden' fctxt (Concrete es) =
   let domains = NES.map (get_pointer_domain fctxt) es in
@@ -123,7 +132,7 @@ cwiden' fctxt v@(Bases bs)
   | otherwise = cwiden' fctxt $ mk_sources $ NES.unions $ NES.map (srcs_of_base fctxt) bs
 cwiden' fctxt v@(Sources srcs) 
   | count_sources srcs <= (ctxt_max_num_of_sources $ f_ctxt fctxt) = v
-  | otherwise = trace ("Max num of sources exceeded: " ++ show v) Top
+  | otherwise = trace' fctxt ("Max num of sources exceeded: " ++ show v) Top
 cwiden' fctxt Top = Top
 
 cwiden_all_to_sources :: FContext -> String -> S.Set SPointer -> SPointer
@@ -263,7 +272,7 @@ csemantics fctxt (SO_Op op si si' es)   =
     SetXX         -> Concrete $ neFromList [SE_Immediate 0,SE_Immediate 1]
     SExtension_HI -> Concrete $ neFromList [SE_Immediate 0,SE_Immediate 18446744073709551615]
     NoSemantics   -> cwiden_all_to_sources fctxt ("csemantics " ++ show op) $ S.fromList es
-                     -- trace ("Widening due to operand: " ++ show op ++ " to " ++ show es) $ CTop -- TODO cwiden es
+                     -- trace' ctxt ("Widening due to operand: " ++ show op ++ " to " ++ show es) $ CTop -- TODO cwiden es
   
 
 
@@ -766,192 +775,192 @@ param 5 = R9
 pure_and_fresh = ExternalFunctionBehavior [] FreshPointer
 pure_and_unknown = ExternalFunctionBehavior [] UnknownReturnValue
 
-external_function_behavior :: String -> ExternalFunctionBehavior
+external_function_behavior :: FContext -> String -> ExternalFunctionBehavior
 -- | a list of some function that return a heap-pointer through RAX.
 -- The pointer is assumed to  be fresh.
-external_function_behavior "_malloc" = pure_and_fresh
-external_function_behavior "malloc" = pure_and_fresh
-external_function_behavior "_malloc_create_zone" = pure_and_fresh
-external_function_behavior "_malloc_default_zone" = pure_and_fresh
-external_function_behavior "_malloc_zone_malloc" = pure_and_fresh
-external_function_behavior "_calloc" = pure_and_fresh
-external_function_behavior "calloc" = pure_and_fresh
-external_function_behavior "_malloc_zone_calloc" = pure_and_fresh
-external_function_behavior "_mmap" = pure_and_fresh
-external_function_behavior "_av_mallocz" = pure_and_fresh
-external_function_behavior "___error" = pure_and_fresh
-external_function_behavior "_localeconv" = pure_and_fresh
-external_function_behavior "localeconv" = pure_and_fresh
-external_function_behavior "strerror" = pure_and_fresh
-external_function_behavior "_strerror" = pure_and_fresh
-external_function_behavior "_strerror_r" = pure_and_fresh
-external_function_behavior "_wcserror" = pure_and_fresh
-external_function_behavior "__wcserror" = pure_and_fresh
-external_function_behavior "_EVP_CIPHER_CTX_new" = pure_and_fresh
-external_function_behavior "strdup" = pure_and_fresh
-external_function_behavior "_strdup" = pure_and_fresh
-external_function_behavior "_getenv" = pure_and_fresh
-external_function_behavior "getenv" = pure_and_fresh
-external_function_behavior "_open" = pure_and_fresh
-external_function_behavior "_fts_read$INODE64" = pure_and_fresh
-external_function_behavior "_fts_open$INODE64" = pure_and_fresh
-external_function_behavior "_opendir$INODE64" = pure_and_fresh
-external_function_behavior "fopen" = pure_and_fresh
-external_function_behavior "_fopen" = pure_and_fresh
-external_function_behavior "_fgetln" = pure_and_fresh
-external_function_behavior "fgetln" = pure_and_fresh
-external_function_behavior "_setlocale" = pure_and_fresh
-external_function_behavior "_wsetlocale" = pure_and_fresh
-external_function_behavior "__ctype_b_loc" = pure_and_fresh
-external_function_behavior "dcgettext" = pure_and_fresh
-external_function_behavior "nl_langinfo" = pure_and_fresh
-external_function_behavior "setlocale" = pure_and_fresh
-external_function_behavior "__errno_location" = pure_and_fresh
-external_function_behavior "_popen" = pure_and_fresh
+external_function_behavior _ "_malloc" = pure_and_fresh
+external_function_behavior _ "malloc" = pure_and_fresh
+external_function_behavior _ "_malloc_create_zone" = pure_and_fresh
+external_function_behavior _ "_malloc_default_zone" = pure_and_fresh
+external_function_behavior _ "_malloc_zone_malloc" = pure_and_fresh
+external_function_behavior _ "_calloc" = pure_and_fresh
+external_function_behavior _ "calloc" = pure_and_fresh
+external_function_behavior _ "_malloc_zone_calloc" = pure_and_fresh
+external_function_behavior _ "_mmap" = pure_and_fresh
+external_function_behavior _ "_av_mallocz" = pure_and_fresh
+external_function_behavior _ "___error" = pure_and_fresh
+external_function_behavior _ "_localeconv" = pure_and_fresh
+external_function_behavior _ "localeconv" = pure_and_fresh
+external_function_behavior _ "strerror" = pure_and_fresh
+external_function_behavior _ "_strerror" = pure_and_fresh
+external_function_behavior _ "_strerror_r" = pure_and_fresh
+external_function_behavior _ "_wcserror" = pure_and_fresh
+external_function_behavior _ "__wcserror" = pure_and_fresh
+external_function_behavior _ "_EVP_CIPHER_CTX_new" = pure_and_fresh
+external_function_behavior _ "strdup" = pure_and_fresh
+external_function_behavior _ "_strdup" = pure_and_fresh
+external_function_behavior _ "_getenv" = pure_and_fresh
+external_function_behavior _ "getenv" = pure_and_fresh
+external_function_behavior _ "_open" = pure_and_fresh
+external_function_behavior _ "_fts_read$INODE64" = pure_and_fresh
+external_function_behavior _ "_fts_open$INODE64" = pure_and_fresh
+external_function_behavior _ "_opendir$INODE64" = pure_and_fresh
+external_function_behavior _ "fopen" = pure_and_fresh
+external_function_behavior _ "_fopen" = pure_and_fresh
+external_function_behavior _ "_fgetln" = pure_and_fresh
+external_function_behavior _ "fgetln" = pure_and_fresh
+external_function_behavior _ "_setlocale" = pure_and_fresh
+external_function_behavior _ "_wsetlocale" = pure_and_fresh
+external_function_behavior _ "__ctype_b_loc" = pure_and_fresh
+external_function_behavior _ "dcgettext" = pure_and_fresh
+external_function_behavior _ "nl_langinfo" = pure_and_fresh
+external_function_behavior _ "setlocale" = pure_and_fresh
+external_function_behavior _ "__errno_location" = pure_and_fresh
+external_function_behavior _ "_popen" = pure_and_fresh
 -- | A list of some functions that are assumed not to change the state in any significant way, and that return an unknown bottom value through RAX
-external_function_behavior "feof" = pure_and_unknown
-external_function_behavior "_feof" = pure_and_unknown
-external_function_behavior "_getc" = pure_and_unknown
-external_function_behavior "getc" = pure_and_unknown
-external_function_behavior "fgetc" = pure_and_unknown
-external_function_behavior "_fgetc" = pure_and_unknown
-external_function_behavior "_fgetwc" = pure_and_unknown
-external_function_behavior "fgetwc" = pure_and_unknown
-external_function_behavior "_fnmatch" = pure_and_unknown
-external_function_behavior "_fputc" = pure_and_unknown
-external_function_behavior "fputc" = pure_and_unknown
-external_function_behavior "_close" = pure_and_unknown
-external_function_behavior "close" = pure_and_unknown
-external_function_behavior "fwrite" = pure_and_unknown
-external_function_behavior "_fwrite" = pure_and_unknown
-external_function_behavior "_fflush" = pure_and_unknown
-external_function_behavior "___maskrune" = pure_and_unknown
-external_function_behavior "_getbsize" = pure_and_unknown
-external_function_behavior "_printf" = pure_and_unknown
-external_function_behavior "printf" = pure_and_unknown
-external_function_behavior "vprintf" = pure_and_unknown
-external_function_behavior "_fprintf" = pure_and_unknown
-external_function_behavior "fprintf" = pure_and_unknown
-external_function_behavior "vfprintf" = pure_and_unknown
-external_function_behavior "_fprintf_l" = pure_and_unknown
-external_function_behavior "fwprintf" = pure_and_unknown
-external_function_behavior "_fwprintf_l" = pure_and_unknown
-external_function_behavior "__fprintf_chk" = pure_and_unknown
-external_function_behavior "__printf_chk" = pure_and_unknown
-external_function_behavior "_putchar" = pure_and_unknown
-external_function_behavior "_puts" = pure_and_unknown
-external_function_behavior "fputs" = pure_and_unknown
-external_function_behavior "_fputs" = pure_and_unknown
-external_function_behavior "_btowc" = pure_and_unknown
-external_function_behavior "btowc" = pure_and_unknown
-external_function_behavior "mbtowc" = pure_and_unknown
-external_function_behavior "_mbtowc" = pure_and_unknown
-external_function_behavior "_mbrtowc" = pure_and_unknown
-external_function_behavior "mbrtowc" = pure_and_unknown
-external_function_behavior "_atof" = pure_and_unknown
-external_function_behavior "atof" = pure_and_unknown
-external_function_behavior "_strcmp" = pure_and_unknown
-external_function_behavior "_strncmp" = pure_and_unknown
-external_function_behavior "strcmp" = pure_and_unknown
-external_function_behavior "strncmp" = pure_and_unknown
-external_function_behavior "strlen" = pure_and_unknown
-external_function_behavior "_strlen" = pure_and_unknown
-external_function_behavior "_ilogb" = pure_and_unknown
-external_function_behavior "_atoi" = pure_and_unknown
-external_function_behavior "_getopt" = pure_and_unknown
-external_function_behavior "getopt_long" = pure_and_unknown
-external_function_behavior "_free" = pure_and_unknown
-external_function_behavior "_warn" = pure_and_unknown
-external_function_behavior "_warnx" = pure_and_unknown
-external_function_behavior "__errno_location" = pure_and_unknown
-external_function_behavior "__libc_start_main" = pure_and_unknown
-external_function_behavior "__cxa_finalize" = pure_and_unknown
-external_function_behavior "perror" = pure_and_unknown
-external_function_behavior "fclose" = pure_and_unknown
-external_function_behavior "free" = pure_and_unknown
-external_function_behavior "unlink" = pure_and_unknown
-external_function_behavior "unlinkat" = pure_and_unknown
-external_function_behavior "strspn" = pure_and_unknown
-external_function_behavior "utimensat" = pure_and_unknown
-external_function_behavior "fdatasync" = pure_and_unknown
-external_function_behavior "fsync" = pure_and_unknown
-external_function_behavior "isatty" = pure_and_unknown
-external_function_behavior "strcspn" = pure_and_unknown
-external_function_behavior "memcmp" = pure_and_unknown
-external_function_behavior "_memcmp" = pure_and_unknown
-external_function_behavior "isprint" = pure_and_unknown
-external_function_behavior "iswprint" = pure_and_unknown
-external_function_behavior "_isprint_l" = pure_and_unknown
-external_function_behavior "_iswprint_l" = pure_and_unknown
-external_function_behavior "__cxa_atexit" = pure_and_unknown
-external_function_behavior "towlower" = pure_and_unknown
-external_function_behavior "towupper" = pure_and_unknown
-external_function_behavior "iswalnum" = pure_and_unknown
-external_function_behavior "fseeko" = pure_and_unknown
-external_function_behavior "fflush" = pure_and_unknown
-external_function_behavior "_fclose" = pure_and_unknown
-external_function_behavior "_fgets" = pure_and_unknown
-external_function_behavior "_ferror" = pure_and_unknown
-external_function_behavior "_strtol" = pure_and_unknown
-external_function_behavior "_strtoul" = pure_and_unknown
-external_function_behavior "_munmap" = pure_and_unknown
+external_function_behavior _ "feof" = pure_and_unknown
+external_function_behavior _ "_feof" = pure_and_unknown
+external_function_behavior _ "_getc" = pure_and_unknown
+external_function_behavior _ "getc" = pure_and_unknown
+external_function_behavior _ "fgetc" = pure_and_unknown
+external_function_behavior _ "_fgetc" = pure_and_unknown
+external_function_behavior _ "_fgetwc" = pure_and_unknown
+external_function_behavior _ "fgetwc" = pure_and_unknown
+external_function_behavior _ "_fnmatch" = pure_and_unknown
+external_function_behavior _ "_fputc" = pure_and_unknown
+external_function_behavior _ "fputc" = pure_and_unknown
+external_function_behavior _ "_close" = pure_and_unknown
+external_function_behavior _ "close" = pure_and_unknown
+external_function_behavior _ "fwrite" = pure_and_unknown
+external_function_behavior _ "_fwrite" = pure_and_unknown
+external_function_behavior _ "_fflush" = pure_and_unknown
+external_function_behavior _ "___maskrune" = pure_and_unknown
+external_function_behavior _ "_getbsize" = pure_and_unknown
+external_function_behavior _ "_printf" = pure_and_unknown
+external_function_behavior _ "printf" = pure_and_unknown
+external_function_behavior _ "vprintf" = pure_and_unknown
+external_function_behavior _ "_fprintf" = pure_and_unknown
+external_function_behavior _ "fprintf" = pure_and_unknown
+external_function_behavior _ "vfprintf" = pure_and_unknown
+external_function_behavior _ "_fprintf_l" = pure_and_unknown
+external_function_behavior _ "fwprintf" = pure_and_unknown
+external_function_behavior _ "_fwprintf_l" = pure_and_unknown
+external_function_behavior _ "__fprintf_chk" = pure_and_unknown
+external_function_behavior _ "__printf_chk" = pure_and_unknown
+external_function_behavior _ "_putchar" = pure_and_unknown
+external_function_behavior _ "_puts" = pure_and_unknown
+external_function_behavior _ "fputs" = pure_and_unknown
+external_function_behavior _ "_fputs" = pure_and_unknown
+external_function_behavior _ "_btowc" = pure_and_unknown
+external_function_behavior _ "btowc" = pure_and_unknown
+external_function_behavior _ "mbtowc" = pure_and_unknown
+external_function_behavior _ "_mbtowc" = pure_and_unknown
+external_function_behavior _ "_mbrtowc" = pure_and_unknown
+external_function_behavior _ "mbrtowc" = pure_and_unknown
+external_function_behavior _ "_atof" = pure_and_unknown
+external_function_behavior _ "atof" = pure_and_unknown
+external_function_behavior _ "_strcmp" = pure_and_unknown
+external_function_behavior _ "_strncmp" = pure_and_unknown
+external_function_behavior _ "strcmp" = pure_and_unknown
+external_function_behavior _ "strncmp" = pure_and_unknown
+external_function_behavior _ "strlen" = pure_and_unknown
+external_function_behavior _ "_strlen" = pure_and_unknown
+external_function_behavior _ "_ilogb" = pure_and_unknown
+external_function_behavior _ "_atoi" = pure_and_unknown
+external_function_behavior _ "_getopt" = pure_and_unknown
+external_function_behavior _ "getopt_long" = pure_and_unknown
+external_function_behavior _ "_free" = pure_and_unknown
+external_function_behavior _ "_warn" = pure_and_unknown
+external_function_behavior _ "_warnx" = pure_and_unknown
+external_function_behavior _ "__errno_location" = pure_and_unknown
+external_function_behavior _ "__libc_start_main" = pure_and_unknown
+external_function_behavior _ "__cxa_finalize" = pure_and_unknown
+external_function_behavior _ "perror" = pure_and_unknown
+external_function_behavior _ "fclose" = pure_and_unknown
+external_function_behavior _ "free" = pure_and_unknown
+external_function_behavior _ "unlink" = pure_and_unknown
+external_function_behavior _ "unlinkat" = pure_and_unknown
+external_function_behavior _ "strspn" = pure_and_unknown
+external_function_behavior _ "utimensat" = pure_and_unknown
+external_function_behavior _ "fdatasync" = pure_and_unknown
+external_function_behavior _ "fsync" = pure_and_unknown
+external_function_behavior _ "isatty" = pure_and_unknown
+external_function_behavior _ "strcspn" = pure_and_unknown
+external_function_behavior _ "memcmp" = pure_and_unknown
+external_function_behavior _ "_memcmp" = pure_and_unknown
+external_function_behavior _ "isprint" = pure_and_unknown
+external_function_behavior _ "iswprint" = pure_and_unknown
+external_function_behavior _ "_isprint_l" = pure_and_unknown
+external_function_behavior _ "_iswprint_l" = pure_and_unknown
+external_function_behavior _ "__cxa_atexit" = pure_and_unknown
+external_function_behavior _ "towlower" = pure_and_unknown
+external_function_behavior _ "towupper" = pure_and_unknown
+external_function_behavior _ "iswalnum" = pure_and_unknown
+external_function_behavior _ "fseeko" = pure_and_unknown
+external_function_behavior _ "fflush" = pure_and_unknown
+external_function_behavior _ "_fclose" = pure_and_unknown
+external_function_behavior _ "_fgets" = pure_and_unknown
+external_function_behavior _ "_ferror" = pure_and_unknown
+external_function_behavior _ "_strtol" = pure_and_unknown
+external_function_behavior _ "_strtoul" = pure_and_unknown
+external_function_behavior _ "_munmap" = pure_and_unknown
 
 
 
 -- | A list of some functions that return bottom and write to pointers passed by parameters
---external_function_behavior "_sysctlbyname" = ExternalFunctionBehavior [param 2, param 4] UnknownReturnValue
---external_function_behavior "_fstat$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
---external_function_behavior "_fstatfs$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
---external_function_behavior "_statfs$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
-external_function_behavior "snprintf"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_snprintf"            = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_snprintf_l"          = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_snwprintf"           = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_snwprintf_l"         = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "__snprintf_chk"       = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_vsnprintf"           = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "sprintf"              = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "_sprintf"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "___bzero"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "sigprocmask"          = ExternalFunctionBehavior [param 2] UnknownReturnValue
-external_function_behavior "__strcat_chk"         = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "strcat"               = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "strlcpy"              = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "___strlcpy_chk"       = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "sigemptyset"          = ExternalFunctionBehavior [param 0] UnknownReturnValue
-external_function_behavior "sigaction"            = ExternalFunctionBehavior [param 2] UnknownReturnValue
-external_function_behavior "localtime"            = ExternalFunctionBehavior [param 0] FreshPointer
-external_function_behavior "memset"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_memset"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "__memset_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "___memset_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+--external_function_behavior _ "_sysctlbyname" = ExternalFunctionBehavior [param 2, param 4] UnknownReturnValue
+--external_function_behavior _ "_fstat$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
+--external_function_behavior _ "_fstatfs$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
+--external_function_behavior _ "_statfs$INODE64" = ExternalFunctionBehavior [param 1] UnknownReturnValue
+external_function_behavior _ "snprintf"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_snprintf"            = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_snprintf_l"          = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_snwprintf"           = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_snwprintf_l"         = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "__snprintf_chk"       = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_vsnprintf"           = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "sprintf"              = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "_sprintf"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "___bzero"             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "sigprocmask"          = ExternalFunctionBehavior [param 2] UnknownReturnValue
+external_function_behavior _ "__strcat_chk"         = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "strcat"               = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "strlcpy"              = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "___strlcpy_chk"       = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "sigemptyset"          = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ "sigaction"            = ExternalFunctionBehavior [param 2] UnknownReturnValue
+external_function_behavior _ "localtime"            = ExternalFunctionBehavior [param 0] FreshPointer
+external_function_behavior _ "memset"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_memset"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "__memset_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "___memset_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
 
 -- A list of functions that return a pointer given to them by a parameter
-external_function_behavior "_realloc"             = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "_malloc_zone_realloc" = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "_recallocarray"       = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "realloc"              = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "_strcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_strncpy"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "strcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "strncpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "memcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_memcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "__memcpy_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "___memcpy_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "__memmove_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "memmove"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_memmove"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "strcat"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_strcat"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
-external_function_behavior "_strchr"              = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "_memchr"              = ExternalFunctionBehavior [] $ Input $ param 0
-external_function_behavior "_strstr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_realloc"             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_malloc_zone_realloc" = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_recallocarray"       = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "realloc"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_strncpy"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "strcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "strncpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "memcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_memcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "__memcpy_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "___memcpy_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "__memmove_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "memmove"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_memmove"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "strcat"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_strcat"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_strchr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_memchr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strstr"              = ExternalFunctionBehavior [] $ Input $ param 0
 
 
-external_function_behavior f
+external_function_behavior fctxt f
  | is_exiting_function_call f = pure_and_unknown
- | otherwise = trace ("Unknown external function: " ++ f) $ ExternalFunctionBehavior [] UnknownReturnValue
+ | otherwise = trace' fctxt ("Unknown external function: " ++ f) $ ExternalFunctionBehavior [] UnknownReturnValue
 
 
 
@@ -1096,7 +1105,7 @@ call fctxt i = do
     AnalyzedInternalFunction q         -> internal_function q
     ExternalFunction                   -> external_function 
  where
-  external_function = case external_function_behavior f_callee of
+  external_function = case external_function_behavior fctxt f_callee of
     ExternalFunctionBehavior params output -> {--mapM_ write_param params >> --} write_output output -- writing to params really roughly overapproximates
 
   internal_function q = do

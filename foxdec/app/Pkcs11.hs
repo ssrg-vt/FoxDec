@@ -55,9 +55,7 @@ import Parser.ParserCalls
 import Generic.SymbolicConstituents
 import Instantiation.SymbolicPropagation
 
--- import Pass.ACode_Gen
-import Generic.Propagation
-import Data.CallGraph
+import Generic.SymbolicPropagation
 import X86.Conventions
 import X86.Register (Register(..))
 import Generic.Address (AddressWord64(AddressWord64))
@@ -80,10 +78,12 @@ import System.Process (callCommand)
 import System.Timeout (timeout)
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import Data.Functor.Identity
-import System.Console.ArgParser
 
 
+{--
+ -TODO update with new arg parser
 
+ -
 -- the main algorithm
 run_with_ctxt :: Int -> StateT Context IO ()
 run_with_ctxt entry = do
@@ -150,3 +150,5 @@ run (Args entry_str dirname name) = do
 -- Parse the command line arguments and run
 main = do
   withParseResult argsParser run
+
+--}

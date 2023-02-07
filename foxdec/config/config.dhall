@@ -19,14 +19,14 @@
   -- Sane default: False 
 
 
-  store_preconditions_in_report = False,
-  -- ^ Must preconditions be stored in the .report file?
+  store_preconditions_in_L0 = False,
+  -- ^ Must preconditions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
 
-  store_assertions_in_report = False,
-  -- ^ Must assertions be stored in the .report file?
+  store_assertions_in_L0 = False,
+  -- ^ Must assertions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
@@ -48,7 +48,7 @@
   -- Sane default: 25
   
 
-  max_num_of_sources = 50,
+  max_num_of_sources = 20,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 25
@@ -60,7 +60,7 @@
   -- Sane default: 20000
   
 
-  max_expr_size = 1500
+  max_expr_size = 5000
   -- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
   -- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.
   -- Sane default: 2000

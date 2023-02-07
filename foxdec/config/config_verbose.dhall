@@ -16,9 +16,9 @@
   -- Sane default: False 
 
 
-  verbose_logs = False,
+  verbose_logs = True,
   -- ^ Must the invariants be stored in the logs?
-  -- Sane default: False 
+  -- Sane default: False
 
 
   store_preconditions_in_report = True,

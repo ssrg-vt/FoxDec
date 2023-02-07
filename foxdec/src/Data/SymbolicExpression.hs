@@ -49,7 +49,7 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
 import qualified X86.Operand as X86
 
-
+import Control.DeepSeq
 
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
@@ -418,5 +418,14 @@ instance Cereal.Serialize StatePart
 instance Cereal.Serialize Operator
 instance Cereal.Serialize SimpleExpr
 instance Cereal.Serialize FlagStatus
+
+
+instance NFData PointerBase
+instance NFData BotTyp
+instance NFData BotSrc
+instance NFData StatePart
+instance NFData Operator
+instance NFData SimpleExpr
+instance NFData FlagStatus
 
 

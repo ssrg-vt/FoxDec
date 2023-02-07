@@ -428,6 +428,7 @@ remove_destination mnemonic =
          , FCOMI, FCOMIP, FUCOMI, FUCOMIP
          , FLDCW, FCHS, FLDZ, FLD1, FLDPI
          , FCMOVB, FCMOVE, FCMOVBE, FCMOVU, FCMOVNB, FCMOVNE, FCMOVNBE, FCMOVNU
+         , EMMS
      ]
 
 -- Does the instruction need no modification?
@@ -459,13 +460,9 @@ do_not_modify mnemonic = isCall mnemonic
          ]
 -- TODO:
 -- BLENDVP, BLENDVPS read from XMM0 sometimes as well?
--- At SymbolicExecution the instructions add lines 1500 to 1537 (FST to EMMS)
--- At SymbolicExecution the instructions add lines 1547 to 1572 (VANDPS to VMOVHPS)
--- At SymbolicExecution the instructions add lines 1575 to 1593 (CPUID to WRGSBASE)
 -- VANDPS: depends on number of operands (3 or 2)
 -- MOVSD, MOVSQ
 -- SYSRET
--- FILD and FPU stack related
 
 lowpart IMUL = IMUL_LO
 lowpart MUL  = MUL_LO

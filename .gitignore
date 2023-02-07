@@ -24,7 +24,13 @@ foxdec/examples/*/*.pdf
 foxdec/examples/*/*.png
 foxdec/examples/*/*.jpg
 foxdec/examples/*/*.dot
-foxdec/examples/*/*.thy
+foxdec/examples/*/*.L0
+foxdec/examples/*/*.report
+foxdec/examples/*/*.json
+foxdec/examples/*/*.metrics
+foxdec/examples/*/*.json.txt
+foxdec/examples/*/*.metrics.txt
+foxdec/examples/*/*.log
 foxdec/.stack-work
 foxdec/examples/*/*_x86_64
 foxdec/docs/manual/*/*

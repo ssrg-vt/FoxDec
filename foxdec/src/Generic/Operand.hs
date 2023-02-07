@@ -8,6 +8,7 @@ import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Base (showHex)
 import           Generic.HasSize (HasSize(sizeof))
+import           Control.DeepSeq
 
 -- | A generic statepart, based on polymorphic type `storage`.
 data GenericOperand storage =
@@ -18,6 +19,7 @@ data GenericOperand storage =
   deriving (Eq, Ord, Generic)
 
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericOperand storage)
+instance (NFData storage) => NFData (GenericOperand storage)
 
 instance Show storage => Show (GenericOperand storage) where
   show (EffectiveAddress addr) = "[" ++ show addr ++ "]"

@@ -4,7 +4,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 
-module Data.CallGraph where
+module OutputGeneration.CallGraph where
 
 import Base
 
@@ -34,6 +34,11 @@ import Data.Maybe (fromJust)
 import Debug.Trace
 
 
+mk_callgraph ctxt =
+  let cfgs  = ctxt_cfgs ctxt
+      g     = Edges $ IM.map (calls_of_cfg ctxt) cfgs
+      fptrs = Edges $ IM.map (function_pointer_intros ctxt) cfgs in
+    callgraph_to_dot ctxt g fptrs
 
 
 pp_bot (Bottom (FromSources srcs))    = if NES.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ neSetToList srcs)

@@ -6,12 +6,15 @@ import           Data.Word (Word64)
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Base (showHex)
+import           Control.DeepSeq
 
 -- | A type for encapsulating an immediate (allows to always show hex)
 newtype AddressWord64 = AddressWord64 Word64
   deriving (Eq, Ord, Generic)
 
 instance Cereal.Serialize AddressWord64
+instance NFData AddressWord64
+
 
 -- | An unresolved address, within the operand of an instruction, based on polymorphic type `storage`.
 data GenericAddress storage =
@@ -23,6 +26,7 @@ data GenericAddress storage =
   deriving (Eq, Ord, Generic)
 
 instance (Cereal.Serialize storage) => Cereal.Serialize (GenericAddress storage)
+instance (NFData storage) => NFData (GenericAddress storage)
 
 instance Show storage => Show (GenericAddress storage) where
   show (AddressStorage st) = show st

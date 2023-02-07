@@ -25,6 +25,7 @@ import qualified Data.Serialize as Cereal
 import Control.Monad.State.Strict
 import Data.Ord (comparing)
 import Data.Bits (shift,testBit,clearBit)
+import Control.DeepSeq
 
 
 import Data.Serialize.Get (getSetOf)
@@ -126,6 +127,7 @@ data Graph = Edges (IM.IntMap IS.IntSet)
   deriving (Generic,Show)
 
 instance Cereal.Serialize Graph
+instance NFData Graph
 
 
 -- | add edges from v to all vertices vs
@@ -163,7 +165,7 @@ graph_nontrivial_scc g@(Edges es) =
   let sccs             = all_sccs g IS.empty
       nontrivial_sccs  = filter is_non_trivial sccs
       nontrivial_scc   = maximumBy (comparing IS.size) sccs in
-    trace ("Found SCC of mutually recursive function entries: " ++ showHex_set nontrivial_scc) nontrivial_scc
+    nontrivial_scc -- trace ("Found SCC of mutually recursive function entries: " ++ showHex_set nontrivial_scc) nontrivial_scc
  where
   is_non_trivial :: IS.IntSet -> Bool
   is_non_trivial scc = IS.size scc > 1 || graph_is_edge g (head $ IS.toList scc) (head $ IS.toList scc)

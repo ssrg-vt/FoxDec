@@ -16,6 +16,7 @@ import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Generic.HasSize (HasSize(..))
 import           Base (allp)
+import           Control.DeepSeq
 
 data Register =
     InvalidRegister
@@ -141,6 +142,7 @@ data Register =
   deriving (Show, Eq, Read, Ord, Generic, Enum, Bounded)
 
 instance Cereal.Serialize Register
+instance NFData Register
 
 -- | List of 256 bit registers
 reg256 :: [Register]

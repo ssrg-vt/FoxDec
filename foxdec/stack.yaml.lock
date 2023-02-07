@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: argparser-0.3.4@sha256:f277e6d568e88f0698a0ce1f2dc719d90717ffe99c8622302f65389f2a8ed01c,1952
-    pantry-tree:
-      size: 1449
-      sha256: 8c4dd60221760f9fdc9298baa72ff6cd4ed6ee32353141b04cf243d9286b314e
-  original:
-    hackage: argparser-0.3.4@sha256:f277e6d568e88f0698a0ce1f2dc719d90717ffe99c8622302f65389f2a8ed01c,1952
-- completed:
     hackage: hapstone-0.2.0.1@sha256:56408898dece7c6360d6bd0ca943c428d811f1cbe7d1070ce69cd4382df5cc54,2824
     pantry-tree:
       size: 2503

@@ -4,6 +4,8 @@ module X86.Opcode (Opcode(..), isJump, isCondJump, isCall, isRet, isHalt) where
 
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
+import           Control.DeepSeq
+
 
 -- | Opcodes / mnemonics
 data Opcode =
@@ -613,6 +615,7 @@ data Opcode =
   deriving (Show, Eq, Ord, Generic)
 
 instance Cereal.Serialize Opcode
+instance NFData Opcode
 
 -- | Returns true iff m is the mnemonic of a conditional jump
 isCondJump :: Opcode -> Bool

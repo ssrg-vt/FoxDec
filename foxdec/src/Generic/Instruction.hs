@@ -6,6 +6,7 @@ import           Generic.Operand (GenericOperand)
 import           GHC.Generics (Generic)
 import qualified Data.Serialize as Cereal
 import           Data.List (intercalate)
+import           Control.DeepSeq
 
 -- | A generic instruction
 data GenericInstruction label storage prefix opcode annotation =
@@ -29,6 +30,18 @@ instance ( Cereal.Serialize label
                          prefix
                          opcode
                          annotation)
+
+instance ( NFData label
+         , NFData storage
+         , NFData prefix
+         , NFData opcode
+         , NFData annotation)
+  => NFData (GenericInstruction
+               label
+               storage
+               prefix
+               opcode
+               annotation)
 
 instance (Show storage, Show label, Show prefix, Show opcode, Show annotation)
   => Show (GenericInstruction label storage prefix opcode annotation) where

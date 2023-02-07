@@ -19,7 +19,7 @@ import Dhall
 import GHC.Generics
 import Data.Text (pack)
 import qualified Data.Serialize as Cereal hiding (get,put)
-
+import Control.DeepSeq
 
 
 -- | A datastructure storing all configurable options
@@ -38,13 +38,13 @@ data Config = Config {
   -- ^ Must the invariants be stored in the logs?
   -- Sane default: False 
 
-  store_preconditions_in_report :: Bool,
-  -- ^ Must preconditions be stored in the .report file?
+  store_preconditions_in_L0 :: Bool,
+  -- ^ Must preconditions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
-  store_assertions_in_report :: Bool,
-  -- ^ Must assertions be stored in the .report file?
+  store_assertions_in_L0 :: Bool,
+  -- ^ Must assertions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
@@ -83,6 +83,7 @@ data Config = Config {
 
 instance FromDhall Config
 instance Cereal.Serialize Config
+instance NFData Config
 
 -- | Given a filename, parse a config in the Dhall language
 -- See: https://dhall-lang.org

@@ -26,6 +26,7 @@ import Data.List (intercalate,partition,intersectBy,find)
 import Data.Word 
 
 import Control.Monad.State.Strict hiding (join)
+import Control.DeepSeq
 
 import GHC.Generics (Generic)
 import Debug.Trace
@@ -123,6 +124,7 @@ instance (Show a) => Show (Sstate a) where
     show_flags          = show
 
 instance (Ord a, Cereal.Serialize a) => Cereal.Serialize (Sstate a)
+instance (NFData a) => NFData (Sstate a)
 
 
 
@@ -272,12 +274,12 @@ swrite_mem ctxt a_v si v = do
   
   do_partitioning m a = S.foldr' (do_partition a) ([],[],[],[],[]) m
   do_partition a ((a0,si0),v0) (equal,enclosing,encloses,separate,overlap) 
-    | salias     ctxt         a0 si0 a si = (((a0,si0),v0):equal,enclosing,encloses,separate,overlap) 
-    | senclosed  ctxt         a si a0 si0 = (equal,((a0,si0),v0):enclosing,encloses,separate,overlap) 
-    | senclosed  ctxt         a0 si0 a si = (equal,enclosing,((a0,si0),v0):encloses,separate,overlap)
-    | sseparate  ctxt "write" a si a0 si0 = (equal,enclosing,encloses,((a0,si0),v0):separate,overlap) 
-    | ssensitive ctxt         a0 si0 v0   = (equal,enclosing,encloses,((a0,si0),v0):separate,overlap) -- TODO: VCS
-    | otherwise                           = (equal,enclosing,encloses,separate,((a0,si0),v0):overlap) 
+    | salias     ctxt          a0 si0 a si = (((a0,si0),v0):equal,enclosing,encloses,separate,overlap) 
+    | senclosed  ctxt          a si a0 si0 = (equal,((a0,si0),v0):enclosing,encloses,separate,overlap) 
+    | senclosed  ctxt          a0 si0 a si = (equal,enclosing,((a0,si0),v0):encloses,separate,overlap)
+    | sseparate  ctxt "wwrite" a si a0 si0 = (equal,enclosing,encloses,((a0,si0),v0):separate,overlap) 
+    | ssensitive ctxt          a0 si0 v0   = (equal,enclosing,encloses,((a0,si0),v0):separate,overlap) -- TODO: VCS
+    | otherwise                            = (equal,enclosing,encloses,separate,((a0,si0),v0):overlap) 
 
   merge [r] = r
   merge (((a0,si0),v0):remainder) = 
@@ -463,7 +465,7 @@ sjoin_mem ctxt s0 s1 =
         m' = smem $ execSstate (swrite_mem ctxt a si v') $ Sstate {sregs = M.empty, smem = m, sflags = None} in
       sjoin_mem' ctxt s0 s1 m' regions
 
-  join_values a b = sjoin ctxt "States (mem value)" [a,b]
+  join_values a b = sjoin ctxt ("States (mem value) " ++ show a ++ " joined with " ++ show b) [a,b]
 
 
 --sjoin_states ctxt s0 s1 | trace ("sjoin_states") False = error "trace"
