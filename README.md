@@ -50,14 +50,14 @@ These are instructions for a quickstart on ELF files. For more detailed informat
 
 1. Move the binary of interest to `./binary/`. The binary `wc` has already been supplied as running example.
 2. Run FoxDec on the binary `./foxdec.sh wc`
-3. Directory `./artifacts` is now populated with information.
+3. Directory `./artifacts/` is now populated with information.
 
 The following files are generated:
 
-- **`NAME.json`** and **`NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
-- **`NAME.metrics.json`** and **`NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
-- **`NAME.calls.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
-- **`ENTRY/NAME.dot`**: For each function entry `ENTRY` a control flow graph (CFG).
+- **`$NAME.json`** and **`$NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
+- **`$NAME.metrics.json`** and **`$NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
+- **`$NAME.calls.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
+- **`$ENTRY/$NAME.dot`**: For each function entry **`$ENTRY`** a control flow graph (CFG).
 
 
 
