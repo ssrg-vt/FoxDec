@@ -1,0 +1,93 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_1jXeTCvBdTr0ntADboKNqR"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">{-|
+Module      : JumpTarget
+Description : A datatype for resolving the operand of a jump/call
+-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.JumpTarget</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- | Resolving the operand of a jump/call can produce one of the following.</span><span>
+</span><span id="line-15"></span><span id="local-6989586621679324513"><span id="local-6989586621679324514"></span></span><span class="hs-keyword">data</span><span> </span><span id="ResolvedJumpTarget"><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-var">ResolvedJumpTarget</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-16"></span><span>   </span><span id="Unresolved"><span class="annot"><a href="Data.JumpTarget.html#Unresolved"><span class="hs-identifier hs-var">Unresolved</span></a></span></span><span>               </span><span class="hs-comment">-- ^ An indirect branch that has not been resolved yet</span><span>
+</span><span id="line-17"></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="External"><span class="annot"><a href="Data.JumpTarget.html#External"><span class="hs-identifier hs-var">External</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>          </span><span class="hs-comment">-- ^ A call to external function f</span><span>
+</span><span id="line-18"></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ImmediateAddress"><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-var">ImmediateAddress</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>  </span><span class="hs-comment">-- ^ An internal call to the given address</span><span>
+</span><span id="line-19"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679324506"><span id="local-6989586621679324508"><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+(ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; Eq ResolvedJumpTarget
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c/= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+== :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c== :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679324499"><span id="local-6989586621679324501"><span id="local-6989586621679324503"><span class="annot"><span class="annottext">Int -&gt; ResolvedJumpTarget -&gt; ShowS
+[ResolvedJumpTarget] -&gt; ShowS
+ResolvedJumpTarget -&gt; String
+(Int -&gt; ResolvedJumpTarget -&gt; ShowS)
+-&gt; (ResolvedJumpTarget -&gt; String)
+-&gt; ([ResolvedJumpTarget] -&gt; ShowS)
+-&gt; Show ResolvedJumpTarget
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ResolvedJumpTarget] -&gt; ShowS
+$cshowList :: [ResolvedJumpTarget] -&gt; ShowS
+show :: ResolvedJumpTarget -&gt; String
+$cshow :: ResolvedJumpTarget -&gt; String
+showsPrec :: Int -&gt; ResolvedJumpTarget -&gt; ShowS
+$cshowsPrec :: Int -&gt; ResolvedJumpTarget -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. ResolvedJumpTarget -&gt; Rep ResolvedJumpTarget x)
+-&gt; (forall x. Rep ResolvedJumpTarget x -&gt; ResolvedJumpTarget)
+-&gt; Generic ResolvedJumpTarget
+forall x. Rep ResolvedJumpTarget x -&gt; ResolvedJumpTarget
+forall x. ResolvedJumpTarget -&gt; Rep ResolvedJumpTarget x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ResolvedJumpTarget x -&gt; ResolvedJumpTarget
+$cfrom :: forall x. ResolvedJumpTarget -&gt; Rep ResolvedJumpTarget x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679324480"><span id="local-6989586621679324482"><span id="local-6989586621679324484"><span id="local-6989586621679324486"><span id="local-6989586621679324488"><span id="local-6989586621679324490"><span id="local-6989586621679324492"><span class="annot"><span class="annottext">Eq ResolvedJumpTarget
+Eq ResolvedJumpTarget
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Ordering)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget)
+-&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget)
+-&gt; Ord ResolvedJumpTarget
+ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Ordering
+ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget
+$cmin :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget
+max :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget
+$cmax :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; ResolvedJumpTarget
+&gt;= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c&gt;= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+&gt; :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c&gt; :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+&lt;= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c&lt;= :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+&lt; :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+$c&lt; :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+compare :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Ordering
+$ccompare :: ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Ordering
+$cp1Ord :: Eq ResolvedJumpTarget
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span></pre></body></html>

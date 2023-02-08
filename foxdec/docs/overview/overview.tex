@@ -20,7 +20,7 @@
     
 \filldraw[color=black!90, fill=black!30, very thick]
     (0,0) rectangle (5,3)
-    node[pos=.5] (binary) {\textcolor{darkgreen}{\texttt{\textbf{\Large Binary}}}};
+    node[pos=.5] (binary) {\textcolor{darkgreen}{\texttt{\textbf{\huge Binary}}}};
 
 \node[draw=none,text width=4.5cm] at (2.5,-1.5)  {
   \large
@@ -37,21 +37,29 @@
 
 \filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
     (7.5,0.5) rectangle (12.5,2.5)
-    node[pos=.5]  (foxdec) {\textcolor{darkblue}{\texttt{\textbf{\Large FoxDec}}}} ;
+    node[pos=.5]  (foxdec) {\textcolor{darkblue}{\texttt{\textbf{\huge FoxDec}}}} ;
 
 \draw[-{Stealth[length=6mm, width=4mm]}] (12.5,1.5) -- (15,1.5);
 
 \filldraw[color=black!90, fill=black!30, very thick]
     (15,0) rectangle (20,3)
-    node[pos=.5] (report) {\textcolor{darkgreen}{\texttt{\textbf{\Large Report}}}};
+    node[pos=.5] (report) {\textcolor{darkgreen}{\texttt{\textbf{\huge L0}}}};
 
-%\draw[-{Stealth[length=6mm, width=4mm]}] (16,-1) -- (15,-2.5);
+
+\draw[-{Stealth[length=6mm, width=4mm]}] (15,-1) -- (13,-2.5);
+\filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
+    (12,-6) rectangle (14,-2.75)
+    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\huge JSON}}}} ;
 
 \draw[-{Stealth[length=6mm, width=4mm]}] (16,-1) -- (15,-2.5);
 \filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
     (14,-6) rectangle (16,-2.75)
-    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\Large JSON}}}} ;
+    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\huge Metrics}}}} ;
 
+\draw[-{Stealth[length=6mm, width=4mm]}] (17,-1) -- (17,-2.5);
+\filldraw[color=blue!60, fill=blue!5, very thick,rounded corners]
+    (16,-6) rectangle (18,-2.75)
+    node[pos=.5,rotate=60]  {\textcolor{darkblue}{\texttt{\textbf{\huge ACG}}}} ;
 
 \draw[-{Stealth[length=6mm, width=4mm]}] (19,-1) -- (20,-2.5);
 \node[inner sep=0pt] (isabelle) at (20,-4) {\includegraphics[width=3cm]{isabelle_logo.jpg}};

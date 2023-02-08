@@ -35,88 +35,33 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-The GitHub page is [here][git]. 
+Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/7b72c66e903f6e6126b3a4f92ecf96576d2b9e65/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
 
-***NOTE:*** the instructions for Apple Macbooks with the ***ARM M1 chip*** can be found [here](foxdec/docs/ARM64.md).
+***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
 
-1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
-2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
-3. Update the `PATH` variable: `PATH=$PATH:$HOME/.local/bin`
-4. Install [Capstone 4.0.1][capstone] ([git](https://github.com/capstone-engine/capstone/tree/4.0.1)), by downloading it and running ```./make.sh``` and then ```sudo ./make.sh install```.<br> **IMPORTANT:** it must specifically be version 4.0.1, do not install Capstone using <tt>apt-get</tt> or <tt>brew</tt> as that will install a newer version.
-5. Clone into the git ```git clone git@github.com:ssrg-vt/FoxDec.git```.
-6. Go to directory `./foxdec/`.
-7. Run ```stack build --haddock --haddock-arguments --odir=docs/haddock```.
-This builds the application and generates documentation using [Haddock](https://haskell-haddock.readthedocs.io/en/latest/index.html).
-8. Run ```stack install```. This copies executables to accessible locations.
-9. Run ```foxdec-exe ./config/config.dhall examples/du du```. This runs FoxDec on the `du` example.
 
-We use some tools that are assumed to be standard available and accessible (i.e., added to the `PATH` environment variable). For Linux, these are `readelf` and `objdump` (latter is optional but convenient).
-For Mac, these are `otool` and `nm`.
 
-***Building (and running) with profiling***
-*(only relevant for developpers):*
-
-    stack build --profile
-    time stack exec --profile -- foxdec-exe ./config/config.dhall examples/tar tar +RTS -p
-    less foxdec-exe.prof
 
 ## How to use <a name="usage"></a>
-These are instructions for a quickstart on ELF files. For more information, see [here](#docs).
+These are instructions for a quickstart on ELF files. For more detailed information, see [here](#docs).
 <p style="text-align: center;">
   <img style="border: 3px solid #555;" src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
 </p>
 
-1. Extract information from the binary using the `get_elf_entry.sh` script
-2. Run FoxDec on the binary to generate a `.report` file.
-3. Use the `.report` file to generate JSON output, or to export to Isabelle/HOL.
-
-<span style="font-size: 150%">1. Extract information from the binary<a name="usage1"></a></span>
-
-For ELF files, the binary can be read by FoxDec directly. Copy-paste the executable to a new directory in the `examples` subdir.
-
-	mkdir examples/du
-	cp /usr/bin/du examples/du/
-
-Go to the directory and run a script to obtain some information, specifically the entry point of the binary.
-
-	cd examples/du
-	./get_elf_entry.sh du du
-	cd ../..
-
-<span style="font-size: 150%">2. Run FoxDec on the binary<a name="usage2"></a></span>
-
-
-Then, run FoxDec as follows:
-
-    foxdec-exe CONFIG DIRNAME NAME
-    
-Here, `CONFIG` is the name of a config file (default: `./config/config.dhall`). `DIRNAME` is the name of the directory that contains the binary. `NAME` is the name of the binary.  Example usage:
-
-    foxdec-exe ./config/config.dhall examples/du/ du
-
-
+1. Move the binary of interest to `./binary/`. The binary `wc` has already been supplied as running example.
+2. Run FoxDec on the binary `./foxdec.sh wc`
+3. Directory `./artifacts` is now populated with information.
 
 The following files are generated:
 
-- **`NAME.report`**: This file stores the verification results in a non-plain-text binary file that can be exported to JSON.
-- **`NAME_calls.dot`**: A Graphviz `.dot` file containing the call graph, annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
+- **`NAME.json`** and **`NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
+- **`NAME.metrics.json`** and **`NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
+- **`NAME.calls.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
 - **`ENTRY/NAME.dot`**: For each function entry `ENTRY` a control flow graph (CFG).
 
 
-<span style="font-size: 150%">3. Use the `.report` file to generate JSON output<a name="usage3"></a></span>
 
-From the same directory as where `foxdec-exe` was ran, run:
-
-    foxdec-json-exe DIRNAME NAME {True,False}
-
-Here `DIRNAME` and `NAME` refer to the same parameters as [step 1](#usage1).
-
-    foxdec-json-exe examples/du/ du True > examples/du/du.output
-    foxdec-json-exe examples/du/ du False > examples/du/du.json
-
-The first reads in the `.report` file and generates output in a humandly readable plain-text file. It contains disassembled instructions, control flow, function boundaries, symbolic function summaries (pre- and postconditions), invariants, and all pointer domains of all memory writes.
-
-The second contains the exact same information in JSON format.  The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].	
+	
 
 
 ## Documentation<a name="docs"></a>
