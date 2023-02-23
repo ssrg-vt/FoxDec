@@ -30,7 +30,7 @@ is_exiting_function_call f =
       "obstack_alloc_failed_handler"
     ]
 
-strip_GLIBC = takeUntilString "@GLIBC"
+strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"
 
 
 

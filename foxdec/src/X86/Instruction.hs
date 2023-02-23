@@ -215,6 +215,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , BSWAP
          , XORPD
          , XORPS
+         , SUBPS
          , ANDPD
          , ANDNPD
          , ORPD

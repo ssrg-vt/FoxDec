@@ -100,7 +100,7 @@ read_dump dirname name = do
       Right dump -> return dump
 
 read_data :: String -> String -> IO (IM.IntMap Word8)
-read_data dirname name = return IM.empty {--do
+read_data dirname name = do
   let fname = dirname ++ name ++ ".data"
   parse fname
  where
@@ -108,7 +108,7 @@ read_data dirname name = return IM.empty {--do
     ret0 <- parse_dump $! fname
     case ret0 of
       Left err -> error $ show err
-      Right dump -> return dump--}
+      Right dump -> return dump
 
 read_syms :: String -> String -> IO (IM.IntMap String)
 read_syms dirname name = do

@@ -19,6 +19,7 @@ foxdec/examples/*/d*/
 foxdec/examples/*/e*/
 foxdec/examples/*/f*/
 foxdec/examples/*/functions/
+foxdec/examples/*/nasm/
 foxdec/examples/*/*.calls
 foxdec/examples/*/*.indirections
 foxdec/examples/*/*.pdf

@@ -21,14 +21,14 @@
   -- Sane default: False
 
 
-  store_preconditions_in_report = True,
-  -- ^ Must preconditions be stored in the .report file?
+  store_preconditions_in_L0 = True,
+  -- ^ Must preconditions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 
 
-  store_assertions_in_report = False,
-  -- ^ Must assertions be stored in the .report file?
+  store_assertions_in_L0 = False,
+  -- ^ Must assertions be stored in the .L0 file?
   -- Set to true for small examples, false for larger ones.
   -- Sane default: False 
 

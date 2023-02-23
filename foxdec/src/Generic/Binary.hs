@@ -25,12 +25,18 @@ data SectionsInfo = SectionsInfo {
 
 
 -- | Relocations
-data Relocation = R_X86_64_RELATIVE Word64 Word64 -- ^ At address a0, address a1 has been written
+data Relocation = 
+    R_X86_64_RELATIVE Word64 Word64 -- ^ 8: At address a0, address a1 has been written, i.e., qword ptr[a0] == a1
+  | R_X86_64_JMP_SLOT Word64 String -- ^ 7: Address a0 should be replaced with the symbol, i.e., a0 == sym
+  | R_X86_64_GLOB_DAT Word64 String -- ^ 6: Address a0 should be replaced with the symbol, i.e., a0 == sym
+  | R_X86_64_COPY Word64 String     -- ^ 5: Address a0 should be replaced with the symbol, i.e., a0 == sym
  deriving (Show,Generic,Eq,Ord)
 
 
-pp_reloc (R_X86_64_RELATIVE a0 a1) = showHex a0 ++ " --> " ++ showHex a1
-
+pp_reloc (R_X86_64_RELATIVE a0 a1)  = showHex a0 ++ " --> " ++ showHex a1
+pp_reloc (R_X86_64_COPY     a0 sym) = showHex a0 ++ " --> " ++ sym
+pp_reloc (R_X86_64_GLOB_DAT a0 sym) = showHex a0 ++ " --> " ++ sym
+pp_reloc (R_X86_64_JMP_SLOT a0 sym) = showHex a0 ++ " --> " ++ sym
 
 -- | Symbol Table
 type SymbolTable = IM.IntMap String

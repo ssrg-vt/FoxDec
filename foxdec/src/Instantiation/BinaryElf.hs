@@ -107,21 +107,36 @@ elf_read_ro_data elf a si =
 
 elf_read_data :: Elf -> Word64 -> Int -> Maybe [Word8]
 elf_read_data elf a si =
-  case filter isRelevant $ filter (contains_address a si) $ elfSections elf of
-    [] -> Nothing
-    [section] -> Just $ read_bytes_section a si section
- where
-  isRelevant section 
+  case filter isBss $ filter (contains_address a si) $ elfSections elf of
+    [section] -> Just $ replicate si 0
+    [] -> try_read_data
+ where 
+  try_read_data =
+    case filter isData $ filter (contains_address a si) $ elfSections elf of
+      [] -> Nothing
+      [section] -> Just $ read_bytes_section a si section
+
+  isData section 
     | ("",elfSectionName section) `elem` sections_data = True
+    | otherwise = False
+  isBss section 
+    | ("",elfSectionName section) `elem` sections_bss = True
     | otherwise = False
 
 
 
 elf_get_relocs elf = map mk_reloc $ filter is_reloc $ concatMap elfRelSectRelocations $ parseRelocations elf
  where
-  is_reloc rel = elfRelType rel == 8 -- R_X86_64_RELATIVE
-  mk_reloc rel = R_X86_64_RELATIVE (elfRelOffset rel) (fromIntegral $ fromJust $ elfRelSymAddend rel)
+  is_reloc rel = elfRelType rel `elem`[5, 6, 7, 8]
+  mk_reloc rel =
+    case elfRelType rel of
+      5 -> R_X86_64_COPY     (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
+      6 -> R_X86_64_GLOB_DAT (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
+      7 -> R_X86_64_JMP_SLOT (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
+      8 -> R_X86_64_RELATIVE (elfRelOffset rel) (fromIntegral $ fromJust $ elfRelSymAddend rel)
 
+
+  sym_table = elf_get_symbol_table elf
 
 -- TODO: perhaps R_X86_64_GLOB_DAT entries should be part of the relocs, not the symbol table
 
@@ -194,7 +209,7 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_relocs ++ pp_
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
-  pp_relocs = map  pp_reloc $ elf_get_relocs elf
+  pp_relocs = ["Relocations:"] ++ (map pp_reloc $ elf_get_relocs elf)
   pp_symbols = ["Symbol table:\n" ++ show (elf_get_symbol_table elf)] 
   pp_symbols_internal = ["Symbol table (internal):\n" ++ show (elf_get_symbol_table_internal elf)]
 
@@ -222,7 +237,7 @@ instance BinaryClass Elf
     binary_read_ro_data = elf_read_ro_data
     binary_read_data = elf_read_data
     binary_get_sections_info = elf_get_sections_info
-    binary_get_relocs = elf_get_relocs
+    binary_get_relocs = elf_get_relocs 
     binary_get_symbols = elf_get_symbol_table
     binary_pp = pp_elf
     binary_entry = elfEntry

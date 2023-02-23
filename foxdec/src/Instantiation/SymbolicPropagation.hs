@@ -82,7 +82,7 @@ cimmediate = Concrete . NES.singleton . SE_Immediate . fromIntegral
 
 
 cwiden :: FContext -> String -> SPointer -> SPointer
-cwiden fctxt msg v = do_trace $ cwiden' fctxt v
+cwiden fctxt msg v = do_trace $ cwiden' fctxt msg v
  where
   do_trace v'
     | not debug_abstraction = v'
@@ -105,7 +105,7 @@ cwiden fctxt msg v = do_trace $ cwiden' fctxt v
   moreAbstract (Concrete es0)  _               = False
 --}
 
-cwiden' fctxt (Concrete es) =
+cwiden' fctxt msg (Concrete es) =
   let domains = NES.map (get_pointer_domain fctxt) es in
     if Nothing `NES.member` domains then
       Top
@@ -116,10 +116,11 @@ cwiden' fctxt (Concrete es) =
  where
   use_bases domains =
     let bs = NES.unions $ NES.map get_bases domains in
-      cwiden' fctxt $ Bases bs
+      cwiden' fctxt msg $ Bases bs
   use_sources domains =
+    -- error $ "Widening to sources: (" ++ msg ++ "): " ++  show (Concrete es)
     let srcs = NES.unions $ NES.map get_sources domains in
-      cwiden' fctxt $ mk_sources srcs
+      cwiden' fctxt msg $ mk_sources srcs
 
   is_bases (Just (Domain_Bases bs))  = True
   is_bases _                         = False
@@ -127,23 +128,23 @@ cwiden' fctxt (Concrete es) =
 
   get_sources (Just (Domain_Sources srcs)) = srcs
   get_sources (Just (Domain_Bases bs))     = NES.unions $ NES.map (srcs_of_base fctxt) bs 
-cwiden' fctxt v@(Bases bs)
+cwiden' fctxt msg v@(Bases bs)
   | NES.size bs <= (ctxt_max_num_of_bases $ f_ctxt fctxt) = v
-  | otherwise = cwiden' fctxt $ mk_sources $ NES.unions $ NES.map (srcs_of_base fctxt) bs
-cwiden' fctxt v@(Sources srcs) 
+  | otherwise = cwiden' fctxt msg $ mk_sources $ NES.unions $ NES.map (srcs_of_base fctxt) bs
+                -- error $ "Widening to sources (" ++ msg ++ "): " ++ show (Bases bs)
+cwiden' fctxt msg v@(Sources srcs) 
   | count_sources srcs <= (ctxt_max_num_of_sources $ f_ctxt fctxt) = v
   | otherwise = trace' fctxt ("Max num of sources exceeded: " ++ show v) Top
-cwiden' fctxt Top = Top
+cwiden' fctxt msg Top = Top
 
 cwiden_all_to_sources :: FContext -> String -> S.Set SPointer -> SPointer
-cwiden_all_to_sources fctxt msg vs
+cwiden_all_to_sources fctxt msg vs -- = error $ "Widening to sources (" ++ msg ++ "): " ++  show vs
   | Top `elem` vs || S.null vs = Top
   | otherwise                  = cwiden fctxt msg $ mk_sources $ NES.unions $ NES.map get_sources $ NES.unsafeFromSet vs
  where
   get_sources (Concrete es)  = NES.unions $ NES.map (srcs_of_expr fctxt) es
   get_sources (Bases bs)     = NES.unions $ NES.map (srcs_of_base fctxt) bs
   get_sources (Sources srcs) = srcs
-  
 
 
 cjoin :: FContext -> String -> SPointer -> SPointer -> SPointer
@@ -528,10 +529,25 @@ count_sources = sum . NES.map src_size
   src_size (Src_Mem srcs) = count_sources srcs
   src_size _              = 1
 
-mk_cmem_value fctxt a si =
-  case srcs_of_spointer fctxt a of
-    Nothing   -> Top
-    Just srcs -> mk_sources $ NES.singleton $ Src_Mem srcs
+mk_cmem_value fctxt msg a si = try_symbol `orElse` (try_det `orElse` use_sources)
+ where
+  try_symbol = do
+    a_v  <- ctry_immediate a
+    si_v <- ctry_immediate si
+    if address_has_symbol (f_ctxt fctxt) a_v then
+      return $ mk_cvalue fctxt $ SE_Var (SP_Mem (SE_Immediate a_v) 8)
+    else
+      Nothing
+
+  try_det = do
+    a_v  <- ctry_deterministic a
+    si_v <- ctry_immediate si
+    return $ mk_cvalue fctxt $ SE_Var (SP_Mem a_v $ fromIntegral si_v)
+ 
+  use_sources = 
+    case srcs_of_spointer fctxt a of
+      Nothing   -> Top
+      Just srcs -> mk_sources $ NES.singleton $ Src_Mem srcs
 
 cmk_mem_addresses fctxt (Concrete es) = S.map (Concrete . NES.singleton) $ NES.toSet es
 cmk_mem_addresses fctxt a             = S.singleton a
@@ -589,6 +605,11 @@ cread_from_ro_data fctxt a si =
     (Just a',Just si') -> cimmediate <$> read_from_ro_datasection (f_ctxt fctxt) a' (fromIntegral si')
     _                  -> Nothing
 
+
+cread_from_data fctxt a si = 
+  case (ctry_immediate a,ctry_immediate si) of
+    (Just a',Just si') -> cimmediate <$> read_from_datasection (f_ctxt fctxt) a' (fromIntegral si')
+    _                  -> Nothing
 
 
 instance SymbolicExecutable FContext SPointer where
@@ -675,7 +696,7 @@ init_pred fctxt f curr_invs curr_posts curr_sps =
   mk_mem_value a si =
     case (ctry_deterministic a, ctry_immediate si) of
       (Just a',Just si') -> mk $ SE_Var (SP_Mem a' (fromIntegral si'))
-      _ -> mk_smem_value fctxt a si
+      _ -> mk_smem_value fctxt "init_pred" a si
 
 
 
@@ -1015,6 +1036,7 @@ transpose_bw_mem fctxt f_caller f_callee p ((a,si),v) =
     if a' == Top then
       Nothing  -- TODO add vcs
     else
+      -- traceShow ("transposition" ++ show (f_caller,f_callee,(a,si),(a',si'))) $ 
       Just ((a',si'), transpose_bw_spointer fctxt f_caller f_callee p v)
 
 
@@ -1050,7 +1072,7 @@ transpose_bw_src fctxt f_caller f_callee p src@(Src_Var sp)             = srcs_o
 transpose_bw_src fctxt f_caller f_callee p src@(Src_Mem srcs)           = 
   case mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs of
     Nothing -> Nothing
-    Just a  -> srcs_of_spointer fctxt $ evalSstate (sread_mem fctxt (Sources a) Top) p
+    Just a  -> srcs_of_spointer fctxt $ evalSstate (sread_mem fctxt "transpose_bw" (Sources a) Top) p
 transpose_bw_src fctxt f_caller f_callee p src@(Src_StackPointer f)     = Just $ if f == f_callee then NES.singleton $ Src_StackPointer f_caller else NES.singleton src
 transpose_bw_src fctxt f_caller f_callee p src@(Src_Malloc id h)        = Just $ NES.singleton src
 transpose_bw_src fctxt f_caller f_callee p src@(Src_Function f)         = Just $ NES.singleton src
@@ -1069,7 +1091,7 @@ mk_NE_sources s
 
 read_sp :: FContext -> SStatePart -> State (Sstate SPointer, VCS) SPointer
 read_sp fctxt (SSP_Reg r)    = sread_reg fctxt r
-read_sp fctxt (SSP_Mem a si) = sread_mem fctxt a si'
+read_sp fctxt (SSP_Mem a si) = sread_mem fctxt "read_sp" a si'
  where
    si' = cimmediate $ fromIntegral si
 
@@ -1111,11 +1133,12 @@ call fctxt i = do
   internal_function q = do
     -- push return address
     let return_address = addressof i + fromIntegral (sizeof i)
-    sexec_instr fctxt (Instruction (AddressWord64 0) Nothing PUSH Nothing [Immediate return_address] Nothing)
+    sexec_instr fctxt (Instruction (AddressWord64 return_address) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing)
+    -- sexec_instr fctxt (Instruction (AddressWord64 0) Nothing PUSH Nothing [Immediate return_address] Nothing)
 
     (p,vcs) <- get
     -- obtain the postcondition of the function, and do backwards transposition
-    let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt f_name f_callee p) $ sstate_to_reg_eqs q
+    let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt f_name f_callee p) $ filter ((/=) RIP . fst) $ sstate_to_reg_eqs q
     let q_eqs_transposed_mem   = catMaybes $ map (transpose_bw_mem fctxt f_name f_callee p) $ filter do_transfer $ sstate_to_mem_eqs q
 
 
@@ -1132,7 +1155,7 @@ call fctxt i = do
     a      <- sread_reg fctxt r
     let a'  = cwiden fctxt "write_param" a
     let si' = Top
-    v'     <- gets ((evalSstate $ sread_mem fctxt a Top) . fst)
+    v'     <- gets ((evalSstate $ sread_mem fctxt "write_param" a Top) . fst)
     let bot = cwiden fctxt "write_param_v" v'
     swrite_mem fctxt a' si' bot
 
@@ -1141,9 +1164,15 @@ call fctxt i = do
   write_output (Input r)          = sread_reg fctxt r >>= swrite_reg fctxt RAX
 
 
-  do_transfer ((a,si),v) = srcs_of_spointer fctxt a `existsAndSatisfies` (not . any is_local_to_not_f)
+  do_transfer ((a,si),v) = not (is_initial (a,si) v) && srcs_of_spointer fctxt a `existsAndSatisfies` (not . any is_local_to_not_f)
   --do_transfer ((a,si),v) = not (any is_local_to_not_f $ srcs_of_spointer fctxt a) -- && not (is_initial (a,si) v) -- TODO!
-  -- is_initial sp v = v == mk_cvalue fctxt (SE_Var sp) (TODO )
+  --
+  
+  is_initial :: (SPointer,SPointer) -> SPointer -> Bool
+  is_initial (a,si) v =
+    case (ctry_deterministic a, ctry_immediate si) of
+      (Just a', Just si') -> v == mk_svalue fctxt (SE_Var (SP_Mem a' (fromIntegral si')))
+      _                   -> False
 
   is_local_to_not_f (Src_StackPointer f') = f_name /= f' -- TODO keep when f' is from current SCC callgraph
   is_local_to_not_f _                     = False

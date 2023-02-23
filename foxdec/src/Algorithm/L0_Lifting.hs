@@ -423,96 +423,6 @@ ctxt_add_to_results entry verified = do
 
 
 
-{--
-
--- At the end, generate a report (.log file)
-ctxt_generate_end_report :: StateT Context IO ()
-ctxt_generate_end_report = do
-  ctxt <- get
-  let dirname     = ctxt_dirname ctxt
-  let name        = ctxt_name ctxt
-  let log         = dirname ++ name ++ ".log"
-
-  liftIO $ writeFile log ""
-  to_out $ "Writing log to file: " ++ log
-
-  report_total ctxt log 
-  mapM_ (report_per_entry ctxt log) $ IM.keys $ ctxt_calls ctxt
- where
-  report_total ctxt log = do
-    to_log log $ "Total"
-    to_log log $ "#functions:                           " ++ show (IM.size $ ctxt_results ctxt)
-    to_log log $ "    of which verified                 " ++ show (num_of_verified                              $ ctxt_results ctxt)
-    to_log log $ "    of which verified with assertions " ++ show (num_of_verifiedw                             $ ctxt_results ctxt)
-    to_log log $ "    of which verif_error              " ++ show (num_of_verif_error                           $ ctxt_results ctxt)
-    to_log log $ "#instructions:                        " ++ show (sum_total num_of_instructions                $ ctxt_cfgs ctxt)
-    to_log log $ "#assertions:                          " ++ show (sum_total count_instructions_with_assertions $ ctxt_vcs  ctxt)
-    to_log log $ "#unresolved indirect jumps:           " ++ show (num_of_unres_inds ctxt isJump                $ ctxt_cfgs ctxt)
-    to_log log $ "#unresolved indirect calls:           " ++ show (num_of_unres_inds ctxt isCall                $ ctxt_cfgs ctxt)
-    to_log log $ "#blocks:                              " ++ show (sum_total num_of_blocks                      $ ctxt_cfgs ctxt)
-    to_log log $ "#edges:                               " ++ show (sum_total num_of_edges                       $ ctxt_cfgs ctxt)
-    to_log log $ "#resolved indirection jumps:          " ++ show (num_of_resolved_indirection_jumps ctxt)
-    to_log log $ "#resolved indirection calls:          " ++ show (num_of_resolved_indirection_calls ctxt)
-
-    to_log log $ "\n\n"
-    to_log log $ summarize_function_pointers ctxt (S.unions $ ctxt_vcs ctxt)
-    to_log log $ "\n\n"
-
-  sum_total num_of = sum . map num_of . IM.elems
-
-  report_per_entry ctxt log entry = do 
-    let g      = ctxt_cfgs    ctxt IM.! entry
-    let vcs    = ctxt_vcs     ctxt IM.! entry
-    let ret    = ctxt_calls   ctxt IM.! entry
-    let result = ctxt_results ctxt IM.! entry
-
-    to_log log $ "Function entry:             " ++ showHex entry
-    to_log log $ "Verification result:        " ++ show result
-    to_log log $ "#instructions:              " ++ show (num_of_instructions g)
-    to_log log $ "#assertions:                " ++ show (count_instructions_with_assertions vcs)
-    to_log log $ "unresolved indirect jumps:  " ++ show (num_of_unres_inds_in_cfg ctxt isJump g)
-    to_log log $ "unresolved indirect calls:  " ++ show (num_of_unres_inds_in_cfg ctxt isCall g)
-    to_log log $ "#blocks:                    " ++ show (num_of_blocks       g)
-    to_log log $ "#edges:                     " ++ show (num_of_edges        g)
-    to_log log $ "return behavior:            " ++ show_return_behavior ret
-    to_log log $ "\n\n"
-
-
-
-  num_of_resolved_indirection_calls ctxt         = IM.size $ IM.filterWithKey (indirectionIsCall ctxt) $ ctxt_inds ctxt
-  num_of_resolved_indirection_jumps ctxt         = IM.size $ IM.filterWithKey (indirectionIsJump ctxt) $ ctxt_inds ctxt
-
-  num_of_verified        = IM.size . IM.filter ((==) VerificationSuccess)
-  num_of_verifiedw       = IM.size . IM.filter ((==) VerificationSuccesWithAssumptions)
-  num_of_verif_error     = IM.size . IM.filter isVerificationError
-  num_of_unres_inds ctxt chkKind cfgs = sum (map (num_of_unres_inds_in_cfg ctxt chkKind) $ IM.elems cfgs)
-
-
-
-  isVerificationError (VerificationError _) = True
-  isVerificationError _                     = False
-
-  show_return_behavior (ReturningWith p)  = "Returning normally"
-  show_return_behavior Terminating        = "Terminating"
-  show_return_behavior UnknownRetBehavior = "Unknown"
-
-  indirectionIsCall ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
-      Nothing -> False
-      Just i  -> isCall $ Instr.opcode i
-  indirectionIsJump ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
-      Nothing -> False
-      Just i  -> not $ isCall $ Instr.opcode i
-  
-
-num_of_instructions           g = sum (map length $ IM.elems $ cfg_blocks g)
-num_of_blocks                 g = IM.size $ cfg_blocks g
-num_of_edges                  g = sum (map IS.size $ IM.elems $ cfg_edges g)
---}
-
-
-
 
 
 
@@ -573,7 +483,10 @@ ctxt_base_name :: Int -> StateT Context IO String
 ctxt_base_name entry = do
   dirname  <- gets ctxt_dirname
   name     <- gets ctxt_name
-  let entry_dirname = dirname ++ showHex entry ++ "/"
+
+  let functions_dirname = dirname ++ "functions/"
+  liftIO $ createDirectoryIfMissing False functions_dirname      
+  let entry_dirname = functions_dirname ++ showHex entry ++ "/"
   liftIO $ createDirectoryIfMissing False entry_dirname      
   return $ entry_dirname ++ name
 
@@ -651,7 +564,7 @@ ctxt_add_invariants entry finit invs posts vcs sps = do
 
 ctxt_mk_fcontext :: Int -> StateT Context IO FContext
 ctxt_mk_fcontext entry = do
-  ctxt        <- get
+  ctxt <- get
   return $ mk_fcontext ctxt entry
 
 ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Predicate) -> S.Set SStatePart -> StateT Context IO ()
@@ -785,7 +698,7 @@ ctxt_analyze_unresolved_indirections entry = do
           liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ showHex_list trgts ++ "\n"
 
           inds <- gets ctxt_inds
-          let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionJumpTable $ JumpTable op1 trgt trgts) inds -- TODO check if already exists
+          let inds' = IM.insert (fromIntegral $ addressof i) (S.fromList $ map ImmediateAddress trgts) inds -- TODO check if already exists
           modify $ set_ctxt_inds inds'
 
           return True
@@ -807,11 +720,11 @@ ctxt_analyze_unresolved_indirections entry = do
       liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show [value] ++ "\n"
 
       inds <- gets ctxt_inds
-      let inds' = IM.insert (fromIntegral $ addressof i) (IndirectionResolved value) inds -- TODO check if already exists
+      let inds' = IM.insert (fromIntegral $ addressof i) value inds -- TODO check if already exists
       modify $ set_ctxt_inds inds'
       return True
     else do
-      to_out $ "Unresolved block " ++ show b
+      to_out $ "Unresolved block " ++ show b ++ "\n" ++ show p
       return False
 
 
@@ -834,7 +747,7 @@ ctxt_analyze_unresolved_indirections entry = do
   try' fctxt f g blockId trgt = do
     let ctxt = f_ctxt fctxt
     modify $ (sexec_block fctxt (init $ fetch_block g blockId) Nothing . fst)
-    val <- sread_operand fctxt trgt
+    val <- sread_operand fctxt "inidrection resolving" trgt
     return $ stry_jump_targets fctxt val
 
 

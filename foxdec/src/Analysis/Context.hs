@@ -115,27 +115,8 @@ data CFG = CFG {
 
 
 
--- | A jump table
--- Let the actual indirection be @JMP RAX@, implying jt_trgt_operand == RAX.
--- This jump table can be implemented with inserting this instruction before the indirection:
---
---    MOV jt_trgt_operand, QWORD PTR [jt_address + 8*jt_index_operand]
-data JumpTable = JumpTable {
-  jt_index_operand   :: X86.Operand, -- ^ The operand that is bounded by some immediate, serving as an index into a table
-  jt_trgt_operand    :: X86.Operand, -- ^ The operand of the jump
-  jt_table_entries   :: [Int]        -- ^ An ordered list of instruction addresses to which is jumped
- }
- deriving (Show,Generic,Eq)
-
-
--- | An indirection
-data Indirection =
-    IndirectionResolved (S.Set ResolvedJumpTarget) -- ^ An indirection that could be resolved to one or more addresses
-  | IndirectionJumpTable JumpTable                 -- ^ An indirection based on a jump table
- deriving (Show,Generic,Eq)
-
--- | Per instruction address, a a jump table
-type Indirections = IM.IntMap Indirection
+-- | Per instruction address, a set of possibly resolved jump targets
+type Indirections = IM.IntMap (S.Set ResolvedJumpTarget)
 
 
 
@@ -277,9 +258,7 @@ set_ctxt_recursions recs     (Context bin ioref ctxt_) = Context bin ioref (ctxt
 set_ctxt_runningtime time    (Context bin ioref ctxt_) = Context bin ioref (ctxt_ {ctxt__runningtime = time})
 
 instance Cereal.Serialize VerificationResult
-instance Cereal.Serialize JumpTable
 instance Cereal.Serialize ResolvedJumpTarget
-instance Cereal.Serialize Indirection
 instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize VerificationCondition
@@ -292,9 +271,7 @@ instance Cereal.Serialize Context_
 
 
 instance NFData VerificationResult
-instance NFData JumpTable
 instance NFData ResolvedJumpTarget
-instance NFData Indirection
 instance NFData CFG
 instance NFData FReturnBehavior
 instance NFData VerificationCondition
@@ -338,6 +315,16 @@ read_from_ro_datasection ::
   -> Int           -- ^ Size, i.e., the number of bytes to read
   -> Maybe Word64
 read_from_ro_datasection ctxt a si = bytes_to_word <$> binary_read_ro_data (ctxt_binary ctxt) a si
+
+-- | Reading from a writable data section.
+--
+-- Reads maximally up to 8 bytes. Returns @Nothing@ if the given address is out-of-range.
+read_from_datasection ::
+     Context       -- ^ The context 
+  -> Word64        -- ^ An address
+  -> Int           -- ^ Size, i.e., the number of bytes to read
+  -> Maybe Word64
+read_from_datasection ctxt a si = bytes_to_word <$> binary_read_data (ctxt_binary ctxt) a si
 
 
 

@@ -199,7 +199,7 @@ resolve_jump_target ::
   -> [ResolvedJumpTarget]
 resolve_jump_target ctxt i =
   case (IM.lookup (fromIntegral $ addressof i) $ ctxt_inds ctxt, Instr.srcs i) of
-    (Just ind,_)    -> jump_targets_of_indirection ind -- already resolved indirection
+    (Just ind,_)    -> S.toList ind -- already resolved indirection
     (Nothing,[op1]) ->
       case operand_static_resolve ctxt i op1 of
         Unresolved         -> [Unresolved] -- unresolved indirection
@@ -208,9 +208,6 @@ resolve_jump_target ctxt i =
           case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
             Just sym -> [External sym]
             Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
- where
-  jump_targets_of_indirection (IndirectionResolved trgts)                    = S.toList $ trgts
-  jump_targets_of_indirection (IndirectionJumpTable (JumpTable _ _ entries)) = map (ImmediateAddress . fromIntegral) entries
 
 
 

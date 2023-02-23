@@ -19,6 +19,7 @@ import qualified OutputGeneration.JSON as JSON
 
 import Algorithm.L0_Lifting
 
+import NASM.L0ToNASM
 
 
 import qualified Data.Map as M
@@ -33,7 +34,7 @@ import Data.IORef
 
 import System.IO
 import System.Process (callCommand)
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Exit (die)
 
 import Time.System
@@ -163,6 +164,7 @@ start args = do
   -- 1.)
   ctxt <- obtain_context (args_inputtype args) (args_config args) (args_verbose args) dirname name
   -- 2.)
+  generate_NASM ctxt
   when (args_generate_metrics args)   $ generate_metrics ctxt
   when (args_generate_callgraph args) $ generate_call_graph ctxt
   when (args_generate_json    args)   $ generate_json ctxt $ args_verbose_json args
@@ -259,5 +261,23 @@ generate_call_graph ctxt = do
   else do
     putStrLn $ "Generated call graph, exported to file: " ++ fname 
 
-  
+-- | Generate NASM
+generate_NASM :: Context -> IO ()
+generate_NASM ctxt = do
+  let dirname  = ctxt_dirname ctxt ++ "nasm/"
+  let name     = ctxt_name ctxt
+  let fname    = dirname ++ name ++ ".asm" 
+  let fname2   = dirname ++ "linker.lds" 
+  let fname3   = dirname ++ "__gmon_start__.c" 
+
+  createDirectoryIfMissing False dirname      
+
+  let asm  = render_NASM ctxt $ lift_L0_to_NASM ctxt
+  let ls   = linker_script ctxt
+  let gmon = __gmon_start_implementation
+  writeFile fname asm
+  writeFile fname2 ls
+  writeFile fname3 gmon
+  putStrLn $ "Generated NASM, exported to file: " ++ fname 
+  putStrLn $ "Generated linker script for gcc, exported to file: " ++ fname2
 
