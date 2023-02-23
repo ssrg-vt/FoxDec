@@ -18,6 +18,7 @@ foxdec/examples/*/c*/
 foxdec/examples/*/d*/
 foxdec/examples/*/e*/
 foxdec/examples/*/f*/
+foxdec/examples/*/functions/
 foxdec/examples/*/*.calls
 foxdec/examples/*/*.indirections
 foxdec/examples/*/*.pdf
