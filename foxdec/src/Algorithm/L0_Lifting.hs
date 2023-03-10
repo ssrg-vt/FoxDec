@@ -695,10 +695,13 @@ ctxt_analyze_unresolved_indirections entry = do
           to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
           to_out $ "Because of bounded jump table access: " ++ show (sflags p)
           to_out $ "Updated file: " ++ fname
-          liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ showHex_list trgts ++ "\n"
 
           inds <- gets ctxt_inds
-          let inds' = IM.insert (fromIntegral $ addressof i) (S.fromList $ map ImmediateAddress trgts) inds -- TODO check if already exists
+
+          let tbl = JumpTable op1 (fromIntegral n) trgt (IM.fromList $ zip [0..fromIntegral n] trgts)
+          liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show tbl ++ "\n"
+
+          let inds' = IM.insert (fromIntegral $ addressof i) (Indirection_JumpTable tbl) inds -- TODO check if already exists
           modify $ set_ctxt_inds inds'
 
           return True
@@ -717,14 +720,14 @@ ctxt_analyze_unresolved_indirections entry = do
       to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ show value
       to_out $ "State:\n" ++ show p
       to_out $ "Updated file: " ++ fname
-      liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show [value] ++ "\n"
+      liftIO $ appendFile fname $ showHex (addressof i) ++ " " ++ show (Indirection_Resolved value) ++ "\n"
 
       inds <- gets ctxt_inds
-      let inds' = IM.insert (fromIntegral $ addressof i) value inds -- TODO check if already exists
+      let inds' = IM.insert (fromIntegral $ addressof i) (Indirection_Resolved value) inds -- TODO check if already exists
       modify $ set_ctxt_inds inds'
       return True
     else do
-      to_out $ "Unresolved block " ++ show b ++ "\n" ++ show p
+      to_out $ "Unresolved block " ++ show b ++ "\n" -- ++ show p
       return False
 
 

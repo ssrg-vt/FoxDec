@@ -91,6 +91,8 @@ canonicalize i@(Instruction label prefix mnemonic Nothing ops annot)
   | mnemonic `elem` [CWD, CDQ, CQO] = canonicalize_sextend2 i
   | mnemonic `elem` [MUL, IMUL] = canonicalize_mul i
   | mnemonic `elem` [DIV, IDIV] = canonicalize_div i
+  | mnemonic `elem` [MOVS,MOVSB,MOVSW,MOVSD,MOVSQ] && prefix /= Nothing && length ops == 2 = 
+    [Instruction label prefix mnemonic (Just $ head ops) (tail ops) annot]
   | mnemonic_reads_from_all_operands mnemonic =
     [Instruction label prefix mnemonic (Just $ head ops) ops annot]
   | mnemonic_reads_from_all_but_first_operands mnemonic =
@@ -429,6 +431,7 @@ remove_destination mnemonic =
          , FCOMI, FCOMIP, FUCOMI, FUCOMIP
          , FLDCW, FCHS, FLDZ, FLD1, FLDPI
          , FCMOVB, FCMOVE, FCMOVBE, FCMOVU, FCMOVNB, FCMOVNE, FCMOVNBE, FCMOVNU
+         , SCAS, SCASB, SCASD
          , EMMS
      ]
 
@@ -462,7 +465,6 @@ do_not_modify mnemonic = isCall mnemonic
 -- TODO:
 -- BLENDVP, BLENDVPS read from XMM0 sometimes as well?
 -- VANDPS: depends on number of operands (3 or 2)
--- MOVSD, MOVSQ
 -- SYSRET
 
 lowpart IMUL = IMUL_LO

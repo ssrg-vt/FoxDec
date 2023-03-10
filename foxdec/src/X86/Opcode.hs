@@ -327,6 +327,7 @@ data Opcode =
   | MOVSD
   | MOVSLDUP
   | MOVSS
+  | MOVSW
   | MOVSQ
   | MOVSX
   | MOVSXB

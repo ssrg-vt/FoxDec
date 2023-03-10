@@ -21,6 +21,7 @@ import Analysis.Context
 
 import Generic.SymbolicConstituents
 import Generic.SymbolicPropagation
+import Generic.Binary
 
 
 import X86.Opcode (Opcode(..), isCondJump, isJump)
@@ -120,7 +121,7 @@ cwiden' fctxt msg (Concrete es) =
   use_sources domains =
     -- error $ "Widening to sources: (" ++ msg ++ "): " ++  show (Concrete es)
     let srcs = NES.unions $ NES.map get_sources domains in
-      cwiden' fctxt msg $ mk_sources srcs
+      cwiden' fctxt msg $ mk_sources fctxt srcs
 
   is_bases (Just (Domain_Bases bs))  = True
   is_bases _                         = False
@@ -130,17 +131,15 @@ cwiden' fctxt msg (Concrete es) =
   get_sources (Just (Domain_Bases bs))     = NES.unions $ NES.map (srcs_of_base fctxt) bs 
 cwiden' fctxt msg v@(Bases bs)
   | NES.size bs <= (ctxt_max_num_of_bases $ f_ctxt fctxt) = v
-  | otherwise = cwiden' fctxt msg $ mk_sources $ NES.unions $ NES.map (srcs_of_base fctxt) bs
+  | otherwise = cwiden' fctxt msg $ mk_sources fctxt $ NES.unions $ NES.map (srcs_of_base fctxt) bs
                 -- error $ "Widening to sources (" ++ msg ++ "): " ++ show (Bases bs)
-cwiden' fctxt msg v@(Sources srcs) 
-  | count_sources srcs <= (ctxt_max_num_of_sources $ f_ctxt fctxt) = v
-  | otherwise = trace' fctxt ("Max num of sources exceeded: " ++ show v) Top
+cwiden' fctxt msg v@(Sources srcs) = mk_sources fctxt srcs
 cwiden' fctxt msg Top = Top
 
 cwiden_all_to_sources :: FContext -> String -> S.Set SPointer -> SPointer
 cwiden_all_to_sources fctxt msg vs -- = error $ "Widening to sources (" ++ msg ++ "): " ++  show vs
   | Top `elem` vs || S.null vs = Top
-  | otherwise                  = cwiden fctxt msg $ mk_sources $ NES.unions $ NES.map get_sources $ NES.unsafeFromSet vs
+  | otherwise                  = cwiden fctxt msg $ mk_sources fctxt $ NES.unions $ NES.map get_sources $ NES.unsafeFromSet vs
  where
   get_sources (Concrete es)  = NES.unions $ NES.map (srcs_of_expr fctxt) es
   get_sources (Bases bs)     = NES.unions $ NES.map (srcs_of_base fctxt) bs
@@ -159,9 +158,9 @@ cjoin fctxt msg (Concrete es0) (Concrete es1) =
 cjoin fctxt msg v0 v1 = merge (cwiden fctxt msg v0) (cwiden fctxt msg v1)
  where
   merge (Bases bs0) (Bases bs1)         = cwiden fctxt msg $ Bases      $ NES.union bs0 bs1
-  merge (Bases bs0) (Sources srcs1)     = cwiden fctxt msg $ mk_sources $ NES.union (NES.unions $ NES.map (srcs_of_base fctxt) bs0) srcs1
-  merge (Sources srcs0) (Bases bs1)     = cwiden fctxt msg $ mk_sources $ NES.union srcs0 (NES.unions $ NES.map (srcs_of_base fctxt) bs1)
-  merge (Sources srcs0) (Sources srcs1) = cwiden fctxt msg $ mk_sources $ NES.union srcs0 srcs1
+  merge (Bases bs0) (Sources srcs1)     = cwiden fctxt msg $ mk_sources fctxt $ NES.union (NES.unions $ NES.map (srcs_of_base fctxt) bs0) srcs1
+  merge (Sources srcs0) (Bases bs1)     = cwiden fctxt msg $ mk_sources fctxt $ NES.union srcs0 (NES.unions $ NES.map (srcs_of_base fctxt) bs1)
+  merge (Sources srcs0) (Sources srcs1) = cwiden fctxt msg $ mk_sources fctxt $ NES.union srcs0 srcs1
   merge Top _ = Top
   merge _ Top = Top
 
@@ -506,11 +505,16 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
 
 
 mk_cvalue fctxt (Bottom (FromPointerBases bs)) = Bases bs
-mk_cvalue fctxt (Bottom (FromSources srcs))    = mk_sources srcs
+mk_cvalue fctxt (Bottom (FromSources srcs))    = mk_sources fctxt srcs
 mk_cvalue fctxt e                              = Concrete $ NES.singleton $ simp e
 
 
-mk_sources = Sources . flatten_srcs
+mk_sources fctxt srcs =
+  let srcs' = flatten_srcs srcs in
+   if NES.size srcs' <= ctxt_max_num_of_sources (f_ctxt fctxt) then
+     Sources srcs'
+   else
+     trace' fctxt "Max num of sources exceeded." Top
  where
   flatten_srcs srcs = 
     let (ms,srcs') = S.partition is_src_mem $ NES.toSet srcs in
@@ -524,17 +528,13 @@ mk_sources = Sources . flatten_srcs
   flatten (Src_Mem srcs) = NES.unions $ NES.map flatten srcs
   flatten src            = NES.singleton src
 
-count_sources = sum . NES.map src_size
- where
-  src_size (Src_Mem srcs) = count_sources srcs
-  src_size _              = 1
 
 mk_cmem_value fctxt msg a si = try_symbol `orElse` (try_det `orElse` use_sources)
  where
   try_symbol = do
     a_v  <- ctry_immediate a
     si_v <- ctry_immediate si
-    if address_has_symbol (f_ctxt fctxt) a_v then
+    if address_has_external_symbol (f_ctxt fctxt) a_v then
       return $ mk_cvalue fctxt $ SE_Var (SP_Mem (SE_Immediate a_v) 8)
     else
       Nothing
@@ -547,7 +547,7 @@ mk_cmem_value fctxt msg a si = try_symbol `orElse` (try_det `orElse` use_sources
   use_sources = 
     case srcs_of_spointer fctxt a of
       Nothing   -> Top
-      Just srcs -> mk_sources $ NES.singleton $ Src_Mem srcs
+      Just srcs -> mk_sources fctxt $ NES.singleton $ Src_Mem srcs
 
 cmk_mem_addresses fctxt (Concrete es) = S.map (Concrete . NES.singleton) $ NES.toSet es
 cmk_mem_addresses fctxt a             = S.singleton a
@@ -1015,7 +1015,7 @@ transpose_bw_exprs fctxt f_caller f_callee p = cjoin_all fctxt "transpose_bw" . 
 transpose_bw_spointer :: FContext -> String -> String -> Sstate SPointer -> SPointer -> SPointer
 transpose_bw_spointer fctxt f_caller f_callee p (Concrete es)  = transpose_bw_exprs fctxt f_caller f_callee p es
 transpose_bw_spointer fctxt f_caller f_callee p (Bases bs)     = Bases $ NES.map (transpose_bw_base fctxt f_caller f_callee p) bs
-transpose_bw_spointer fctxt f_caller f_callee p (Sources srcs) = (Sources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)) `orElse` Top
+transpose_bw_spointer fctxt f_caller f_callee p (Sources srcs) = (mk_sources fctxt <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)) `orElse` Top
 transpose_bw_spointer fctxt f_caller f_callee p Top            = Top
 
 
@@ -1160,7 +1160,7 @@ call fctxt i = do
     swrite_mem fctxt a' si' bot
 
   write_output FreshPointer       = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ SE_Malloc (Just (addressof i)) (Just ""))
-  write_output UnknownReturnValue = swrite_reg fctxt RAX $ (mk_sources $ NES.singleton $ Src_Function f_callee)  -- TODO overwrite volatile regs as well?
+  write_output UnknownReturnValue = swrite_reg fctxt RAX $ (mk_sources fctxt $ NES.singleton $ Src_Function f_callee)  -- TODO overwrite volatile regs as well?
   write_output (Input r)          = sread_reg fctxt r >>= swrite_reg fctxt RAX
 
 
@@ -1199,13 +1199,9 @@ unknown_internal_function fctxt i = return () -- TODO try as external
 
 
 jump :: FContext -> X86.Instruction -> State (Sstate SPointer,VCS) ()
-jump fctxt i =
-  if instruction_jumps_to_external (f_ctxt fctxt) i then
-    -- A jump to an external symbol is treated as a function call and implicit RET
-    call fctxt i >> sreturn fctxt
-  else
-    return ()
-
+jump fctxt i
+  | jump_is_actually_a_call (f_ctxt fctxt) i = call fctxt i >> sreturn fctxt
+  | otherwise                                = return ()
 
 
 ctry_jump_targets :: FContext -> SPointer -> Maybe (S.Set ResolvedJumpTarget)
@@ -1213,14 +1209,23 @@ ctry_jump_targets fctxt (Concrete es)
   | NES.size es == 1 =
     case NES.findMin es of
       SE_Immediate a                     -> if address_has_instruction (f_ctxt fctxt) a then Just $ S.singleton $ ImmediateAddress a else Nothing -- TODO or symbol?
-      SE_Var (SP_Mem (SE_Immediate a) _) -> if address_has_symbol (f_ctxt fctxt) a then Just $ S.singleton $ External $ ctxt_syms (f_ctxt fctxt) IM.! (fromIntegral a) else Nothing
+      SE_Var (SP_Mem (SE_Immediate a) _) -> S.singleton <$> try_external a
       _                                  -> Nothing
   | all (expr_highly_likely_pointer fctxt) es = Just $ S.map mk_resolved_jump_target $ NES.toSet es
   | otherwise = Nothing
  where
   mk_resolved_jump_target (SE_Immediate a)                     = ImmediateAddress a
-  mk_resolved_jump_target (SE_Var (SP_Mem (SE_Immediate a) _)) 
-    | address_has_symbol (f_ctxt fctxt) a                      = External $ ctxt_syms (f_ctxt fctxt) IM.! (fromIntegral a)
-    | otherwise                                                = error $ show ("indirections", showHex a) 
+  mk_resolved_jump_target (SE_Var (SP_Mem (SE_Immediate a) _)) =
+    case try_external a of
+      Just trgt -> trgt
+      Nothing   -> error $ show ("indirections", showHex a) 
   mk_resolved_jump_target a                                    = error $ show ("resolving", a, expr_highly_likely_pointer fctxt a,get_pointer_bases fctxt a)
+
+
+  try_external a = IM.lookup (fromIntegral a) (ctxt_symbol_table $ f_ctxt fctxt) >>= try_mk_jump_target
+
+  try_mk_jump_target (Relocated_Function sym) = Just $ External sym
+  try_mk_jump_target _                        = Nothing
+
+
 ctry_jump_targets fctxt _ = Nothing 

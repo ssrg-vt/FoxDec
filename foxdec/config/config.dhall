@@ -48,10 +48,10 @@
   -- Sane default: 25
   
 
-  max_num_of_sources = 20,
+  max_num_of_sources = 30,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
-  -- Sane default: 25
+  -- Sane default: 30
 
 
   max_jump_table_size = 20000,
@@ -60,7 +60,7 @@
   -- Sane default: 20000
   
 
-  max_expr_size = 5000
+  max_expr_size = 2000
   -- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
   -- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.
   -- Sane default: 2000

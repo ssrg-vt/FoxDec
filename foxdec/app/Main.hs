@@ -59,6 +59,7 @@ data CommandLineArgs = CommandLineArgs
     args_filename           :: FilePath,   -- ^ The name of the binary
     args_inputtype          :: String,     -- ^ The input type (a binary or a .L0 file)
     args_generate_L0        :: Bool,       -- ^ Shall we generate a .L0 file?
+    args_generate_NASM      :: Bool,       -- ^ Shall we generate NASM?
     args_generate_json      :: Bool,       -- ^ Shall we generate a .json file?
     args_verbose_json       :: Bool,       -- ^ Must the .json include all the invariants?
     args_generate_metrics   :: Bool,       -- ^ Shall we generate a .metrics file?
@@ -69,7 +70,7 @@ data CommandLineArgs = CommandLineArgs
  deriving Show
 
 -- | Default values for command-line arguments
-defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False
+defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False False
 
 -- | The command-line arguments and their types
 args =
@@ -81,6 +82,7 @@ args =
     , Option ['v']     ["verbose"]    (NoArg  set_args_verbose)                     "If enabled, produce verbose output."
     , Option []        ["GL0"]        (NoArg  set_args_generate_L0)                 "Generate a .L0 file (only if INPUTTYPE==BINARY)."
     , Option []        ["Gcallgraph"] (NoArg  set_args_generate_callgraph)          "Generate an annotated call graph."
+    , Option []        ["GNASM"]      (NoArg  set_args_generate_NASM)               "Generate NASM"
     , Option []        ["Gjson"]      (NoArg  set_args_generate_json)               "Generate a .json file (result is pretty-printed as well in .json.txt file)."
     , Option []        ["vjson"]      (NoArg  set_args_verbose_json)                "Make the JSON verbose by outputting all invariants (only when Gjson is enabled). Warning: this may be a large output."
     , Option []        ["Gmetrics"]   (NoArg  set_args_generate_metrics)            "Generate metrics in .metrics.txt and .metrics.json files."
@@ -91,6 +93,7 @@ args =
   set_args_filename  str      args = args { args_filename = str }
   set_args_inputtype str      args = args { args_inputtype = str }
   set_args_generate_L0        args = args { args_generate_L0 = True }
+  set_args_generate_NASM      args = args { args_generate_NASM = True }
   set_args_generate_json      args = args { args_generate_json = True }
   set_args_verbose_json       args = args { args_verbose_json = True }
   set_args_generate_metrics   args = args { args_generate_metrics = True }
@@ -118,10 +121,10 @@ parseCommandLineArgs argv =
     when (args_inputtype args `notElem` ["BINARY","L0"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string L0."
     when (not (args_generate_json args) && args_verbose_json args) $ err "ERROR: Cannot generate verbose JSON without enabling -Gjson"
     when (args_generate_L0 args && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output an L0 when input is set to L0."
-    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [-GL0, -Gjson, -Gmetrics, -Gcallgraph]"
+    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GL0, --Gjson, --Gmetrics, --Gcallgraph, --GNASM]"
     return args
 
-  no_output args = all (not . (&) args) [args_generate_L0, args_generate_json, args_generate_metrics, args_generate_callgraph]
+  no_output args = all (not . (&) args) [args_generate_L0, args_generate_json, args_generate_metrics, args_generate_callgraph,args_generate_NASM]
 
 -- | The full usage message
 usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
@@ -164,9 +167,9 @@ start args = do
   -- 1.)
   ctxt <- obtain_context (args_inputtype args) (args_config args) (args_verbose args) dirname name
   -- 2.)
-  generate_NASM ctxt
   when (args_generate_metrics args)   $ generate_metrics ctxt
   when (args_generate_callgraph args) $ generate_call_graph ctxt
+  when (args_generate_NASM args)      $ generate_NASM ctxt
   when (args_generate_json    args)   $ generate_json ctxt $ args_verbose_json args
   when (args_generate_L0 args)        $ serialize_context ctxt
 
@@ -267,17 +270,13 @@ generate_NASM ctxt = do
   let dirname  = ctxt_dirname ctxt ++ "nasm/"
   let name     = ctxt_name ctxt
   let fname    = dirname ++ name ++ ".asm" 
-  let fname2   = dirname ++ "linker.lds" 
-  let fname3   = dirname ++ "__gmon_start__.c" 
+  let fname1   = dirname ++ "__gmon_start__.c" 
 
   createDirectoryIfMissing False dirname      
 
   let asm  = render_NASM ctxt $ lift_L0_to_NASM ctxt
-  let ls   = linker_script ctxt
   let gmon = __gmon_start_implementation
   writeFile fname asm
-  writeFile fname2 ls
-  writeFile fname3 gmon
+  writeFile fname1 gmon
   putStrLn $ "Generated NASM, exported to file: " ++ fname 
-  putStrLn $ "Generated linker script for gcc, exported to file: " ++ fname2
 

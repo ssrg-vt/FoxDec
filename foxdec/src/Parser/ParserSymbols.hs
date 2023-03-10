@@ -21,6 +21,7 @@ import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
 import qualified Data.IntMap as IM
+import Generic.Binary
 
 
 isWhiteSpace '\t' = True
@@ -42,7 +43,7 @@ symb = do
   whitespaces
   s <- many (noneOf "\n")
   newline
-  return (a,s)
+  return (a,Relocated_Function s)
  
 
 symbols = do
@@ -53,7 +54,7 @@ symbols = do
 -- The parse function.
 -- Takes as input a filename f and produces a list of instructions
 -- to lists of instructions.
-parse_symbols  :: String -> IO (Either ParseError (IM.IntMap String))
+parse_symbols  :: String -> IO (Either ParseError (IM.IntMap Symbol))
 parse_symbols f = parseFromFile symbols f
 
 

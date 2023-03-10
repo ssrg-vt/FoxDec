@@ -16,6 +16,7 @@ import Analysis.Context
 import Base
 import Data.JumpTarget
 import X86.Conventions
+import Generic.Binary
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -41,15 +42,11 @@ import qualified Generic.Instruction as Instr
 
 
 -- | Returns true iff a symbol is associated with the address.
-address_has_symbol ctxt a =
-  case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
-    Nothing  -> False
-    Just sym -> True
-
--- | Returns true if the adress is external, i.e., has no instruction or has a symbol.
-address_is_external ctxt a = address_has_symbol ctxt a || not (address_has_instruction ctxt a)
-
-
+address_has_external_symbol ctxt a =
+  case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+    Just (Relocated_Function _) -> True
+    Just (Relocated_Label _) -> True
+    _ -> False
 
 
 -- | many operands can statically be resolved, even though technically they are indirect (relative to RIP).
@@ -75,21 +72,23 @@ static_resolve_rip_expr :: Context -> Instruction -> (Word64 -> Word64) -> Int -
 static_resolve_rip_expr ctxt i f si =
   let rip     = addressof i + (fromIntegral $ sizeof i)
       a'      = f rip
-      syms    = ctxt_syms ctxt in
+      syms    = ctxt_symbol_table ctxt in
     case (IM.lookup (fromIntegral a') syms,read_from_ro_datasection ctxt a' si) of
-      (Just s,  a'')      ->
+      (Just (Relocated_Function s),  a'') ->
         -- Example:
         --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
         --   Address 1002000c0 is returned and treated as an external function call       
         -- trace ("Instruction " ++ show i ++ " read from address " ++ showHex a' ++ " which has symbol " ++ s ++ " producing address " ++ showHex_option a'') $ 
         External s
+{--
       (Nothing, Just a'') ->
         -- Example:
         --   Instruction 10011e093: CALL 64 ptr [RIP + 1098831] 6 read from address 10022a4e8 producing address 100131d63
         --   Address 100131d63 is returned as that is the function pointer to be called
         -- trace ("Instruction " ++ show i ++ " read from address " ++ showHex a' ++ " producing address " ++ showHex a'') $
         ImmediateAddress a''
-      (Nothing,Nothing)   ->
+--}
+      _   ->
         Unresolved
 
 
@@ -104,9 +103,9 @@ function_name_of_entry ::
   -> Int   -- ^ The entry address
   -> String
 function_name_of_entry ctxt a =
-  case IM.lookup a $ ctxt_syms ctxt of
-    Just sym -> sym
-    Nothing  ->
+  case IM.lookup a $ ctxt_symbol_table ctxt of
+    Just (Relocated_Function sym) -> sym
+    _ ->
       case unsafePerformIO $ fetch_instruction ctxt (fromIntegral a) of -- TODO. However, should be safe as result is immutable.
         Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
           case operand_static_resolve ctxt i op1 of

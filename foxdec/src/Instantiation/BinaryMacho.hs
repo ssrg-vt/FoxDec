@@ -30,7 +30,7 @@ import qualified Data.Text.Encoding         as T
 data Macho = Macho {
   macho_data :: IM.IntMap Word8,     -- writable data
   macho_dump :: IM.IntMap Word8,     -- read only data
-  macho_symbols :: IM.IntMap String, -- symbol list
+  macho_symbols :: IM.IntMap Symbol, -- symbol list
   macho_sections :: SectionsInfo,    -- section info
   macho_entry :: [Word64]
  }
@@ -71,8 +71,8 @@ instance BinaryClass Macho
     binary_read_ro_data = macho_read_ro_data
     binary_read_data = macho_read_data
     binary_get_sections_info = macho_sections
-    binary_get_relocs = macho_get_relocs
-    binary_get_symbols = macho_symbols
+    binary_get_symbols = SymbolTable . macho_symbols
+    binary_get_relocations = \_ -> S.empty
     binary_pp = macho_pp
     binary_entry = head . macho_entry
     binary_text_section_size = macho_text_section_size
@@ -110,7 +110,7 @@ read_data dirname name = do
       Left err -> error $ show err
       Right dump -> return dump
 
-read_syms :: String -> String -> IO (IM.IntMap String)
+read_syms :: String -> String -> IO (IM.IntMap Symbol)
 read_syms dirname name = do
   let fname = dirname ++ name ++ ".symbols"
   parse fname

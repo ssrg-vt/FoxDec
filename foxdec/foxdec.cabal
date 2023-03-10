@@ -59,7 +59,6 @@ library
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
-      Parser.ParserRelocs
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction

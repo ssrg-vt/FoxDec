@@ -16,6 +16,8 @@ import Analysis.FunctionNames
 
 import X86.Register
 
+import Generic.Binary
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -31,7 +33,7 @@ import Debug.Trace
 
 -- | Returns true iff the expression is an immediate address falling into the range of sections of the binary
 expr_is_global_immediate ctxt (SE_Immediate a)
-  | is_roughly_an_address ctxt (fromIntegral a) = address_has_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing
+  | is_roughly_an_address ctxt (fromIntegral a) = address_has_external_symbol ctxt a || find_section_for_address ctxt (fromIntegral a) /= Nothing
   | otherwise = False
 expr_is_global_immediate ctxt _ = False
 
@@ -229,9 +231,10 @@ get_pointer_domain ctxt e =
 
 
   statepart_to_pointerbase :: StatePart -> S.Set PointerBase
-  statepart_to_pointerbase (SP_Mem (SE_Immediate a) 8)  = case IM.lookup (fromIntegral a) (ctxt_syms $ f_ctxt ctxt) of
-                                                            Nothing  -> S.empty
-                                                            Just sym -> S.singleton $ PointerToSymbol a sym
+  statepart_to_pointerbase (SP_Mem (SE_Immediate a) 8)  = case IM.lookup (fromIntegral a) (ctxt_symbol_table $ f_ctxt ctxt) of
+                                                            Just (Relocated_Function sym) -> S.singleton $ PointerToSymbol a sym
+                                                            Just (Relocated_Label sym) -> S.singleton $ PointerToSymbol a sym
+                                                            _ -> S.empty
   statepart_to_pointerbase (SP_Reg FS)                  = S.singleton ThreadLocalStorage
   statepart_to_pointerbase _                            = S.empty
 
@@ -330,8 +333,8 @@ srcs_of_expr ctxt (SE_Bit i e)                 = srcs_of_expr ctxt e
 srcs_of_expr ctxt (SE_SExtend _ _ e)           = srcs_of_expr ctxt e
 srcs_of_expr ctxt (SE_Overwrite _ a b)         = NES.unions $ NES.map (srcs_of_expr ctxt) $ NES.unsafeFromSet $ S.fromList [a,b]
 srcs_of_expr ctxt e@(SE_Immediate i)           = 
-  if address_has_symbol (f_ctxt ctxt) $ fromIntegral i then
-    NES.singleton  $ Src_ImmediateAddress i
+  if address_has_external_symbol (f_ctxt ctxt) $ fromIntegral i then
+    NES.singleton $ Src_ImmediateAddress i
   else case find_section_for_address (f_ctxt ctxt) $ fromIntegral i of
     Just (_,_,a0,_) -> NES.singleton $ Src_ImmediateAddress a0
     Nothing  -> NES.singleton $ Src_ImmediateConstants

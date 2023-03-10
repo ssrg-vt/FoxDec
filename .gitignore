@@ -48,6 +48,7 @@ foxdec/docs/manual/*/*
 *.o
 *.fdb_latexmk
 *.fls
+*.hs.old
 docs/manual/*.fdb_latexmk
 docs/manual/*.fls
 

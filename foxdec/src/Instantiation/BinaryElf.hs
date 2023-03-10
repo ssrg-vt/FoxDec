@@ -125,46 +125,94 @@ elf_read_data elf a si =
 
 
 
-elf_get_relocs elf = map mk_reloc $ filter is_reloc $ concatMap elfRelSectRelocations $ parseRelocations elf
+elf_get_relocs elf = S.fromList $ mk_relocs
  where
-  is_reloc rel = elfRelType rel `elem`[5, 6, 7, 8]
-  mk_reloc rel =
-    case elfRelType rel of
-      5 -> R_X86_64_COPY     (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
-      6 -> R_X86_64_GLOB_DAT (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
-      7 -> R_X86_64_JMP_SLOT (elfRelOffset rel) (fromJust $ IM.lookup (fromIntegral $ elfRelOffset rel) sym_table)
-      8 -> R_X86_64_RELATIVE (elfRelOffset rel) (fromIntegral $ fromJust $ elfRelSymAddend rel)
+  -- go through all relocations
+  mk_relocs = concatMap mk_reloc $ parseRelocations elf
+  
+  mk_reloc sec = concatMap (try_mk_reloc sec) (elfRelSectRelocations sec)
+
+  try_mk_reloc sec reloc
+   | elfRelType reloc == 8 =
+     -- R_X86_64_RELATIVE
+     -- The SymAddend provides the relocation address
+      [Relocation (fromIntegral $ elfRelOffset reloc) (fromIntegral $ fromJust $ elfRelSymAddend reloc)]
+   | otherwise = []
 
 
-  sym_table = elf_get_symbol_table elf
-
--- TODO: perhaps R_X86_64_GLOB_DAT entries should be part of the relocs, not the symbol table
-
-
-
-
--- retrieve a mapping of addresses to symbols (external)
--- E.g:
--- 		0xcfe0 --> malloc
--- Means that reading 8 bytes from address 0xcfe0 procudes a pointer to malloc.
--- Thus an instruction: "CALL qword ptr [0xcfe0]" can be seen as "CALL malloc".
---
--- Similarly, global external variables are found, such as "stdout" or "optind".
--- E.g.:
---    0xd0a8 --> stdout
--- Means that "mov rdi,QWORD PTR [0xd0a8]" can be seen as "mov rdi, QWORD PTR [stdout]"
-elf_get_symbol_table elf = IM.filter ((/=) "") $ IM.fromList $ plt_relocations  ++ external_variables
+elf_get_symbol_table elf = SymbolTable $ IM.fromList $ filter ((/=) (Just "") . symbol_to_name . snd) $ symbols_from_ELF_symbol_tables ++ symbols_from_relocations
  where
-  -- go through all section that contain relocations
-  plt_relocations = concatMap mk_symbol_from_reloc_section $ parseRelocations elf
-  -- for each such section, filter out relocations with type 6 (R_X86_64_GLOB_DAT) or 7 (R_X86_64_JUMP_SLOT)
+  -- go through all relocations
+  symbols_from_relocations = concatMap mk_symbol_table_for_reloc_section $ parseRelocations elf
+  
+  mk_symbol_table_for_reloc_section sec = concatMap (try_mk_symbol_entry sec) (elfRelSectRelocations sec)
+
+  try_mk_symbol_entry sec reloc
+    | elfRelType reloc == 7 =
+      -- R_X86_64_JUMP_SLOT
+      -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
+      [(fromIntegral $ elfRelOffset reloc, Relocated_Function $ get_name_from_reloc sec reloc)]
+    | elfRelType reloc == 6 =
+      -- R_X86_64_GLOB_DAT, objects
+      -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
+      let typ = if get_symbol_type_of_reloc sec reloc `elem` [STTObject,STTCommon] then Relocated_Label else Relocated_Function in
+        [(fromIntegral $ elfRelOffset reloc, typ $ get_name_from_reloc sec reloc)]
+   | elfRelType reloc == 5 =
+      -- R_X86_64_COPY
+      -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
+      [(fromIntegral $ elfRelOffset reloc, Relocated_Label $ get_name_from_reloc sec reloc)]
+   | otherwise = []
+
+
+  -- go through all ELF symbol tables
+  -- each symbol table entry that has as type STTObject with binding /= Local is considered external and that is not hidden
+  -- its value is the address at which a relocation happens
+  symbols_from_ELF_symbol_tables = concatMap mk_symbol_entry $ concat $ parseSymbolTables elf
+
+  mk_symbol_entry sym_entry
+    -- | is_external_var_symbol_entry sym_entry = [(fromIntegral $ steValue sym_entry, Relocated_Label $ get_string_from_steName $ steName sym_entry)]
+    | is_internal_symbol_entry sym_entry     = [(fromIntegral $ steValue sym_entry, Internal_Label $ get_string_from_steName $ steName sym_entry)]
+    | otherwise = []
+
+
+  -- external_variables = map mk_symbol_entry $ filter is_external_var_symbol_entry $ concat $ parseSymbolTables elf
+  is_external_var_symbol_entry sym_entry = steType sym_entry `elem` [STTObject,STTCommon] && steBind sym_entry `elem` [STBGlobal, STBWeak] && not (isHiddenSymEntry sym_entry)
+  
+  is_internal_symbol_entry sym_entry = or
+    [ steEnclosingSection sym_entry /= Nothing && steType sym_entry `notElem` [STTObject,STTCommon]
+    , is_hidden sym_entry ]
+
+
+  get_name_from_reloc sec reloc = get_string_from_steName $ steName $ (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+
+  get_symbol_type_of_reloc sec reloc = steType $ (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+
+  isHiddenSymEntry sym_entry = steOther sym_entry .&. 0x3 == 0x2
+  is_hidden sym_entry = steType sym_entry `elem` [STTObject,STTCommon] && steBind sym_entry `elem` [STBGlobal, STBWeak] && isHiddenSymEntry sym_entry
+
+  
+{--
+  plt_relocations = concatMap mk_entries_relocated_function $ parseRelocations elf
+  -- for each such section, filter out relocations with type 7 (R_X86_64_JUMP_SLOT)
+  mk_entries_relocated_function sec = 
+    let relocs = filter (((==) 7) . elfRelType) $ elfRelSectRelocations sec in
+      filter ((/=) "") $ map (mk_entry_relocated_function $ elfRelSectSymbolTable sec) relocs 
+
+  mk_entry_relocated_function table sym_reloc = (fromIntegral $ elfRelOffset sym_reloc, Relocated_Function $ get_name_from_reloc table sym_reloc)
+
+  external_variables = concatMap mk_entries_external_variable $ parseRelocations elf
+  -- for each such section, filter out relocations with type 6 (R_X86_64_GLOB_DAT)
   -- for each such relocation, the offset is the address at which a relocation happens
   -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
-  mk_symbol_from_reloc_section sec = 
-    let relocs = filter isJumptTableRelocType $ elfRelSectRelocations sec in
-      map (mk_symbol_from_reloc $ elfRelSectSymbolTable sec) relocs 
-  isJumptTableRelocType = flip elem [6,7] . elfRelType 
-  mk_symbol_from_reloc table sym_reloc = (fromIntegral $ elfRelOffset sym_reloc, get_string_from_steName $ steName $ table !! (fromIntegral $ elfRelSymbol sym_reloc))
+  mk_entries_external_variable sec = 
+    let relocs = filter (((==) 6) . elfRelType) $ elfRelSectRelocations sec in
+      filter ((/=) "") $ map (mk_entry_relocated_function $ elfRelSectSymbolTable sec) relocs 
+
+  mk_entry_relocated_function table sym_reloc = (fromIntegral $ elfRelOffset sym_reloc, Relocated_Label $ get_name_from_reloc table sym_reloc)
+
+
+
+
 
   -- go through all symbol tables
   -- each symbol table entry that has as type STTObject with binding /= Local is considered external and that is not hidden
@@ -175,7 +223,6 @@ elf_get_symbol_table elf = IM.filter ((/=) "") $ IM.fromList $ plt_relocations  
 
 
 
-isHiddenSymEntry sym_entry = steOther sym_entry .&. 0x3 == 0x2
 
 -- retrieve a mapping of addresses to symbols (internal)
 elf_get_symbol_table_internal elf = IM.filter ((/=) "") $ IM.fromList $ internal_symbols 
@@ -185,9 +232,14 @@ elf_get_symbol_table_internal elf = IM.filter ((/=) "") $ IM.fromList $ internal
   internal_symbols = map mk_symbol_entry $ filter is_internal_symbol_entry $ concat $ parseSymbolTables elf
   -- each symbol table entry that has a section associated to it is internal
   -- its value is the the address at which a relocation happens
-  is_internal_symbol_entry sym_entry = steEnclosingSection sym_entry /= Nothing && steType sym_entry /= STTObject
+  -- hidden symbols are considered inernal as well
+  is_internal_symbol_entry sym_entry = or
+    [ steEnclosingSection sym_entry /= Nothing && steType sym_entry /= STTObject
+    , is_hidden sym_entry ]
   mk_symbol_entry sym_entry = (fromIntegral $ steValue sym_entry, get_string_from_steName $ steName sym_entry)
   
+  is_hidden sym_entry = steType sym_entry == STTObject && steBind sym_entry `elem` [STBGlobal, STBWeak] && isHiddenSymEntry sym_entry
+--}
 
 
 -- get the name from a symbol table entry
@@ -205,13 +257,12 @@ elf_read_file = parseElf
 
 
 pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section)] ++ "]" 
-pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_relocs ++ pp_symbols ++ pp_symbols_internal ++ pp_all_relocs ++ pp_all_symbols ++ pp_entry
+pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_entry
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
-  pp_relocs = ["Relocations:"] ++ (map pp_reloc $ elf_get_relocs elf)
   pp_symbols = ["Symbol table:\n" ++ show (elf_get_symbol_table elf)] 
-  pp_symbols_internal = ["Symbol table (internal):\n" ++ show (elf_get_symbol_table_internal elf)]
+  pp_relocs = ["Relocations:\n" ++ show (elf_get_relocs elf)] 
 
 
   pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
@@ -237,8 +288,8 @@ instance BinaryClass Elf
     binary_read_ro_data = elf_read_ro_data
     binary_read_data = elf_read_data
     binary_get_sections_info = elf_get_sections_info
-    binary_get_relocs = elf_get_relocs 
     binary_get_symbols = elf_get_symbol_table
+    binary_get_relocations = elf_get_relocs
     binary_pp = pp_elf
     binary_entry = elfEntry
     binary_text_section_size = elf_text_section_size

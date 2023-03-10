@@ -15,7 +15,7 @@ module Analysis.ControlFlow (
    fetch_block,
    resolve_jump_target,
    get_internal_addresses,
-   instruction_jumps_to_external,
+   jump_is_actually_a_call,
    show_block,
    show_invariants,
    isTerminal
@@ -30,6 +30,7 @@ import Analysis.Context
 import Analysis.FunctionNames
 
 import Data.JumpTarget
+import Generic.Binary
 
 import X86.Conventions
 import X86.Instruction (addressof)
@@ -199,28 +200,32 @@ resolve_jump_target ::
   -> [ResolvedJumpTarget]
 resolve_jump_target ctxt i =
   case (IM.lookup (fromIntegral $ addressof i) $ ctxt_inds ctxt, Instr.srcs i) of
-    (Just ind,_)    -> S.toList ind -- already resolved indirection
+    (Just ind,_)    -> indirection_to_jump_target ind -- already resolved indirection
     (Nothing,[op1]) ->
       case operand_static_resolve ctxt i op1 of
         Unresolved         -> [Unresolved] -- unresolved indirection
         External sym       -> [External sym]
         ImmediateAddress a ->
-          case IM.lookup (fromIntegral a) $ ctxt_syms ctxt of
-            Just sym -> [External sym]
-            Nothing  -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
+          case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+            Just (Relocated_Function sym) -> [External sym]
+            _ -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
 
+ where
+  indirection_to_jump_target (Indirection_Resolved trgts) = S.toList trgts
+  indirection_to_jump_target (Indirection_JumpTable (JumpTable _ _ _ tbl)) = map ImmediateAddress $ IM.elems tbl
 
-
--- | Returns true iff the instruction resolves to external targets only.
-instruction_jumps_to_external ::
+-- | Returns true iff the JUMP instruction is actually a CALL followed by implicit RET
+jump_is_actually_a_call ::
   Context        -- ^ The context
   -> X86.Instruction       -- ^ The instruction
   -> Bool
-instruction_jumps_to_external ctxt i =
-  all resolve_is_external $ resolve_jump_target ctxt i
+jump_is_actually_a_call ctxt i =
+  any resolves_to_function_entry $ resolve_jump_target ctxt i
  where
-  resolve_is_external (External _) = True
-  resolve_is_external _            = False
+  resolves_to_function_entry Unresolved           = False
+  resolves_to_function_entry (External sym)       = True
+  resolves_to_function_entry (ImmediateAddress a) = IM.lookup (fromIntegral a) (ctxt_calls ctxt) /= Nothing
+
 
 
 
@@ -336,7 +341,7 @@ stepA ctxt entry a = do
       if isHalt (Instr.opcode i) then
         return $ Right []
       else if isJump (Instr.opcode i) then
-        return $ Right $ map (\a -> (a,False)) $ concatMap get_internal_addresses $ resolve_jump_target ctxt i 
+        return $ Right $ map (\a -> (a,False)) $ concatMap mk_jmp_trgt $ resolve_jump_target ctxt i 
       else if isCondJump $ Instr.opcode i then
         return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + sizeof i]
       else if isCall $ Instr.opcode i then
@@ -345,8 +350,12 @@ stepA ctxt entry a = do
         return $ Right []
       else
         return $ Right [(a + sizeof i,False)]
-
-
+ where
+  mk_jmp_trgt Unresolved           = []
+  mk_jmp_trgt (External sym)       = []
+  mk_jmp_trgt (ImmediateAddress a)
+    | IM.lookup (fromIntegral a) (ctxt_calls ctxt) /= Nothing = []
+    | otherwise = [fromIntegral a]
 
 
 mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86.Instruction,Int) -> IO (S.Set (X86.Instruction,Int),CFG) 
