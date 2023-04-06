@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, StrictData, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, Strict, ScopedTypeVariables #-}
 
 module Generic.SymbolicConstituents where
 
@@ -81,13 +81,13 @@ class (Ord a, Eq a,Show a) => SymbolicExecutable ctxt a where
   salias :: ctxt -> a -> a -> a -> a -> Bool
   ssensitive :: ctxt -> a -> a -> a -> Bool
   sread_from_ro_data :: ctxt -> a -> a -> Maybe a
-  smk_mem_addresses :: ctxt -> a -> S.Set a
+  smk_mem_addresses :: ctxt -> String -> a -> S.Set a
 
   sjoin :: Foldable t => ctxt -> String -> t a -> a
   swiden :: ctxt -> String -> a -> a
   top :: ctxt -> a
 
-  ssemantics :: ctxt -> SymbolicOperation a -> a 
+  ssemantics :: ctxt -> String -> SymbolicOperation a -> a 
   sflg_semantics :: ctxt -> a -> X86.Instruction -> FlagStatus -> FlagStatus
   simmediate :: Integral i => ctxt -> i -> a
 
@@ -95,7 +95,7 @@ class (Ord a, Eq a,Show a) => SymbolicExecutable ctxt a where
   mk_smem_value :: ctxt -> String -> a -> a -> a
 
   
-  scall :: ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
+  scall :: ctxt -> Bool -> X86.Instruction -> State (Sstate a,VCS) ()
   sjump :: ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
 
   stry_jump_targets :: ctxt -> a -> Maybe (S.Set ResolvedJumpTarget)
@@ -103,7 +103,8 @@ class (Ord a, Eq a,Show a) => SymbolicExecutable ctxt a where
 
   stry_immediate :: ctxt -> a -> Maybe Word64
   stry_deterministic :: ctxt -> a -> Maybe SimpleExpr
-  spointer_to_exprs :: ctxt -> a -> S.Set SimpleExpr
+  stry_relocation :: ctxt -> a -> a -> Maybe a
+  svalue_to_exprs :: ctxt -> a -> S.Set SimpleExpr
   saddress_has_instruction :: ctxt -> a -> Word64 -> Bool
 
 data Sstate a = Sstate {
@@ -149,15 +150,15 @@ sread_reg ctxt r = do
   if sizeof r == 32 then -- 256 bits
     return v
   else if sizeof r == 16 then -- 128 bit
-    return $ ssemantics ctxt $ SO_Bit 128 v
+    return $ ssemantics ctxt "read_reg 128" $ SO_Bit 128 v
   else if sizeof r == 8 then -- 64 bit
     return v
   else if sizeof r == 4 then -- 32 bit
-    return $ ssemantics ctxt $ SO_Bit 32 v
+    return $ ssemantics ctxt "read_reg 32" $ SO_Bit 32 v
   else if r `elem` Reg.reg16 then -- 16 bit
-    return $ ssemantics ctxt $ SO_Bit 16 v
+    return $ ssemantics ctxt "read_reg 16" $ SO_Bit 16 v
   else if r `elem` Reg.reg8 then -- 8 bit low registers
-    return $ ssemantics ctxt $ SO_Bit 8 v
+    return $ ssemantics ctxt "read_reg 8" $ SO_Bit 8 v
   else -- 8 bit hi
     return $ swiden ctxt "read_reg" v
 
@@ -178,22 +179,22 @@ soverwrite_reg ctxt use_existing_value r v = do
     swrite_rreg ctxt r v
   else if sz == 16 then do -- 128 bit
     let rr = Reg.real r
-    swrite_rreg ctxt rr (ssemantics ctxt $ SO_Bit 128 v)
+    swrite_rreg ctxt rr (ssemantics ctxt "overreg 128" $ SO_Bit 128 v)
   else if sz == 8 then -- 64 bit
     swrite_rreg ctxt r v
   else if sz == 4 then do -- 32 bit
     let rr = Reg.real r
-    swrite_rreg ctxt rr (ssemantics ctxt $ SO_Bit 32 v)
+    swrite_rreg ctxt rr (ssemantics ctxt "overreg 32" $ SO_Bit 32 v)
   else if sz == 2 then do -- 16 bit 
     let rr = Reg.real r
     curr_v <- gets $ sread_rreg ctxt rr
-    let v' = if use_existing_value then SO_Overwrite 16 curr_v (ssemantics ctxt $ SO_Bit 16 v) else SO_Bit 16 v
-    swrite_rreg ctxt rr $ ssemantics ctxt v'
+    let v' = if use_existing_value then SO_Overwrite 16 curr_v (ssemantics ctxt "overreg 16" $ SO_Bit 16 v) else SO_Bit 16 v
+    swrite_rreg ctxt rr $ ssemantics ctxt "overreg' 16" v'
   else if r `elem` Reg.reg8 then do -- 8 bit low registers
     let rr = Reg.real r
     curr_v <- gets $ sread_rreg ctxt rr
-    let v' = if use_existing_value then SO_Overwrite 8 curr_v (ssemantics ctxt $ SO_Bit 8 v) else SO_Bit 8 v
-    swrite_rreg ctxt rr $ ssemantics ctxt v'
+    let v' = if use_existing_value then SO_Overwrite 8 curr_v (ssemantics ctxt "overreg 8" $ SO_Bit 8 v) else SO_Bit 8 v
+    swrite_rreg ctxt rr $ ssemantics ctxt "overreg' 8" v'
   else do
     let rr = Reg.real r
     curr_v <- gets $ sread_rreg ctxt rr
@@ -209,10 +210,13 @@ swrite_reg ctxt = soverwrite_reg ctxt True
 sread_mem :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> State (Sstate a,VCS) a
 sread_mem ctxt msg a si
   | a == top ctxt = return $ top ctxt
-  | otherwise = 
-      case sread_from_ro_data ctxt a si of
+  | otherwise =
+      case stry_relocation ctxt a si of
         Just v -> return v
-        _      -> sread_mem'
+        _      -> 
+          case sread_from_ro_data ctxt a si of
+            Just v -> return v
+            _      -> sread_mem'
  where
   sread_mem' = do
     (s,vcs) <- get
@@ -237,15 +241,15 @@ sread_mem ctxt msg a si
 
   read_from_overlap s overlap
     | S.size overlap == 0 = mk_smem_value ctxt (msg ++ "\nmaking mem value:\n" ++ show s ++ "\n" ++ show overlap) a si
-    | otherwise = --trace ("Overlapping read:\nReading from: " ++ show (a,si,S.map fst overlap) ++ "\nIn state:\n" ++ show s) $
-                    swiden ctxt "read_mem (overlap)" $ sjoin ctxt (msg ++ "\nRead joining: " ++ show (a,si) ++ "\n" ++ show s ++ "\n" ++ show overlap) (S.map snd overlap)
+    | otherwise = -- error ("Overlapping read:\nReading from: " ++ show (a,si,S.map fst overlap) ++ "\nIn state:\n" ++ show s) 
+                  top ctxt-- swiden ctxt "read_mem (overlap)" $ sjoin ctxt (msg ++ "\nRead joining: " ++ show (a,si) ++ "\n" ++ show s ++ "\n" ++ show overlap) (S.map snd overlap)
 
 
 
 -- | Write to memory
 swrite_mem :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> State (Sstate a,VCS) ()
 swrite_mem ctxt a_v si v = do
-  let as = smk_mem_addresses ctxt a_v
+  let as = smk_mem_addresses ctxt "swrite_mem" a_v
   mapM_ swrite_mem' as
  where
   swrite_mem' a = do
@@ -265,7 +269,7 @@ swrite_mem ctxt a_v si v = do
       put $ (s { smem = S.fromList $ ((a,si),v) : separate }, vcs)
     else let ((a',si'),v') = merge $ ((a,si),v):overlap in
       if a' == top ctxt then
-        -- trace ("Top write:\nWriting to: " ++ show (a,si) ++ "\nIn state:\n" ++ show s) $ -- TODO add VCS
+        --trace ("Top write:\nWriting to: " ++ show (a,si) ++ "\nIn state:\n" ++ show s) $ -- TODO add VCS
           put $ (s { smem = S.fromList $ (assign_top overlap ++ separate) }, vcs)
       else
         -- trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nIn state:\n" ++ show s) $
@@ -284,7 +288,7 @@ swrite_mem ctxt a_v si v = do
   merge (((a0,si0),v0):remainder) = 
     let ((a1,si1),v1) = merge remainder 
         a'            = swiden ctxt ("Joining regions: " ++ show [a0,si0,a1,si1])  $ sjoin ctxt "MemWrite (address)" [a0,a1] 
-        si'           = swiden ctxt "write_mem (overlapSi)" $ sjoin ctxt "MemWrite (sizes)"   [si0,si1]
+        si'           = top ctxt
         v'            = swiden ctxt "write_mem (overlapV)"  $ sjoin ctxt "MemWrite (values)"  [v0,v1] in
       ((a',si'),v')
   
@@ -300,15 +304,15 @@ sresolve_address ctxt (AddressImm i)     = return $ simmediate ctxt i
 sresolve_address ctxt (AddressMinus a0 a1) = do
   ra0 <- sresolve_address ctxt a0 
   ra1 <- sresolve_address ctxt a1
-  return $ ssemantics ctxt $ SO_Minus ra0 ra1
+  return $ ssemantics ctxt "min" $ SO_Minus ra0 ra1
 sresolve_address ctxt (AddressPlus a0 a1) = do
   ra0 <- sresolve_address ctxt a0 
   ra1 <- sresolve_address ctxt a1
-  return $ ssemantics ctxt $ SO_Plus ra0 ra1
+  return $ ssemantics ctxt "plus" $ SO_Plus ra0 ra1
 sresolve_address ctxt (AddressTimes a0 a1) = do
   ra0 <- sresolve_address ctxt a0 
   ra1 <- sresolve_address ctxt a1
-  return $ ssemantics ctxt $ SO_Times ra0 ra1
+  return $ ssemantics ctxt "times" $ SO_Times ra0 ra1
 
 
 sread_operand :: SymbolicExecutable ctxt a => ctxt -> String -> X86.Operand -> State (Sstate a,VCS) a
@@ -323,7 +327,12 @@ swrite_operand :: SymbolicExecutable ctxt a => ctxt -> Bool -> X86.Operand -> a 
 swrite_operand ctxt use_existing_value (Storage r)   v = soverwrite_reg ctxt use_existing_value r v
 swrite_operand ctxt use_existing_value (Memory a si) v = do
   resolved_address <- sresolve_address ctxt a 
-  swrite_mem ctxt resolved_address (simmediate ctxt si) v
+  if resolved_address == top ctxt then do
+    (p,_) <- get
+    -- error ("Writing to top, operand == " ++ show (Memory a si) ++ "\n" ++ show p) -- TODO ADD VC
+    return ()
+  else
+    swrite_mem ctxt resolved_address (simmediate ctxt si) v
 
 
 -- v is bogus, but needed for getting the type checker to accept this. Don't know why. 
@@ -405,15 +414,15 @@ maybe_operand_size srcs
   is_immediate _             = False
 
 sexec_cinstr :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
---sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
+-- sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
   | mnemonic == X86.LEA       = slea ctxt label dst $ head srcs
   | otherwise                 = mapM (sread_operand ctxt (show i)) srcs >>= 
-                                 swrite_operand ctxt True dst . ssemantics ctxt . SO_Op mnemonic (operand_size dst) (maybe_operand_size srcs)
+                                 swrite_operand ctxt True dst . ssemantics ctxt (show i) . SO_Op mnemonic (operand_size dst) (maybe_operand_size srcs)
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing _ _)
   | X86.isRet mnemonic        = sreturn ctxt
   | X86.isJump mnemonic       = sjump ctxt i
-  | X86.isCall mnemonic       = scall ctxt i
+  | X86.isCall mnemonic       = scall ctxt False i
   | otherwise                 = return ()
 
 
@@ -425,7 +434,7 @@ sset_rip :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (Sstat
 sset_rip ctxt i = swrite_reg ctxt Reg.RIP (simmediate ctxt $ addressof i + (fromIntegral $ sizeof i))
 
 sexec_instr :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
---sexec_instr ctxt i | trace ("sexec_isntr: "++ show i) False = error "trace"
+-- sexec_instr ctxt i | trace ("sexec_isntr: "++ show i) False = error "trace"
 sexec_instr ctxt i = do
   (p,_) <- get
   sset_rip ctxt i
@@ -470,7 +479,7 @@ sjoin_mem ctxt msg s0 s1 =
 
 
 
---sjoin_states ctxt s0 s1 | trace ("sjoin_states") False = error "trace"
+-- sjoin_states ctxt msg s0 s1 | trace ("sjoin_states") False = error "trace"
 sjoin_states ctxt msg s0@(Sstate regs0 mem0 flg0) s1@(Sstate regs1 mem1 flg1) =
   let flg  = join_flags flg0 flg1
       regs = M.unionWith join_reg regs0 regs1
@@ -478,7 +487,9 @@ sjoin_states ctxt msg s0@(Sstate regs0 mem0 flg0) s1@(Sstate regs1 mem1 flg1) =
       s'   = Sstate regs mem flg in
      s'
  where
-  join_reg a b = sjoin ctxt "States (regs)" [a,b]
+  join_reg a b 
+    | a == b    = a
+    | otherwise = sjoin ctxt ("States (regs)" ++ show s0 ++ "\n\n\n" ++ show s1 ++ "\n" ++ show(a,b)) [a,b]
   join_flags (FS_CMP (Just True) o0 v0) (FS_CMP (Just True) o0' v0')
     | flg0 == flg1 = flg0
     | o0 /= o0'    = None
@@ -496,9 +507,7 @@ supremum :: SymbolicExecutable ctxt a => ctxt -> [Sstate a] -> Sstate a
 supremum ctxt [] = error $ "Cannot compute supremum of []"
 supremum ctxt ss = foldr1 (sjoin_states ctxt "supremum") ss
 
-simplies ctxt s0 s1 = sjoin_states ctxt "simplies" s0 s1 == s0
-
-
+simplies ctxt s0 s1 = sjoin_states ctxt "simplies" s0 s1 == s0 
 
 
 

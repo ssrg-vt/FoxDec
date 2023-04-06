@@ -5,7 +5,7 @@ module OutputGeneration.Metrics where
 
 import Base
 
-import Data.SPointer
+import Data.SValue
 import Data.SymbolicExpression
 
 import Analysis.Context
@@ -181,10 +181,10 @@ num_of_blocks g = IM.size $ cfg_blocks g
 num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
-mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SPointer])] -> M.Map String Int
+mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SValue])] -> M.Map String Int
 mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction
  where
-  init_m = M.fromList [("C+LGH",0), ("C+O", 0), ("NC+LH",0), ("NC+O",0), ("U",0)]
+  init_m = M.fromList [("U",0), ("PTR+UB",0), ("PTR+B",0), ("C+O", 0), ("C+LGH", 0), ("A",0)]
 
   get_specifity_per_instruction (entry,a,es) = map (get_domains entry) es
 
@@ -200,23 +200,24 @@ mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap
 -- "NC+LH" = Not concrete, and local or heap
 -- "NC+O"  = Not concrete, but sources are known
 -- "U"     = Unresolved
-get_pointer_specifity_cpointer fctxt  v = exprs_to_specificity $ spointer_to_exprs fctxt v
+get_pointer_specifity_cpointer fctxt Top = "U"
+get_pointer_specifity_cpointer fctxt (SPointer vs)
+  | any non_det vs = "PTR+UB" 
+  | otherwise      = "PTR+B"
  where
-  exprs_to_specificity es
-    | S.null es                                          = "U"
-    | all (not . contains_bot) es                        = concrete es
-    | all (expr_is_highly_likely_local_pointer fctxt) es = "NC+LH"
-    | all (expr_is_highly_likely_heap_pointer fctxt) es  = "NC+LH"
-    | otherwise                                          = "NC+O"
+  non_det (Base_Section _) = True
+  non_det ptr              = has_unknown_offset ptr
+get_pointer_specifity_cpointer fctxt (SConcrete es) = concrete es
+ where
   concrete es
     | all (expr_is_highly_likely_local_pointer fctxt) es = "C+LGH"
     | all (expr_is_global_immediate $ f_ctxt fctxt) es   = "C+LGH"
     | all (expr_is_highly_likely_heap_pointer fctxt) es  = "C+LGH"
     | otherwise                                          = "C+O"
-
+get_pointer_specifity_cpointer fctxt (SAddends adds) = "A"
 
 specifityMetricOf :: M.Map String Double -> Double
-specifityMetricOf m = m M.! "C+LGH" + m M.! "C+O" + m M.! "NC+LH" + 0.3*(m M.! "NC+O")
+specifityMetricOf m = 0 --TODO m M.! "C+LGH" + m M.! "C+O" + m M.! "NC+LH" + 0.3*(m M.! "NC+O")
 
 
 

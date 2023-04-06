@@ -7,7 +7,7 @@ module OutputGeneration.JSON where
 
 import Base
 
-import Data.SPointer
+import Data.SValue
 import Data.SymbolicExpression
 import Data.JSON_Taxonomy
 
@@ -77,7 +77,7 @@ generate_json ctxt fname_plain fname_json verbose = do
 
 
   let json_instructions = map mk_json_instruction instrs
-  let json_summaries = map (\(a,(finit,post)) -> (a,FunctionSummary (M.mapKeys SP_Reg finit) $ mk_json_post post)) summaries
+  let json_summaries = map (\(a,(finit,post)) -> (a,FunctionSummary (show finit) $ mk_json_post post)) summaries
   let json_invs = if verbose then map (\(a,Just invs) -> (a,map (\(entry,inv) -> (entry,mk_json_predicate inv)) invs)) $ filter (((/=) Nothing) . snd) invs else []
   let json = JSON json_instructions control_flow boundaries json_summaries json_invs mem_ops
   Data.ByteString.Lazy.writeFile fname_json $ encode json
@@ -149,7 +149,7 @@ pp_summaries = map pp
   pp_post (Just C.Terminating)        = "Terminal" ++ "\n"
   pp_post (Just (C.ReturningWith q))  = "Returns with postcondition:\n" ++ show q 
 
-  pp_finit finit = if M.null finit then "No precondition" else "Precondition:\n" ++ show finit
+  pp_finit finit = if finit == init_finit then "No precondition" else "Precondition:\n" ++ show finit
 
 
 pp_mem_ops ctxt = map pp
@@ -164,7 +164,7 @@ pp_mem_ops ctxt = map pp
     let fctxt = mk_fcontext ctxt (fromIntegral entry) in
       get_pointer_domain_cpointer fctxt e
 
-get_pointer_domain_cpointer fctxt v = exprs_to_domain $ spointer_to_exprs fctxt v
+get_pointer_domain_cpointer fctxt v = exprs_to_domain $ svalue_to_exprs fctxt v
  where
   exprs_to_domain es
     | S.null es = "U"
@@ -211,7 +211,11 @@ instance ToJSON FunctionSummary  where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON PointerDomain  where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
-instance ToJSON SPointer where
+instance ToJSON PtrOffset where
+  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+instance ToJSON PtrValue where
+  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+instance ToJSON SValue where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON JSON where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }

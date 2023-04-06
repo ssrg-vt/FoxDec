@@ -41,33 +41,33 @@
 </span><span id="line-41"></span><span>
 </span><span id="line-42"></span><span class="annot"><a href="Parser.ParserX86Instruction.html#isWhiteSpace"><span class="hs-identifier hs-type">isWhiteSpace</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-43"></span><span id="isWhiteSpace"><span class="annot"><span class="annottext">isWhiteSpace :: Char -&gt; Bool
-</span><a href="Parser.ParserX86Instruction.html#isWhiteSpace"><span class="hs-identifier hs-var hs-var">isWhiteSpace</span></a></span></span><span> </span><span id="local-6989586621679328578"><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328578"><span class="hs-identifier hs-var">c</span></a></span></span><span>
+</span><a href="Parser.ParserX86Instruction.html#isWhiteSpace"><span class="hs-identifier hs-var hs-var">isWhiteSpace</span></a></span></span><span> </span><span id="local-6989586621679336386"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679336386"><span class="hs-identifier hs-var">c</span></a></span></span><span>
 </span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word
-</span><a href="#local-6989586621679328577"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
+</span><a href="#local-6989586621679336385"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
 forall a. Ord a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word
 </span><span class="hs-number">0x377</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
-</span><a href="#local-6989586621679328577"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
+</span><a href="#local-6989586621679336385"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word
 </span><span class="hs-number">32</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
 </span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Word
-</span><a href="#local-6989586621679328577"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
+</span><a href="#local-6989586621679336385"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word
 </span><span class="hs-number">9</span></span><span>
 </span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
 </span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
 </span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328578"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><a href="#local-6989586621679336386"><span class="hs-identifier hs-var">c</span></a></span><span>
 </span><span id="line-46"></span><span>  </span><span class="hs-keyword">where</span><span>
-</span><span id="line-47"></span><span>    </span><span id="local-6989586621679328577"><span class="annot"><span class="annottext">uc :: Word
-</span><a href="#local-6989586621679328577"><span class="hs-identifier hs-var hs-var">uc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679336385"><span class="annot"><span class="annottext">uc :: Word
+</span><a href="#local-6989586621679336385"><span class="hs-identifier hs-var hs-var">uc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Int
 </span><span class="hs-identifier hs-var">ord</span></span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328578"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><a href="#local-6989586621679336386"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
 </span><span id="line-48"></span><span>
 </span><span id="line-49"></span><span>
 </span><span id="line-50"></span><span>
@@ -109,36 +109,36 @@ ParsecT s u m a -&gt; [Char] -&gt; ParsecT s u m a
 </span><span id="line-63"></span><span id="hexToWord64"><span class="annot"><span class="annottext">hexToWord64 :: [Char] -&gt; Word64
 </span><a href="Parser.ParserX86Instruction.html#hexToWord64"><span class="hs-identifier hs-var hs-var">hexToWord64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char] -&gt; Word64
 forall p. (Num p, Bits p) =&gt; Int -&gt; [Char] -&gt; p
-</span><a href="#local-6989586621679328565"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336373"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Word64) -&gt; ([Char] -&gt; [Char]) -&gt; [Char] -&gt; Word64
 forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
 </span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
 forall a. [a] -&gt; [a]
 </span><span class="hs-identifier hs-var">reverse</span></span><span>
 </span><span id="line-64"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-65"></span><span>  </span><span id="local-6989586621679328565"><span class="annot"><span class="annottext">hexToWord64' :: Int -&gt; [Char] -&gt; p
-</span><a href="#local-6989586621679328565"><span class="hs-identifier hs-var hs-var">hexToWord64'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679336373"><span class="annot"><span class="annottext">hexToWord64' :: Int -&gt; [Char] -&gt; p
+</span><a href="#local-6989586621679336373"><span class="hs-identifier hs-var hs-var">hexToWord64'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
 </span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p
 </span><span class="hs-number">0</span></span><span>
-</span><span id="line-66"></span><span>  </span><span class="annot"><a href="#local-6989586621679328565"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span id="local-6989586621679328562"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679328562"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679328561"><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328561"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679328560"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328560"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p -&gt; Int -&gt; p
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="#local-6989586621679336373"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span id="local-6989586621679336370"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336370"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679336369"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679336369"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679336368"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336368"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p -&gt; Int -&gt; p
 forall a. Bits a =&gt; a -&gt; Int -&gt; a
 </span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; p
 forall a b. (Integral a, Num b) =&gt; a -&gt; b
 </span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Int
 </span><span class="hs-identifier hs-var">digitToInt</span></span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328561"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679328562"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">p -&gt; p -&gt; p
+</span><a href="#local-6989586621679336369"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336370"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">p -&gt; p -&gt; p
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char] -&gt; p
-</span><a href="#local-6989586621679328565"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679328562"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+</span><a href="#local-6989586621679336373"><span class="hs-identifier hs-var">hexToWord64'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336370"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
 </span><span class="hs-number">4</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328560"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><a href="#local-6989586621679336368"><span class="hs-identifier hs-var">cs</span></a></span><span>
 </span><span id="line-67"></span><span>
 </span><span id="line-68"></span><span class="hs-comment">{--
 -- Opcodes / mnemonics
@@ -152,8 +152,8 @@ parseMnemonic s =
 </span><a href="Parser.ParserX86Instruction.html#mnemonic"><span class="hs-identifier hs-var hs-var">mnemonic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GenParser Char st Opcode -&gt; GenParser Char st Opcode
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-77"></span><span>  </span><span id="local-6989586621679328555"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328555"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679336363"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336363"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
 -&gt; ParsecT [Char] st Identity [Char]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -161,17 +161,17 @@ ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many1</span></span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
 forall s (m :: * -&gt; *) u. Stream s m Char =&gt; ParsecT s u m Char
 </span><span class="hs-identifier hs-var">alphaNum</span></span><span>
-</span><span id="line-78"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679328552"><span class="annot"><span class="annottext">m' :: Opcode
-</span><a href="#local-6989586621679328552"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Opcode
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679336360"><span class="annot"><span class="annottext">m' :: Opcode
+</span><a href="#local-6989586621679336360"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Opcode
 </span><a href="Parser.ParserX86Instruction.html#read_opcode"><span class="hs-identifier hs-var">read_opcode</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Opcode) -&gt; [Char] -&gt; Opcode
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; [Char] -&gt; [Char]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
 </span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328555"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><a href="#local-6989586621679336363"><span class="hs-identifier hs-var">m</span></a></span><span>
 </span><span id="line-79"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679328552"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679336360"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86.Opcode.html#InvalidOpcode"><span class="hs-identifier hs-var">InvalidOpcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; GenParser Char st Opcode
 forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
@@ -179,7 +179,7 @@ forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
 </span><span class="hs-string">&quot;Invalid mnemonic: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328555"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679336363"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">Opcode
 </span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; GenParser Char st Opcode
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
@@ -187,7 +187,7 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; Opcode -&gt; GenParser Char st Opcode
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679328552"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><a href="#local-6989586621679336360"><span class="hs-identifier hs-var">m'</span></a></span><span>
 </span><span id="line-82"></span><span>  </span><span class="hs-special">)</span><span>
 </span><span id="line-83"></span><span>
 </span><span id="line-84"></span><span class="hs-comment">-- Registers</span><span>
@@ -206,12 +206,12 @@ parseRegister s =
       _ -&gt; InvalidRegister
 --}</span><span>
 </span><span id="line-99"></span><span id="isRegisterChar"><span class="annot"><span class="annottext">isRegisterChar :: Char -&gt; Bool
-</span><a href="Parser.ParserX86Instruction.html#isRegisterChar"><span class="hs-identifier hs-var hs-var">isRegisterChar</span></a></span></span><span> </span><span id="local-6989586621679328547"><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328547"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Parser.ParserX86Instruction.html#isRegisterChar"><span class="hs-identifier hs-var hs-var">isRegisterChar</span></a></span></span><span> </span><span id="local-6989586621679336355"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679336355"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
 </span><span class="hs-identifier hs-var">isAlphaNum</span></span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328547"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="#local-6989586621679336355"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
 </span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328547"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; [Char] -&gt; Bool
+</span><a href="#local-6989586621679336355"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; [Char] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;_lh()&quot;</span></span><span>
@@ -221,8 +221,8 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">GenParser Char st Register -&gt; GenParser Char st Register
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-103"></span><span>    </span><span id="local-6989586621679328543"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328543"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679336351"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336351"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
 -&gt; ParsecT [Char] st Identity [Char]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -233,17 +233,17 @@ Stream s m Char =&gt;
 (Char -&gt; Bool) -&gt; ParsecT s u m Char
 </span><span class="hs-identifier hs-var">satisfy</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
 </span><a href="Parser.ParserX86Instruction.html#isRegisterChar"><span class="hs-identifier hs-var">isRegisterChar</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-104"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679328542"><span class="annot"><span class="annottext">m' :: Register
-</span><a href="#local-6989586621679328542"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Register
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679336350"><span class="annot"><span class="annottext">m' :: Register
+</span><a href="#local-6989586621679336350"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Register
 </span><a href="Parser.ParserX86Instruction.html#read_regname"><span class="hs-identifier hs-var">read_regname</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Register) -&gt; [Char] -&gt; Register
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; [Char] -&gt; [Char]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
 </span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328543"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><a href="#local-6989586621679336351"><span class="hs-identifier hs-var">m</span></a></span><span>
 </span><span id="line-105"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679328542"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679336350"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-106"></span><span>      </span><span class="annot"><span class="annottext">Register
 </span><a href="X86.Register.html#InvalidRegister"><span class="hs-identifier hs-var">InvalidRegister</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; GenParser Char st Register
 forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
@@ -251,7 +251,7 @@ forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
 </span><span class="hs-string">&quot;Invalid register: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328543"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679336351"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-107"></span><span>      </span><span class="annot"><span class="annottext">Register
 </span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Register -&gt; GenParser Char st Register
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
@@ -259,7 +259,7 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; Register -&gt; GenParser Char st Register
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679328542"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><a href="#local-6989586621679336350"><span class="hs-identifier hs-var">m'</span></a></span><span>
 </span><span id="line-108"></span><span>  </span><span class="hs-special">)</span><span>
 </span><span id="line-109"></span><span>
 </span><span id="line-110"></span><span>
@@ -272,8 +272,8 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span id="line-114"></span><span class="annot"><a href="Parser.ParserX86Instruction.html#parsePrefix"><span class="hs-identifier hs-var">parsePrefix</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;repe&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Prefix
 </span><a href="X86.Prefix.html#REPZ"><span class="hs-identifier hs-var">REPZ</span></a></span><span>
-</span><span id="line-115"></span><span class="annot"><a href="Parser.ParserX86Instruction.html#parsePrefix"><span class="hs-identifier hs-var">parsePrefix</span></a></span><span> </span><span id="local-6989586621679328537"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328537"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Parser.ParserX86Instruction.html#parsePrefix"><span class="hs-identifier hs-var">parsePrefix</span></a></span><span> </span><span id="local-6989586621679336345"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336345"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-116"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS Prefix
 forall a. Read a =&gt; Int -&gt; ReadS a
 </span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
@@ -283,11 +283,11 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
 </span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328537"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
-</span><span id="line-117"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621679328535"><span class="annot"><span class="annottext">Prefix
-</span><a href="#local-6989586621679328535"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679328534"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328534"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Prefix
-</span><a href="#local-6989586621679328535"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><a href="#local-6989586621679336345"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621679336343"><span class="annot"><span class="annottext">Prefix
+</span><a href="#local-6989586621679336343"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679336342"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336342"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Prefix
+</span><a href="#local-6989586621679336343"><span class="hs-identifier hs-var">m</span></a></span><span>
 </span><span id="line-118"></span><span>    </span><span class="annot"><span class="annottext">[(Prefix, [Char])]
 </span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Prefix
 </span><a href="X86.Prefix.html#InvalidPrefix"><span class="hs-identifier hs-var">InvalidPrefix</span></a></span><span>
@@ -297,8 +297,8 @@ forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span id="line-121"></span><span>  </span><span class="annot"><span class="annottext">GenParser Char st Prefix -&gt; GenParser Char st Prefix
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-122"></span><span>    </span><span id="local-6989586621679328531"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328531"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679336339"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336339"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
 -&gt; ParsecT [Char] st Identity [Char]
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -306,12 +306,12 @@ ParsecT s u m a -&gt; ParsecT s u m [a]
 </span><span class="hs-identifier hs-var">many1</span></span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] st Identity Char
 forall s (m :: * -&gt; *) u. Stream s m Char =&gt; ParsecT s u m Char
 </span><span class="hs-identifier hs-var">alphaNum</span></span><span>
-</span><span id="line-123"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679328530"><span class="annot"><span class="annottext">m' :: Prefix
-</span><a href="#local-6989586621679328530"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Prefix
+</span><span id="line-123"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679336338"><span class="annot"><span class="annottext">m' :: Prefix
+</span><a href="#local-6989586621679336338"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Prefix
 </span><a href="Parser.ParserX86Instruction.html#parsePrefix"><span class="hs-identifier hs-var">parsePrefix</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328531"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><a href="#local-6989586621679336339"><span class="hs-identifier hs-var">m</span></a></span><span>
 </span><span id="line-124"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Prefix
-</span><a href="#local-6989586621679328530"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679336338"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-125"></span><span>      </span><span class="annot"><span class="annottext">Prefix
 </span><a href="X86.Prefix.html#InvalidPrefix"><span class="hs-identifier hs-var">InvalidPrefix</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; GenParser Char st Prefix
 forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
@@ -319,7 +319,7 @@ forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
 </span><span class="hs-string">&quot;Invalid prefix: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328531"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679336339"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-126"></span><span>      </span><span class="annot"><span class="annottext">Prefix
 </span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Prefix -&gt; GenParser Char st Prefix
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
@@ -327,7 +327,7 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; Prefix -&gt; GenParser Char st Prefix
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Prefix
-</span><a href="#local-6989586621679328530"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><a href="#local-6989586621679336338"><span class="hs-identifier hs-var">m'</span></a></span><span>
 </span><span id="line-127"></span><span>  </span><span class="hs-special">)</span><span>
 </span><span id="line-128"></span><span>
 </span><span id="line-129"></span><span>
@@ -641,8 +641,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-162"></span><span>    </span><span id="local-6989586621679328520"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328520"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679336328"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336328"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#addr_expr0"><span class="hs-identifier hs-var">addr_expr0</span></a></span><span>
 </span><span id="line-163"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
@@ -657,7 +657,7 @@ Char -&gt; ParsecT s u m Char
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328520"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679336328"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-166"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-167"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -669,14 +669,14 @@ ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-169"></span><span>    </span><span id="local-6989586621679328519"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328519"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621679336327"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336327"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#addr_expr1"><span class="hs-identifier hs-var">addr_expr1</span></a></span><span>
 </span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-171"></span><span>    </span><span id="local-6989586621679328517"><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328517"><span class="hs-identifier hs-var">symbol</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Char -&gt; ParsecT [Char] u Identity Char
+</span><span id="line-171"></span><span>    </span><span id="local-6989586621679336325"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679336325"><span class="hs-identifier hs-var">symbol</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Char -&gt; ParsecT [Char] u Identity Char
 forall s (m :: * -&gt; *) u.
 Stream s m Char =&gt;
 Char -&gt; ParsecT s u m Char
@@ -703,11 +703,11 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-172"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-173"></span><span>    </span><span id="local-6989586621679328516"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328516"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-173"></span><span>    </span><span id="local-6989586621679336324"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336324"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#addr_expr0"><span class="hs-identifier hs-var">addr_expr0</span></a></span><span>
 </span><span id="line-174"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328517"><span class="hs-identifier hs-var">symbol</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><a href="#local-6989586621679336325"><span class="hs-identifier hs-var">symbol</span></a></span><span> </span><span class="hs-keyword">of</span><span>
 </span><span id="line-175"></span><span>      </span><span class="annot"><span class="annottext">Char
 </span><span class="hs-char">'+'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -723,8 +723,8 @@ forall storage.
 GenericAddress storage
 -&gt; GenericAddress storage -&gt; GenericAddress storage
 </span><a href="Generic.Address.html#AddressPlus"><span class="hs-identifier hs-var">AddressPlus</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328519"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328516"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><a href="#local-6989586621679336327"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336324"><span class="hs-identifier hs-var">a1</span></a></span><span>
 </span><span id="line-176"></span><span>      </span><span class="annot"><span class="annottext">Char
 </span><span class="hs-char">':'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -740,8 +740,8 @@ forall storage.
 GenericAddress storage
 -&gt; GenericAddress storage -&gt; GenericAddress storage
 </span><a href="Generic.Address.html#AddressPlus"><span class="hs-identifier hs-var">AddressPlus</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328519"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328516"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><a href="#local-6989586621679336327"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336324"><span class="hs-identifier hs-var">a1</span></a></span><span>
 </span><span id="line-177"></span><span>      </span><span class="annot"><span class="annottext">Char
 </span><span class="hs-char">'-'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -757,8 +757,8 @@ forall storage.
 GenericAddress storage
 -&gt; GenericAddress storage -&gt; GenericAddress storage
 </span><a href="Generic.Address.html#AddressMinus"><span class="hs-identifier hs-var">AddressMinus</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328519"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328516"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><a href="#local-6989586621679336327"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336324"><span class="hs-identifier hs-var">a1</span></a></span><span>
 </span><span id="line-178"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-179"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -793,8 +793,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-187"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-188"></span><span>    </span><span id="local-6989586621679328513"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328513"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679336321"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336321"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#addr_expr0"><span class="hs-identifier hs-var">addr_expr0</span></a></span><span>
 </span><span id="line-189"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
@@ -809,7 +809,7 @@ Char -&gt; ParsecT s u m Char
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328513"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679336321"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-192"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-193"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -821,15 +821,15 @@ ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-195"></span><span>    </span><span id="local-6989586621679328512"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328512"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-195"></span><span>    </span><span id="local-6989586621679336320"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336320"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 forall u. ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#address_term"><span class="hs-identifier hs-var">address_term</span></a></span><span>
 </span><span id="line-196"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-197"></span><span>    </span><span id="local-6989586621679328511"><span class="annot"><span class="annottext">Char
-</span><a href="#local-6989586621679328511"><span class="hs-identifier hs-var">symbol</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Char -&gt; ParsecT [Char] u Identity Char
+</span><span id="line-197"></span><span>    </span><span id="local-6989586621679336319"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679336319"><span class="hs-identifier hs-var">symbol</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Char -&gt; ParsecT [Char] u Identity Char
 forall s (m :: * -&gt; *) u.
 Stream s m Char =&gt;
 Char -&gt; ParsecT s u m Char
@@ -838,8 +838,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-198"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-199"></span><span>    </span><span id="local-6989586621679328510"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328510"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679336318"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336318"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#addr_expr1"><span class="hs-identifier hs-var">addr_expr1</span></a></span><span>
 </span><span id="line-200"></span><span>    </span><span class="annot"><span class="annottext">GenericAddress Register
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -855,8 +855,8 @@ forall storage.
 GenericAddress storage
 -&gt; GenericAddress storage -&gt; GenericAddress storage
 </span><a href="Generic.Address.html#AddressTimes"><span class="hs-identifier hs-var">AddressTimes</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328512"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328510"><span class="hs-identifier hs-var">a1</span></a></span><span>
+</span><a href="#local-6989586621679336320"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336318"><span class="hs-identifier hs-var">a1</span></a></span><span>
 </span><span id="line-201"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-202"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -890,8 +890,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-215"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-216"></span><span>    </span><span id="local-6989586621679328507"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328507"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-216"></span><span>    </span><span id="local-6989586621679336315"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336315"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#address_expr_inner"><span class="hs-identifier hs-var">address_expr_inner</span></a></span><span>
 </span><span id="line-217"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
@@ -906,7 +906,7 @@ Char -&gt; ParsecT s u m Char
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
 forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 </span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328507"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679336315"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-220"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-221"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 -&gt; ParsecT [Char] u Identity (GenericAddress Register)
@@ -926,15 +926,15 @@ forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span id="line-225"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-226"></span><span>    </span><span id="local-6989586621679328505"><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679328505"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Int
+</span><span id="line-226"></span><span>    </span><span id="local-6989586621679336313"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336313"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Int
 forall u. ParsecT [Char] u Identity Int
 </span><a href="Parser.ParserX86Instruction.html#size_directive"><span class="hs-identifier hs-var">size_directive</span></a></span><span>
 </span><span id="line-227"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-228"></span><span>    </span><span class="annot"><a href="Generic.Operand.html#EffectiveAddress"><span class="hs-identifier hs-type">EffectiveAddress</span></a></span><span> </span><span id="local-6989586621679328503"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328503"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
+</span><span id="line-228"></span><span>    </span><span class="annot"><a href="Generic.Operand.html#EffectiveAddress"><span class="hs-identifier hs-type">EffectiveAddress</span></a></span><span> </span><span id="local-6989586621679336311"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336311"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 </span><a href="Parser.ParserX86Instruction.html#op_address"><span class="hs-identifier hs-var">op_address</span></a></span><span>
 </span><span id="line-229"></span><span>    </span><span class="annot"><span class="annottext">GenericOperand Register
 -&gt; ParsecT [Char] u Identity (GenericOperand Register)
@@ -948,8 +948,8 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 forall storage.
 GenericAddress storage -&gt; Int -&gt; GenericOperand storage
 </span><a href="Generic.Operand.html#Memory"><span class="hs-identifier hs-var">Memory</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328503"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><a href="#local-6989586621679328505"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><a href="#local-6989586621679336311"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679336313"><span class="hs-identifier hs-var">s</span></a></span><span>
 </span><span id="line-230"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-231"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 -&gt; ParsecT [Char] u Identity (GenericOperand Register)
@@ -972,8 +972,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-234"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-235"></span><span>    </span><span id="local-6989586621679328501"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328501"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-235"></span><span>    </span><span id="local-6989586621679336309"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336309"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 forall u. ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#address_expr_inner"><span class="hs-identifier hs-var">address_expr_inner</span></a></span><span>
 </span><span id="line-236"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
@@ -996,7 +996,7 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register -&gt; GenericOperand Register
 forall storage. GenericAddress storage -&gt; GenericOperand storage
 </span><a href="Generic.Operand.html#EffectiveAddress"><span class="hs-identifier hs-var">EffectiveAddress</span></a></span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328501"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679336309"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-239"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-240"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 -&gt; ParsecT [Char] u Identity (GenericOperand Register)
@@ -1010,8 +1010,8 @@ forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span id="line-241"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-242"></span><span>    </span><span id="local-6989586621679328500"><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679328500"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Register
+</span><span id="line-242"></span><span>    </span><span id="local-6989586621679336308"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679336308"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Register
 forall st. GenParser Char st Register
 </span><a href="Parser.ParserX86Instruction.html#register"><span class="hs-identifier hs-var">register</span></a></span><span>
 </span><span id="line-243"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
@@ -1026,8 +1026,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-245"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-246"></span><span>    </span><span id="local-6989586621679328499"><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328499"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
+</span><span id="line-246"></span><span>    </span><span id="local-6989586621679336307"><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336307"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericAddress Register)
 forall u. ParsecT [Char] u Identity (GenericAddress Register)
 </span><a href="Parser.ParserX86Instruction.html#address_expr_inner"><span class="hs-identifier hs-var">address_expr_inner</span></a></span><span>
 </span><span id="line-247"></span><span>    </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
@@ -1054,8 +1054,8 @@ GenericAddress storage
 </span><a href="Generic.Address.html#AddressPlus"><span class="hs-identifier hs-var">AddressPlus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register -&gt; GenericAddress Register
 forall storage. storage -&gt; GenericAddress storage
 </span><a href="Generic.Address.html#AddressStorage"><span class="hs-identifier hs-var">AddressStorage</span></a></span><span> </span><span class="annot"><span class="annottext">Register
-</span><a href="#local-6989586621679328500"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
-</span><a href="#local-6989586621679328499"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><a href="#local-6989586621679336308"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GenericAddress Register
+</span><a href="#local-6989586621679336307"><span class="hs-identifier hs-var">a</span></a></span><span>
 </span><span id="line-249"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">)</span><span>
 </span><span id="line-250"></span><span>
 </span><span id="line-251"></span><span class="hs-comment">-- Operands</span><span>
@@ -1076,8 +1076,8 @@ forall storage. storage -&gt; GenericOperand storage
 -&gt; GenParser Char st (GenericOperand storage)
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-256"></span><span>  </span><span id="local-6989586621679328495"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328495"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-256"></span><span>  </span><span id="local-6989586621679336303"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336303"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char]
 -&gt; ParsecT [Char] st Identity [Char]
 -&gt; ParsecT [Char] st Identity [Char]
 forall s (m :: * -&gt; *) t a u.
@@ -1090,8 +1090,8 @@ Stream s m Char =&gt;
 [Char] -&gt; ParsecT s u m [Char]
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;-&quot;</span></span><span class="hs-special">)</span><span>
-</span><span id="line-257"></span><span>  </span><span id="local-6989586621679328493"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328493"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser st Word64
+</span><span id="line-257"></span><span>  </span><span id="local-6989586621679336301"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679336301"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser st Word64
 forall i st. Integral i =&gt; CharParser st i
 </span><span class="hs-identifier hs-var">hexnum</span></span><span>
 </span><span id="line-258"></span><span>  </span><span class="annot"><span class="annottext">GenericOperand storage
@@ -1105,15 +1105,15 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; GenericOperand storage
 forall storage. Word64 -&gt; GenericOperand storage
 </span><a href="Generic.Operand.html#Immediate"><span class="hs-identifier hs-var">Immediate</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328495"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+</span><a href="#local-6989586621679336303"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64
 </span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328493"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328493"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679336301"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679336301"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-259"></span><span> </span><span class="hs-special">)</span><span>
 </span><span id="line-260"></span><span>
 </span><span id="line-261"></span><span id="op_immediate_0x"><span class="annot"><span class="annottext">op_immediate_0x :: GenParser Char st (GenericOperand storage)
@@ -1121,8 +1121,8 @@ forall a. Num a =&gt; a -&gt; a -&gt; a
 -&gt; GenParser Char st (GenericOperand storage)
 forall tok st a. GenParser tok st a -&gt; GenParser tok st a
 </span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
-</span><span id="line-262"></span><span>  </span><span id="local-6989586621679328489"><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328489"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span id="line-262"></span><span>  </span><span id="local-6989586621679336297"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679336297"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char]
 -&gt; ParsecT [Char] st Identity [Char]
 -&gt; ParsecT [Char] st Identity [Char]
 forall s (m :: * -&gt; *) t a u.
@@ -1141,8 +1141,8 @@ Stream s m Char =&gt;
 [Char] -&gt; ParsecT s u m [Char]
 </span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;0x&quot;</span></span><span>
-</span><span id="line-264"></span><span>  </span><span id="local-6989586621679328488"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328488"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser st Word64
+</span><span id="line-264"></span><span>  </span><span id="local-6989586621679336296"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679336296"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser st Word64
 forall i st. Integral i =&gt; CharParser st i
 </span><span class="hs-identifier hs-var">hexnum</span></span><span>
 </span><span id="line-265"></span><span>  </span><span class="annot"><span class="annottext">GenericOperand storage
@@ -1156,15 +1156,15 @@ forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; GenericOperand storage
 forall storage. Word64 -&gt; GenericOperand storage
 </span><a href="Generic.Operand.html#Immediate"><span class="hs-identifier hs-var">Immediate</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Char]
-</span><a href="#local-6989586621679328489"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+</span><a href="#local-6989586621679336297"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
 </span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64
 </span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
 forall a. Num a =&gt; a -&gt; a -&gt; a
 </span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328488"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328488"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><a href="#local-6989586621679336296"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679336296"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
 </span><span id="line-266"></span><span> </span><span class="hs-special">)</span><span>
 </span><span id="line-267"></span><span>
 </span><span id="line-268"></span><span id="operand"><span class="annot"><span class="annottext">operand :: ParsecT [Char] u Identity (GenericOperand Register)
@@ -1208,8 +1208,8 @@ Char -&gt; ParsecT s u m Char
 </span><span id="line-276"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-277"></span><span>  </span><span id="local-6989586621679328485"><span class="annot"><span class="annottext">GenericOperand Register
-</span><a href="#local-6989586621679328485"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
+</span><span id="line-277"></span><span>  </span><span id="local-6989586621679336293"><span class="annot"><span class="annottext">GenericOperand Register
+</span><a href="#local-6989586621679336293"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 forall u. ParsecT [Char] u Identity (GenericOperand Register)
 </span><a href="Parser.ParserX86Instruction.html#operand"><span class="hs-identifier hs-var">operand</span></a></span><span>
 </span><span id="line-278"></span><span>  </span><span class="annot"><span class="annottext">GenericOperand Register
@@ -1221,7 +1221,7 @@ forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
 -&gt; ParsecT [Char] u Identity (GenericOperand Register)
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GenericOperand Register
-</span><a href="#local-6989586621679328485"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><a href="#local-6989586621679336293"><span class="hs-identifier hs-var">op2</span></a></span><span>
 </span><span id="line-279"></span><span>
 </span><span id="line-280"></span><span>
 </span><span id="line-281"></span><span class="hs-comment">-- Annotations, e.g., &lt;malloc@plt + 10&gt;</span><span>
@@ -1263,8 +1263,8 @@ forall i st. Integral i =&gt; CharParser st i
 </span><span id="line-303"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-304"></span><span>  </span><span id="local-6989586621679328482"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328482"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Word64
+</span><span id="line-304"></span><span>  </span><span id="local-6989586621679336290"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679336290"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CharParser u Word64
 forall i st. Integral i =&gt; CharParser st i
 </span><span class="hs-identifier hs-var">hexnum</span></span><span>
 </span><span id="line-305"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
@@ -1279,8 +1279,8 @@ Stream s m Char =&gt;
 </span><span id="line-307"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-308"></span><span>  </span><span id="local-6989586621679328481"><span class="annot"><span class="annottext">Maybe Prefix
-</span><a href="#local-6989586621679328481"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Prefix
+</span><span id="line-308"></span><span>  </span><span id="local-6989586621679336289"><span class="annot"><span class="annottext">Maybe Prefix
+</span><a href="#local-6989586621679336289"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity Prefix
 -&gt; ParsecT [Char] u Identity (Maybe Prefix)
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -1291,15 +1291,15 @@ forall st. GenParser Char st Prefix
 </span><span id="line-309"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-310"></span><span>  </span><span id="local-6989586621679328479"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679328479"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Opcode
+</span><span id="line-310"></span><span>  </span><span id="local-6989586621679336287"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679336287"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GenParser Char u Opcode
 forall st. GenParser Char st Opcode
 </span><a href="Parser.ParserX86Instruction.html#mnemonic"><span class="hs-identifier hs-var">mnemonic</span></a></span><span>
 </span><span id="line-311"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-312"></span><span>  </span><span id="local-6989586621679328478"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328478"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
+</span><span id="line-312"></span><span>  </span><span id="local-6989586621679336286"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336286"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 -&gt; ParsecT [Char] u Identity (Maybe (GenericOperand Register))
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -1310,8 +1310,8 @@ forall u. ParsecT [Char] u Identity (GenericOperand Register)
 </span><span id="line-313"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-314"></span><span>  </span><span id="local-6989586621679328477"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328477"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
+</span><span id="line-314"></span><span>  </span><span id="local-6989586621679336285"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336285"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 -&gt; ParsecT [Char] u Identity (Maybe (GenericOperand Register))
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -1322,8 +1322,8 @@ forall u. ParsecT [Char] u Identity (GenericOperand Register)
 </span><span id="line-315"></span><span>  </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity ()
 forall u. ParsecT [Char] u Identity ()
 </span><a href="Parser.ParserX86Instruction.html#whitespaces"><span class="hs-identifier hs-var">whitespaces</span></a></span><span>
-</span><span id="line-316"></span><span>  </span><span id="local-6989586621679328476"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328476"><span class="hs-identifier hs-var">op3</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
+</span><span id="line-316"></span><span>  </span><span id="local-6989586621679336284"><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336284"><span class="hs-identifier hs-var">op3</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT [Char] u Identity (GenericOperand Register)
 -&gt; ParsecT [Char] u Identity (Maybe (GenericOperand Register))
 forall s (m :: * -&gt; *) t u a.
 Stream s m t =&gt;
@@ -1392,16 +1392,16 @@ label
 -&gt; GenericInstruction label storage prefix opcode annotation
 </span><a href="Generic.Instruction.html#Instruction"><span class="hs-identifier hs-var">Instruction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; AddressWord64
 </span><a href="Generic.Address.html#AddressWord64"><span class="hs-identifier hs-var">AddressWord64</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679328482"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Prefix
-</span><a href="#local-6989586621679328481"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679328479"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336290"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Prefix
+</span><a href="#local-6989586621679336289"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679336287"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Maybe (GenericOperand Register)] -&gt; [GenericOperand Register]
 forall a. [Maybe a] -&gt; [a]
 </span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328478"><span class="hs-identifier hs-var">op1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328477"><span class="hs-identifier hs-var">op2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
-</span><a href="#local-6989586621679328476"><span class="hs-identifier hs-var">op3</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe annotation
+</span><a href="#local-6989586621679336286"><span class="hs-identifier hs-var">op1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336285"><span class="hs-identifier hs-var">op2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe (GenericOperand Register)
+</span><a href="#local-6989586621679336284"><span class="hs-identifier hs-var">op3</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe annotation
 forall a. Maybe a
 </span><span class="hs-identifier hs-var">Nothing</span></span><span>
 </span><span id="line-326"></span><span>

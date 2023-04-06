@@ -79,19 +79,18 @@ mk_operands cs_instr cs_ops = map mk_operand [0,1,2]
 
 trim = dropWhileEnd isWhiteSpace . dropWhile isWhiteSpace
 
-mk_instr :: Capstone.CsInsn -> Word64 -> X86.Instruction
+mk_instr :: Capstone.CsInsn -> Word64 -> Maybe X86.Instruction
 mk_instr cs_instr a =
   let addr          = AddressWord64 a
       ops           = mk_operands cs_instr $ Capstone.opStr cs_instr
       (prefix,m)    = parseMnemonicAndPrefix $ Capstone.mnemonic cs_instr
       size          = length $ Capstone.bytes cs_instr
       i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
-    if m == InvalidOpcode then
-      error ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i)
-    else if prefix == Just InvalidPrefix then
-      error ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i)
+    if m == InvalidOpcode || prefix == Just InvalidPrefix then
+      -- trace ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i) 
+      Nothing
     else
-       i
+       Just i
  where
   parseMnemonicAndPrefix str =
     case words str of
@@ -113,8 +112,10 @@ disassemble ioref buffer a = do
       result <- disasmIO config
       case result of
         Left err      -> error ("Error during disassembling of address " ++ showHex a ++ ": " ++ show err)
-        Right [(i,_)] -> do
-                           let instr = mk_instr i a
-                           modifyIORef' ioref (IM.insert (fromIntegral a) instr)
-                           return $ Just instr
+        Right [(i,_)] -> memoize_instr $ mk_instr i a
         Right x       -> error $ "Error during disassembling of address " ++ showHex a ++ ": parsing result Capstone == " ++ show x ++ " @ address " ++ showHex a ++ " buffer == " ++ showHex_list buffer
+ where
+  memoize_instr Nothing = return Nothing
+  memoize_instr (Just instr) = do
+    modifyIORef' ioref (IM.insert (fromIntegral a) instr)
+    return $ Just instr

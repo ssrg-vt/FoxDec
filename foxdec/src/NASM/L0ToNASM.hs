@@ -1,6 +1,16 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, QuasiQuotes #-}
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts #-}
+{-# OPTIONS_HADDOCK prune  #-}
 
-module NASM.L0ToNASM where
+{-|
+Module      : L0ToNASM
+Description : Lift the L0 representation of the binary to symbolized and recompilable NASM.
+
+
+-}
+
+
+
+module NASM.L0ToNASM (lift_L0_to_NASM, render_NASM, __gmon_start_implementation, NASM) where
 
 
 import Base
@@ -59,21 +69,24 @@ import Debug.Trace
 import GHC.Base hiding (Symbol)
 
 
--- Each NASM line is either an instruciton, a label, or a comment
-data NASM_Line = NASM_Instruction String | NASM_Label String | NASM_Comment Int String
+-- | Each NASM line is either an instruction, a label, or a comment
+data NASM_Line = 
+    NASM_Instruction String -- ^ An instruction
+  | NASM_Label String       -- ^ A label
+  | NASM_Comment Int String -- ^ A comment with an indentation level (number of spaces)
 
--- A NASM text section contains a header (usually just some comments), and a graph of basic blocks
+-- | A NASM text section contains a header (usually just some comments), and a graph of basic blocks
 data NASM_TextSection = NASM_TextSection  {
   nasm_section_header :: String,
   nasm_blocks         :: IM.IntMap [NASM_Line], -- ^ A mapping of blockIDs to instructions
   nasm_edges          :: IM.IntMap (IS.IntSet)  -- ^ A mapping of blockIDs to sets of blocKIDs
  }
 
--- A NASM section is either a NASM text section or NASM data section
+-- | A NASM section is either a NASM text section or NASM data section
 -- A NASM data section is simply a String
 data NASM_Section = NASM_Section_Text NASM_TextSection | NASM_Section_Data String
 
--- NASM contains external symbols, sections, and a footer
+-- | NASM contains external symbols, sections, and a footer
 data NASM = NASM {
   nasm_externals :: S.Set String,
   nasm_sections  :: [NASM_Section],
@@ -99,7 +112,7 @@ lift_L0_to_NASM ctxt = NASM mk_externals mk_sections mk_jump_tables
 
 
 
--- | rendering NASM to a String
+-- | Rendering NASM to a String
 render_NASM :: Context -> NASM -> String
 render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [render_externals] ++ ["global _start", "default rel", mk_macros ctxt] ++ render_sections ++ footer
  where
@@ -116,7 +129,7 @@ render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [render_ex
   render_line (NASM_Comment indent str) = replicate indent ' ' ++ comment str
   
 
--- | making comments
+-- making comments
 comment str = "; " ++ str
 
 comment_block strs =
@@ -143,6 +156,12 @@ externals ctxt = S.fromList $ map (strip_GLIBC . fromJust . symbol_to_name) $ fi
 
 
 -- | Creating labels
+-- Given the entry address of the current function, the blockID of the current basic block,
+-- map an address to a label.
+-- First, try to see if it matches the _start symbol.
+-- Then, try to map the address to a known internal synbol (unstripped binaries may have such symbols available)
+-- Then, try to see if at the address a relocation is stored, and use that lavel if so.
+-- Otherwise, make a new custom label.
 block_label ctxt entry a blockID = (try_start_symbol `orTry` try_internal  `orTry` try_relocation_label) `orElse` custom_label
  where
   -- For the entry point of the binary, introduce the _start label
@@ -153,7 +172,7 @@ block_label ctxt entry a blockID = (try_start_symbol `orTry` try_internal  `orTr
   try_internal = do
     sym  <- (IM.lookup (fromIntegral a) $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt)
     name <- symbol_to_name sym
-    return $ "L" ++ showHex entry ++ "_" ++ name
+    return $ name -- "L" ++ showHex entry ++ "_" ++ name
   -- Try to see if the address stores a relocation
   try_relocation_label = reloc_label <$> find (reloc_for a) (ctxt_relocs ctxt)
 
@@ -488,9 +507,6 @@ try_symbolize_base ctxt not_part_of_larger_expression imm = within_section `orTr
 
 
 
-orTry :: Maybe a -> Maybe a -> Maybe a
-orTry Nothing x  = x
-orTry (Just x) _ = Just x
 
 -- see if address matches an external symbol loaded at linking time
 relocatable_symbol ctxt a = (IM.lookup (fromIntegral a) (ctxt_symbol_table ctxt) >>= mk_symbol) `orTry` (find (reloc_for a) (ctxt_relocs ctxt) >>= mk_reloc)
@@ -738,6 +754,8 @@ find_unused_register regs instrs =
 
 
 
-
+-- | There is one specific symbol frequently encountered for which we cannot find the appropiate library to load.
+-- It is related to debugging information (the -g option of GCC).
+-- We therefore pvodie our own implementation: just a dummy, which is what the real function seems to do as well.
 __gmon_start_implementation = "void __gmon_start__ () { return; }"
 

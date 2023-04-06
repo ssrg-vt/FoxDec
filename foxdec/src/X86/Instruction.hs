@@ -238,6 +238,10 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PUNPCKLBW
          , PUNPCKLDQ
          , PCMPGTD
+         , PCMPEQB
+         , PCMPEQD
+         , PCMPGTB
+         , PCMPGTD
          , PADDD
          , PADDB
          , PADDQ
@@ -256,6 +260,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PSRLW
          , PSRLDQ
          , PSLLDQ
+         , PSLLD
          , PSLLQ
          , PSRLQ
          , PSUBUSB
@@ -281,7 +286,6 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , DIVSD
          , MULSD
          , ROUNDSD
-         , CMPEQSD, CMPLTSD, CMPNLESD, CMPNEQSD, CMPNLESD
          , UNPCKLPD
       ]
 
@@ -451,16 +455,17 @@ do_not_modify mnemonic = isCall mnemonic
          , CMPSW
          , CMPSD
          , PTEST
-         , PCMPEQB
-         , PCMPEQD
-         , PCMPGTB
-         , PCMPGTD
          , UCOMISS
          , COMISS
          , UCOMISD
          , CMPLTSD
          , CMPEQSD
          , CMPNEQSD
+         , CMPEQSD
+         , CMPLTSD
+         , CMPNLESD
+         , CMPNEQSD
+         , CMPNLESD
          ]
 -- TODO:
 -- BLENDVP, BLENDVPS read from XMM0 sometimes as well?

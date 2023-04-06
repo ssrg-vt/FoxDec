@@ -119,7 +119,7 @@ necessarily_separate_expressions a0 si0 a1 si1 = not (contains_bot a0) && not (c
   sep (SE_Immediate a0)
       (SE_Immediate a1) =
     fromIntegral a0 + si0 <= fromIntegral a1 || fromIntegral a1 + si1 <= fromIntegral a0
-  -- v0 - i0 |x| v0 - i1 <==> v0 - i0 + si0 <= v0 - i1 || v0 - i1 + si1 <= v0 - i0 <==> i0-si0 >= i1 || i1-si1 >= i0
+  -- v0 - i0 |x| v0 - i1 <==> v0 - i0 + si0 <= v0 - i1 || v1 - i1 + si1 <= v0 - i0 <==> i0-si0 >= i1 || i1-si1 >= i0
   sep (SE_Op Minus _ [v0, SE_Immediate i0])
       (SE_Op Minus _ [v1, SE_Immediate i1]) = v0 == v1 && (fromIntegral i0 - si0 >= fromIntegral i1 || fromIntegral i1 - si1 >= fromIntegral i0)
   -- v0 - i0 |x| v0 + i1 <==> True

@@ -55,6 +55,13 @@ im_lookup s m k =
 orElse Nothing a  = a
 orElse (Just a) _ = a
 
+-- | try something else if first result failed
+orTry :: Maybe a -> Maybe a -> Maybe a
+orTry Nothing x  = x
+orTry (Just x) _ = Just x
+
+-- | return only if Bool holds
+onlyWhen b a = if b then Just a else Nothing
 
 -- | A value exists (is not Nothing) and satisfies the predicate
 existsAndSatisfies Nothing  p = False

@@ -190,8 +190,8 @@ External :: String -> ResolvedJumpTarget
 ImmediateAddress :: Word64 -> ResolvedJumpTarget
 instance GHC.Classes.Ord Data.JumpTarget.ResolvedJumpTarget
 instance GHC.Generics.Generic Data.JumpTarget.ResolvedJumpTarget
-instance GHC.Show.Show Data.JumpTarget.ResolvedJumpTarget
 instance GHC.Classes.Eq Data.JumpTarget.ResolvedJumpTarget
+instance GHC.Show.Show Data.JumpTarget.ResolvedJumpTarget
 
 module Generic.Address
 
@@ -242,21 +242,44 @@ SectionsInfo :: [(String, String, Word64, Word64)] -> Word64 -> Word64 -> Sectio
 [si_min_address] :: SectionsInfo -> Word64
 [si_max_address] :: SectionsInfo -> Word64
 
--- | Relocations
+-- | An address a0 can have a symbol.
+--   
+--   Relocated_Function: E.g: 0xcfe0 --&gt; malloc Means that reading 8
+--   bytes from address 0xcfe0 procudes a pointer to malloc. Thus an
+--   instruction: "CALL qword ptr [0xcfe0]" can be seen as "CALL malloc".
+--   
+--   Relocated_Object: E.g.: 0xd0a8 --&gt; stdout Means that "mov rdi,QWORD
+--   PTR [0xd0a8]" can be seen as "mov rdi, QWORD PTR [stdout]"
+--   
+--   Relocated_Address: E.g.: 0xaaa -&gt; 0xbbbb Means that reading 8 bytes
+--   from address 0xaaaa produces the value 0xbbbb
+data Symbol
+
+-- | Address a0 is a pointer to memory sotring the entry of an external
+--   function
+Relocated_Function :: String -> Symbol
+
+-- | Address a0 can be replaced by the string, e.g., "stdout" or "optind"
+Relocated_Label :: String -> Symbol
+
+-- | Address a0 can be replaced by the string.
+Internal_Label :: String -> Symbol
+data SymbolTable
+SymbolTable :: IntMap Symbol -> SymbolTable
+is_internal_symbol :: Symbol -> Bool
+is_external_symbol :: Symbol -> Bool
+symbol_to_name :: Symbol -> Maybe String
 data Relocation
 
--- | At address a0, address a1 has been written
-R_X86_64_RELATIVE :: Word64 -> Word64 -> Relocation
-pp_reloc :: Relocation -> [Char]
-
--- | Symbol Table
-type SymbolTable = IntMap String
+-- | 8: At address a0, address a1 has been written, i.e., qword ptr[a0] ==
+--   a1
+Relocation :: Word64 -> Word64 -> Relocation
 class BinaryClass a
 binary_read_ro_data :: BinaryClass a => a -> Word64 -> Int -> Maybe [Word8]
 binary_read_data :: BinaryClass a => a -> Word64 -> Int -> Maybe [Word8]
 binary_get_sections_info :: BinaryClass a => a -> SectionsInfo
-binary_get_relocs :: BinaryClass a => a -> [Relocation]
 binary_get_symbols :: BinaryClass a => a -> SymbolTable
+binary_get_relocations :: BinaryClass a => a -> Set Relocation
 binary_pp :: BinaryClass a => a -> String
 binary_entry :: BinaryClass a => a -> Word64
 binary_text_section_size :: BinaryClass a => a -> Int
@@ -265,11 +288,17 @@ Binary :: b -> Binary
 instance GHC.Classes.Eq Generic.Binary.SectionsInfo
 instance GHC.Generics.Generic Generic.Binary.SectionsInfo
 instance GHC.Show.Show Generic.Binary.SectionsInfo
+instance GHC.Show.Show Generic.Binary.Symbol
+instance GHC.Classes.Eq Generic.Binary.Symbol
+instance GHC.Generics.Generic Generic.Binary.Symbol
+instance GHC.Classes.Eq Generic.Binary.SymbolTable
+instance GHC.Generics.Generic Generic.Binary.SymbolTable
 instance GHC.Classes.Ord Generic.Binary.Relocation
 instance GHC.Classes.Eq Generic.Binary.Relocation
 instance GHC.Generics.Generic Generic.Binary.Relocation
-instance GHC.Show.Show Generic.Binary.Relocation
 instance Generic.Binary.BinaryClass Generic.Binary.Binary
+instance GHC.Show.Show Generic.Binary.Relocation
+instance GHC.Show.Show Generic.Binary.SymbolTable
 
 module Generic.HasSize
 
@@ -702,6 +731,7 @@ MOVSB :: Opcode
 MOVSD :: Opcode
 MOVSLDUP :: Opcode
 MOVSS :: Opcode
+MOVSW :: Opcode
 MOVSQ :: Opcode
 MOVSX :: Opcode
 MOVSXB :: Opcode
@@ -1568,7 +1598,7 @@ ssemantics :: SymbolicExecutable ctxt a => ctxt -> SymbolicOperation a -> a
 sflg_semantics :: SymbolicExecutable ctxt a => ctxt -> a -> Instruction -> FlagStatus -> FlagStatus
 simmediate :: (SymbolicExecutable ctxt a, Integral i) => ctxt -> i -> a
 mk_svalue :: SymbolicExecutable ctxt a => ctxt -> SimpleExpr -> a
-mk_smem_value :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a
+mk_smem_value :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> a
 scall :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
 sjump :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
 stry_jump_targets :: SymbolicExecutable ctxt a => ctxt -> a -> Maybe (Set ResolvedJumpTarget)
@@ -1594,7 +1624,7 @@ soverwrite_reg :: SymbolicExecutable ctxt a => ctxt -> Bool -> Register -> a -> 
 swrite_reg :: SymbolicExecutable ctxt a => ctxt -> Register -> a -> State (Sstate a, VCS) ()
 
 -- | Read from memory
-sread_mem :: SymbolicExecutable ctxt a => ctxt -> a -> a -> State (Sstate a, VCS) a
+sread_mem :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> State (Sstate a, VCS) a
 
 -- | Write to memory
 swrite_mem :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> State (Sstate a, VCS) ()
@@ -1602,7 +1632,7 @@ swrite_mem :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> State (Sstate 
 -- | Given the address of an operand of an instruction, resolve it given
 --   the current state.
 sresolve_address :: SymbolicExecutable ctxt a => ctxt -> Address -> State (Sstate a, VCS) a
-sread_operand :: SymbolicExecutable ctxt a => ctxt -> Operand -> State (Sstate a, VCS) a
+sread_operand :: SymbolicExecutable ctxt a => ctxt -> String -> Operand -> State (Sstate a, VCS) a
 swrite_operand :: SymbolicExecutable ctxt a => ctxt -> Bool -> Operand -> a -> State (Sstate a, VCS) ()
 swrite_flags :: SymbolicExecutable ctxt a => ctxt -> a -> Instruction -> State (Sstate a, VCS) ()
 clean_flg :: StatePart -> FlagStatus -> FlagStatus
@@ -1615,8 +1645,8 @@ sexec_cinstr :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstat
 sset_rip :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
 sexec_instr :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
 sexec_block :: SymbolicExecutable ctxt a => ctxt -> [Instruction] -> Maybe [Instruction] -> Sstate a -> (Sstate a, VCS)
-sjoin_mem :: SymbolicExecutable ctxt a => ctxt -> Sstate a -> Sstate a -> Set ((a, a), a)
-sjoin_states :: SymbolicExecutable ctxt a => ctxt -> Sstate a -> Sstate a -> Sstate a
+sjoin_mem :: SymbolicExecutable ctxt a => ctxt -> String -> Sstate a -> Sstate a -> Set ((a, a), a)
+sjoin_states :: SymbolicExecutable ctxt a => ctxt -> [Char] -> Sstate a -> Sstate a -> Sstate a
 
 -- | The supremum of a list of predicates
 supremum :: SymbolicExecutable ctxt a => ctxt -> [Sstate a] -> Sstate a
@@ -1693,34 +1723,25 @@ CFG :: IntMap [Int] -> IntMap IntSet -> IntMap Int -> Int -> IntMap [Instruction
 -- | A mapping of blockIDs to lists of disassembled instructions.
 [cfg_instrs] :: CFG -> IntMap [Instruction]
 
--- | A jump table Let the actual indirection be <tt>JMP RAX</tt>, implying
---   jt_trgt_operand == RAX. This jump table can be implemented with
---   inserting this instruction before the indirection:
---   
---   MOV jt_trgt_operand, QWORD PTR [jt_address + 8*jt_index_operand]
+-- | A jump table with : index: an operand containing a bounded index at
+--   the beginning of execution of the block bound: the bound on idx trgt:
+--   the operand containg the jump target at the end of execution of the
+--   block tbl: a table from values of idx to resulting jump targets
 data JumpTable
-JumpTable :: Operand -> Operand -> [Int] -> JumpTable
+JumpTable :: Operand -> Int -> Operand -> IntMap Word64 -> JumpTable
+[jtbl_index] :: JumpTable -> Operand
+[jtbl_bound] :: JumpTable -> Int
+[jtbl_target] :: JumpTable -> Operand
+[jtbl_table] :: JumpTable -> IntMap Word64
 
--- | The operand that is bounded by some immediate, serving as an index
---   into a table
-[jt_index_operand] :: JumpTable -> Operand
-
--- | The operand of the jump
-[jt_trgt_operand] :: JumpTable -> Operand
-
--- | An ordered list of instruction addresses to which is jumped
-[jt_table_entries] :: JumpTable -> [Int]
-
--- | An indirection
+-- | An indirection is either a jump table or a set of resolved jump
+--   targets
 data Indirection
+Indirection_JumpTable :: JumpTable -> Indirection
+Indirection_Resolved :: Set ResolvedJumpTarget -> Indirection
+Indirection_Unresolved :: Indirection
 
--- | An indirection that could be resolved to one or more addresses
-IndirectionResolved :: Set ResolvedJumpTarget -> Indirection
-
--- | An indirection based on a jump table
-IndirectionJumpTable :: JumpTable -> Indirection
-
--- | Per instruction address, a a jump table
+-- | Per instruction address, a set of possibly resolved jump targets
 type Indirections = IntMap Indirection
 
 -- | An enumeration indicating the result of verification over a function
@@ -1799,7 +1820,7 @@ SSP_Mem :: SPointer -> Int -> SStatePart
 --   
 --   <b>D</b>: Information <b>D</b>ynamically updated during verification
 data Context_
-Context_ :: !Config -> !Bool -> !IntMap String -> !SectionsInfo -> !String -> !String -> !Int -> ![Relocation] -> !Graph -> !IntMap CFG -> !IntMap FReturnBehavior -> !IntMap Invariants -> !IntMap Postconditions -> !IntMap (Set SStatePart) -> !Indirections -> !IntMap FInit -> !IntMap VCS -> !IntMap VerificationResult -> !IntMap IntSet -> !Int64 -> Context_
+Context_ :: !Config -> !Bool -> !SymbolTable -> !SectionsInfo -> !Set Relocation -> !String -> !String -> !Int -> !Graph -> !IntMap CFG -> !IntMap FReturnBehavior -> !IntMap Invariants -> !IntMap Postconditions -> !IntMap (Set SStatePart) -> !Indirections -> !IntMap FInit -> !IntMap VCS -> !IntMap VerificationResult -> !IntMap IntSet -> !Int64 -> Context_
 
 -- | <b>S</b>: the configuration file in ./config
 [ctxt__config] :: Context_ -> !Config
@@ -1809,10 +1830,13 @@ Context_ :: !Config -> !Bool -> !IntMap String -> !SectionsInfo -> !String -> !S
 
 -- | <b>S</b>: the symbol table: a mapping of addresses to function names
 --   for external functions
-[ctxt__syms] :: Context_ -> !IntMap String
+[ctxt__syms] :: Context_ -> !SymbolTable
 
 -- | <b>S</b>: information on segments/section
 [ctxt__sections] :: Context_ -> !SectionsInfo
+
+-- | <b>S</b>: relocation entries
+[ctxt__relocs] :: Context_ -> !Set Relocation
 
 -- | <b>S</b>: the name of the directory where the .dump, .entry, .sections
 --   and .symbols files reside
@@ -1823,9 +1847,6 @@ Context_ :: !Config -> !Bool -> !IntMap String -> !SectionsInfo -> !String -> !S
 
 -- | <b>S</b>: the address of the _start symbol
 [ctxt__start] :: Context_ -> !Int
-
--- | <b>S</b>: relocation entries
-[ctxt__relocs] :: Context_ -> ![Relocation]
 
 -- | <b>D</b>: a graph with an edge (e0,e1) if entry address e0 calls entry
 --   address e1, and e0 and e1 have not been verified yet
@@ -1872,12 +1893,12 @@ Context :: !Binary -> IORef (IntMap Instruction) -> !Context_ -> Context
 [ctxt_ctxt_] :: Context -> !Context_
 ctxt_config :: Context -> Config
 ctxt_verbose :: Context -> Bool
-ctxt_syms :: Context -> IntMap String
+ctxt_syms :: Context -> SymbolTable
 ctxt_sections :: Context -> SectionsInfo
+ctxt_relocs :: Context -> Set Relocation
 ctxt_dirname :: Context -> String
 ctxt_name :: Context -> String
 ctxt_start :: Context -> Int
-ctxt_relocs :: Context -> [Relocation]
 ctxt_entries :: Context -> Graph
 ctxt_cfgs :: Context -> IntMap CFG
 ctxt_calls :: Context -> IntMap FReturnBehavior
@@ -1890,8 +1911,9 @@ ctxt_vcs :: Context -> IntMap VCS
 ctxt_results :: Context -> IntMap VerificationResult
 ctxt_recursions :: Context -> IntMap IntSet
 ctxt_runningtime :: Context -> Int64
-set_ctxt_syms :: IntMap String -> Context -> Context
+set_ctxt_syms :: SymbolTable -> Context -> Context
 set_ctxt_sections :: SectionsInfo -> Context -> Context
+set_ctxt_relocs :: Set Relocation -> Context -> Context
 set_ctxt_start :: Int -> Context -> Context
 set_ctxt_entries :: Graph -> Context -> Context
 set_ctxt_calls :: IntMap FReturnBehavior -> Context -> Context
@@ -1902,7 +1924,6 @@ set_ctxt_vcs :: IntMap VCS -> Context -> Context
 set_ctxt_finits :: IntMap FInit -> Context -> Context
 set_ctxt_invs :: IntMap Invariants -> Context -> Context
 set_ctxt_cfgs :: IntMap CFG -> Context -> Context
-set_ctxt_relocs :: [Relocation] -> Context -> Context
 set_ctxt_results :: IntMap VerificationResult -> Context -> Context
 set_ctxt_recursions :: IntMap IntSet -> Context -> Context
 set_ctxt_runningtime :: Int64 -> Context -> Context
@@ -1913,11 +1934,20 @@ init_context :: Binary -> IORef (IntMap Instruction) -> Config -> Bool -> String
 -- | purge the context before exporting it (may save a lot of disk space)
 purge_context :: Context -> Context_
 
+-- | Getting the symbol table
+ctxt_symbol_table :: Context -> IntMap Symbol
+
 -- | Reading from a read-only data section.
 --   
 --   Reads maximally up to 8 bytes. Returns <tt>Nothing</tt> if the given
 --   address is out-of-range.
 read_from_ro_datasection :: Context -> Word64 -> Int -> Maybe Word64
+
+-- | Reading from a writable data section.
+--   
+--   Reads maximally up to 8 bytes. Returns <tt>Nothing</tt> if the given
+--   address is out-of-range.
+read_from_datasection :: Context -> Word64 -> Int -> Maybe Word64
 
 -- | Is the immediate roughly in range to be an address?
 is_roughly_an_address :: Context -> Word64 -> Bool
@@ -1974,10 +2004,8 @@ instance GHC.Generics.Generic Analysis.Context.CFG
 instance GHC.Show.Show Analysis.Context.CFG
 instance GHC.Classes.Eq Analysis.Context.JumpTable
 instance GHC.Generics.Generic Analysis.Context.JumpTable
-instance GHC.Show.Show Analysis.Context.JumpTable
 instance GHC.Classes.Eq Analysis.Context.Indirection
 instance GHC.Generics.Generic Analysis.Context.Indirection
-instance GHC.Show.Show Analysis.Context.Indirection
 instance GHC.Generics.Generic Analysis.Context.VerificationResult
 instance GHC.Classes.Eq Analysis.Context.VerificationResult
 instance GHC.Classes.Ord Analysis.Context.NodeInfo
@@ -2012,18 +2040,24 @@ instance Control.DeepSeq.NFData Analysis.Context.VerificationResult
 instance GHC.Show.Show Analysis.Context.VerificationResult
 instance Data.Serialize.Serialize Analysis.Context.Indirection
 instance Control.DeepSeq.NFData Analysis.Context.Indirection
+instance GHC.Show.Show Analysis.Context.Indirection
 instance Data.Serialize.Serialize Analysis.Context.JumpTable
 instance Control.DeepSeq.NFData Analysis.Context.JumpTable
+instance GHC.Show.Show Analysis.Context.JumpTable
 instance Data.Serialize.Serialize Analysis.Context.CFG
 instance Control.DeepSeq.NFData Analysis.Context.CFG
 instance Data.Serialize.Serialize Data.JumpTarget.ResolvedJumpTarget
+instance Data.Serialize.Serialize Generic.Binary.Symbol
+instance Data.Serialize.Serialize Generic.Binary.SymbolTable
+instance Data.Serialize.Serialize Generic.Binary.Relocation
 instance Data.Serialize.Serialize Generic.SymbolicConstituents.VerificationCondition
 instance Data.Serialize.Serialize Generic.Binary.SectionsInfo
-instance Data.Serialize.Serialize Generic.Binary.Relocation
 instance Control.DeepSeq.NFData Data.JumpTarget.ResolvedJumpTarget
+instance Control.DeepSeq.NFData Generic.Binary.Symbol
+instance Control.DeepSeq.NFData Generic.Binary.SymbolTable
+instance Control.DeepSeq.NFData Generic.Binary.Relocation
 instance Control.DeepSeq.NFData Generic.SymbolicConstituents.VerificationCondition
 instance Control.DeepSeq.NFData Generic.Binary.SectionsInfo
-instance Control.DeepSeq.NFData Generic.Binary.Relocation
 instance GHC.Show.Show Generic.SymbolicConstituents.VerificationCondition
 
 
@@ -2342,11 +2376,7 @@ instance GHC.Generics.Generic Data.JSON.Operand
 module Analysis.FunctionNames
 
 -- | Returns true iff a symbol is associated with the address.
-address_has_symbol :: Integral a => Context -> a -> Bool
-
--- | Returns true if the adress is external, i.e., has no instruction or
---   has a symbol.
-address_is_external :: Integral a => Context -> a -> Bool
+address_has_external_symbol :: Integral a => Context -> a -> Bool
 
 -- | many operands can statically be resolved, even though technically they
 --   are indirect (relative to RIP). Examples:
@@ -2524,8 +2554,9 @@ resolve_jump_target :: Context -> Instruction -> [ResolvedJumpTarget]
 --   addresses to which the jump target can jump.
 get_internal_addresses :: ResolvedJumpTarget -> [Int]
 
--- | Returns true iff the instruction resolves to external targets only.
-instruction_jumps_to_external :: Context -> Instruction -> Bool
+-- | Returns true iff the JUMP instruction is actually a CALL followed by
+--   implicit RET
+jump_is_actually_a_call :: Context -> Instruction -> Bool
 
 -- | Shows the block associated to the givern blockID.
 show_block :: CFG -> Int -> String
@@ -2551,7 +2582,7 @@ class (Show pred) => Propagator ctxt pred
 tau :: Propagator ctxt pred => ctxt -> [Instruction] -> Maybe [Instruction] -> pred -> (pred, Set VerificationCondition)
 
 -- | A lattice-join
-join :: Propagator ctxt pred => ctxt -> pred -> pred -> pred
+join :: Propagator ctxt pred => ctxt -> String -> pred -> pred -> pred
 
 -- | Symbolic implication
 implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
@@ -2570,7 +2601,7 @@ ctry_immediate :: SPointer -> Maybe Word64
 ctry_deterministic :: SPointer -> Maybe SimpleExpr
 cimmediate :: Integral i => i -> SPointer
 cwiden :: FContext -> String -> SPointer -> SPointer
-cwiden' :: FContext -> SPointer -> SPointer
+cwiden' :: FContext -> t -> SPointer -> SPointer
 cwiden_all_to_sources :: FContext -> String -> Set SPointer -> SPointer
 cjoin :: FContext -> String -> SPointer -> SPointer -> SPointer
 cjoin_all :: Foldable t => FContext -> String -> t SPointer -> SPointer
@@ -2591,10 +2622,9 @@ mk_expr :: FContext -> SimpleExpr -> Maybe SimpleExpr
 csemantics :: FContext -> SymbolicOperation SPointer -> SPointer
 mnemonic_to_semantics :: Opcode -> Int -> Maybe Int -> CSemantics
 cflg_semantics :: p1 -> p2 -> GenericInstruction label Register prefix Opcode annotation -> FlagStatus -> FlagStatus
-mk_cvalue :: p -> SimpleExpr -> SPointer
-mk_sources :: NESet BotSrc -> SPointer
-count_sources :: NESet BotSrc -> Int
-mk_cmem_value :: FContext -> SPointer -> p -> SPointer
+mk_cvalue :: FContext -> SimpleExpr -> SPointer
+mk_sources :: FContext -> NESet BotSrc -> SPointer
+mk_cmem_value :: FContext -> p -> SPointer -> SPointer -> SPointer
 cmk_mem_addresses :: p -> SPointer -> Set SPointer
 srcs_of_spointer :: FContext -> SPointer -> Maybe (NESet BotSrc)
 cseparate :: FContext -> [Char] -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
@@ -2602,6 +2632,7 @@ calias :: p -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
 cenclosed :: p -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
 csensitive :: FContext -> SPointer -> SPointer -> SPointer -> Bool
 cread_from_ro_data :: FContext -> SPointer -> SPointer -> Maybe SPointer
+cread_from_data :: FContext -> SPointer -> SPointer -> Maybe SPointer
 get_invariant :: FContext -> Int -> Maybe Predicate
 
 -- | The initial predicate.
@@ -2781,6 +2812,25 @@ instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.FunctionSummary
 instance Data.Aeson.Types.ToJSON.ToJSON Analysis.Context.PointerDomain
 instance Data.Aeson.Types.ToJSON.ToJSON Data.SPointer.SPointer
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.JSON
+
+
+module NASM.L0ToNASM
+
+-- | Lift an L0 representation to position-independent NASM
+lift_L0_to_NASM :: Context -> NASM
+
+-- | Rendering NASM to a String
+render_NASM :: Context -> NASM -> String
+
+-- | There is one specific symbol frequently encountered for which we
+--   cannot find the appropiate library to load. It is related to debugging
+--   information (the -g option of GCC). We therefore pvodie our own
+--   implementation: just a dummy, which is what the real function seems to
+--   do as well.
+__gmon_start_implementation :: [Char]
+
+-- | NASM contains external symbols, sections, and a footer
+data NASM
 
 module Algorithm.L0_Lifting
 to_out_r :: String -> StateT Context IO ()

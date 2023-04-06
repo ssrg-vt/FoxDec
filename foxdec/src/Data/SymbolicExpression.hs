@@ -332,9 +332,9 @@ simp' (SE_Op Xor   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `x
 
 
 
-simp' (SE_Bit 32 (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
-simp' (SE_Bit 16 (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
-simp' (SE_Bit 8  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)
+simp' (SE_Bit 32  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
+simp' (SE_Bit 16  (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
+simp' (SE_Bit 8   (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)
 
 simp' (SE_SExtend 32 64 (SE_Immediate i)) = SE_Immediate (sextend_32_64 i)
 simp' (SE_SExtend 16 64 (SE_Immediate i)) = SE_Immediate (sextend_16_64 i)
@@ -346,9 +346,9 @@ simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [SE_Immediate i1, e1]]) =
 simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
 simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
 
-simp' (SE_Op Minus si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Plus  si0 [simp' e,SE_Immediate (-i)] else SE_Op Minus si0 [simp' e,SE_Immediate i]
-simp' (SE_Op Plus  si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
-simp' (SE_Op Plus  si0 [SE_Immediate i,e]) = if testBit i 63 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
+simp' (SE_Op Minus si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Plus si0 [simp' e,SE_Immediate (-i)] else SE_Op Minus si0 [simp' e,SE_Immediate i]
+simp' (SE_Op Plus  si0 [e,SE_Immediate i]) = if testBit i 63 && i /= 0x8000000000000000 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
+simp' (SE_Op Plus  si0 [SE_Immediate i,e]) = if testBit i 63  && i /= 0x8000000000000000 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
 
 
 simp' (SE_Bit i (SE_Op Plus  si0 [e0, e1])) = simp' $ SE_Op Plus  si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0+e1) = b(e0) + b(e1)

@@ -18,7 +18,7 @@ import Analysis.Capstone
 
 import Data.JumpTarget
 import Data.SymbolicExpression
-import Data.SPointer
+import Data.SValue
 
 import Generic.Binary
 import Generic.SymbolicConstituents
@@ -71,7 +71,7 @@ mk_fcontext :: Context -> Int -> FContext
 mk_fcontext ctxt entry =
   let -- f     = function_name_of_entry ctxt entry
       finit = IM.lookup entry $ ctxt_finits ctxt
-      fctxt = FContext ctxt entry (finit `orElse` M.empty) in
+      fctxt = FContext ctxt entry (finit `orElse` init_finit) in
     fctxt
 
 -- | Reading a binary given a filename (ELF or MachO)
@@ -148,7 +148,7 @@ data VerificationResult =
 
 
 -- | Predicates: symbolic states
-type Predicate = Sstate SPointer
+type Predicate = Sstate SValue
 
 
 -- | Invariants: a mapping of blockIDs to predicates
@@ -177,8 +177,11 @@ data PointerDomain =
 
 
 
--- | A function initialisation consists of a mapping of registers to symbolic pointers.
-type FInit = M.Map Register SPointer
+-- | A function initialisation consists of a mapping of registers to symbolic pointers TODO
+data MemRelation = Separate | Aliassing | Unknown
+  deriving (Generic,Eq,Ord,Show)
+data FInit = FInit (S.Set (SStatePart,Maybe SValue)) (M.Map (SStatePart,SStatePart) MemRelation)
+  deriving (Generic,Eq,Ord)
 
 -- | A function call 
 data FReturnBehavior =
@@ -191,7 +194,7 @@ data FReturnBehavior =
 -- | A symbolic state part
 data SStatePart =
     SSP_Reg Register -- ^ A register
-  | SSP_Mem SPointer Int
+  | SSP_Mem SValue Int
  deriving (Show,Generic,Eq,Ord)
 
 
@@ -281,6 +284,8 @@ instance Cereal.Serialize Symbol
 instance Cereal.Serialize SymbolTable
 instance Cereal.Serialize Indirection
 instance Cereal.Serialize Relocation
+instance Cereal.Serialize MemRelation 
+instance Cereal.Serialize FInit
 instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize VerificationCondition
@@ -298,6 +303,8 @@ instance NFData Symbol
 instance NFData SymbolTable
 instance NFData Indirection
 instance NFData Relocation
+instance NFData MemRelation 
+instance NFData FInit
 instance NFData CFG
 instance NFData FReturnBehavior
 instance NFData VerificationCondition
@@ -308,6 +315,7 @@ instance NFData NodeInfo
 instance NFData Context_
 
 -- | intialize an empty context based on the command-line parameters
+init_finit = FInit S.empty M.empty
 init_context binary ioref config verbose dirname name =
   let !sections = binary_get_sections_info binary
       !symbols  = binary_get_symbols binary
@@ -383,7 +391,14 @@ find_section_for_address ctxt a =
   address_in_section a (_,_,a0,si) = a0 <= a && a < a0 + si
 
 
-
+-- | Find a section ending at address (see @`SectionsInfo`@)
+find_section_ending_at ::
+   Context                              -- ^ The context
+   -> Word64                            -- ^ An address
+   -> Maybe (String, String, Word64, Word64)
+find_section_ending_at ctxt a = find (address_ends_at_section a) (si_sections $ ctxt_sections ctxt)
+ where
+  address_ends_at_section a (_,_,a0,si) = a == a0 + si
 
 
 
@@ -411,7 +426,8 @@ pp_instruction ctxt i =
       case Instr.srcs i of
         [Immediate imm] ->
           case IM.lookup (fromIntegral imm) $ ctxt_symbol_table ctxt of
-            Just (Relocated_Function sym) -> " (" ++ (show sym) ++ ")"
+            Just (Relocated_Function sym) -> " (" ++ show sym ++ ")"
+            Just (Internal_Label sym)     -> " (" ++ show sym ++ ")"
             Nothing  -> " (0x" ++ showHex imm ++ ")"
         _ -> ""
   else
@@ -424,9 +440,17 @@ instance Show PointerDomain where
   show (Domain_Sources srcs) = "[" ++ intercalate "," (map show $ neSetToList srcs) ++ "]_S"
 
 
--- | Show function initialisaExpr
-show_finit :: FInit -> String
-show_finit finit = intercalate ", " $ (map (\(sp,e) -> show sp ++ " ~= " ++ show e) $ M.toList finit)
+-- | Show function initialisation
+instance Show FInit where
+ show (FInit sps m) = intercalate "\n" $ filter ((/=) []) $ 
+  [ "Stateparts:" 
+  , intercalate ", " $ map (show . fst) $ S.toList $ S.filter (((==) Nothing) . snd) sps
+  , intercalate "\n" $ map show_sp $ S.toList $ S.filter (((/=) Nothing) . snd) sps
+  , intercalate "\n" $ map show_entry $ M.toList m ]
+  where
+    show_sp (sp,Just v)    = show sp ++ " == " ++ show v
+    show_entry ((sp0,sp1),r) = show (sp0,sp1) ++ ": " ++ show r
+
 
 
 
@@ -530,6 +554,6 @@ ctxt_read_L0 dirname name = do
 address_has_instruction ctxt a =
   case find_section_for_address ctxt $ fromIntegral a of
     Nothing                    -> False
-    Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions
+    Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions && unsafePerformIO (fetch_instruction ctxt $ fromIntegral a) /= Nothing
 
 

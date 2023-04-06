@@ -39,6 +39,7 @@ import Generic.Operand (GenericOperand(..))
 import Generic.Instruction (GenericInstruction(Instruction))
 import Generic.SymbolicConstituents
 import qualified Generic.Instruction as Instr
+import Control.Applicative ((<|>))
 
 
 -- | Returns true iff a symbol is associated with the address.
@@ -71,15 +72,23 @@ operand_static_resolve ctxt i _                                                 
 static_resolve_rip_expr :: Context -> Instruction -> (Word64 -> Word64) -> Int -> ResolvedJumpTarget
 static_resolve_rip_expr ctxt i f si =
   let rip     = addressof i + (fromIntegral $ sizeof i)
-      a'      = f rip
-      syms    = ctxt_symbol_table ctxt in
-    case (IM.lookup (fromIntegral a') syms,read_from_ro_datasection ctxt a' si) of
-      (Just (Relocated_Function s),  a'') ->
-        -- Example:
-        --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
-        --   Address 1002000c0 is returned and treated as an external function call       
-        -- trace ("Instruction " ++ show i ++ " read from address " ++ showHex a' ++ " which has symbol " ++ s ++ " producing address " ++ showHex_option a'') $ 
-        External s
+      a'      = f rip in
+    (try_relocated_function a' <|> try_relocation a') `orElse` Unresolved
+ where
+  try_relocated_function a' =
+    case IM.lookup (fromIntegral a') $ ctxt_symbol_table ctxt of
+      -- Example:
+      --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
+      --   Address *[1002000c0,8] is treated as an external function call       
+      Just (Relocated_Function s) -> Just $ External s
+      _ -> Nothing
+
+  try_relocation a' =
+    case find (is_reloc_for a') $ ctxt_relocs ctxt of
+      Just (Relocation _ a1) -> try_relocated_function a1 <|> (Just $ ImmediateAddress a1)
+      _ -> Nothing
+  is_reloc_for a' (Relocation a0 _) = a' == a0
+
 {--
       (Nothing, Just a'') ->
         -- Example:
@@ -88,8 +97,6 @@ static_resolve_rip_expr ctxt i f si =
         -- trace ("Instruction " ++ show i ++ " read from address " ++ showHex a' ++ " producing address " ++ showHex a'') $
         ImmediateAddress a''
 --}
-      _   ->
-        Unresolved
 
 
 -- | Tries to retrieve a function name with an entry address.

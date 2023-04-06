@@ -16,7 +16,7 @@ import Analysis.ControlFlow
 import Generic.Binary
 import Generic.SymbolicPropagation
 import Generic.SymbolicConstituents
-import Instantiation.SymbolicPropagation
+import Instantiation.SymbolicPropagation2
 
 import Data.JumpTarget
 import Data.SymbolicExpression
@@ -249,7 +249,7 @@ ctxt_get_new_calls entry = do
  where
   get_new_calls fctxt is = map (get_new_call fctxt) is
   get_new_call  fctxt i =
-    if isCall (Instr.opcode i) then
+    if isCall (Instr.opcode i) || (isJump (Instr.opcode i) && jump_is_actually_a_call (f_ctxt fctxt) i) then
        map (trgt_to_finit fctxt i) $ resolve_jump_target (f_ctxt fctxt) i
     else
       []
@@ -261,7 +261,7 @@ ctxt_get_new_calls entry = do
       (_,Just finit,Just inv)    -> do
         let finit' = join_finit fctxt (invariant_to_finit fctxt inv) finit
         if finit /= finit' || (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt) && not (graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt))) then
-          return (fromIntegral trgt,finit') -- trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit ctxt finit_of_entry inv) ++ "\n" ++ show finit') $ 
+          return (fromIntegral trgt,finit') -- $ trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit fctxt inv) ++ "\n" ++ show finit') 
         else
           Nothing
       (_,_,Nothing) -> Nothing -- time out
@@ -293,7 +293,7 @@ ctxt_get_curr_posts entry = do
   invs   <- gets ctxt_invs
   posts  <- gets ctxt_posts
   sps    <- gets ctxt_stateparts
-  return (IM.lookup entry finits `orElse` M.empty, IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty,IM.lookup entry sps `orElse` S.empty)
+  return (IM.lookup entry finits `orElse` init_finit, IM.lookup entry invs `orElse` IM.empty, IM.lookup entry posts `orElse` S.empty,IM.lookup entry sps `orElse` S.empty)
 
 
 
@@ -579,7 +579,7 @@ ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
   let f     = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
 
   
-  when (not $ M.null finit) $ to_out $ "Function initialisation: " ++ show_finit finit
+  -- when (finit /= init_finit) $ to_out $ "Function initialisation: " ++ show finit
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
@@ -713,7 +713,7 @@ ctxt_analyze_unresolved_indirections entry = do
     ctxt <- get
     fctxt <- ctxt_mk_fcontext entry
     let values0 = evalSstate (try' fctxt f g b trgt) p
-    if values0 /= Nothing && S.size (fromJust values0) == 1 then do
+    if values0 /= Nothing then do
       let value = fromJust values0
       to_out $ "Resolved indirection at block " ++ show b
       to_out $ "Instruction = " ++ show i
@@ -727,7 +727,7 @@ ctxt_analyze_unresolved_indirections entry = do
       modify $ set_ctxt_inds inds'
       return True
     else do
-      to_out $ "Unresolved block " ++ show b ++ "\n" -- ++ show p
+      to_out $ "Unresolved block " ++ show b ++ "\n" ++ show i ++ "\n" ++ show p
       return False
 
 
@@ -750,7 +750,7 @@ ctxt_analyze_unresolved_indirections entry = do
   try' fctxt f g blockId trgt = do
     let ctxt = f_ctxt fctxt
     modify $ (sexec_block fctxt (init $ fetch_block g blockId) Nothing . fst)
-    val <- sread_operand fctxt "inidrection resolving" trgt
+    val <- sread_operand fctxt "indirection resolving" trgt
     return $ stry_jump_targets fctxt val
 
 

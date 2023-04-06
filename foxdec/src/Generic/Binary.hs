@@ -43,7 +43,7 @@ data SectionsInfo = SectionsInfo {
 --    0xaaa -> 0xbbbb
 -- Means that reading 8 bytes from address 0xaaaa produces the value 0xbbbb
 data Symbol = 
-    Relocated_Function String -- ^ Address a0 is a pointer to memory sotring the entry of an external function
+    Relocated_Function String -- ^ Address a0 is a pointer to memory storing the entry of an external function
   | Relocated_Label    String -- ^ Address a0 can be replaced by the string, e.g., "stdout" or "optind"
   | Internal_Label     String -- ^ Address a0 can be replaced by the string.
   deriving (Generic,Eq,Show)

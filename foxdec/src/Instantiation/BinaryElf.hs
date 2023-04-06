@@ -170,7 +170,7 @@ elf_get_symbol_table elf = SymbolTable $ IM.fromList $ filter ((/=) (Just "") . 
   symbols_from_ELF_symbol_tables = concatMap mk_symbol_entry $ concat $ parseSymbolTables elf
 
   mk_symbol_entry sym_entry
-    -- | is_external_var_symbol_entry sym_entry = [(fromIntegral $ steValue sym_entry, Relocated_Label $ get_string_from_steName $ steName sym_entry)]
+    --   | is_external_var_symbol_entry sym_entry = [(fromIntegral $ steValue sym_entry, Relocated_Label $ get_string_from_steName $ steName sym_entry)]
     | is_internal_symbol_entry sym_entry     = [(fromIntegral $ steValue sym_entry, Internal_Label $ get_string_from_steName $ steName sym_entry)]
     | otherwise = []
 

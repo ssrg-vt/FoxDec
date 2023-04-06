@@ -5,14 +5,14 @@ module OutputGeneration.Retrieval where
 
 import Base
 
-import Data.SPointer
+import Data.SValue
 import Data.SymbolicExpression
 
 import Analysis.Context
 import Analysis.Pointers 
 import Analysis.ControlFlow
 
-import Instantiation.SymbolicPropagation (get_invariant)
+import Instantiation.SymbolicPropagation2 (get_invariant,promote)
 
 import Generic.SymbolicConstituents
 import Generic.HasSize (HasSize(sizeof))
@@ -123,7 +123,7 @@ ctxt_get_inv ctxt a = do
 --   entry is the entry address of the function of the instruction,
 --   addr is the address of the instruction
 --   ptrs is a list of symbolic pointers for each operand (or Nothing if not a memory-operand)
-ctxt_resolve_mem_operands :: Context -> [(Word64,Word64, [Maybe SPointer])]
+ctxt_resolve_mem_operands :: Context -> [(Word64,Word64, [Maybe SValue])]
 ctxt_resolve_mem_operands ctxt = 
   let entries = ctxt_get_function_entries ctxt
       cfgs    = map (\entry -> (entry,IM.lookup entry $ ctxt_cfgs ctxt)) $ S.toList entries
@@ -138,14 +138,13 @@ ctxt_resolve_mem_operands ctxt =
     let fctxt   = mk_fcontext ctxt entry
         Just p  = get_invariant fctxt (fromIntegral $ addressof i)
         ptr     = evalState (sset_rip fctxt i >> sresolve_address fctxt a) (p,S.empty) in
-        -- domain  = get_pointer_domain fctxt ptr in
-      Just ptr
+      Just $ promote fctxt ptr
   resolve entry i _ = Nothing
 
-  get_operands i =
-    case dest i of
-      Nothing  -> srcs i
-      Just dst -> dst : srcs i
+  get_operands i = 
+    case dest $ head $ canonicalize i of
+      Nothing  -> []--srcs i
+      Just dst -> [dst]-- : srcs i
 
 
 

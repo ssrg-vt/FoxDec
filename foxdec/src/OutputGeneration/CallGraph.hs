@@ -156,10 +156,7 @@ summarize_function_pointers ctxt vcs =
 
 -- | Summarize function initialization
 summarize_finit Nothing      = ""
-summarize_finit (Just finit) = if M.null finit then "" else "INITIAL:\n" ++ (intercalate "\n" $ map show_finit_entry $ M.toList finit) ++ "\n"
- where
-  -- show_finit_entry (sp,bot@(Bottom _)) = pp_statepart sp ++ " ~= " ++ pp_bot bot TODO
-  show_finit_entry (sp,v)              = show sp ++ " = " ++ show v
+summarize_finit (Just finit) = if finit == init_finit then "" else "INITIAL:\n" ++ show finit -- TODO 
 
 
 
@@ -244,7 +241,7 @@ callgraph_to_dot ctxt (Edges es) (Edges fptrs) =
       case IM.lookup v $ ctxt_vcs ctxt of
         Nothing  -> function_name_of_entry ctxt v
         Just vcs ->
-          if S.null vcs && finit `elem` [Just M.empty,Nothing] then
+          if S.null vcs && finit `elem` [Just init_finit,Nothing] then
             function_name_of_entry ctxt v
           else
             "{" ++ function_name_of_entry ctxt v ++ "|" ++ markup (summarize_verification_conditions ctxt v) ++ "}"

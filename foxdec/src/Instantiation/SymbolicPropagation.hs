@@ -1,5 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleInstances, StrictData #-}
 
+
 {-|
 Module      : SymbolicPropagation
 Description : Provides an instantiation of all function necessary to do symbolic propagation
@@ -7,6 +8,7 @@ Description : Provides an instantiation of all function necessary to do symbolic
 module Instantiation.SymbolicPropagation where
 
 
+{--
 import Base
 import Config
 
@@ -1229,3 +1231,5 @@ ctry_jump_targets fctxt (Concrete es)
 
 
 ctry_jump_targets fctxt _ = Nothing 
+
+--}

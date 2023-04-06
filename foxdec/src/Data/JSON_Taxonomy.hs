@@ -19,7 +19,7 @@ module Data.JSON_Taxonomy where
 
 import Base
 
-import Data.SPointer
+import Data.SValue
 import Data.SymbolicExpression
 
 import Generic.Binary
@@ -68,12 +68,12 @@ import GHC.Generics
 -- > { "instructions": [...], "control_flow": [...], ... }
 
 data JSON = JSON {
-  instructions        :: [Instruction],               -- ^ A list of `Instruction`s.
-  control_flow        :: ControlFlow,                 -- ^ The __`ControlFlow`__ essentially is graph with as nodes instruction addresses.
-  function_boundaries :: [(Word64,FunctionBoundary)], -- ^ A mapping from function entry addresses to pretty-printed  __`FunctionBoundary`__s.
-  function_summaries  :: [(Word64,FunctionSummary)],  -- ^ A mapping from function entry addresses to __`FunctionSummary`__s.
-  invariants          :: [(Word64,[Invariant])],      -- ^ A mapping from instruction addresses to __`Invariant`__s.
-  pointer_domains     :: [(Word64, Word64,[Maybe SPointer])] -- ^ Per instruction address, per function entry, the __`PointerDomain`__ for each memory operand.
+  instructions        :: [Instruction],                    -- ^ A list of `Instruction`s.
+  control_flow        :: ControlFlow,                      -- ^ The __`ControlFlow`__ essentially is graph with as nodes instruction addresses.
+  function_boundaries :: [(Word64,FunctionBoundary)],      -- ^ A mapping from function entry addresses to pretty-printed  __`FunctionBoundary`__s.
+  function_summaries  :: [(Word64,FunctionSummary)],       -- ^ A mapping from function entry addresses to __`FunctionSummary`__s.
+  invariants          :: [(Word64,[Invariant])],           -- ^ A mapping from instruction addresses to __`Invariant`__s.
+  pointer_domains     :: [(Word64, Word64,[Maybe SValue])] -- ^ Per instruction address, per function entry, the __`PointerDomain`__ for each memory operand.
 
   }
   deriving Generic
@@ -110,7 +110,7 @@ type FunctionBoundary = String
 --
 -- > {"precondition" : [...], "postcondition" : [...]}
 data FunctionSummary = FunctionSummary {
-    precondition :: Data.JSON_Taxonomy.Predicate, -- TODO
+    precondition :: String, -- TODO
     postcondition :: Postcondition
   }
   deriving Generic
@@ -155,7 +155,7 @@ data Postcondition =
 --
 --  This predicate states that register @RDI@ is a pointer with as base the return value of @malloc@, called at address @4420@.
 --  Register @RSI@ contains an immediate value.
-type Predicate = M.Map StatePart SPointer
+type Predicate = M.Map StatePart SValue
 
 
 
