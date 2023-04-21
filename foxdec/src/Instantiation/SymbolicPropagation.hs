@@ -1,5 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, MultiParamTypeClasses, FlexibleInstances, StrictData #-}
-
+{-# LANGUAGE MultiParamTypeClasses, DeriveGeneric, FlexibleInstances, StrictData #-}
 
 {-|
 Module      : SymbolicPropagation
@@ -8,11 +7,10 @@ Description : Provides an instantiation of all function necessary to do symbolic
 module Instantiation.SymbolicPropagation where
 
 
-{--
 import Base
 import Config
 
-import Data.SPointer
+import Data.SValue
 import Data.JumpTarget
 import Data.SymbolicExpression
 
@@ -38,6 +36,7 @@ import Generic.Operand
 
 
 import Control.Monad.State.Strict hiding (join)
+import Control.Applicative ((<|>))
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -46,203 +45,477 @@ import qualified Data.Set.NonEmpty as NES
 import Data.List
 import Data.Word 
 import Data.Maybe
+import Data.Either
 import Data.Foldable (toList)
 import Data.Bits (testBit, (.|.), (.&.), xor, complement)
 import Control.Applicative (liftA2)
 
+import qualified Data.Serialize as Cereal hiding (get,put)
+import Control.DeepSeq
+import GHC.Generics
 
 import Debug.Trace
 
-debug_abstraction = False
-
-trace' ctxt msg
-  | ctxt_verbose (f_ctxt ctxt) = trace msg
-  | otherwise                  = id
 
 
-cspointer_to_exprs (Concrete es)   = NES.toSet es
-cspointer_to_exprs (Bases bs)      = S.singleton $ Bottom $ FromPointerBases bs
-cspointer_to_exprs (Sources srcs)  = S.singleton $ Bottom $ FromSources srcs
-cspointer_to_exprs Top             = S.empty
+traceTop msg = id
 
-ctry_immediate (Concrete es)
+
+
+
+offset_to_expr UnknownOffset e = SE_Op Plus 64 [e,Bottom $ FromCall ""]
+offset_to_expr (PtrOffset 0) e = e
+offset_to_expr (PtrOffset i) e = simp $ SE_Op Plus 64 [e,SE_Immediate i]
+
+-- Concert SValues to SExpressions
+ptrvalue_to_expr (Base_StackPointer f  offset) = offset_to_expr offset $ SE_Var $ SP_StackPointer f
+ptrvalue_to_expr (Base_Immediate i)            = SE_Immediate i
+ptrvalue_to_expr (Base_Section i)              = SE_Op Plus 64 [SE_Immediate i,Bottom $ FromCall ""]
+ptrvalue_to_expr (Base_Malloc id h     offset) = offset_to_expr offset $ SE_Malloc id h
+ptrvalue_to_expr (Base_FunctionPtr a f offset) = offset_to_expr offset $ SE_Var $ SP_Mem (SE_Immediate a) 8
+ptrvalue_to_expr (Base_ReturnAddr f)           = SE_Var $ SP_Mem (SE_Var $ SP_StackPointer f) 8
+ptrvalue_to_expr (Base_TLS             offset) = offset_to_expr offset $ SE_Var (SP_Reg FS)
+ptrvalue_to_expr (Base_StatePart sp    offset) = offset_to_expr offset $ SE_Var sp
+
+addends_to_expr = NES.foldr mk_plus (Bottom $ FromCall "") . NES.map SE_Var
+ where
+  mk_plus e0 e1 = SE_Op Plus 64 [e0,e1]
+
+csvalue_to_exprs (SPointer ptrs) = S.map ptrvalue_to_expr $ NES.toSet ptrs
+csvalue_to_exprs (SConcrete es)  = NES.toSet es
+csvalue_to_exprs (SAddends adds) = S.singleton $ addends_to_expr adds
+csvalue_to_exprs Top             = S.empty
+
+
+-- Try to get an immediate value from an SValue
+ctry_immediate (SPointer ptrs)
+  | NES.size ptrs == 1 = try_imm $ NES.findMin ptrs
+  | otherwise        = Nothing
+ where
+  try_imm (Base_Immediate i) = Just i
+  try_imm _                  = Nothing
+ctry_immediate (SConcrete es)
   | NES.size es == 1 = try_imm $ NES.findMin es
   | otherwise        = Nothing
  where
-  try_imm (SE_Immediate imm) = Just imm
-  try_imm _                  = Nothing
+  try_imm (SE_Immediate i) = Just i
+  try_imm _                = Nothing
 ctry_immediate _ = Nothing
 
-
-ctry_deterministic (Concrete es)
+-- If the SValue represents a single concrete deterministic SExpression, retrieve that SExpression.
+ctry_deterministic (SPointer ptrs)
+  | NES.size ptrs == 1 = try_det $ NES.findMin ptrs
+  | otherwise        = Nothing
+ where
+  try_det ptr =
+    let e = ptrvalue_to_expr ptr in
+      if contains_bot e then Nothing else Just e
+ctry_deterministic (SConcrete es)
   | NES.size es == 1 = Just $ NES.findMin es
   | otherwise        = Nothing
 ctry_deterministic _ = Nothing
 
-cimmediate :: Integral i => i -> SPointer
-cimmediate = Concrete . NES.singleton . SE_Immediate . fromIntegral
 
 
-
-cwiden :: FContext -> String -> SPointer -> SPointer
-cwiden fctxt msg v = do_trace $ cwiden' fctxt msg v
+-- CONSTRUCTION
+-- Try to promote a concrete expression to pointer base
+try_promote_expr :: FContext -> SimpleExpr -> Maybe PtrValue
+try_promote_expr fctxt (SE_Op Plus _ [e0,SE_Immediate imm])  = 
+  case try_promote_expr fctxt e0 of
+    Just (Base_Immediate i) -> try_promote_expr fctxt $ SE_Immediate $ i + imm
+    x -> mod_offset ((+) imm) <$> x
+try_promote_expr fctxt (SE_Op Plus si [SE_Immediate imm,e0]) = try_promote_expr fctxt (SE_Op Plus si [e0,SE_Immediate imm])
+try_promote_expr fctxt (SE_Op Minus _ [e0,SE_Immediate imm]) =
+  case try_promote_expr fctxt e0 of
+    Just (Base_Immediate i) -> try_promote_expr fctxt $ SE_Immediate $ i - imm
+    x -> mod_offset (\v -> v - imm) <$> x
+try_promote_expr fctxt e =
+  let promotions = map (\a -> (a,try_promote_addend a)) $ S.toList $ addends_of e
+      (es,bases) = partition (\p -> snd p == Nothing) promotions in
+    case bases of
+      []           -> Nothing
+      [(_,Just b)] -> Just $ mk_offset b $ map fst es
+      _            -> traceTop ("Multiple bases for: " ++ show e ++ ": " ++ show bases) Nothing
  where
-  do_trace v'
-    | not debug_abstraction = v'
-    | v' `moreAbstract` v   = trace' fctxt ("cwiden (" ++ msg ++ ") " ++ show v ++ " --> " ++ show v') v'
-    | otherwise             = v'
+  mk_offset b []                 = b
+  mk_offset b [SE_Immediate imm] = error $ "Should not happen."
+  mk_offset b _                  = set_unknown_offset fctxt "mk_offset" b
 
-  moreAbstract v' v =
-    case ctry_immediate v of
-      Just imm -> v' /= v && address_has_instruction (f_ctxt fctxt) imm
-      Nothing  -> False
+  try_promote_addend (SE_Var (SP_StackPointer f))         = Just $ Base_StackPointer f $ PtrOffset 0
+  try_promote_addend (SE_Immediate imm)
+    | immediate_maybe_a_pointer fctxt imm                 = Just $ Base_Immediate $ imm
+    | otherwise                                           = Nothing
+  try_promote_addend (SE_Malloc id hash)                  = Just $ Base_Malloc id hash $ PtrOffset 0
+  try_promote_addend (SE_Var (SP_Mem (SE_Immediate a) 8)) = (\f -> Base_FunctionPtr a f $ PtrOffset 0) <$> try_relocated_pointer fctxt a
+  -- TODO return address
+  try_promote_addend (SE_Var (SP_Reg FS))                 = Just $ Base_TLS $ PtrOffset 0
+  try_promote_addend e@(SE_Var sp)                        
+    | possible_pointer_addend e                           = Just $ Base_StatePart sp $ PtrOffset 0
+    | otherwise                                           = Nothing
+  try_promote_addend e                                    = Nothing
 
-{--
-  moreAbstract Top             v1              = v1 /= Top
-  moreAbstract _               Top             = False
-  moreAbstract (Sources srcs0) (Sources srcs1) = NES.size srcs0 > NES.size srcs1
-  moreAbstract (Sources srcs0) _               = True
-  moreAbstract (Bases   bs0)   (Sources srcs1) = False
-  moreAbstract (Bases   bs0)   (Bases bs1)     = NES.size bs0 > NES.size bs1
-  moreAbstract (Bases   bs0)   _               = True
-  moreAbstract (Concrete es0)  _               = False
---}
+  possible_pointer_addend (SE_Var sp) = mk_sstatepart fctxt sp `S.member` (S.map fst sps)
+  possible_pointer_addend _           = False
 
-cwiden' fctxt msg (Concrete es) =
-  let domains = NES.map (get_pointer_domain fctxt) es in
-    if Nothing `NES.member` domains then
-      Top
-    else if all is_bases domains then
-      use_bases domains
+  FInit sps _ = f_init fctxt
+  ctxt = f_ctxt fctxt
+  
+
+
+
+-- Returns true if the immediate value is likely a pointer
+immediate_maybe_a_pointer fctxt a = find_section_for_address ctxt a /= Nothing || find_section_ending_at ctxt a /= Nothing || has_symbol a
+ where
+  ctxt = f_ctxt fctxt
+  has_symbol a = (IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt) /= Nothing
+
+
+-- If *[a,8] contains a relocated value to some function f, return that function
+try_relocated_pointer fctxt a =
+  case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+    Just (Relocated_Function f) -> Just f
+    _ -> Nothing
+ where
+  ctxt = f_ctxt fctxt
+
+
+
+-- Construct an SValue from SPointers
+mk_spointer :: FContext -> NES.NESet PtrValue -> SValue
+mk_spointer fctxt ptrs0@ptrs =
+  let (ptr',ptrs') = NES.deleteFindMin ptrs
+      ptrs'' = S.foldr' insert (S.singleton ptr') ptrs'  in
+    cap $ NES.unsafeFromSet ptrs''
+ where
+  insert :: PtrValue -> S.Set PtrValue -> S.Set PtrValue
+  insert ptr@(Base_Immediate a) ptrs = insert_global ptr ptrs
+  insert ptr@(Base_Section a) ptrs   = insert_global ptr ptrs
+  insert ptr ptrs                    = S.insert ptr ptrs
+
+  insert_global ptr ptrs
+    | ptr `S.member` ptrs = ptrs
+    | otherwise =
+      case find (same_base ptr) ptrs of
+        Nothing   -> S.insert ptr ptrs
+        Just ptr' -> if has_unknown_offset ptr' then ptrs else S.insert (set_unknown_offset fctxt ("mk_spointer" ++ show ptrs0) ptr) $ S.delete ptr' ptrs
+   
+
+  same_base (Base_Immediate a0) (Base_Immediate a1) =
+    let sec0 = find_section_for_address ctxt a0
+        sec1 = find_section_for_address ctxt a1 in
+      sec0 /= Nothing && sec0 == sec1
+  same_base (Base_Immediate a0) (Base_Section a1) =
+    let sec0 = find_section_for_address ctxt a0
+        sec1 = find_section_for_address ctxt a1 in
+      sec0 /= Nothing && sec0 == sec1
+  same_base (Base_Section a0) (Base_Immediate a1) = -- TODO efficiency
+    let sec0 = find_section_for_address ctxt a0
+        sec1 = find_section_for_address ctxt a1 in
+      sec0 /= Nothing && sec0 == sec1
+  same_base (Base_Section a0) (Base_Section a1) = a0 == a1  
+  same_base ptr0 ptr1 = get_base_of_spointer ptr0 == get_base_of_spointer ptr1
+
+  ctxt = f_ctxt fctxt 
+
+  cap ptrs
+    | NES.size ptrs > ctxt_max_num_of_cases (f_ctxt fctxt) = 
+      let ptrs' = NES.map (set_unknown_offset fctxt "cap") ptrs in
+        if NES.size ptrs' > ctxt_max_num_of_cases (f_ctxt fctxt) then
+          traceTop ("Too many cases: " ++ show ptrs) Top
+        else
+          SPointer ptrs' 
+    | otherwise = SPointer ptrs
+-- Construct an SValue from SExpressions
+mk_concrete fctxt es =
+  let es'  = NES.map simp es
+      ptrs = NES.map (try_promote_expr fctxt) es' in
+    if all ((==) Nothing) ptrs then
+      cap es'
+    else if all ((/=) Nothing) ptrs then
+      mk_spointer fctxt $ NES.map fromJust ptrs
     else
-      use_sources domains
+      traceTop ("TOP from: " ++ show es) Top
  where
-  use_bases domains =
-    let bs = NES.unions $ NES.map get_bases domains in
-      cwiden' fctxt msg $ Bases bs
-  use_sources domains =
-    -- error $ "Widening to sources: (" ++ msg ++ "): " ++  show (Concrete es)
-    let srcs = NES.unions $ NES.map get_sources domains in
-      cwiden' fctxt msg $ mk_sources fctxt srcs
+  cap es 
+    | NES.size es > ctxt_max_num_of_cases (f_ctxt fctxt) = exprs_to_addends fctxt es
+    | otherwise = SConcrete es 
+-- Construct an SValue from SAddends
+mk_saddends fctxt adds
+  | NES.size adds > ctxt_max_num_of_cases (f_ctxt fctxt) = Top -- trace ("Too many addends: " ++ show adds) 
+  | otherwise = SAddends adds
 
-  is_bases (Just (Domain_Bases bs))  = True
-  is_bases _                         = False
-  get_bases (Just (Domain_Bases bs)) = bs
 
-  get_sources (Just (Domain_Sources srcs)) = srcs
-  get_sources (Just (Domain_Bases bs))     = NES.unions $ NES.map (srcs_of_base fctxt) bs 
-cwiden' fctxt msg v@(Bases bs)
-  | NES.size bs <= (ctxt_max_num_of_bases $ f_ctxt fctxt) = v
-  | otherwise = cwiden' fctxt msg $ mk_sources fctxt $ NES.unions $ NES.map (srcs_of_base fctxt) bs
-                -- error $ "Widening to sources (" ++ msg ++ "): " ++ show (Bases bs)
-cwiden' fctxt msg v@(Sources srcs) = mk_sources fctxt srcs
-cwiden' fctxt msg Top = Top
+exprs_to_addends fctxt es =
+  let adds = S.unions $ NES.map get_addends es in
+    if S.null adds then 
+      Top --trace ("No addends: " ++ show es)  
+    else
+      mk_saddends fctxt $ NES.unsafeFromSet adds
 
-cwiden_all_to_sources :: FContext -> String -> S.Set SPointer -> SPointer
-cwiden_all_to_sources fctxt msg vs -- = error $ "Widening to sources (" ++ msg ++ "): " ++  show vs
-  | Top `elem` vs || S.null vs = Top
-  | otherwise                  = cwiden fctxt msg $ mk_sources fctxt $ NES.unions $ NES.map get_sources $ NES.unsafeFromSet vs
+get_addends :: SimpleExpr -> S.Set StatePart
+get_addends = mapMaybeS try_get_statepart . addends_of
  where
-  get_sources (Concrete es)  = NES.unions $ NES.map (srcs_of_expr fctxt) es
-  get_sources (Bases bs)     = NES.unions $ NES.map (srcs_of_base fctxt) bs
-  get_sources (Sources srcs) = srcs
+  try_get_statepart (SE_Bit 32 (SE_Var sp)) = Just sp
+  try_get_statepart (SE_Var sp)             = Just sp
+  try_get_statepart _                       = Nothing
+
+addends_of (SE_Op Plus _ es)      = S.unions $ S.map addends_of $ S.fromList es
+addends_of (SE_Op Minus _ (e:es)) = addends_of e
+addends_of e                      = S.singleton e
+
+cimmediate :: Integral i => FContext -> i -> SValue
+cimmediate fctxt = mk_concrete fctxt . NES.singleton . SE_Immediate . fromIntegral
 
 
-cjoin :: FContext -> String -> SPointer -> SPointer -> SPointer
-cjoin fctxt msg (Concrete es0) (Concrete es1) = 
+
+
+-- WIDENING
+set_unknown_offset fctxt msg (Base_StackPointer f  offset) = Base_StackPointer f UnknownOffset 
+set_unknown_offset fctxt msg (Base_Immediate a)            = 
+  let ctxt = f_ctxt fctxt in
+    case find_section_for_address ctxt a <|> find_section_ending_at ctxt a of
+      Just  (_,_,a0,_) -> Base_Section a0
+      Nothing -> error $ showHex a ++ " is not a pointer " ++ show (IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt) ++ "\n" ++ msg
+set_unknown_offset fctxt msg (Base_Section i)              = Base_Section i
+set_unknown_offset fctxt msg (Base_Malloc id h     offset) = Base_Malloc id h UnknownOffset
+set_unknown_offset fctxt msg (Base_FunctionPtr a f offset) = Base_FunctionPtr a f UnknownOffset
+set_unknown_offset fctxt msg (Base_TLS             offset) = Base_TLS UnknownOffset
+set_unknown_offset fctxt msg (Base_StatePart sp    offset) = Base_StatePart sp UnknownOffset
+
+
+
+cwiden :: FContext -> String -> SValue -> SValue
+cwiden fctxt msg (SPointer ptrs) = widen_ptrs fctxt ("cwiden" ++ msg) ptrs
+cwiden fctxt msg (SConcrete es)  = widen_exprs fctxt msg es
+cwiden fctxt msg v = v
+
+widen_ptrs fctxt msg ptrs = mk_spointer fctxt $ NES.map (set_unknown_offset fctxt ("widen_ptrs" ++ msg)) ptrs
+widen_exprs fctxt msg es  =
+  case mk_concrete fctxt es of
+   SPointer ptrs     -> widen_ptrs fctxt ("widen_exprs" ++ msg) ptrs
+   v@(SAddends adds) -> v
+   SConcrete es'     -> exprs_to_addends fctxt es'
+   Top               -> Top
+
+cwiden_all :: FContext -> String -> [SValue] -> SValue
+cwiden_all fctxt msg []     = Top
+cwiden_all fctxt msg (v:vs) = foldr1 (cjoin fctxt msg) $ map (cwiden fctxt msg) (v:vs)
+
+
+
+cjoin fctxt msg v0 v1 = cjoin' fctxt msg v0 v1
+  --let j = cjoin' fctxt msg v0 v1 in
+  --  if f_entry fctxt == 0x3d80 && v0/=v1 then trace ("cjoin:\n"++ msg ++  "\n" ++ show (v0,v1,j)) j else j
+
+-- JOINING
+cjoin' :: FContext -> String -> SValue -> SValue -> SValue
+--cjoin' fctxt msg v0 v1 | trace "hallo" False = error "trace"
+cjoin' fctxt msg v0@(SPointer vs0) v1@(SPointer vs1) =
+  let vs' = NES.union vs0 vs1 in
+    case mk_spointer fctxt vs' of
+      v@(SPointer _) -> v
+      Top -> widen_ptrs fctxt ("join" ++ show (v0,v1) ++ msg) vs'
+cjoin' fctxt msg (SConcrete es0) (SConcrete es1) =
   let es' = NES.union es0 es1 in
-    if NES.size es' <= get_max_num_of_cases then
-      Concrete es'
-    else
-      cwiden fctxt ("max_num_of_cases reached: " ++ msg) $ Concrete es'
- where
-  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
-cjoin fctxt msg v0 v1 = merge (cwiden fctxt msg v0) (cwiden fctxt msg v1)
- where
-  merge (Bases bs0) (Bases bs1)         = cwiden fctxt msg $ Bases      $ NES.union bs0 bs1
-  merge (Bases bs0) (Sources srcs1)     = cwiden fctxt msg $ mk_sources fctxt $ NES.union (NES.unions $ NES.map (srcs_of_base fctxt) bs0) srcs1
-  merge (Sources srcs0) (Bases bs1)     = cwiden fctxt msg $ mk_sources fctxt $ NES.union srcs0 (NES.unions $ NES.map (srcs_of_base fctxt) bs1)
-  merge (Sources srcs0) (Sources srcs1) = cwiden fctxt msg $ mk_sources fctxt $ NES.union srcs0 srcs1
-  merge Top _ = Top
-  merge _ Top = Top
+    case mk_concrete fctxt es' of
+      SPointer  v       -> error $ "CHECK IT OUT: " ++ show (es0,es1,es',v)
+      v@(SConcrete es') -> v
+      v@(SAddends adds) -> v
+      Top               -> widen_exprs fctxt msg es'
+cjoin' fctxt msg (SAddends adds0) (SAddends adds1) = mk_saddends fctxt $ NES.union adds0 adds1
+
+cjoin' fctxt msg ptr0@(SConcrete es0)  ptr1@(SPointer _)     = cjoin fctxt msg ptr1 ptr0
+cjoin' fctxt msg ptr0@(SPointer _)     ptr1@(SConcrete es1)  = Top -- TODO! cwiden fctxt ("join1" ++ show (ptr0,ptr1) ++ msg) ptr0
+
+cjoin' fctxt msg ptr0@(SConcrete es0)  ptr1@(SAddends adds1) = cjoin fctxt msg ptr1 ptr0
+cjoin' fctxt msg ptr0@(SAddends adds0) ptr1@(SConcrete es1)  =
+  case widen_exprs fctxt msg es1 of
+    SAddends adds1 -> mk_saddends fctxt $ NES.union adds0 adds1
+    SPointer ptrs  -> error $ "TODO: " ++ show (ptr0,ptr1,ptrs)
+    Top            -> Top
 
 
-cjoin_all :: Foldable t => FContext -> String -> t SPointer -> SPointer
+cjoin' fctxt msg ptr0@(SPointer _)     ptr1@(SAddends adds1) = cjoin fctxt msg ptr1 ptr0
+cjoin' fctxt msg ptr0@(SAddends adds0) ptr1@(SPointer _)     = cwiden fctxt ("join2" ++ show (ptr0,ptr1) ++ msg) ptr1
+
+cjoin' fctxt msg _ Top = Top -- TODO SPOINTER + TOP
+cjoin' fctxt msg Top _ = Top
+
+cjoin_all :: Foldable t => FContext -> String -> t SValue -> SValue
 cjoin_all fctxt msg es
   | null es   = error $ "Cannot join [], msg = " ++ msg
   | otherwise = foldr1 (cjoin fctxt msg) es
 
 
 
+mkLeft (Left l) = l
+mkRight (Right r) = r
 
-spointer_plus :: FContext -> Int -> SPointer -> SPointer -> SPointer
-spointer_plus fctxt si v0@(Concrete es0) v1@(Concrete es1)
-  | NES.size es0 * NES.size es1 <= get_max_num_of_cases = Concrete $ NES.map plus $ NES.cartesianProduct es0 es1
-  | otherwise = spointer_plus fctxt si (cwiden fctxt "plus0" v0) (cwiden fctxt "plus1" v1)
+svalue_plus :: FContext -> Int -> SValue -> SValue -> SValue
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) =
+  let ptrs' = NES.map (uncurry plus) $ NES.cartesianProduct ptrs0 ptrs1 in 
+    if all ((/=) Nothing) ptrs' then
+      mk_spointer fctxt $ NES.map fromJust ptrs'
+    --else if isImmediate v0 && isImmediate v1 then
+    --  mk_concrete fctxt $ NES.map (SE_Immediate . uncurry plus_imm) $ NES.cartesianProduct ptrs0 ptrs1
+    else
+      cwiden fctxt "svalue_plus" $ cjoin fctxt "svalue_plus0" v0 v1
  where
-  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
-
-  plus (e0,e1) = simp $ SE_Op Plus si [e0,e1]
-
-spointer_plus fctxt si v1@(Concrete es1) v0                  = spointer_plus fctxt si v0 v1
-
-spointer_plus fctxt si Top Top                               = Top
-spointer_plus fctxt si Top v1@(Concrete es)                  = spointer_plus fctxt si Top (cwiden fctxt "plus2" v1)
-spointer_plus fctxt si Top v1@(Bases bs)                     = v1
-spointer_plus fctxt si Top v1@(Sources srcs)                 = Top
-
-spointer_plus fctxt si v0@(Bases bs0) v1@(Concrete es1)      = v0
-spointer_plus fctxt si v0@(Bases bs0) v1@(Bases bs1)         = cwiden fctxt "plus3" $ Bases $ NES.union bs0 bs1
-spointer_plus fctxt si v0@(Bases bs0) v1@(Sources srcs1)     = v0
-spointer_plus fctxt si v0@(Bases bs0) Top                    = v0
-
-spointer_plus fctxt si v0@(Sources srcs0) v1@(Concrete es1)  = cwiden_all_to_sources fctxt "plus4" $ S.fromList [v0,v1]
-spointer_plus fctxt si v0@(Sources srcs0) v1@(Bases bs1)     = v1
-spointer_plus fctxt si v0@(Sources srcs0) v1@(Sources srcs1) = cwiden_all_to_sources fctxt "plus5" $ S.fromList [v0,v1]
-spointer_plus fctxt si v0@(Sources srcs0) Top                = Top
-
-
-spointer_minus :: FContext -> Int -> SPointer -> SPointer -> SPointer
-spointer_minus fctxt si v0@(Concrete es0) v1@(Concrete es1)
-  | NES.size es0 * NES.size es1 <= get_max_num_of_cases = Concrete $ NES.map minus $ NES.cartesianProduct es0 es1
-  | otherwise = spointer_minus fctxt si (cwiden fctxt "minus0" v0) (cwiden fctxt "minus1" v1)
+  plus_imm (Base_Immediate a0) (Base_Immediate a1) = a0+a1
+  plus (Base_Immediate a0) (Base_Immediate a1) = 
+    case try_promote_expr fctxt $ SE_Immediate $ a0+a1 of
+      Just ptr@(Base_Immediate a) -> Just ptr
+      _ -> Nothing
+  plus _ _ = Nothing
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SConcrete es1)  = 
+  let ptrs' = NES.map (uncurry plus) $ NES.cartesianProduct ptrs0 es1 in 
+    if all isLeft ptrs' then
+      mk_spointer fctxt $ NES.map mkLeft ptrs'
+    else if all isRight ptrs' then
+      cjoin_all fctxt "svalue_plus" $ NES.map (cimmediate fctxt . mkRight) ptrs'
+    else
+      cwiden fctxt "svalue_plus" v0
  where
-  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+  plus (Base_Immediate i0) (SE_Immediate i1)
+    | immediate_maybe_a_pointer fctxt (i0+i1) = Left $ Base_Immediate $ i0+i1
+    | otherwise = Right $ i0+i1
+  plus ptr (SE_Immediate i) = Left $ mod_offset ((+) i) ptr 
+  plus ptr _                = Left $ set_unknown_offset fctxt ("svalue_plus" ++ show (v0,v1)) ptr
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SAddends adds1) = cwiden fctxt "svalue_plus2" v0
+svalue_plus fctxt si v0@(SPointer ptrs0) Top                 = cwiden fctxt "svalue_plus3" v0
 
-  minus (e0,e1) = simp $ SE_Op Minus si [e0,e1]
-spointer_minus fctxt si v0@(Concrete es0) v1                  = spointer_minus fctxt si v1 v0
-spointer_minus fctxt si v0@(Bases bs0) v1@(Concrete es1)      = v0
-spointer_minus fctxt si v0@(Bases bs0) v1@(Bases bs1)         = v0
-spointer_minus fctxt si v0@(Bases bs0) v1@(Sources srcs1)     = v0
-spointer_minus fctxt si v0@(Bases bs0) v1@Top                 = v0
-spointer_minus fctxt si v0@(Sources srcs0) v1@(Concrete es1)  = cwiden_all_to_sources fctxt "minus1" $ S.fromList [v0,v1]
-spointer_minus fctxt si v0@(Sources srcs0) v1@(Bases bs1)     = cwiden_all_to_sources fctxt "minus2" $ S.fromList [v0,v1]
-spointer_minus fctxt si v0@(Sources srcs0) v1@(Sources srcs1) = cwiden_all_to_sources fctxt "minus3" $ S.fromList [v0,v1]
-spointer_minus fctxt si v0@(Sources srcs0) v1@Top             = Top
+svalue_plus fctxt si v1@(SConcrete es1) v0@(SPointer ptrs0)  = svalue_plus fctxt si v0 v1
+svalue_plus fctxt si v0@(SConcrete es0) v1@(SConcrete es1)   =
+  let es' = NES.map (uncurry plus) $ NES.cartesianProduct es0 es1 in 
+    case mk_concrete fctxt es' of
+      v@(SConcrete es')  -> v
+      v@(SAddends adds') -> v
+      SPointer v         -> error $ "CHECK IT OUT: " ++ show (v0,v1,es')
+      Top                -> widen_exprs fctxt "svalue_plus" es'
+ where
+  plus e0 e1 = SE_Op Plus si [e0,e1]
+svalue_plus fctxt si v0@(SConcrete es0) v1@(SAddends adds1)  = 
+  case cwiden fctxt "svalue_plus5" v0 of
+    SPointer v     -> error $ "CHECK IT OUT: " ++ show (v0,v1,v)
+    SConcrete _    -> case exprs_to_addends fctxt es0 of
+                        SAddends adds0 -> mk_saddends fctxt $ NES.union adds0 adds1
+                        Top            -> Top
+    SAddends adds0 -> mk_saddends fctxt $ NES.union adds0 adds1
+    Top            -> Top
+svalue_plus fctxt si v0@(SConcrete es0) Top                  = cwiden fctxt "svalue_plus4" v0
 
-spointer_minus fctxt si Top _                                 = Top
+  
+svalue_plus fctxt si v0@(SAddends adds0) v1@(SPointer ptrs1) = svalue_plus fctxt si v1 v0
+svalue_plus fctxt si v0@(SAddends adds0) v1@(SConcrete es1)  = svalue_plus fctxt si v1 v0
+svalue_plus fctxt si v0@(SAddends adds0) v1@(SAddends adds1) = mk_saddends fctxt $ NES.union adds0 adds1
+svalue_plus fctxt si v0@(SAddends _)     Top                 = Top
+
+svalue_plus fctxt si Top                 v0@(SPointer ptrs0) = svalue_plus fctxt si v0 Top
+svalue_plus fctxt si Top                 v0@(SConcrete es0)  = svalue_plus fctxt si v0 Top
+svalue_plus fctxt si Top                 v0@(SAddends adds0) = Top
+svalue_plus fctxt si Top                 Top                 = Top 
 
 
-apply_expr_op :: FContext -> ([SimpleExpr] -> Maybe SimpleExpr) -> [SPointer] -> SPointer
-apply_expr_op fctxt f vs
-  | all isConcrete vs =
-      let ess = map get_exprs vs in
-        if product (map NES.size ess) <= get_max_num_of_cases then
-          let es' = map f $ crossProduct $ map neSetToList ess in
+
+svalue_minus :: FContext -> Int -> SValue -> SValue -> SValue
+svalue_minus fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) = 
+  let ptrs' = NES.map (uncurry minus) $ NES.cartesianProduct ptrs0 ptrs1 in 
+    if all ((/=) Nothing) ptrs' then
+      mk_spointer fctxt $ NES.map fromJust ptrs'
+    else if isImmediate v0 && isImmediate v1 then
+      mk_concrete fctxt $ NES.map (SE_Immediate . uncurry minus_imm) $ NES.cartesianProduct ptrs0 ptrs1
+    else
+      cwiden fctxt "svalue_minus1" v0
+ where
+  minus_imm (Base_Immediate a0) (Base_Immediate a1) = a0-a1
+  minus (Base_Immediate a0) (Base_Immediate a1) = 
+    case try_promote_expr fctxt $ SE_Immediate $ a0-a1 of
+      Just ptr@(Base_Immediate a) -> Just ptr
+      _ -> Nothing
+  minus _ _ = Nothing
+svalue_minus fctxt si v0@(SPointer ptrs0) v1@(SConcrete es1)  = 
+  let ptrs' = NES.map (uncurry minus) $ NES.cartesianProduct ptrs0 es1 in 
+    if all isLeft ptrs' then
+      mk_spointer fctxt $ NES.map mkLeft ptrs'
+    else if all isRight ptrs' then
+      cjoin_all fctxt "svalue_plus" $ NES.map (cimmediate fctxt . mkRight) ptrs'
+    else
+      error $ "TODO:" ++ show(v0,v1,ptrs')
+ where
+  minus (Base_Immediate i0) (SE_Immediate i1)
+    | immediate_maybe_a_pointer fctxt (i0-i1) = Left $ Base_Immediate $ i0-i1
+    | otherwise = Right $ i0-i1
+  minus ptr (SE_Immediate i) = Left $ mod_offset (\off -> off - i) ptr 
+  minus ptr _                = Left $ set_unknown_offset fctxt ("svalue_plus" ++ show (v0,v1)) ptr
+svalue_minus fctxt si v0@(SPointer ptrs0) _                   = cwiden fctxt "svalue_minus2" v0
+
+svalue_minus fctxt si v0@(SConcrete es0) v1@(SPointer ptrs1)  = 
+  let es' = NES.map (uncurry minus) $ NES.cartesianProduct es0 ptrs1 in 
+    if all ((/=) Nothing) es' then
+      mk_concrete fctxt $ NES.map fromJust es'
+    else
+      traceShow ("svalue_minus2: Top = ", v0,v1) Top
+ where
+  minus e (Base_Immediate a1) = Just $ SE_Op Minus 64 [e,SE_Immediate a1] -- TODO more cases?
+  minus _ _ = Nothing
+svalue_minus fctxt si v0@(SConcrete es0) v1@(SConcrete es1)   =
+  let es' = NES.map (uncurry minus) $ NES.cartesianProduct es0 es1 in 
+    case mk_concrete fctxt es' of
+      v@(SConcrete es') -> v
+      v@(SAddends adds) -> v
+      SPointer  v       -> error $ "CHECK IT OUT: " ++ show (v0,v1,es')
+      Top               -> widen_exprs fctxt "svalue_minus" es0
+ where
+  minus e0 e1 = SE_Op Minus si [e0,e1]
+svalue_minus fctxt si v0@(SConcrete es0) v1@(SAddends adds1)  = cwiden fctxt "svalue_minus3" v0
+svalue_minus fctxt si v0@(SConcrete es0) Top                  = cwiden fctxt "svalue_minus4" v0
+  
+svalue_minus fctxt si v0@(SAddends adds0) v1@(SPointer ptrs1) = error $ "TODO:" ++ show (v0,v1)
+svalue_minus fctxt si v0@(SAddends adds0) v1@(SConcrete es1)  = Top -- v0
+svalue_minus fctxt si v0@(SAddends adds0) v1@(SAddends adds1) = Top
+svalue_minus fctxt si v0@(SAddends adds0) Top                 = Top
+
+svalue_minus fctxt si Top                 v1@(SPointer ptrs1) = Top
+svalue_minus fctxt si Top                 _                   = Top
+
+
+
+svalue_and :: FContext -> Int -> SValue -> SValue -> SValue
+svalue_and fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) = error $ "Cannot apply AND to two pointers: " ++ show (v0,v1)
+svalue_and fctxt si v0@(SPointer ptrs0) _                   = cwiden fctxt "svalue_and" v0
+svalue_and fctxt si v0@(SConcrete es0) v1@(SConcrete es1) =
+   let es' = NES.map (uncurry and) $ NES.cartesianProduct es0 es1 in 
+     mk_concrete fctxt es'
+ where
+  and e0 e1 = simp $ SE_Op And si [e0,e1]
+svalue_and fctxt si v0 v1 = Top
+
+
+
+
+
+apply_expr_op :: FContext -> String -> ([SimpleExpr] -> Maybe SimpleExpr) -> [SValue] -> SValue
+apply_expr_op fctxt msg f vs
+  | all isConcrete vs || all isImmediate vs =
+      let ess = map csvalue_to_exprs vs in
+        if product (map S.size ess) <= get_max_num_of_cases then
+          let es' = map f $ crossProduct $ map S.toList ess in
             if Nothing `elem` es' then
-              cwiden_all_to_sources fctxt "apply0" $ S.fromList vs 
+              cwiden_all fctxt ("Abstraction applying function to: " ++ show vs) vs
             else
-              Concrete $ neFromList $ map fromJust es'
+              mk_concrete fctxt $ neFromList $ map fromJust es'
         else
-          cwiden_all_to_sources fctxt "apply1" $ S.fromList vs
-  | otherwise = cwiden_all_to_sources fctxt "apply2" $ S.fromList vs 
+          cwiden_all fctxt ("Exceeding num of cases: " ++ show vs) vs
+  | any isPointer vs   = traceTop ("TOP: Computation to pointers: " ++ msg ++ ": " ++ show vs) Top
+  | Top `elem` vs      = Top
+  | otherwise          = traceTop ("TOP: Making top from: " ++ show vs) Top
  where
   get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
 
-  get_exprs (Concrete es) = es
 
 
-data CSemantics = ApplyPlus Int | ApplyMinus Int | ApplyNeg Int | ApplyDec Int | ApplyInc Int |
+data CSemantics = ApplyPlus Int | ApplyMinus Int | ApplyNeg Int | ApplyDec Int | ApplyInc Int | ApplyAnd Int |
+                  ApplyMov | ApplyCMov |
                   Apply ([SimpleExpr] -> SimpleExpr) | SetXX | SExtension_HI | NoSemantics
 
 
@@ -256,25 +529,28 @@ mk_expr fctxt = trim_expr fctxt . simp
 
 
 
-csemantics :: FContext -> SymbolicOperation SPointer -> SPointer
-csemantics fctxt (SO_Plus  a b)         = spointer_plus fctxt 64 a b
-csemantics fctxt (SO_Minus a b)         = spointer_minus fctxt 64 a b
-csemantics fctxt (SO_Times a b)         = apply_expr_op fctxt (mk_expr fctxt . SE_Op Times 64) [a,b]
-csemantics fctxt (SO_Overwrite n a b)   = apply_expr_op fctxt (\[e0,e1] -> mk_expr fctxt $ SE_Overwrite n e0 e1) [a,b]
-csemantics fctxt (SO_SExtend l h a)     = apply_expr_op fctxt (\[e] -> mk_expr fctxt $ SE_SExtend l h e) [a]
-csemantics fctxt (SO_Bit h a)           = apply_expr_op fctxt (\[e] -> mk_expr fctxt $ SE_Bit h e) [a]
-csemantics fctxt (SO_Op op si si' es)   = 
+csemantics :: FContext -> String -> SymbolicOperation SValue -> SValue
+csemantics fctxt msg (SO_Plus  a b)         = svalue_plus fctxt 64 a b
+csemantics fctxt msg (SO_Minus a b)         = svalue_minus fctxt 64 a b
+csemantics fctxt msg (SO_Times a b)         = apply_expr_op fctxt "times" (mk_expr fctxt . SE_Op Times 64) [a,b]
+csemantics fctxt msg (SO_Overwrite n a b)   = apply_expr_op fctxt "overwrite" (\[e0,e1] -> mk_expr fctxt $ SE_Overwrite n e0 e1) [a,b]
+csemantics fctxt msg (SO_SExtend l h a)     = apply_expr_op fctxt "sextend" (\[e] -> mk_expr fctxt $ SE_SExtend l h e) [a]
+csemantics fctxt msg (SO_Bit h a)           = apply_expr_op fctxt (msg ++ "takebits" ++ show h) (\[e] -> mk_expr fctxt $ SE_Bit h e) [a]
+csemantics fctxt msg (SO_Op op si si' es)   = 
   case mnemonic_to_semantics op (8*si) (((*) 8) <$> si') of
-    ApplyPlus  si -> spointer_plus  fctxt si (es!!0) (es!!1)
-    ApplyInc   si -> spointer_plus  fctxt si (es!!0) (cimmediate 1)
-    ApplyMinus si -> spointer_minus fctxt si (es!!0) (es!!1)
-    ApplyDec   si -> spointer_minus fctxt si (es!!0) (cimmediate 1)
-    ApplyNeg   si -> spointer_minus fctxt si (cimmediate 0) (es!!0)
-    Apply sop     -> apply_expr_op fctxt (mk_expr fctxt . sop) es
-    SetXX         -> Concrete $ neFromList [SE_Immediate 0,SE_Immediate 1]
-    SExtension_HI -> Concrete $ neFromList [SE_Immediate 0,SE_Immediate 18446744073709551615]
-    NoSemantics   -> cwiden_all_to_sources fctxt ("csemantics " ++ show op) $ S.fromList es
-                     -- trace' ctxt ("Widening due to operand: " ++ show op ++ " to " ++ show es) $ CTop -- TODO cwiden es
+    ApplyMov       -> es!!0
+    ApplyCMov      -> cjoin        fctxt "cmov" (es!!0) (es!!1)
+    ApplyPlus  si  -> svalue_plus  fctxt si (es!!0) (es!!1)
+    ApplyInc   si  -> svalue_plus  fctxt si (es!!0) (cimmediate fctxt 1)
+    ApplyMinus si  -> svalue_minus fctxt si (es!!0) (es!!1)
+    ApplyDec   si  -> svalue_minus fctxt si (es!!0) (cimmediate fctxt 1)
+    ApplyNeg   si  -> svalue_minus fctxt si (cimmediate fctxt 0) (es!!0)
+    ApplyAnd   si  -> svalue_and   fctxt si (es!!0) (es!!1)
+    Apply sop      -> apply_expr_op fctxt (msg ++ ", op = " ++ show op) (mk_expr fctxt . sop) es
+    SetXX          -> mk_concrete fctxt $ neFromList [SE_Immediate 0,SE_Immediate 1]
+    SExtension_HI  -> mk_concrete fctxt $ neFromList [SE_Immediate 0,SE_Immediate 18446744073709551615]
+    NoSemantics    -> Top 
+                     -- trace ("Widening due to operand: " ++ show op) 
   
 
 
@@ -318,7 +594,7 @@ mnemonic_to_semantics PEXTRB si si'  = Apply $ (\[a,b,c] -> SE_Op Pextr si [a,b,
 mnemonic_to_semantics PEXTRD si si'  = Apply $ (\[a,b,c] -> SE_Op Pextr si [a,b,c])
 mnemonic_to_semantics PEXTRQ si si'  = Apply $ (\[a,b,c] -> SE_Op Pextr si [a,b,c])
 
-mnemonic_to_semantics AND si si'     = Apply $ SE_Op And si
+mnemonic_to_semantics AND si si'     = ApplyAnd si
 mnemonic_to_semantics OR  si si'     = Apply $ SE_Op Or si
 mnemonic_to_semantics NOT si si'     = Apply $ (\[a] -> SE_Op Not si [a])
 
@@ -328,23 +604,23 @@ mnemonic_to_semantics VPXOR  si si'  = Apply $ SE_Op Xor si
 mnemonic_to_semantics XORPS  si si'  = Apply $ SE_Op Xor si
 mnemonic_to_semantics XORPD  si si'  = Apply $ SE_Op Xor si
 
-mnemonic_to_semantics MOV     si si'  = Apply $ head
-mnemonic_to_semantics MOVSD   si si'  = Apply $ head
-mnemonic_to_semantics MOVSS   si si'  = Apply $ head
-mnemonic_to_semantics MOVAPS  si si'  = Apply $ head
-mnemonic_to_semantics MOVAPD  si si'  = Apply $ head
-mnemonic_to_semantics MOVUPS  si si'  = Apply $ head
-mnemonic_to_semantics MOVUPD  si si'  = Apply $ head
-mnemonic_to_semantics MOVABS  si si'  = Apply $ head
-mnemonic_to_semantics MOVDQU  si si'  = Apply $ head
-mnemonic_to_semantics MOVDQA  si si'  = Apply $ head
-mnemonic_to_semantics MOVLPD  si si'  = Apply $ head
-mnemonic_to_semantics MOVD    si si'  = Apply $ head
-mnemonic_to_semantics MOVQ    si si'  = Apply $ head -- TODO if prefix = Nothing?
-mnemonic_to_semantics VMOVD   si si'  = Apply $ head 
-mnemonic_to_semantics VMOVAPD si si'  = Apply $ head
-mnemonic_to_semantics VMOVAPS si si'  = Apply $ head
-mnemonic_to_semantics MOVZX   si si'  = Apply $ head
+mnemonic_to_semantics MOV     si si'  = ApplyMov
+mnemonic_to_semantics MOVSD   si si'  = ApplyMov
+mnemonic_to_semantics MOVSS   si si'  = ApplyMov
+mnemonic_to_semantics MOVAPS  si si'  = ApplyMov
+mnemonic_to_semantics MOVAPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVUPS  si si'  = ApplyMov
+mnemonic_to_semantics MOVUPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVABS  si si'  = ApplyMov
+mnemonic_to_semantics MOVDQU  si si'  = ApplyMov
+mnemonic_to_semantics MOVDQA  si si'  = ApplyMov
+mnemonic_to_semantics MOVLPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVD    si si'  = ApplyMov
+mnemonic_to_semantics MOVQ    si si'  = ApplyMov -- TODO if prefix = Nothing?
+mnemonic_to_semantics VMOVD   si si'  = ApplyMov 
+mnemonic_to_semantics VMOVAPD si si'  = ApplyMov
+mnemonic_to_semantics VMOVAPS si si'  = ApplyMov
+mnemonic_to_semantics MOVZX   si si'  = ApplyMov
 
 mnemonic_to_semantics MOVSX  si (Just si') = Apply $ SE_SExtend si' si . head
 mnemonic_to_semantics MOVSXD si (Just si') = Apply $ SE_SExtend si' si . head
@@ -388,9 +664,39 @@ mnemonic_to_semantics SETPE  si si' = SetXX
 mnemonic_to_semantics SETNP  si si' = SetXX
 mnemonic_to_semantics SETPO  si si' = SetXX
 
+mnemonic_to_semantics CMOVO   si si' = ApplyCMov 
+mnemonic_to_semantics CMOVNO  si si' = ApplyCMov
+mnemonic_to_semantics CMOVS   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNS  si si' = ApplyCMov
+mnemonic_to_semantics CMOVE   si si' = ApplyCMov
+mnemonic_to_semantics CMOVZ   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNZ  si si' = ApplyCMov
+mnemonic_to_semantics CMOVB   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNAE si si' = ApplyCMov
+mnemonic_to_semantics CMOVC   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNB  si si' = ApplyCMov
+mnemonic_to_semantics CMOVAE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNC  si si' = ApplyCMov
+mnemonic_to_semantics CMOVBE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNA  si si' = ApplyCMov
+mnemonic_to_semantics CMOVA   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNBE si si' = ApplyCMov
+mnemonic_to_semantics CMOVL   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNGE si si' = ApplyCMov
+mnemonic_to_semantics CMOVG   si si' = ApplyCMov
+mnemonic_to_semantics CMOVGE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNL  si si' = ApplyCMov
+mnemonic_to_semantics CMOVLE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNG  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNLE si si' = ApplyCMov
+mnemonic_to_semantics CMOVP   si si' = ApplyCMov
+mnemonic_to_semantics CMOVPE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNP  si si' = ApplyCMov
+mnemonic_to_semantics CMOVPO  si si' = ApplyCMov
 
 
---TODO CMOV, TEST
+--TODO TEST
 --TODO other sign extension thingies
 
 mnemonic_to_semantics _      _ _  = NoSemantics
@@ -489,100 +795,211 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
   flg SETPE    = flgs
   flg SETNP    = flgs
   flg SETPO    = flgs
-
   flg CBW      = flgs
   flg CWDE     = flgs
   flg CDQE     = flgs
   flg CWD      = flgs
   flg CDQ      = flgs
   flg CQO      = flgs
-
   flg XCHG     = flgs
-
   flg mnemonic = if isJump mnemonic || isCondJump mnemonic then flgs else None -- TODO
-  --TODO
 
 
 
 
 
-mk_cvalue fctxt (Bottom (FromPointerBases bs)) = Bases bs
-mk_cvalue fctxt (Bottom (FromSources srcs))    = mk_sources fctxt srcs
-mk_cvalue fctxt e                              = Concrete $ NES.singleton $ simp e
+mk_cvalue fctxt = mk_concrete fctxt . NES.singleton
 
-
-mk_sources fctxt srcs =
-  let srcs' = flatten_srcs srcs in
-   if NES.size srcs' <= ctxt_max_num_of_sources (f_ctxt fctxt) then
-     Sources srcs'
-   else
-     trace' fctxt "Max num of sources exceeded." Top
+mk_cmem_value :: FContext -> String -> SValue -> SValue -> SValue
+mk_cmem_value fctxt msg a si = 
+  case ctry_immediate si of
+    Just si' -> mk (S.toList $ cmk_mem_addresses fctxt msg a) si' 
+    Nothing  -> Top -- trace ("Reading Top from memory: " ++ show (msg,a,si)) 
  where
-  flatten_srcs srcs = 
-    let (ms,srcs') = S.partition is_src_mem $ NES.toSet srcs in
-      if S.null ms then 
-        NES.unsafeFromSet srcs'
-      else
-        let src' = Src_Mem $ NES.unions $ NES.map flatten $ NES.unsafeFromSet ms in
-          NES.insertSet src' srcs'
+  mk [SPointer ptrs] si'
+    | NES.size ptrs == 1 = mk_cvalue fctxt $ SE_Var $ SP_Mem (ptrvalue_to_expr $ NES.findMin ptrs) $ fromIntegral si'
+    | otherwise          = Top -- trace ("Reading from uninitialized memory: " ++ show (msg,a,si))
+  mk [SConcrete as]  si'
+    | NES.size as == 1   = mk_cvalue fctxt $ SE_Var $ SP_Mem (NES.findMin as) $ fromIntegral si'
+    | otherwise          = Top
+  mk _               si' = Top  
 
-
-  flatten (Src_Mem srcs) = NES.unions $ NES.map flatten srcs
-  flatten src            = NES.singleton src
-
-
-mk_cmem_value fctxt msg a si = try_symbol `orElse` (try_det `orElse` use_sources)
+-- TODO also return size of region
+cmk_mem_addresses :: FContext -> String -> SValue -> S.Set SValue
+cmk_mem_addresses fctxt msg ptr = mk ptr
  where
-  try_symbol = do
-    a_v  <- ctry_immediate a
-    si_v <- ctry_immediate si
-    if address_has_external_symbol (f_ctxt fctxt) a_v then
-      return $ mk_cvalue fctxt $ SE_Var (SP_Mem (SE_Immediate a_v) 8)
-    else
-      Nothing
+  mk Top             = S.singleton Top
+  mk (SPointer ptrs) = S.map (mk_spointer fctxt . NES.singleton)  $ NES.toSet ptrs
+  mk (SConcrete es)
+    | any is_return_value es = -- trace ("Making mem address: " ++ show ptr ++ " (msg = " ++ msg ++ ")") $ 
+                               S.map (mk_cvalue fctxt) $ NES.toSet es -- TODO provide as output result
+    | otherwise              = S.map (mk_cvalue fctxt) $ NES.toSet es 
+  mk (SAddends es)   = S.singleton Top -- error $ "Making mem address: " ++ show ptr ++ " (msg = " ++ msg ++ ")"
 
-  try_det = do
-    a_v  <- ctry_deterministic a
-    si_v <- ctry_immediate si
-    return $ mk_cvalue fctxt $ SE_Var (SP_Mem a_v $ fromIntegral si_v)
- 
-  use_sources = 
-    case srcs_of_spointer fctxt a of
-      Nothing   -> Top
-      Just srcs -> mk_sources fctxt $ NES.singleton $ Src_Mem srcs
+  is_return_value (Bottom (FromCall f)) = f /= ""
+  is_return_value _ = False
 
-cmk_mem_addresses fctxt (Concrete es) = S.map (Concrete . NES.singleton) $ NES.toSet es
-cmk_mem_addresses fctxt a             = S.singleton a
-
-srcs_of_spointer fctxt (Concrete es)  = Just $ NES.unions $ NES.map (srcs_of_expr fctxt) es
-srcs_of_spointer fctxt (Bases bs   )  = Just $ NES.unions $ NES.map (srcs_of_base fctxt) bs
-srcs_of_spointer fctxt (Sources srcs) = Just srcs
-srcs_of_spointer fctxt Top            = Nothing
+mk_sstatepart fctxt (SP_Reg r)    = SSP_Reg r
+mk_sstatepart fctxt (SP_Mem a si) = SSP_Mem (mk_cvalue fctxt a) si -- TODO widen a if contains_bot
 
 
 
 
+data PtrBase =
+    PtrBase_StackPointer String
+  | PtrBase_Section Word64
+  | PtrBase_Malloc (Maybe Word64) (Maybe String)
+  | PtrBase_FunctionPtr Word64 String
+  | PtrBase_ReturnAddr String
+  | PtrBase_TLS 
+  | PtrBase_StatePart StatePart 
+  | PtrBase_Immediate Word64
+  | PtrBaseUnknown  -- TODO ad SimpleExpr
+ deriving (Eq,Ord,Show)
 
-cseparate fctxt msg a0 si0 a1 si1 = 
-  let si0' = SE_Immediate <$> ctry_immediate si0
-      si1' = SE_Immediate <$> ctry_immediate si1 
-      a0s  = S.map simp $ cspointer_to_exprs a0 -- TODO simp needed?
-      a1s  = S.map simp $ cspointer_to_exprs a1 in
-    not (S.null a0s) && not (S.null a1s) && all (\a0 -> all (\a1 -> necessarily_separate fctxt msg a0 si0' a1 si1') a1s) a0s
 
-calias fctxt a0 si0 a1 si1 = 
+
+
+get_base_of_spointer (Base_StackPointer f _)  = PtrBase_StackPointer f
+get_base_of_spointer (Base_Immediate i)       = PtrBase_Immediate i
+get_base_of_spointer (Base_Section i)         = PtrBase_Section i
+get_base_of_spointer (Base_Malloc id h _)     = PtrBase_Malloc id h
+get_base_of_spointer (Base_FunctionPtr a f _) = PtrBase_FunctionPtr a f
+get_base_of_spointer (Base_TLS _)             = PtrBase_TLS
+get_base_of_spointer (Base_ReturnAddr f)      = PtrBase_ReturnAddr f
+get_base_of_spointer (Base_StatePart sp _)    = PtrBase_StatePart sp
+
+svalue_to_bases fctxt (SPointer ptrs) = NES.map get_base_of_spointer ptrs
+svalue_to_bases _ _ = NES.singleton PtrBaseUnknown
+
+
+cseparate :: FContext -> String -> SValue -> SValue -> SValue -> SValue -> Bool
+-- cseparate fctxt msg v0 s0 v1 si1 | trace ("cseparate: "++ show (v0,v1)) False = error "trace"
+cseparate fctxt msg Top si0 a1 si1 = False
+cseparate fctxt msg a0 si0 Top si1 = False
+cseparate fctxt msg a0 si0 a1 si1 =
+  let si0' = ctry_immediate si0
+      si1' = ctry_immediate si1 in
+    or
+      [ separation_based_on_necessity a0 si0' a1 si1'
+      , separation_of_svalues a0 a1 ]
+ where
+  separation_based_on_necessity a0 si0' a1 si1' =
+    let es0 = csvalue_to_exprs a0
+        es1 = csvalue_to_exprs a1 in
+      and
+        [ es0 /= S.empty
+        , es1 /= S.empty
+        , all (uncurry $ necessarily_separate si0' si1') $ S.cartesianProduct es0 es1 ]
+
+  -- Separation of two symbolic expressions with known immediate sizes
+  necessarily_separate (Just si0') (Just si1') a0 a1 = necessarily_separate_expressions a0 si0' a1 si1'
+  necessarily_separate _ _ _ _ = False
+
+
+  separation_of_svalues v0 v1 = v0 /= v1 && (all (uncurry $ separate_bases) $ NES.cartesianProduct (svalue_to_bases fctxt v0) (svalue_to_bases fctxt v1))
+
+
+  -- Separation using pointer bases 
+  separate_bases PtrBaseUnknown PtrBaseUnknown = False -- trace ("Separation of " ++ show (a0, si0, a1, si1,svalue_to_bases fctxt a0,svalue_to_bases fctxt a1) ++ "\nFINIT ==\n" ++ show (f_init fctxt) ++ "\nmsg = " ++ msg)  TODO add VC
+  separate_bases PtrBaseUnknown v0 = separate_bases v0 PtrBaseUnknown
+
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_StackPointer f1) 
+    | f0 == f1  = False --if (a0,si0) == (a1,si1) then False else error $ "sep of " ++ show (a0,si0,a1,si1) 
+    | otherwise = True -- TODO ADD VC
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Section _)            = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Malloc _ _)           = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_FunctionPtr _ _)      = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_TLS)                  = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_StatePart _)          = True -- TODO add vc
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Immediate _ )         = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBaseUnknown)               = True -- TODO add vc
+
+  separate_bases (PtrBase_Section a0)      (PtrBase_Section a1)           = a0 /= a1 -- TODO ADD VC
+  separate_bases (PtrBase_Section a0)      (PtrBase_Malloc id1 h1)        = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_FunctionPtr _ _ )     = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_TLS)                  = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_StatePart sp1)        =
+    case find (\(sp',_) -> mk_sstatepart fctxt sp1 == sp') sps of
+      Just (_,Just imm) -> error "Should not happen?" -- cseparate fctxt msg a0 si0 imm si1
+      _ -> True
+  separate_bases (PtrBase_Section a0)      (PtrBase_Immediate i1)         = pointers_from_different_global_section (f_ctxt fctxt) a0 i1 -- TODO ADD VC
+  separate_bases (PtrBase_Section a0)      (PtrBaseUnknown)               = True -- TODO add vc
+
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_Malloc id1 h1)        = id0 /= id1
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_FunctionPtr _ _ )     = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_TLS)                  = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_StatePart _  )        = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_Immediate _)          = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBaseUnknown)               = True -- TODO add vc
+
+
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_FunctionPtr a1 _)    = a0 /= a1
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_TLS)                 = True
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_StatePart _  )       = True
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_Immediate i1)        = True -- TODO???
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBaseUnknown)              = True -- TODO add vc
+
+  separate_bases (PtrBase_TLS)              (PtrBase_TLS)                 = False
+  separate_bases (PtrBase_TLS)              (PtrBase_StatePart _  )       = True
+  separate_bases (PtrBase_TLS)              (PtrBase_Immediate _  )       = True
+  separate_bases (PtrBase_TLS)              (PtrBaseUnknown)              = True -- TODO add vc
+
+
+  separate_bases (PtrBase_StatePart sp0)    (PtrBase_StatePart sp1)       = 
+    case M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m of
+      Just Separate -> True
+      _             -> False
+  separate_bases (PtrBase_StatePart sp0)    (PtrBase_Immediate imm1)      =
+    case find (\(sp',_) -> mk_sstatepart fctxt sp0 == sp') sps of
+      Just (_,Just imm) -> error "Should not happen?" -- cseparate fctxt msg a0 si0 imm si1
+      _ -> True 
+  separate_bases (PtrBase_StatePart _)      (PtrBaseUnknown)              = False
+
+  separate_bases (PtrBase_Immediate i0)     (PtrBase_Immediate i1)      
+    | pointers_from_different_global_section (f_ctxt fctxt) i0 i1         = True -- TODO ADD VC
+    | i0 /= i1                                                            = False -- REMOVE TODO ADD VC error $ "Separation of " ++ show (a0, si0, a1, si1) ++ "\nFINIT ==\n" ++ show (f_init fctxt) ++ "\nmsg = " ++ msg
+    | otherwise                                                           = False
+  separate_bases (PtrBase_Immediate i0)     (PtrBaseUnknown)              = True -- TODO add vc
+
+
+  separate_bases (PtrBase_ReturnAddr f0)    (PtrBase_ReturnAddr f1)       = f0 /= f1
+  separate_bases (PtrBase_ReturnAddr f0)    _                             = True
+  separate_bases _                          (PtrBase_ReturnAddr f0)       = True
+
+  separate_bases b0 b1 = separate_bases b1 b0
+
+  FInit sps m = f_init fctxt 
+
+
+
+
+calias fctxt a0 si0 a1 si1 = (a0,si0) == (a1,si1) ||
   case (ctry_immediate si0, ctry_immediate si1) of
-    (Just si0', Just si1') -> si0' == si1' && equal a0 a1
-    _ -> False
+   (Just si0',Just si1') -> si0' == si1' && aliassing a0 si0' a1 si1' 
+   _                     -> False
  where
-  equal (Concrete a0s) (Concrete a1s) = all (\a0 -> all (\a1 -> necessarily_equal a0 a1) a1s) a0s
-  equal _ _ = False
+  aliassing (SPointer vs0) si0' (SPointer vs1) si1' = all (uncurry $ aliassing_ptrvalues si0' si1') (NES.cartesianProduct vs0 vs1)
+  aliassing (SConcrete e0) si0' (SConcrete e1) si1' = e0 == e1
+  aliassing _ _ _ _ = False
+
+
+  -- TODO experiment with this
+  aliassing_ptrvalues si0' si1' (Base_StatePart sp0 (PtrOffset off0)) (Base_StatePart sp1 (PtrOffset off1)) = off0 == off1 && or
+    [ sp0 == sp1
+    , M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m == Just Aliassing ]
+  aliassing_ptrvalues si0' si1' ptr0 ptr1 = and
+    [ ptr0 == ptr1
+    , not $ has_unknown_offset ptr0
+    , not $ has_unknown_offset ptr1 ]
+
+  FInit _ m = f_init fctxt
 
 cenclosed fctxt a0 si0 a1 si1 = 
   case (ctry_immediate si0, ctry_immediate si1) of
     (Just si0',Just si1') -> 
-      let a0s  = S.map simp $ cspointer_to_exprs a0
-          a1s  = S.map simp $ cspointer_to_exprs a1 in
+      let a0s  = csvalue_to_exprs a0
+          a1s  = csvalue_to_exprs a1 in
         not (S.null a0s) && not (S.null a1s) && all (\a0 -> all (\a1 -> necessarily_enclosed a0 si0' a1 si1') a1s) a0s
     _ -> False
 
@@ -591,30 +1008,49 @@ cenclosed fctxt a0 si0 a1 si1 =
 
 csensitive fctxt a si v =
   case (ctry_deterministic a,ctry_immediate si, ctry_deterministic v) of
-    (Just a',Just si',Just v') -> is_top_stackframe a' si' v' || is_pushed_reg a' si' v'
+    (Just a',Just si',Just v') -> is_top_stackframe a' si' || is_pushed_reg a' si' v' 
     _                          -> False
  where
   is_initial_reg (SE_Var (SP_Reg _)) = True
   is_initial_reg _                   = False
   
-  --is_top_stackframe (SE_Var (SP_StackPointer _)) _ _ = True
-  is_top_stackframe a' si' v' = si' == 8 && a' == (SE_Var $ SP_StackPointer (function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)))
+
+  is_top_stackframe (SE_Var (SP_StackPointer _)) _ = True
+  is_top_stackframe _ _ = False
+  -- is_top_stackframe a' si' v' = si' == 8 && a' == (SE_Var $ SP_StackPointer (function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)))
   is_pushed_reg a' si' v' = is_initial_reg v' && expr_is_highly_likely_local_pointer fctxt a'
 
 
 cread_from_ro_data fctxt a si = 
   case (ctry_immediate a,ctry_immediate si) of
-    (Just a',Just si') -> cimmediate <$> read_from_ro_datasection (f_ctxt fctxt) a' (fromIntegral si')
+    (Just a',Just si') -> cimmediate fctxt <$> read_from_ro_datasection (f_ctxt fctxt) a' (fromIntegral si')
     _                  -> Nothing
-
 
 cread_from_data fctxt a si = 
   case (ctry_immediate a,ctry_immediate si) of
-    (Just a',Just si') -> cimmediate <$> read_from_datasection (f_ctxt fctxt) a' (fromIntegral si')
+    (Just a',Just si') -> cimmediate fctxt <$> read_from_datasection (f_ctxt fctxt) a' (fromIntegral si')
     _                  -> Nothing
 
+ctry_relocation fctxt a si = 
+  case (ctry_immediate a, ctry_immediate si) of
+    (Just a',Just si) -> try_reloc a' <|> ((\_ -> mk_value a') <$> try_relocated_pointer fctxt a')
+    _                 -> Nothing
+ where
+  ctxt = f_ctxt fctxt
 
-instance SymbolicExecutable FContext SPointer where
+  try_reloc a' = get_trgt <$> (find (is_reloc_for a') $ ctxt_relocs $ f_ctxt fctxt)
+  is_reloc_for a' (Relocation a0 a1) = a0 == a'
+  get_trgt (Relocation a0 a1) = cimmediate fctxt a1
+
+  mk_value a' = mk_cvalue fctxt $ SE_Var $ SP_Mem (SE_Immediate a') 8
+
+
+
+
+
+
+
+instance SymbolicExecutable FContext SValue where
   sseparate                = cseparate
   senclosed                = cenclosed
   salias                   = calias
@@ -625,7 +1061,7 @@ instance SymbolicExecutable FContext SPointer where
   swiden                   = cwiden
   ssemantics               = csemantics
   sflg_semantics           = cflg_semantics
-  simmediate               = \_ -> cimmediate
+  simmediate               = cimmediate
   top                      = \_ -> Top
   mk_svalue                = mk_cvalue
   mk_smem_value            = mk_cmem_value
@@ -634,7 +1070,8 @@ instance SymbolicExecutable FContext SPointer where
   stry_jump_targets        = ctry_jump_targets
   stry_immediate           = \_ -> ctry_immediate 
   stry_deterministic       = \_ -> ctry_deterministic 
-  spointer_to_exprs        = \_ -> cspointer_to_exprs
+  stry_relocation          = ctry_relocation
+  svalue_to_exprs          = \_ -> csvalue_to_exprs
   saddress_has_instruction = \ctxt _ -> address_has_instruction (f_ctxt ctxt)
 
 
@@ -670,37 +1107,29 @@ init_pred ::
   -> String                     -- ^ The current function
   -> Invariants                 -- ^ The currently available invariants
   -> S.Set (NodeInfo,Predicate) -- ^ The currently known postconditions
-  -> S.Set SStatePart           -- ^ The currently known stateparts of the function
+  -> S.Set SStatePart            -- ^ The currently known stateparts of the function
   -> Predicate
 init_pred fctxt f curr_invs curr_posts curr_sps =
-  let finit                = f_init fctxt -- M.filter (not . contains_bot) $ 
+  let FInit finit _        = f_init fctxt -- M.filter (not . contains_bot) $ 
 
-      sps                  = S.union curr_sps (S.delete (SSP_Reg RIP) $ gather_stateparts curr_invs curr_posts)
+      sps                  = S.unions [curr_sps, S.map fst finit, (S.delete (SSP_Reg RIP) $ gather_stateparts curr_invs curr_posts)]
       (regs,regions)       = partitionWith reg_or_mem $ S.toList sps
 
-      rsp0                 = mk $ SE_Var $ SP_StackPointer f
+      rsp0                 = SPointer $ NES.singleton $ Base_StackPointer f $ PtrOffset 0
       write_stack_pointer  = execSstate (swrite_rreg fctxt RSP rsp0)
-      write_return_address = execSstate (swrite_mem fctxt rsp0 (simmediate fctxt 8) (mk_mem_value rsp0 (simmediate fctxt 8)))
+      top_stack_frame      = SPointer $ NES.singleton $ Base_ReturnAddr f
+      write_return_address = execSstate (swrite_mem fctxt rsp0 (cimmediate fctxt 8) top_stack_frame)
 
-      sregs                = M.union finit $ M.fromList (map (\r -> (r,mk $ SE_Var (SP_Reg r))) regs)
-      smem                 = S.fromList $ map mk_mem_entry regions in
-    write_stack_pointer $ write_return_address $ (Sstate sregs smem None) 
+      sregs                = M.fromList $ map (\r -> (r,mk_svalue fctxt $ SE_Var (SP_Reg r))) regs
+      smem                 = S.empty in
+    write_stack_pointer $ write_return_address $ write_finit (S.toList finit) $ (Sstate sregs smem None) 
  where
-  mk = mk_svalue fctxt
-
-  mk_mem_entry (a,si) =
-    let si' = cimmediate $ fromIntegral si in
-      ((a,si'), mk_mem_value a si')
-
   reg_or_mem (SSP_Reg r) = Left r
   reg_or_mem (SSP_Mem a si) = Right (a,si)
 
-  mk_mem_value a si =
-    case (ctry_deterministic a, ctry_immediate si) of
-      (Just a',Just si') -> mk $ SE_Var (SP_Mem a' (fromIntegral si'))
-      _ -> mk_smem_value fctxt "init_pred" a si
-
-
+  write_finit [] s                   = s
+  write_finit ((sp,Nothing):finit) s = write_finit finit s
+  write_finit ((sp,Just v):finit)  s = write_finit finit $ execSstate (write_sp fctxt sp v) s
 
 
 -- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
@@ -714,8 +1143,8 @@ gather_stateparts invs posts = S.unions [IM.foldr accumulate_stateparts S.empty 
 
   get_stateparts_of_sstates ps = S.unions $ map get_stateparts_of_sstate $ S.toList $ ps
 
-  get_stateparts_of_sstate (Sstate sregs smem _) = S.unions [gather_regs sregs, gather_reg_values sregs, gather_regions smem, gather_mem_values smem]
-
+get_stateparts_of_sstate (Sstate sregs smem _) = S.unions [gather_regs sregs, gather_reg_values sregs, gather_regions smem, gather_mem_values smem]
+ where
   gather_regs       regs = S.fromList $ map SSP_Reg $ M.keys regs 
   gather_reg_values regs = S.empty -- TODO
   gather_regions    mem  = S.fromList $ catMaybes $ map mk_mem_region $ S.toList mem
@@ -723,41 +1152,68 @@ gather_stateparts invs posts = S.unions [IM.foldr accumulate_stateparts S.empty 
 
   mk_mem_region ((a,si),_) = 
     case (ctry_deterministic a, ctry_immediate si) of
-      (Just _, Just si') -> Just $ SSP_Mem a $ fromIntegral si'
-      _                  -> Nothing
+      (Just a', Just si') -> Just $ SSP_Mem a $ fromIntegral si'
+      _                   -> Nothing
 
 
 
+
+mapMaybeS :: Ord b => (a -> Maybe b) -> S.Set a -> S.Set b
+mapMaybeS f = S.map fromJust . S.filter ((/=) Nothing) . S.map f
 
 -- | Convert the current invariant into a function initialisation
 invariant_to_finit :: FContext -> Predicate -> FInit
-invariant_to_finit ctxt (Sstate regs smem _) = M.fromList $ mapMaybe mk_finit_entry $ filter is_suitable_for_finit $ M.assocs regs
+invariant_to_finit fctxt p = 
+  let sps   = mapMaybeS maybe_read_sp $ get_stateparts_of_sstate p
+      pairs = S.toList $ S.filter (\(x,y) -> x /= y) $ S.cartesianProduct sps sps
+      finit = FInit (S.map keep_globals sps) (M.fromList $ map mk_memrel pairs) in
+    finit -- trace ("Turning into finit, precondition: \n" ++ show p ++ "\n-->\n" ++ show finit) finit 
  where
-  is_suitable_for_finit (r,_)    = r `notElem` [RIP,RSP,RBP]
-  -- is_suitable_for_finit (SP_Mem a si,_) = is_immediate a -- TODO
+  keep_globals (sp,v) 
+    | is_global v = (sp,Just v)
+    | otherwise   = (sp,Nothing)
 
-  mk_finit_entry (r,v) =
-    if is_immediate_pointer $ ctry_immediate v then
-      Just (r,v)
-    else
-      case ctry_deterministic v of
-        Just _  -> Nothing -- TODO fw transposition Just (r,v)
-        Nothing ->
-          case cwiden ctxt "mk_finit" v of
-            v@(Bases _) -> Just (r,v)
-            _           -> Nothing
+  maybe_read_sp sp
+    | suitable_sp sp =
+      let v = evalSstate (read_sp fctxt sp) p in
+        onlyWhen (svalue_maybe_a_pointer v) (sp,v)
+    | otherwise = Nothing
 
-  is_immediate_pointer (Just a) = find_section_for_address (f_ctxt ctxt) (fromIntegral a) /= Nothing
-  is_immediate_pointer _        = False -- What if non-determinism?
+  suitable_sp (SSP_Reg r)    = r `notElem` [RIP,RSP,RBP]
+  suitable_sp (SSP_Mem a si) = is_global a
+
+
+  mk_memrel ((sp0,v0),(sp1,v1))
+    | cseparate fctxt "invariant_to_finit" v0 mk0 v1 mk0 = ((sp0,sp1),Separate)
+    | calias fctxt v0 mk0 v1 mk0 = ((sp0,sp1),Aliassing)
+    | otherwise = ((sp0,sp1),Unknown) -- TODO
+  mk0 = cimmediate fctxt 1
+
+
+  is_global (SPointer ptrs) = all is_global_ptr ptrs 
+  is_global _ = False
+
+  is_global_ptr (Base_Immediate _)   = True
+  is_global_ptr (Base_Section _)     = True
+  is_global_ptr _                    = False
+
+  svalue_maybe_a_pointer (SPointer _) = True
+  svalue_maybe_a_pointer _ = False
+
+
 
 
 -- | The join between two function initialisations
 join_finit :: FContext -> FInit -> FInit -> FInit
-join_finit ctxt f0 f1 = M.filter keep $ M.intersectionWith (\a b -> sjoin ctxt "finit: " [a,b]) f0 f1
+join_finit fctxt f0@(FInit sps0 m0) f1@(FInit sps1 m1)
+  | f0 == f1 = f0
+  --  | f0 == init_finit = f1
+  --  | f1 == init_finit = f0
+  | otherwise = FInit (S.intersection sps0 sps1) (M.intersectionWith join_rel m0 m1)
  where
-  keep v = ctry_deterministic v /= Nothing -- TODO
-
-
+  join_rel r0 r1
+    | r0 == r1  = r0
+    | otherwise = Unknown
 
 
 
@@ -830,6 +1286,8 @@ external_function_behavior _ "_fts_open$INODE64" = pure_and_fresh
 external_function_behavior _ "_opendir$INODE64" = pure_and_fresh
 external_function_behavior _ "fopen" = pure_and_fresh
 external_function_behavior _ "_fopen" = pure_and_fresh
+external_function_behavior _ "_fdopen" = pure_and_fresh
+external_function_behavior _ "_wfdopen" = pure_and_fresh
 external_function_behavior _ "_fgetln" = pure_and_fresh
 external_function_behavior _ "fgetln" = pure_and_fresh
 external_function_behavior _ "_setlocale" = pure_and_fresh
@@ -840,6 +1298,12 @@ external_function_behavior _ "nl_langinfo" = pure_and_fresh
 external_function_behavior _ "setlocale" = pure_and_fresh
 external_function_behavior _ "__errno_location" = pure_and_fresh
 external_function_behavior _ "_popen" = pure_and_fresh
+external_function_behavior _ "__ctype_tolower_loc" = pure_and_fresh
+external_function_behavior _ "__ctype_toupper_loc" = pure_and_fresh
+external_function_behavior _ "readdir" = pure_and_fresh
+external_function_behavior _ "getmntent" = pure_and_fresh
+external_function_behavior _ "setmntent" = pure_and_fresh
+external_function_behavior _ "hasmntopt" = pure_and_fresh
 -- | A list of some functions that are assumed not to change the state in any significant way, and that return an unknown bottom value through RAX
 external_function_behavior _ "feof" = pure_and_unknown
 external_function_behavior _ "_feof" = pure_and_unknown
@@ -887,7 +1351,6 @@ external_function_behavior _ "_strncmp" = pure_and_unknown
 external_function_behavior _ "strcmp" = pure_and_unknown
 external_function_behavior _ "strncmp" = pure_and_unknown
 external_function_behavior _ "strlen" = pure_and_unknown
-external_function_behavior _ "_strlen" = pure_and_unknown
 external_function_behavior _ "_ilogb" = pure_and_unknown
 external_function_behavior _ "_atoi" = pure_and_unknown
 external_function_behavior _ "_getopt" = pure_and_unknown
@@ -957,6 +1420,8 @@ external_function_behavior _ "memset"               = ExternalFunctionBehavior [
 external_function_behavior _ "_memset"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "__memset_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "___memset_chk"        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "_index"               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_rindex"              = ExternalFunctionBehavior [] $ Input $ param 0
 
 -- A list of functions that return a pointer given to them by a parameter
 external_function_behavior _ "_realloc"             = ExternalFunctionBehavior [] $ Input $ param 0
@@ -964,9 +1429,11 @@ external_function_behavior _ "_malloc_zone_realloc" = ExternalFunctionBehavior [
 external_function_behavior _ "_recallocarray"       = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "realloc"              = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "__strcpy_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "_strncpy"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "strcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "strncpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "stpcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "memcpy"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "_memcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "__memcpy_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
@@ -976,14 +1443,23 @@ external_function_behavior _ "memmove"              = ExternalFunctionBehavior [
 external_function_behavior _ "_memmove"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "strcat"               = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "_strcat"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ "strchr"               = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strchr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "strrchr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strrchr"             = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_memchr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "memchr"               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "strstr"               = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strstr"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strpbrk"             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strtok"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "strtok"               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "_strlen"              = ExternalFunctionBehavior [] $ Input $ param 0
 
 
 external_function_behavior fctxt f
  | is_exiting_function_call f = pure_and_unknown
- | otherwise = trace' fctxt ("Unknown external function: " ++ f) $ ExternalFunctionBehavior [] UnknownReturnValue
+ | otherwise                  = ExternalFunctionBehavior [] UnknownReturnValue -- trace ("Unknown external function: " ++ f) $ 
 
 
 
@@ -1011,96 +1487,74 @@ external_function_behavior fctxt f
 -- Transposing this equality produces:
 --   *[RSP0-40,8] == 10
 
-transpose_bw_exprs :: FContext -> String -> String -> Sstate SPointer -> NES.NESet SimpleExpr -> SPointer
-transpose_bw_exprs fctxt f_caller f_callee p = cjoin_all fctxt "transpose_bw" . NES.map (transpose_bw_e fctxt f_caller f_callee p)
+transpose_bw_offset :: FContext -> PtrOffset -> SValue -> SValue
+transpose_bw_offset fctxt (PtrOffset off) v = svalue_plus fctxt 64 v (cimmediate fctxt off)
+transpose_bw_offset fctxt UnknownOffset v   = cwiden fctxt "transpose_bw_offset" v
 
-transpose_bw_spointer :: FContext -> String -> String -> Sstate SPointer -> SPointer -> SPointer
-transpose_bw_spointer fctxt f_caller f_callee p (Concrete es)  = transpose_bw_exprs fctxt f_caller f_callee p es
-transpose_bw_spointer fctxt f_caller f_callee p (Bases bs)     = Bases $ NES.map (transpose_bw_base fctxt f_caller f_callee p) bs
-transpose_bw_spointer fctxt f_caller f_callee p (Sources srcs) = (mk_sources fctxt <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)) `orElse` Top
-transpose_bw_spointer fctxt f_caller f_callee p Top            = Top
+transpose_bw_ptrvalue :: FContext -> Sstate SValue -> Sstate SValue -> PtrValue -> SValue
+transpose_bw_ptrvalue fctxt p q (Base_StackPointer f offset)  = transpose_bw_offset fctxt offset $ evalSstate (read_sp fctxt (SSP_Reg RSP)) p
+transpose_bw_ptrvalue fctxt p q b@(Base_Immediate a)          = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_Section i)            = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_Malloc _ _ _)         = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_FunctionPtr _ _ _)    = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_ReturnAddr _)         = error $ "Transposition of return address"
+transpose_bw_ptrvalue fctxt p q b@(Base_TLS _)                = error $ "Transposition of TLS"
+transpose_bw_ptrvalue fctxt p q b@(Base_StatePart sp offset)  = transpose_bw_offset fctxt offset $ evalSstate (read_sp fctxt $ transpose_bw_sp fctxt p sp) p
+
+transpose_bw_spointer :: FContext -> Sstate SValue -> Sstate SValue -> SValue -> SValue
+transpose_bw_spointer fctxt p q (SPointer ptrs) = cjoin_all fctxt "transpose_bw" $ NES.map (transpose_bw_ptrvalue fctxt p q) ptrs
+transpose_bw_spointer fctxt p q (SConcrete es)  = cjoin_all fctxt "transpose_bw" $ NES.map (transpose_bw_e fctxt p) es
+transpose_bw_spointer fctxt p q (SAddends adds) = cwiden_all fctxt "transpose_bw" $ neSetToList $ NES.map (transpose_bw_e fctxt p . SE_Var) adds
+transpose_bw_spointer fctxt p q Top             = Top
 
 
 
     
-transpose_bw_reg :: FContext -> String -> String -> Sstate SPointer -> (Register, SPointer) -> Maybe (Register, SPointer)
-transpose_bw_reg fctxt f_caller f_callee p (r,v) =
-  let v' = transpose_bw_spointer fctxt f_caller f_callee p v in
-    if v' == Top then
-      Nothing -- TODO add vcs
-    else
-      Just $ (r,v') -- traceShow ("transposition" ++ show (f_caller,f_callee,r,v,v')) (r,v')
+transpose_bw_reg :: FContext -> Sstate SValue -> Sstate SValue -> (Register, SValue) -> Maybe (Register, SValue)
+transpose_bw_reg fctxt p q (r,v) =
+  let v' = transpose_bw_spointer fctxt p q v in
+    Just $ (r,v')
 
-transpose_bw_mem :: FContext -> String -> String -> Sstate SPointer -> ((SPointer,SPointer), SPointer) -> Maybe ((SPointer,SPointer), SPointer)
-transpose_bw_mem fctxt f_caller f_callee p ((a,si),v) =
-  let a'  = transpose_bw_spointer fctxt f_caller f_callee p a
-      si' = transpose_bw_spointer fctxt f_caller f_callee p si in
-    if a' == Top then
-      Nothing  -- TODO add vcs
-    else
-      -- traceShow ("transposition" ++ show (f_caller,f_callee,(a,si),(a',si'))) $ 
-      Just ((a',si'), transpose_bw_spointer fctxt f_caller f_callee p v)
+transpose_bw_mem :: FContext -> Sstate SValue -> Sstate SValue -> ((SValue,SValue), SValue) -> Maybe ((SValue,SValue), SValue)
+transpose_bw_mem fctxt p q ((a,si),v) =
+  let a'  = transpose_bw_spointer fctxt p q a
+      si' = transpose_bw_spointer fctxt p q si in
+    Just ((a',si'), transpose_bw_spointer fctxt p q v)
 
 
 
 
-transpose_bw_e :: FContext -> String -> String -> Sstate SPointer -> SimpleExpr -> SPointer
-transpose_bw_e fctxt f_caller f_callee p (Bottom (FromPointerBases bs))   = mk_cvalue fctxt $ Bottom (FromPointerBases $ NES.map (transpose_bw_base fctxt f_caller f_callee p) bs)
-transpose_bw_e fctxt f_caller f_callee p (Bottom typ)                     = (mk_cvalue fctxt . Bottom <$> transpose_bw_bottyp fctxt f_caller f_callee p typ) `orElse` Top
-transpose_bw_e fctxt f_caller f_callee p (SE_Malloc id hash)              = mk_cvalue fctxt $ SE_Malloc id hash
-transpose_bw_e fctxt f_caller f_callee p (SE_Immediate i)                 = cimmediate i
-transpose_bw_e fctxt f_caller f_callee p (SE_StatePart sp)                = Top
-transpose_bw_e fctxt f_caller f_callee p (SE_Var (SP_StackPointer f))     = if f == f_callee then evalSstate (read_sp fctxt (SSP_Reg RSP)) p else mk_cvalue fctxt $ SE_Var (SP_StackPointer f)
-transpose_bw_e fctxt f_caller f_callee p (SE_Var sp)                      = evalSstate (read_sp fctxt $ transpose_bw_sp fctxt f_caller f_callee p sp) p
-transpose_bw_e fctxt f_caller f_callee p (SE_Bit i e)                     = csemantics fctxt $ SO_Bit i $ transpose_bw_e fctxt f_caller f_callee p e
-transpose_bw_e fctxt f_caller f_callee p (SE_SExtend l h e)               = csemantics fctxt $ SO_SExtend l h $ transpose_bw_e fctxt f_caller f_callee p e
-transpose_bw_e fctxt f_caller f_callee p (SE_Op Plus si [a,b])            = csemantics fctxt $ SO_Op ADD (si `div` 8) Nothing [transpose_bw_e fctxt f_caller f_callee p a,transpose_bw_e fctxt f_caller f_callee p b]
-transpose_bw_e fctxt f_caller f_callee p (SE_Op Minus si [a,b])           = csemantics fctxt $ SO_Op SUB (si `div` 8) Nothing [transpose_bw_e fctxt f_caller f_callee p a,transpose_bw_e fctxt f_caller f_callee p b]
-transpose_bw_e fctxt f_caller f_callee p (SE_Op op si es)                 = apply_expr_op fctxt (mk_expr fctxt . SE_Op op si) $ map (transpose_bw_e fctxt f_caller f_callee p) es
-transpose_bw_e fctxt f_caller f_callee p (SE_Overwrite i a b)             = csemantics fctxt $ SO_Overwrite i (transpose_bw_e fctxt f_caller f_callee p a) (transpose_bw_e fctxt f_caller f_callee p b)
+transpose_bw_e :: FContext -> Sstate SValue -> SimpleExpr -> SValue
+transpose_bw_e fctxt p (Bottom (FromCall f))            = mk_cvalue fctxt $ Bottom (FromCall f)
+transpose_bw_e fctxt p (SE_Malloc id hash)              = mk_cvalue fctxt $ SE_Malloc id hash
+transpose_bw_e fctxt p (SE_Immediate i)                 = cimmediate fctxt i
+transpose_bw_e fctxt p (SE_StatePart sp)                = Top
+transpose_bw_e fctxt p (SE_Var (SP_StackPointer f))     = evalSstate (read_sp fctxt (SSP_Reg RSP)) p
+transpose_bw_e fctxt p (SE_Var sp)                      = evalSstate (read_sp fctxt $ transpose_bw_sp fctxt p sp) p
+transpose_bw_e fctxt p (SE_Bit i e)                     = csemantics fctxt "transpose_bw" $ SO_Bit i $ transpose_bw_e fctxt p e
+transpose_bw_e fctxt p (SE_SExtend l h e)               = csemantics fctxt "transpose_bw" $ SO_SExtend l h $ transpose_bw_e fctxt p e
+transpose_bw_e fctxt p (SE_Op Plus si [a,b])            = csemantics fctxt "transpose_bw" $ SO_Op ADD (si `div` 8) Nothing [transpose_bw_e fctxt p a,transpose_bw_e fctxt p b]
+transpose_bw_e fctxt p (SE_Op Minus si [a,b])           = csemantics fctxt "transpose_bw" $ SO_Op SUB (si `div` 8) Nothing [transpose_bw_e fctxt p a,transpose_bw_e fctxt p b]
+transpose_bw_e fctxt p (SE_Op op si es)                 = apply_expr_op fctxt "transpose_bw" (mk_expr fctxt . SE_Op op si) $ map (transpose_bw_e fctxt p) es
+transpose_bw_e fctxt p (SE_Overwrite i a b)             = csemantics fctxt "transpose_bw" $ SO_Overwrite i (transpose_bw_e fctxt p a) (transpose_bw_e fctxt p b)
 
-transpose_bw_sp fctxt f_caller f_callee p (SP_Reg r) = SSP_Reg r
-transpose_bw_sp fctxt f_caller f_callee p (SP_Mem a si) = SSP_Mem (transpose_bw_e fctxt f_caller f_callee p a) si
-
-transpose_bw_bottyp fctxt f_caller f_callee p (FromSources srcs)             = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromOverlap srcs)             = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromMemWrite srcs)            = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromSemantics srcs)           = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromBitMode srcs)             = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromUninitializedMemory srcs) = FromSources <$> (mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs)
-transpose_bw_bottyp fctxt f_caller f_callee p (FromCall f)                   = Just $ FromCall f
-
-transpose_bw_src fctxt f_caller f_callee p src@(Src_Var sp)             = srcs_of_spointer fctxt $ transpose_bw_e fctxt f_caller f_callee p (SE_Var sp)
-transpose_bw_src fctxt f_caller f_callee p src@(Src_Mem srcs)           = 
-  case mk_NE_sources $ NES.map (transpose_bw_src fctxt f_caller f_callee p) srcs of
-    Nothing -> Nothing
-    Just a  -> srcs_of_spointer fctxt $ evalSstate (sread_mem fctxt "transpose_bw" (Sources a) Top) p
-transpose_bw_src fctxt f_caller f_callee p src@(Src_StackPointer f)     = Just $ if f == f_callee then NES.singleton $ Src_StackPointer f_caller else NES.singleton src
-transpose_bw_src fctxt f_caller f_callee p src@(Src_Malloc id h)        = Just $ NES.singleton src
-transpose_bw_src fctxt f_caller f_callee p src@(Src_Function f)         = Just $ NES.singleton src
-transpose_bw_src fctxt f_caller f_callee p src@(Src_ImmediateAddress a) = Just $ NES.singleton src
-transpose_bw_src fctxt f_caller f_callee p src@(Src_ImmediateConstants) = Just $ NES.singleton src
-
-transpose_bw_base fctxt f_caller f_callee p b@(StackPointer f)      = if f == f_callee then StackPointer f_caller else b
-transpose_bw_base fctxt f_caller f_callee p b@(GlobalAddress _)     = b
-transpose_bw_base fctxt f_caller f_callee p b@(PointerToSymbol _ _) = b
-transpose_bw_base fctxt f_caller f_callee p b@(Malloc _ _)          = b
-
-mk_NE_sources s 
-  | Nothing `NES.member` s = Nothing
-  | otherwise              = Just $ NES.unions $ NES.map fromJust s
+transpose_bw_sp fctxt p (SP_Reg r) = SSP_Reg r
+transpose_bw_sp fctxt p (SP_Mem a si) = SSP_Mem (transpose_bw_e fctxt p a) si
 
 
-read_sp :: FContext -> SStatePart -> State (Sstate SPointer, VCS) SPointer
+
+read_sp :: FContext -> SStatePart -> State (Sstate SValue, VCS) SValue
 read_sp fctxt (SSP_Reg r)    = sread_reg fctxt r
 read_sp fctxt (SSP_Mem a si) = sread_mem fctxt "read_sp" a si'
  where
-   si' = cimmediate $ fromIntegral si
+   si' = cimmediate fctxt $ fromIntegral si
+
+write_sp :: FContext -> SStatePart -> SValue -> State (Sstate SValue, VCS) ()
+write_sp fctxt (SSP_Reg r)    v = swrite_reg fctxt r v
+write_sp fctxt (SSP_Mem a si) v = swrite_mem fctxt a (cimmediate fctxt si) v
 
 
-
-
-data FunctionType = AnalyzedInternalFunction (Sstate SPointer) | ExternalFunction | AnalyzedInternalFunctionTerminates | AnalyzedInternalFunctionUnknown
+data FunctionType = AnalyzedInternalFunction (Sstate SValue) | ExternalFunction | AnalyzedInternalFunctionTerminates | AnalyzedInternalFunctionUnknown
 
 get_function_type fctxt i f_callee =
   ftype $ map postcondition_of_jump_target $ resolve_jump_target (f_ctxt fctxt) i
@@ -1121,34 +1575,40 @@ get_function_type fctxt i f_callee =
 
 
 -- | Executes semantics for external functions.
-call :: FContext -> X86.Instruction -> State (Sstate SPointer,VCS) ()
-call fctxt i = do
+call :: FContext -> Bool -> X86.Instruction -> State (Sstate SValue,VCS) ()
+call fctxt is_jump i = do
   case get_function_type fctxt i f_callee of
     AnalyzedInternalFunctionUnknown    -> unknown_internal_function fctxt i
-    AnalyzedInternalFunctionTerminates -> return ()
+    AnalyzedInternalFunctionTerminates -> incr_rsp
     AnalyzedInternalFunction q         -> internal_function q
     ExternalFunction                   -> external_function 
  where
   external_function = case external_function_behavior fctxt f_callee of
-    ExternalFunctionBehavior params output -> {--mapM_ write_param params >> --} write_output output -- writing to params really roughly overapproximates
+    ExternalFunctionBehavior params output -> {--mapM_ write_param params >> --} write_output output >> incr_rsp-- writing to params really roughly overapproximates
+
+  write_output FreshPointer       = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ SE_Malloc (Just (addressof i)) (Just ""))
+  write_output UnknownReturnValue = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ Bottom (FromCall f_callee))
+  write_output (Input r)          = sread_reg fctxt r >>= swrite_reg fctxt RAX
+
+  incr_rsp
+    | is_jump   = sexec_instr fctxt (Instruction (AddressWord64 0) Nothing ADD Nothing [Storage RSP, Immediate 8] Nothing)
+    | otherwise = return ()
+
+  decr_rsp
+    | not is_jump  = sexec_instr fctxt (Instruction (AddressWord64 0) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing)
+    | otherwise    = return ()
 
   internal_function q = do
-    -- push return address
-    let return_address = addressof i + fromIntegral (sizeof i)
-    sexec_instr fctxt (Instruction (AddressWord64 return_address) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing)
-    -- sexec_instr fctxt (Instruction (AddressWord64 0) Nothing PUSH Nothing [Immediate return_address] Nothing)
+    -- push return address if is call
+    decr_rsp
 
     (p,vcs) <- get
     -- obtain the postcondition of the function, and do backwards transposition
-    let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt f_name f_callee p) $ filter ((/=) RIP . fst) $ sstate_to_reg_eqs q
-    let q_eqs_transposed_mem   = catMaybes $ map (transpose_bw_mem fctxt f_name f_callee p) $ filter do_transfer $ sstate_to_mem_eqs q
-
-
-    -- let q_eqs_transposed_regs' = traceShow ("transposition", p, q_eqs_transposed_regs,q_eqs_transposed_mem) q_eqs_transposed_regs
-
+    let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt p q) $ filter ((/=) RIP . fst) $ sstate_to_reg_eqs q
+    let q_eqs_transposed_mem   = catMaybes $ map (transpose_bw_mem fctxt p q) $ filter do_transfer $ sstate_to_mem_eqs q
     -- write transposed postcondition to current state
-    mapM_ (uncurry $ swrite_reg fctxt) $ q_eqs_transposed_regs
-    mapM_ write_sp $ q_eqs_transposed_mem 
+    mapM_ (\((a,si),v) -> swrite_mem fctxt a si v) $ q_eqs_transposed_mem 
+    mapM_ (\(r,v) -> swrite_reg fctxt r v) $ q_eqs_transposed_regs
 
 
   -- in case of an external function, which is passed a parameter $r$ 
@@ -1161,75 +1621,80 @@ call fctxt i = do
     let bot = cwiden fctxt "write_param_v" v'
     swrite_mem fctxt a' si' bot
 
-  write_output FreshPointer       = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ SE_Malloc (Just (addressof i)) (Just ""))
-  write_output UnknownReturnValue = swrite_reg fctxt RAX $ (mk_sources fctxt $ NES.singleton $ Src_Function f_callee)  -- TODO overwrite volatile regs as well?
-  write_output (Input r)          = sread_reg fctxt r >>= swrite_reg fctxt RAX
 
-
-  do_transfer ((a,si),v) = not (is_initial (a,si) v) && srcs_of_spointer fctxt a `existsAndSatisfies` (not . any is_local_to_not_f)
-  --do_transfer ((a,si),v) = not (any is_local_to_not_f $ srcs_of_spointer fctxt a) -- && not (is_initial (a,si) v) -- TODO!
-  --
+  do_transfer ((a,si),v) = not (is_initial (a,si) v) && not (is_top_stackframe a si) && not (is_local_svalue a)
   
-  is_initial :: (SPointer,SPointer) -> SPointer -> Bool
+  is_initial :: (SValue,SValue) -> SValue -> Bool
   is_initial (a,si) v =
     case (ctry_deterministic a, ctry_immediate si) of
-      (Just a', Just si') -> v == mk_svalue fctxt (SE_Var (SP_Mem a' (fromIntegral si')))
+      (Just a', Just si') -> v == mk_cmem_value fctxt "is_initial" a si
       _                   -> False
 
-  is_local_to_not_f (Src_StackPointer f') = f_name /= f' -- TODO keep when f' is from current SCC callgraph
-  is_local_to_not_f _                     = False
+  is_top_stackframe ptr si =  
+    case (ctry_deterministic ptr,ctry_deterministic si) of
+      (Just (SE_Var (SP_StackPointer _)), Just _) -> True
+      _ -> False
 
 
   f_name  = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
   f_callee = function_name_of_instruction (f_ctxt fctxt) i
 
-  write_sp ((a,si),v) 
-    | spointer_is_maybe_local_pointer a = return () -- TODO add VCS, use sensitive regions
-    | otherwise = swrite_mem fctxt a si v
-
-
-  sstate_to_reg_eqs :: Sstate a -> [(Register, a)]
   sstate_to_reg_eqs (Sstate regs _ _) = M.toList regs
-
-  sstate_to_mem_eqs :: Sstate a -> [((a,a), a)]
   sstate_to_mem_eqs (Sstate _ mem _) = S.toList mem
 
-  spointer_is_maybe_local_pointer v = any (expr_is_maybe_local_pointer fctxt) $ cspointer_to_exprs v
 
 
-unknown_internal_function fctxt i = return () -- TODO try as external
+  unknown_internal_function fctxt i = incr_rsp -- TODO try as external
 
 
-jump :: FContext -> X86.Instruction -> State (Sstate SPointer,VCS) ()
+is_local_svalue (SPointer ptrs) = any is_local_ptrvalue ptrs
+is_local_svalue (SConcrete es)  = any is_local_expr es
+is_local_svalue (SAddends adds) = any is_local_var $ NES.map SE_Var adds
+is_local_svalue Top             = False
+
+is_local_ptrvalue (Base_StackPointer _ _)  = True
+is_local_ptrvalue b@(Base_StatePart sp _ ) = if is_local_var $ SE_Var sp then error $ show b else False
+is_local_ptrvalue _                        = False
+
+is_local_expr = any is_local_var . S.map SE_Var . get_addends
+
+is_local_var (SE_Var (SP_StackPointer _)) = True
+is_local_var (SE_Var (SP_Mem a si))       = is_local_expr a
+is_local_var _                            = False
+
+
+jump :: FContext -> X86.Instruction -> State (Sstate SValue,VCS) ()
 jump fctxt i
-  | jump_is_actually_a_call (f_ctxt fctxt) i = call fctxt i >> sreturn fctxt
+  | jump_is_actually_a_call (f_ctxt fctxt) i = call fctxt True i >> sexec_instr fctxt (Instruction (AddressWord64 0) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing) >> sreturn fctxt
   | otherwise                                = return ()
 
 
-ctry_jump_targets :: FContext -> SPointer -> Maybe (S.Set ResolvedJumpTarget)
-ctry_jump_targets fctxt (Concrete es) 
-  | NES.size es == 1 =
-    case NES.findMin es of
-      SE_Immediate a                     -> if address_has_instruction (f_ctxt fctxt) a then Just $ S.singleton $ ImmediateAddress a else Nothing -- TODO or symbol?
-      SE_Var (SP_Mem (SE_Immediate a) _) -> S.singleton <$> try_external a
-      _                                  -> Nothing
-  | all (expr_highly_likely_pointer fctxt) es = Just $ S.map mk_resolved_jump_target $ NES.toSet es
-  | otherwise = Nothing
+ctry_jump_targets :: FContext -> SValue -> Maybe (S.Set ResolvedJumpTarget)
+ctry_jump_targets fctxt ptr = try ptr
  where
-  mk_resolved_jump_target (SE_Immediate a)                     = ImmediateAddress a
-  mk_resolved_jump_target (SE_Var (SP_Mem (SE_Immediate a) _)) =
-    case try_external a of
-      Just trgt -> trgt
-      Nothing   -> error $ show ("indirections", showHex a) 
-  mk_resolved_jump_target a                                    = error $ show ("resolving", a, expr_highly_likely_pointer fctxt a,get_pointer_bases fctxt a)
+  try (SPointer ptrs) =
+    let addresses = NES.map try_address ptrs in
+      if all ((==) Nothing) addresses then
+        trace ("Cannot resolve indirection: " ++ show ptr) Nothing
+      --else if any ((==) Nothing) addresses then
+      --  error $ "TODO:" ++ show ptr
+      else --TODO ADD VC
+        Just $ S.map fromJust $ S.filter ((/=) Nothing) $ NES.toSet addresses    
+  try _ = trace ("Cannot resolve indirection: " ++ show ptr) Nothing
+
+  try_address (Base_FunctionPtr a f (PtrOffset 0))  = Just $ External f
+  try_address (Base_Immediate imm)                  = try_immediate_address imm
+  try_address _ = Nothing
+
+  try_immediate_address a
+    | address_has_instruction (f_ctxt fctxt) a = Just $ ImmediateAddress a 
+    | otherwise = try_symbol a
+
+  try_symbol a =
+    case IM.lookup (fromIntegral a) $ ctxt_symbol_table $ f_ctxt fctxt of
+      Just (Internal_Label f)  -> Just $ External f
+      Just (Relocated_Label f) -> Just $ External f
+      _                        -> Nothing
 
 
-  try_external a = IM.lookup (fromIntegral a) (ctxt_symbol_table $ f_ctxt fctxt) >>= try_mk_jump_target
 
-  try_mk_jump_target (Relocated_Function sym) = Just $ External sym
-  try_mk_jump_target _                        = Nothing
-
-
-ctry_jump_targets fctxt _ = Nothing 
-
---}

@@ -12,7 +12,7 @@ import Analysis.Context
 import Analysis.Pointers 
 import Analysis.ControlFlow
 
-import Instantiation.SymbolicPropagation2 (get_invariant,promote)
+import Instantiation.SymbolicPropagation (get_invariant)
 
 import Generic.SymbolicConstituents
 import Generic.HasSize (HasSize(sizeof))
@@ -31,6 +31,7 @@ import Data.Foldable
 import Data.Word
 import Control.Monad.State.Strict
 import System.Exit (die)
+import Debug.Trace
 
 -- | Retrieves a set of instructions.
 ctxt_get_instructions :: Context -> S.Set Instruction
@@ -138,7 +139,8 @@ ctxt_resolve_mem_operands ctxt =
     let fctxt   = mk_fcontext ctxt entry
         Just p  = get_invariant fctxt (fromIntegral $ addressof i)
         ptr     = evalState (sset_rip fctxt i >> sresolve_address fctxt a) (p,S.empty) in
-      Just $ promote fctxt ptr
+      --(if ptr == Top then trace ("TOP: " ++ show i) else id)
+      Just ptr
   resolve entry i _ = Nothing
 
   get_operands i = 

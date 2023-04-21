@@ -287,33 +287,6 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , MULSD
          , ROUNDSD
          , UNPCKLPD
-      ]
-
--- Does the instruction read from all operands, except for the first one?
-mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
-  `elem` [ LEA
-         , MOV
-         , MOVZX
-         , MOVSX
-         , MOVSXD
-         , MOVAPS
-         , MOVAPD
-         , MOVABS
-         , MOVUPD
-         , MOVUPS
-         , MOVDQU
-         , MOVDQA
-         , MOVD
-         , MOVQ
-         , MOVLPD
-         , MOVLPS
-         , MOVSD
-         , MOVSS
-         , MOVHPD
-         , MOVHPS
-         , VMOVD
-         , VMOVAPD
-         , VMOVAPS
          , CMOVO
          , CMOVNO
          , CMOVS
@@ -344,6 +317,34 @@ mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
          , CMOVPE
          , CMOVNP
          , CMOVPO
+
+      ]
+
+-- Does the instruction read from all operands, except for the first one?
+mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
+  `elem` [ LEA
+         , MOV
+         , MOVZX
+         , MOVSX
+         , MOVSXD
+         , MOVAPS
+         , MOVAPD
+         , MOVABS
+         , MOVUPD
+         , MOVUPS
+         , MOVDQU
+         , MOVDQA
+         , MOVD
+         , MOVQ
+         , MOVLPD
+         , MOVLPS
+         , MOVSD
+         , MOVSS
+         , MOVHPD
+         , MOVHPS
+         , VMOVD
+         , VMOVAPD
+         , VMOVAPS
          , SETO
          , SETNO
          , SETS

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict, StandaloneDeriving, BangPatterns #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData, StandaloneDeriving, BangPatterns #-}
 
 {-|
 Module      : SValue
@@ -24,20 +24,25 @@ import qualified Data.Set.NonEmpty as NES
 import qualified Data.Foldable as F
 import Control.DeepSeq
 
+
+-- | A `pointer value` may have an `pointer offset` that is either a known fixed immediate or unknown
 data PtrOffset   = PtrOffset Word64 | UnknownOffset
   deriving (Eq,Ord,Generic)
 
-data PtrValue     =
-    Base_StackPointer String PtrOffset
-  | Base_Immediate Word64 -- TODO REMOVE!
-  | Base_Section Word64
-  | Base_Malloc (Maybe Word64) (Maybe String) PtrOffset
-  | Base_FunctionPtr Word64 String
-  | Base_ReturnAddr String
-  | Base_TLS PtrOffset
-  | Base_StatePart StatePart PtrOffset
+-- | A `pointer value` consists of a `pointer base` and a `pointer offset`
+data PtrValue    =
+    Base_StackPointer String PtrOffset                   -- ^ The stackpointer of the given function
+  | Base_Immediate Word64                                -- ^ An immediate pointer
+  | Base_Section Word64                                  -- ^ A pointer to anywhere in the given section
+  | Base_Malloc (Maybe Word64) (Maybe String) PtrOffset  -- ^ A malloc return value
+  | Base_FunctionPtr Word64 String PtrOffset             -- ^ A function pointer (external)
+  | Base_ReturnAddr String                               -- ^ The return address of the given function
+  | Base_TLS PtrOffset                                   -- ^ The Thread Local Storage
+  | Base_StatePart StatePart PtrOffset                   -- ^ The value initially stored in some statepart
   deriving (Eq,Ord,Generic)
 
+-- | A `symbolic value` is either a `pointer value` (high certainty that it is actually a pointer),
+-- or a non-deterministic set of concrete expressions, or computed from a set of possible addends.
 data SValue      = SPointer (NES.NESet PtrValue) | SConcrete (NES.NESet SimpleExpr) | SAddends (NES.NESet StatePart) | Top
   deriving (Eq,Ord,Generic)
 
@@ -57,10 +62,10 @@ instance Show PtrOffset where
 
 instance Show PtrValue where
   show (Base_StackPointer f  offset) = "RSP_" ++ f ++ show offset
-  show (Base_Immediate i)            = "0x" ++ showHex i
+  show (Base_Immediate i)            = "P0x" ++ showHex i
   show (Base_Section i)              = "Section@0x" ++ showHex i
-  show (Base_Malloc id h     offset) = (show $ SE_Malloc id h) ++ show offset
-  show (Base_FunctionPtr _ f)        = "&" ++ f
+  show (Base_Malloc id h     offset) = "P"++(show $ SE_Malloc id h) ++ show offset
+  show (Base_FunctionPtr _ f offset) = "&" ++ f
   show (Base_ReturnAddr f)           = "ReturnAddress_" ++ f
   show (Base_StatePart sp    offset) = show sp ++ "_0" ++ show offset
   show (Base_TLS             offset) = "&TLS" ++ show offset
@@ -81,7 +86,7 @@ isImmediate (SPointer ptrs) = all isImmediatePtr ptrs
 isImmediate (SConcrete es)  = all isImmediateExpr es
 isImmediate _ = False
 
-isImmediatePtr (Base_Immediate i)     = True
+isImmediatePtr (Base_Immediate i) = True
 isImmediatePtr _ = False
 
 isImmediateExpr (SE_Immediate _) = True
@@ -101,19 +106,24 @@ isSectionPtr _ = False
 
 
 has_unknown_offset (Base_StackPointer f  UnknownOffset) = True
+has_unknown_offset (Base_Immediate i)                   = False
 has_unknown_offset (Base_Section i)                     = True
 has_unknown_offset (Base_Malloc id h     UnknownOffset) = True
-has_unknown_offset (Base_StatePart sp    UnknownOffset) = True
+has_unknown_offset (Base_FunctionPtr _ _ UnknownOffset) = True
+has_unknown_offset (Base_ReturnAddr f)                  = False
 has_unknown_offset (Base_TLS             UnknownOffset) = True
+has_unknown_offset (Base_StatePart sp    UnknownOffset) = True
 has_unknown_offset _                                    = False
 
 liftOffsetMod m UnknownOffset = UnknownOffset
 liftOffsetMod m (PtrOffset i) = PtrOffset $ m i
 
-mod_offset (Base_StackPointer f offset) m = Base_StackPointer f $ liftOffsetMod m $ offset 
-mod_offset (Base_Section i)             m = Base_Section i
-mod_offset (Base_Malloc id h    offset) m = Base_Malloc id h $ liftOffsetMod m $ offset 
-mod_offset (Base_FunctionPtr a f)       m = Base_Section a
-mod_offset (Base_StatePart sp   offset) m = Base_StatePart sp $ liftOffsetMod m $ offset 
-mod_offset (Base_TLS            offset) m = Base_TLS $ liftOffsetMod m $ offset 
-mod_offset b                            m = error $ "Modding offset of: " ++ show b ++ "   " ++ show (m 42)
+mod_offset m (Base_StackPointer f  offset) = Base_StackPointer f $ liftOffsetMod m $ offset 
+mod_offset m (Base_Section i)              = Base_Section i
+mod_offset m (Base_Malloc id h     offset) = Base_Malloc id h $ liftOffsetMod m $ offset 
+mod_offset m (Base_FunctionPtr a f offset) = Base_FunctionPtr a f $ liftOffsetMod m $ offset
+mod_offset m (Base_TLS             offset) = Base_TLS $ liftOffsetMod m $ offset 
+mod_offset m (Base_StatePart sp    offset) = Base_StatePart sp $ liftOffsetMod m $ offset 
+mod_offset m b                             = error $ "Modding offset of: " ++ show b ++ "   " ++ show (m 42)
+
+

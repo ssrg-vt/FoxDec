@@ -42,7 +42,6 @@ dependencies:
 - blaze-builder >= 0.4.2.2
 - hourglass >= 0.2.12
 - deepseq >= 1.4.4.0
-- raw-strings-qq >= 1.1
 
 library:
   source-dirs: src

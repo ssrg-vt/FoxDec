@@ -38,6 +38,7 @@ import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.Set.NonEmpty as NES
 
+import Data.Int (Int32,Int64)
 import Data.Word (Word64,Word32)
 import Data.Traversable (for)
 import Data.List
@@ -294,7 +295,6 @@ sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 -- | Simplification of symbolic expressions. 
 --
 -- Must always produce an expression logically equivalent to the original.
--- TODO: overwrite(8,Bot[src|RSP_0x1000070ec,malloc@100007204()|],b8(Bot[m|RSP_0x1000070ec,malloc@100007204()|]))
 simp :: SimpleExpr -> SimpleExpr
 simp e = 
   let e' = simp' e in
@@ -302,6 +302,7 @@ simp e =
 
 simp' (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp' e
 simp' (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp' e1) else SE_Bit i $ SE_Overwrite i' (simp' e0) (simp' e1)
+simp' (SE_Bit i (SE_SExtend l h e)) = if i == l then simp' e else SE_Bit i $ SE_SExtend l h $ simp' e
 
 simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
 
@@ -328,10 +329,14 @@ simp' (SE_Op Times si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 * 
 simp' (SE_Op Or    si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .|. i1)   -- Immediate: i0 | i1
 simp' (SE_Op And   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .&. i1)   -- Immediate: i0 & i1
 simp' (SE_Op Xor   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `xor` i1) -- Immediate: i0 xor i1
+simp' (SE_Op Udiv  64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0  `div` i1) 
+simp' (SE_Op Udiv  32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Word32) `div` (fromIntegral i1::Word32)))
+simp' (SE_Op Div   64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int64)  `div` (fromIntegral i1::Int64))) 
+simp' (SE_Op Div   32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int32)  `div` (fromIntegral i1::Int32)))
 
 
 
-
+simp' (SE_Bit 128 (SE_Immediate i)) = SE_Immediate i
 simp' (SE_Bit 32  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
 simp' (SE_Bit 16  (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
 simp' (SE_Bit 8   (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)

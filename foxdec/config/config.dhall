@@ -36,7 +36,7 @@
   -- Sane default: 30 minutes = 1000000 * 60 * 30 = 1800000000
 
 
-  max_num_of_cases = 5,
+  max_num_of_cases = 10,
   -- ^ The maximum number of separate concrete cases considered non-deterministically, before abstraction is applied.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 5

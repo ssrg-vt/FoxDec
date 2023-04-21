@@ -40,6 +40,7 @@ library
       Data.JumpTarget
       Data.SPointer
       Data.SValue
+      Data.SValue2
       Data.SymbolicExpression
       Data.Variable
       Generic.Address
@@ -96,7 +97,6 @@ library
     , parsec >=3.1
     , parsec-numbers >=0.1
     , process >=1.6.9.0
-    , raw-strings-qq >=1.1
     , split >=0.2.3
     , strict
     , text >=1.2.4
@@ -132,7 +132,6 @@ executable foxdec-exe
     , parsec >=3.1
     , parsec-numbers >=0.1
     , process >=1.6.9.0
-    , raw-strings-qq >=1.1
     , split >=0.2.3
     , strict
     , text >=1.2.4
@@ -168,7 +167,6 @@ test-suite foxdec-test
     , parsec >=3.1
     , parsec-numbers >=0.1
     , process >=1.6.9.0
-    , raw-strings-qq >=1.1
     , split >=0.2.3
     , strict
     , text >=1.2.4

@@ -16,7 +16,7 @@ import Analysis.ControlFlow
 import Generic.Binary
 import Generic.SymbolicPropagation
 import Generic.SymbolicConstituents
-import Instantiation.SymbolicPropagation2
+import Instantiation.SymbolicPropagation
 
 import Data.JumpTarget
 import Data.SymbolicExpression

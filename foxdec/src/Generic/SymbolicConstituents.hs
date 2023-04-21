@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, Strict, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, StrictData, ScopedTypeVariables #-}
 
 module Generic.SymbolicConstituents where
 
@@ -153,8 +153,9 @@ sread_reg ctxt r = do
     return $ ssemantics ctxt "read_reg 128" $ SO_Bit 128 v
   else if sizeof r == 8 then -- 64 bit
     return v
-  else if sizeof r == 4 then -- 32 bit
-    return $ ssemantics ctxt "read_reg 32" $ SO_Bit 32 v
+  else if sizeof r == 4 then do -- 32 bit
+    rip <- gets $ sread_rreg ctxt $ Reg.RIP
+    return $ ssemantics ctxt ("@" ++ show rip ++ ": read_reg 32") $ SO_Bit 32 v
   else if r `elem` Reg.reg16 then -- 16 bit
     return $ ssemantics ctxt "read_reg 16" $ SO_Bit 16 v
   else if r `elem` Reg.reg8 then -- 8 bit low registers
@@ -269,7 +270,7 @@ swrite_mem ctxt a_v si v = do
       put $ (s { smem = S.fromList $ ((a,si),v) : separate }, vcs)
     else let ((a',si'),v') = merge $ ((a,si),v):overlap in
       if a' == top ctxt then
-        --trace ("Top write:\nWriting to: " ++ show (a,si) ++ "\nIn state:\n" ++ show s) $ -- TODO add VCS
+        -- trace ("TOP: writing to " ++ show (a,si) ++ "\nIn state:\n" ++ show s ++ show (map fst overlap)) $ -- TODO add VCS
           put $ (s { smem = S.fromList $ (assign_top overlap ++ separate) }, vcs)
       else
         -- trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nIn state:\n" ++ show s) $
@@ -393,8 +394,18 @@ slea ctxt (AddressWord64 i_a) dst (EffectiveAddress a) = do
     Nothing  -> return ()
     Just imm -> if saddress_has_instruction ctxt e imm then modify $ add_function_pointer i_a $ fromIntegral imm else return ()
 
+-- MOV
+smov :: SymbolicExecutable ctxt a => ctxt -> a -> X86.Instruction -> State (Sstate a,VCS) ()
+smov ctxt a i@(Instruction label prefix X86.MOV (Just dst) [src@(Immediate imm)] annot)
+  | saddress_has_instruction ctxt a imm   = slea ctxt label dst (EffectiveAddress (AddressImm imm))
+  | otherwise                             = sgeneric_cinstr ctxt i
+smov ctxt a i                             = sgeneric_cinstr ctxt i
 
 
+sgeneric_cinstr :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
+sgeneric_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot) = do
+  ops <- mapM (sread_operand ctxt (show i)) srcs
+  swrite_operand ctxt True dst $ ssemantics ctxt (show i) $ SO_Op mnemonic (operand_size dst) (maybe_operand_size srcs) ops
 
 operand_size (Storage r)   = sizeof r
 operand_size (Memory a si) = si
@@ -416,9 +427,10 @@ maybe_operand_size srcs
 sexec_cinstr :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (Sstate a,VCS) ()
 -- sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
-  | mnemonic == X86.LEA       = slea ctxt label dst $ head srcs
-  | otherwise                 = mapM (sread_operand ctxt (show i)) srcs >>= 
-                                 swrite_operand ctxt True dst . ssemantics ctxt (show i) . SO_Op mnemonic (operand_size dst) (maybe_operand_size srcs)
+  | mnemonic == X86.LEA                     = slea ctxt label dst $ head srcs
+  | mnemonic == X86.MOV                     = smov ctxt (top ctxt) i
+  | mnemonic == X86.XOR && dst == head srcs = swrite_operand ctxt False dst $ simmediate ctxt 0
+  | otherwise                               = sgeneric_cinstr ctxt i
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing _ _)
   | X86.isRet mnemonic        = sreturn ctxt
   | X86.isJump mnemonic       = sjump ctxt i
@@ -507,7 +519,9 @@ supremum :: SymbolicExecutable ctxt a => ctxt -> [Sstate a] -> Sstate a
 supremum ctxt [] = error $ "Cannot compute supremum of []"
 supremum ctxt ss = foldr1 (sjoin_states ctxt "supremum") ss
 
-simplies ctxt s0 s1 = sjoin_states ctxt "simplies" s0 s1 == s0 
+simplies ctxt s0 s1 = (set_rip $ sjoin_states ctxt "simplies" s0 s1) == (set_rip s0)
+ where
+  set_rip = execSstate (swrite_rreg ctxt Reg.RIP (simmediate ctxt 0))
 
 
 
