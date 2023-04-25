@@ -255,7 +255,7 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
             reg  = reg_of_size (find_unused_register register_set block_instrs) si
             reg' = reg_of_size (find_unused_register [ r | r <- register_set, real r /= real reg] block_instrs) 8 in
           jmp_table_init tbl reg reg' (last block_instrs) ++ mk_block_instrs (init block_instrs) ++ jmp_table_end tbl reg reg' (last block_instrs)
-      Just (Indirection_Resolved trgts) -> mk_block_instrs (init block_instrs) ++ resolved_jump (S.toList trgts) (last block_instrs)
+      Just (Indirection_Resolved trgts) -> mk_block_instrs (init block_instrs) ++ resolved_jump (S.toList trgts) (last block_instrs) ++ block_end block_instrs
       Just (Indirection_Unresolved)     -> mk_block_instrs block_instrs ++ unresolved_end ++ block_end block_instrs
       Nothing                           -> mk_block_instrs block_instrs ++ block_end block_instrs
 
@@ -309,7 +309,9 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
   resolved_jump [External f] (Instruction addr pre op Nothing ops annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
     , NASM_Instruction $ concat [ prefix_to_NASM pre, opcode_to_NASM op, " ", f, " wrt ..plt" ]]
-  resolved_jump [ImmediateAddress imm] i = [mk_jmp_call_instr ctxt entry cfg i]
+  resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op Nothing ops annot) = 
+    [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ showHex imm
+    , mk_jmp_call_instr ctxt entry cfg i]
   resolved_jump trgts i@(Instruction addr pre op Nothing ops annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ show trgts ]
     ++

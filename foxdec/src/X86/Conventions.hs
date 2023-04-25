@@ -20,7 +20,7 @@ is_exiting_function_call f =
       "exit", "_exit", "__exit", "___exit",
       "error", "_error","__error", 
       "__stack_chk_fail", "___stack_chk_fail",
-      "__overflow", 
+      -- "__overflow", 
       "abort", "_abort",
       "_fail",
       "halt",
