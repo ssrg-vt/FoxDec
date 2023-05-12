@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, StrictData, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FlexibleContexts, ScopedTypeVariables #-}
 
 module Generic.SymbolicConstituents where
 
@@ -85,7 +85,7 @@ class (Ord a, Eq a,Show a) => SymbolicExecutable ctxt a where
 
   sjoin :: Foldable t => ctxt -> String -> t a -> a
   swiden :: ctxt -> String -> a -> a
-  top :: ctxt -> a
+  top :: ctxt -> String -> a
 
   ssemantics :: ctxt -> String -> SymbolicOperation a -> a 
   sflg_semantics :: ctxt -> a -> X86.Instruction -> FlagStatus -> FlagStatus
@@ -210,7 +210,7 @@ swrite_reg ctxt = soverwrite_reg ctxt True
 -- | Read from memory
 sread_mem :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> State (Sstate a,VCS) a
 sread_mem ctxt msg a si
-  | a == top ctxt = return $ top ctxt
+  | a == top ctxt "" = return $ top ctxt "read_mem from top"
   | otherwise =
       case stry_relocation ctxt a si of
         Just v -> return v
@@ -241,9 +241,9 @@ sread_mem ctxt msg a si
   ssep ((a0,si0),v0) = ((a,si) /= (a0,si0) && ssensitive ctxt a0 si0 v0) || sseparate ctxt "read" a0 si0 a si
 
   read_from_overlap s overlap
-    | S.size overlap == 0 = mk_smem_value ctxt (msg ++ "\nmaking mem value:\n" ++ show s ++ "\n" ++ show overlap) a si
+    | S.size overlap == 0 = mk_smem_value ctxt (msg ++ "\nmaking mem value:\n" ++ show s ++ "\n" ++ show (a,si)) a si
     | otherwise = -- error ("Overlapping read:\nReading from: " ++ show (a,si,S.map fst overlap) ++ "\nIn state:\n" ++ show s) 
-                  top ctxt-- swiden ctxt "read_mem (overlap)" $ sjoin ctxt (msg ++ "\nRead joining: " ++ show (a,si) ++ "\n" ++ show s ++ "\n" ++ show overlap) (S.map snd overlap)
+                  swiden ctxt "read_mem (overlap)" $ sjoin ctxt (msg ++ "\nRead joining: " ++ show (a,si) ++ "\n" ++ show s ++ "\n" ++ show overlap) (S.map snd overlap)
 
 
 
@@ -261,7 +261,8 @@ swrite_mem ctxt a_v si v = do
     if equal /= [] then
       put $ (s { smem = S.fromList (((a,si),v) : (enclosed_by ++ encloses ++ separate ++ overlap)) }, vcs)
     else if enclosed_by /= [] then do
-      let v' = swiden ctxt "write_mem (enclosure)" $ sjoin ctxt "MemWrite (enclosure)" (v : map snd enclosed_by)
+      (p,_) <- get
+      let v' = swiden ctxt "write_mem (enclosure)" $ sjoin ctxt ("MemWrite (enclosure)" ++ show (a_v,a,si,enclosed_by) ++ "\n" ++ show p) (v : map snd enclosed_by)
       put $ (s { smem = S.fromList $ (fst $ head enclosed_by,v') : encloses ++ separate ++ overlap }, vcs)
     else if encloses /= [] then do
       let v' = swiden ctxt "write_mem (encloses)" $ sjoin ctxt "MemWrite (encloses)" (v : map snd encloses)
@@ -269,12 +270,15 @@ swrite_mem ctxt a_v si v = do
     else if overlap == [] then
       put $ (s { smem = S.fromList $ ((a,si),v) : separate }, vcs)
     else let ((a',si'),v') = merge $ ((a,si),v):overlap in
-      if a' == top ctxt then
-        -- trace ("TOP: writing to " ++ show (a,si) ++ "\nIn state:\n" ++ show s ++ show (map fst overlap)) $ -- TODO add VCS
-          put $ (s { smem = S.fromList $ (assign_top overlap ++ separate) }, vcs)
-      else
-        -- trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nIn state:\n" ++ show s) $
-          put $ (s { smem = S.fromList $ (((a',si'),v') : separate) }, vcs)
+      if a' == top ctxt "" then
+        --trace ("TOP: writing to " ++ show (a,si) ++ "\nIn state:\n" ++ show s ++ show (map fst overlap)) -- $ -- TODO add VCS
+        return ()
+          --put $ (s { smem = S.fromList $ (assign_top overlap ++ separate) }, vcs)
+      else do
+        let as'  = smk_mem_addresses ctxt "swrite_mem" a'
+        let mem' = S.map (\a' -> ((a',si'),v')) as'
+        --trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nIn state:\n" ++ show s) $
+        put $ (s { smem = S.union mem' (S.fromList separate) }, vcs)
   
   do_partitioning m a = S.foldr' (do_partition a) ([],[],[],[],[]) m
   do_partition a ((a0,si0),v0) (equal,enclosing,encloses,separate,overlap) 
@@ -289,12 +293,12 @@ swrite_mem ctxt a_v si v = do
   merge (((a0,si0),v0):remainder) = 
     let ((a1,si1),v1) = merge remainder 
         a'            = swiden ctxt ("Joining regions: " ++ show [a0,si0,a1,si1])  $ sjoin ctxt "MemWrite (address)" [a0,a1] 
-        si'           = top ctxt
+        si'           = top ctxt "write_mem (overlap,size)"
         v'            = swiden ctxt "write_mem (overlapV)"  $ sjoin ctxt "MemWrite (values)"  [v0,v1] in
       ((a',si'),v')
   
 
-  assign_top = map (\(r,v) -> (r,top ctxt))
+  --assign_top = map (\(r,v) -> (r,top ctxt))
 
 
 
@@ -328,12 +332,7 @@ swrite_operand :: SymbolicExecutable ctxt a => ctxt -> Bool -> X86.Operand -> a 
 swrite_operand ctxt use_existing_value (Storage r)   v = soverwrite_reg ctxt use_existing_value r v
 swrite_operand ctxt use_existing_value (Memory a si) v = do
   resolved_address <- sresolve_address ctxt a 
-  if resolved_address == top ctxt then do
-    (p,_) <- get
-    -- error ("Writing to top, operand == " ++ show (Memory a si) ++ "\n" ++ show p) -- TODO ADD VC
-    return ()
-  else
-    swrite_mem ctxt resolved_address (simmediate ctxt si) v
+  swrite_mem ctxt resolved_address (simmediate ctxt si) v
 
 
 -- v is bogus, but needed for getting the type checker to accept this. Don't know why. 
@@ -428,7 +427,7 @@ sexec_cinstr :: SymbolicExecutable ctxt a => ctxt -> X86.Instruction -> State (S
 -- sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
   | mnemonic == X86.LEA                     = slea ctxt label dst $ head srcs
-  | mnemonic == X86.MOV                     = smov ctxt (top ctxt) i
+  | mnemonic == X86.MOV                     = smov ctxt (top ctxt "") i
   | mnemonic == X86.XOR && dst == head srcs = swrite_operand ctxt False dst $ simmediate ctxt 0
   | otherwise                               = sgeneric_cinstr ctxt i
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing _ _)
@@ -451,7 +450,7 @@ sexec_instr ctxt i = do
   (p,_) <- get
   sset_rip ctxt i
   mapM_ (sexec_cinstr ctxt) $ X86.canonicalize i
-  swrite_flags ctxt (top ctxt) i
+  swrite_flags ctxt (top ctxt "") i
 
 
 

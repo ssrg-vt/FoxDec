@@ -213,6 +213,10 @@ instance ToJSON PointerDomain  where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON PtrOffset where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+instance ToJSON PtrBase where
+  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+instance ToJSON SAddend where
+  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON PtrValue where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON SValue where

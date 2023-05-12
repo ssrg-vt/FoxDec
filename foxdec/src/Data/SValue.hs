@@ -41,15 +41,35 @@ data PtrValue    =
   | Base_StatePart StatePart PtrOffset                   -- ^ The value initially stored in some statepart
   deriving (Eq,Ord,Generic)
 
+data PtrBase =
+    PtrBase_StackPointer String
+  | PtrBase_Immediate Word64
+  | PtrBase_Section Word64
+  | PtrBase_Malloc (Maybe Word64) (Maybe String)
+  | PtrBase_FunctionPtr Word64 String
+  | PtrBase_ReturnAddr String
+  | PtrBase_TLS 
+  | PtrBase_StatePart StatePart 
+  | PtrBaseUnknown  -- TODO add SimpleExpr
+ deriving (Generic,Eq,Ord)
+
+
+data SAddend = Addend_Base PtrBase | Addend_StatePart StatePart
+  deriving (Eq,Ord,Generic)
+
 -- | A `symbolic value` is either a `pointer value` (high certainty that it is actually a pointer),
 -- or a non-deterministic set of concrete expressions, or computed from a set of possible addends.
-data SValue      = SPointer (NES.NESet PtrValue) | SConcrete (NES.NESet SimpleExpr) | SAddends (NES.NESet StatePart) | Top
+data SValue      = SPointer (NES.NESet PtrValue) | SConcrete (NES.NESet SimpleExpr) | SAddends (NES.NESet SAddend) | Top
   deriving (Eq,Ord,Generic)
 
 instance Cereal.Serialize PtrOffset
 instance NFData PtrOffset
 instance Cereal.Serialize PtrValue
 instance NFData PtrValue
+instance Cereal.Serialize PtrBase
+instance NFData PtrBase
+instance Cereal.Serialize SAddend
+instance NFData SAddend
 instance Cereal.Serialize SValue
 instance NFData SValue
   
@@ -60,8 +80,9 @@ instance Show PtrOffset where
    | otherwise    = " + 0x" ++ showHex i
  show _           = " + Top"
 
+
 instance Show PtrValue where
-  show (Base_StackPointer f  offset) = "RSP_" ++ f ++ show offset
+  show (Base_StackPointer f  offset) = "PRSP_" ++ f ++ show offset
   show (Base_Immediate i)            = "P0x" ++ showHex i
   show (Base_Section i)              = "Section@0x" ++ showHex i
   show (Base_Malloc id h     offset) = "P"++(show $ SE_Malloc id h) ++ show offset
@@ -69,6 +90,23 @@ instance Show PtrValue where
   show (Base_ReturnAddr f)           = "ReturnAddress_" ++ f
   show (Base_StatePart sp    offset) = show sp ++ "_0" ++ show offset
   show (Base_TLS             offset) = "&TLS" ++ show offset
+
+instance Show PtrBase where
+  show (PtrBase_StackPointer f)  = "RSP_" ++ f
+  show (PtrBase_Immediate i)     = "P0x" ++ showHex i
+  show (PtrBase_Section i)       = "Section@0x" ++ showHex i
+  show (PtrBase_Malloc id h)     = "P"++(show $ SE_Malloc id h)
+  show (PtrBase_FunctionPtr _ f) = "&" ++ f
+  show (PtrBase_ReturnAddr f)    = "ReturnAddress_" ++ f
+  show (PtrBase_StatePart sp)    = show sp ++ "_0"
+  show (PtrBase_TLS)             = "&TLS"
+  show PtrBaseUnknown            = "PtrBaseUnknown"
+
+
+
+instance Show SAddend where
+  show (Addend_Base b)       = show b
+  show (Addend_StatePart sp) = show sp ++ "_0"
 
 
 instance Show SValue where
@@ -80,7 +118,8 @@ instance Show SValue where
 show_set [str] = str
 show_set strs  = "{" ++ intercalate "," strs ++ "}"
 
-
+isAddendBase (Addend_Base _) = True
+isAddendBase _ = False
 
 isImmediate (SPointer ptrs) = all isImmediatePtr ptrs
 isImmediate (SConcrete es)  = all isImmediateExpr es
@@ -125,5 +164,24 @@ mod_offset m (Base_FunctionPtr a f offset) = Base_FunctionPtr a f $ liftOffsetMo
 mod_offset m (Base_TLS             offset) = Base_TLS $ liftOffsetMod m $ offset 
 mod_offset m (Base_StatePart sp    offset) = Base_StatePart sp $ liftOffsetMod m $ offset 
 mod_offset m b                             = error $ "Modding offset of: " ++ show b ++ "   " ++ show (m 42)
+
+get_base_of_spointer (Base_StackPointer f _)  = PtrBase_StackPointer f
+get_base_of_spointer (Base_Immediate i)       = PtrBase_Immediate i
+get_base_of_spointer (Base_Section i)         = PtrBase_Section i
+get_base_of_spointer (Base_Malloc id h _)     = PtrBase_Malloc id h
+get_base_of_spointer (Base_FunctionPtr a f _) = PtrBase_FunctionPtr a f
+get_base_of_spointer (Base_TLS _)             = PtrBase_TLS
+get_base_of_spointer (Base_ReturnAddr f)      = PtrBase_ReturnAddr f
+get_base_of_spointer (Base_StatePart sp _)    = PtrBase_StatePart sp
+
+svalue_to_bases fctxt (SPointer ptrs) = NES.map get_base_of_spointer ptrs
+svalue_to_bases fctxt (SAddends adds) = 
+  let bs = NES.filter isPtrBase adds in
+    if S.null bs then NES.singleton PtrBaseUnknown else NES.unsafeFromSet $ S.map getPtrBase bs
+ where
+  getPtrBase (Addend_Base b) = b
+  isPtrBase (Addend_Base b) = True
+  isPtrBase _ = False
+svalue_to_bases _ _ = NES.singleton PtrBaseUnknown
 
 
