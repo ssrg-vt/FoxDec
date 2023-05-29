@@ -41,6 +41,9 @@ import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
+import qualified Data.Set.NonEmpty as NES
+
+
 import Data.Maybe (fromJust,catMaybes,mapMaybe)
 import Data.List 
 import Data.Foldable

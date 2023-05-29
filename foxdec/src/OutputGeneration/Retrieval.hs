@@ -139,8 +139,8 @@ ctxt_resolve_mem_operands ctxt =
     let fctxt   = mk_fcontext ctxt entry
         Just p  = get_invariant fctxt (fromIntegral $ addressof i)
         ptr     = evalState (sset_rip fctxt i >> sresolve_address fctxt a) (p,S.empty) in
-      (if ptr == Top then trace ("TOP(U): " ++ show i ++ "\n" ++ show p) else id) $ Just ptr
-      --Just ptr
+      --(if ptr == Top then trace ("TOP(U): " ++ show i ++ "\n" ++ show p) else id) $ Just ptr
+      Just ptr
   resolve entry i _ = Nothing
 
   get_operands i = 

@@ -148,7 +148,7 @@ data VerificationResult =
 
 
 -- | Predicates: symbolic states
-type Predicate = Sstate SValue
+type Predicate = Sstate SValue SPointer
 
 
 -- | Invariants: a mapping of blockIDs to predicates
@@ -180,7 +180,7 @@ data PointerDomain =
 -- | A function initialisation consists of a mapping of registers to symbolic pointers TODO
 data MemRelation = Separate | Aliassing | Unknown
   deriving (Generic,Eq,Ord,Show)
-data FInit = FInit (S.Set (SStatePart,Maybe SValue)) (M.Map (SStatePart,SStatePart) MemRelation)
+data FInit = FInit (S.Set (StatePart,Maybe SValue)) (M.Map (SStatePart,SStatePart) MemRelation)
   deriving (Generic,Eq,Ord)
 
 -- | A function call 
@@ -194,7 +194,7 @@ data FReturnBehavior =
 -- | A symbolic state part
 data SStatePart =
     SSP_Reg Register -- ^ A register
-  | SSP_Mem SValue Int
+  | SSP_Mem SPointer Int
  deriving (Show,Generic,Eq,Ord)
 
 

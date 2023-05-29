@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
 
 {-|
 Module      : Base
@@ -17,7 +17,7 @@ import qualified Data.IntSet as IS
 import Data.Word ( Word64, Word8 )
 import Data.Traversable (for)
 import Data.List
-import Data.Maybe (mapMaybe, fromMaybe)
+import Data.Maybe (mapMaybe, fromMaybe,fromJust)
 import qualified Numeric (showHex,readHex)
 import Debug.Trace
 import GHC.Generics
@@ -52,13 +52,16 @@ im_lookup s m k =
     Just v  -> v
 
 -- | use a default value in case of @Nothing@
-orElse Nothing a  = a
-orElse (Just a) _ = a
+orElse :: Eq a => Maybe a -> a -> a
+orElse a b
+  | a == Nothing = b
+  | otherwise    = fromJust a
 
 -- | try something else if first result failed
-orTry :: Maybe a -> Maybe a -> Maybe a
-orTry Nothing x  = x
-orTry (Just x) _ = Just x
+orTry :: Eq a => Maybe a -> Maybe a -> Maybe a
+orTry a b
+  | a == Nothing = b
+  | otherwise    = a
 
 -- | return only if Bool holds
 onlyWhen b a = if b then Just a else Nothing

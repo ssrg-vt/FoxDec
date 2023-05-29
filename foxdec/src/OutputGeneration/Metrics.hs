@@ -47,7 +47,7 @@ metrics = M.fromList [
   ("#expectedInstructions",  "expected number of instructions"),
   ("%instructionCoverage",   "estimate of percentage of covered instructions"),
   ("#memWrites",             "total number of instructions writing to memory"),
-  ("pointerDesignations",    "C+LGH, C+O, NC+LH, NC+O, U"),
+  ("pointerDesignations",    "A, C, C+U, U"),
   ("specifityMetric",        "weighted mean of pointer designations"),
 
   ("#functions",             "total number of functions"),
@@ -184,7 +184,7 @@ num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SValue])] -> M.Map String Int
 mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction
  where
-  init_m = M.fromList [("U",0), ("PTR+UB",0), ("PTR+B",0), ("C+O", 0), ("C+LGH", 0), ("A",0)]
+  init_m = M.fromList [("U",0), ("C",0), ("C+U",0), ("A",0)]
 
   get_specifity_per_instruction (entry,a,es) = map (get_domains entry) es
 
@@ -195,13 +195,21 @@ mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap
 
 
 
--- "C+LGH" = Concrete and local,global,heap
--- "C+O"   = Concrete and otherwise
--- "NC+LH" = Not concrete, and local or heap
--- "NC+O"  = Not concrete, but sources are known
--- "U"     = Unresolved
+-- "C"     = Concrete
+-- "C+U"   = Concrete plus unknown offset
+-- "U"     = Unknown
+-- "A"     = Addends
 get_pointer_specifity_cpointer fctxt Top = "U"
-get_pointer_specifity_cpointer fctxt (SPointer vs)
+get_pointer_specifity_cpointer fctxt (SAddends es) = "A"
+get_pointer_specifity_cpointer fctxt (SConcrete es)
+  | any contains_rock_bottom es = "C+U"
+  | otherwise                   = "C"
+ where
+  contains_rock_bottom e = contains_bot e && not (all_bot_satisfy (not . is_rock_bottom) e)
+  is_rock_bottom (FromCall "") = True
+  is_rock_bottom _             = False
+
+{-- TODO (SPointer vs)
   | any non_det vs = "PTR+UB" 
   | otherwise      = "PTR+B"
  where
@@ -214,10 +222,10 @@ get_pointer_specifity_cpointer fctxt (SConcrete es) = concrete es
     | all (expr_is_global_immediate $ f_ctxt fctxt) es   = "C+LGH"
     | all (expr_is_highly_likely_heap_pointer fctxt) es  = "C+LGH"
     | otherwise                                          = "C+O"
-get_pointer_specifity_cpointer fctxt (SAddends adds) = "A"
+get_pointer_specifity_cpointer fctxt (SAddends adds) = "A"--}
 
 specifityMetricOf :: M.Map String Double -> Double
-specifityMetricOf m = 0 --TODO m M.! "C+LGH" + m M.! "C+O" + m M.! "NC+LH" + 0.3*(m M.! "NC+O")
+specifityMetricOf m = m M.! "C" + 0.8*(m M.! "A") + 0.6*(m M.! "A")
 
 
 

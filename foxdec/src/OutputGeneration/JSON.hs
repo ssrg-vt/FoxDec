@@ -162,7 +162,7 @@ pp_mem_ops ctxt = map pp
   pp_dom entry Nothing = "_"
   pp_dom entry (Just e) =
     let fctxt = mk_fcontext ctxt (fromIntegral entry) in
-      get_pointer_domain_cpointer fctxt e
+      show e {-- TODO get_pointer_domain_cpointer fctxt e
 
 get_pointer_domain_cpointer fctxt v = exprs_to_domain $ svalue_to_exprs fctxt v
  where
@@ -175,7 +175,7 @@ get_pointer_domain_cpointer fctxt v = exprs_to_domain $ svalue_to_exprs fctxt v
   is_base _ = False
 
 
-
+--}
 
 
 
@@ -213,11 +213,9 @@ instance ToJSON PointerDomain  where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON PtrOffset where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
-instance ToJSON PtrBase where
-  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON SAddend where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
-instance ToJSON PtrValue where
+instance ToJSON SPointer where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON SValue where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }

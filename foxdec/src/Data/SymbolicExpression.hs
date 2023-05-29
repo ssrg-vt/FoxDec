@@ -22,6 +22,7 @@ module Data.SymbolicExpression (
   is_reg_sp,
   contains_bot,
   contains_bot_sp,
+  all_bot_satisfy,
   simp,
   pp_expr,
   expr_size,
@@ -234,28 +235,24 @@ contains_bot_sp (SP_Mem a si)       = contains_bot a
 
 
 
-{--
 
 -- | concatMap function p over all bottom values in the expression  
-map_all_bot :: Ord a => (BotTyp -> NES.NESet a) -> SimpleExpr -> S.Set a
-map_all_bot p (Bottom typ)         = p typ
-map_all_bot p (SE_Malloc _ _)      = S.empty
-map_all_bot p (SE_Var sp)          = map_all_bot_sp p sp
-map_all_bot p (SE_Immediate _)     = S.empty
-map_all_bot p (SE_StatePart sp)    = map_all_bot_sp p sp
-map_all_bot p (SE_Op _ _ es)       = S.unions $ map (map_all_bot p) es
-map_all_bot p (SE_Bit i e)         = map_all_bot p e
-map_all_bot p (SE_SExtend _ _ e)   = map_all_bot p e
-map_all_bot p (SE_Overwrite _ a b) = S.unions [map_all_bot p a, map_all_bot p b]
+all_bot_satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
+all_bot_satisfy p (Bottom typ)         = p typ
+all_bot_satisfy p (SE_Malloc _ _)      = True
+all_bot_satisfy p (SE_Var sp)          = all_bot_satisfy_sp p sp
+all_bot_satisfy p (SE_Immediate _)     = True
+all_bot_satisfy p (SE_StatePart sp)    = all_bot_satisfy_sp p sp
+all_bot_satisfy p (SE_Op _ _ es)       = all (all_bot_satisfy p) es
+all_bot_satisfy p (SE_Bit i e)         = all_bot_satisfy p e
+all_bot_satisfy p (SE_SExtend _ _ e)   = all_bot_satisfy p e
+all_bot_satisfy p (SE_Overwrite _ a b) = and [all_bot_satisfy p a, all_bot_satisfy p b]
 
-map_all_bot_sp p (SP_StackPointer r) = S.empty
-map_all_bot_sp p (SP_Reg r)          = S.empty
-map_all_bot_sp p (SP_Mem a si)       = map_all_bot p a
+all_bot_satisfy_sp p (SP_StackPointer r) = True
+all_bot_satisfy_sp p (SP_Reg r)          = True
+all_bot_satisfy_sp p (SP_Mem a si)       = all_bot_satisfy p a
 
 
--- | Do all occurences of Bottom satisfy the given predicate?
-all_bot_satisfy p = and . map_all_bot (S.singleton . p)
---}
 
 
 
@@ -300,9 +297,9 @@ simp e =
   let e' = simp' e in
     if e == e' then e' else simp e'
 
-simp' (SE_Bit i (SE_Bit i' e))   = SE_Bit (min i i') $ simp' e
+simp' (SE_Bit i (SE_Bit i' e))           = SE_Bit (min i i') $ simp' e
 simp' (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp' e1) else SE_Bit i $ SE_Overwrite i' (simp' e0) (simp' e1)
-simp' (SE_Bit i (SE_SExtend l h e)) = if i == l then simp' e else SE_Bit i $ SE_SExtend l h $ simp' e
+simp' (SE_Bit i (SE_SExtend l h e))      = if i == l then simp' e else SE_Bit i $ SE_SExtend l h $ simp' e
 
 simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
 

@@ -73,6 +73,7 @@ data NASM_Line =
     NASM_Instruction String -- ^ An instruction
   | NASM_Label String       -- ^ A label
   | NASM_Comment Int String -- ^ A comment with an indentation level (number of spaces)
+  deriving Eq
 
 -- | A NASM text section contains a header (usually just some comments), and a graph of basic blocks
 data NASM_TextSection = NASM_TextSection  {
@@ -114,8 +115,11 @@ lift_L0_to_NASM ctxt = NASM mk_externals mk_sections $ mk_jump_tables ++ [mk_tem
 
 -- | Rendering NASM to a String
 render_NASM :: Context -> NASM -> String
-render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [render_externals] ++ ["global _start", "default rel", mk_macros ctxt] ++ render_sections ++ footer
+render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [render_block_mapping,render_externals] ++ ["global _start", "default rel", mk_macros ctxt] ++ render_sections ++ footer
  where
+  render_block_mapping = "" -- show_block_mapping $ mk_block_mapping ctxt
+
+
   render_externals = intercalate "\n" $ map ((++) "extern ") $ S.toList exts
   render_sections  = map render_section sections
 
@@ -219,11 +223,33 @@ is_bss_data_section _ = False
 -- | convert a given function entry to a NASM text section
 entry_to_NASM ctxt entry = NASM_Section_Text $ NASM_TextSection mk_header mk_blocks mk_edges
  where
-  mk_header   = comment_block ["Function: " ++ function_name_of_entry ctxt entry]
-  mk_blocks   = IM.fromList cfg_to_NASM
-  mk_edges    = cfg_edges cfg
-  Just cfg    = IM.lookup entry (ctxt_cfgs ctxt)
-  cfg_to_NASM = cfg_blocks_to_NASM ctxt entry cfg $ IM.keys $ cfg_blocks cfg
+  mk_header     = comment_block ["Function: " ++ function_name_of_entry ctxt entry]
+  mk_blocks     = IM.fromList cfg_to_NASM
+  mk_edges      = cfg_edges cfg
+  Just cfg      = IM.lookup entry (ctxt_cfgs ctxt)
+  cfg_to_NASM   = cfg_blocks_to_NASM ctxt entry cfg $ IM.keys $ cfg_blocks cfg
+
+
+show_block_mapping :: IM.IntMap [(Word64, String)] -> String
+show_block_mapping = intercalate "\n\n" . map show_entry . IM.toList
+ where
+  show_entry (entry,blocks) = "Entry: 0x" ++ showHex entry ++ "\n" ++ (intercalate "\n" $ map show_block blocks)
+  show_block (a,label)      = "0x" ++ showHex a ++ ": " ++ label
+
+mk_block_mapping :: Context -> IM.IntMap [(Word64, String)]
+mk_block_mapping ctxt = IM.fromList $ map (mk_block_mapping_for_entry) $ S.toList $ ctxt_get_function_entries ctxt
+ where
+  mk_block_mapping_for_entry entry = 
+    let cfg = ctxt_cfgs ctxt IM.! entry in
+      (entry,map (mk_block_mapping_for_block entry cfg) (IM.keys $ cfg_blocks cfg))
+
+  mk_block_mapping_for_block entry cfg blockID = 
+    let a = addressof $ head $ get_block_instrs cfg blockID in
+      (a, block_label ctxt entry a blockID)
+  get_block_instrs cfg blockID = cfg_instrs cfg IM.! blockID 
+
+
+
 
 -- | convert a list of basic blocks to NASM instructions
 -- Note that the order dictates if additional jumps need to be inserted
