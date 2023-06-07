@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StrictData #-}
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict #-}
 {-# OPTIONS_HADDOCK prune  #-}
 
 {-|
