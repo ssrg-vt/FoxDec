@@ -469,9 +469,7 @@ sexec_instr ctxt i = do
   (p,_) <- get
   sset_rip ctxt i
   mapM_ (sexec_cinstr ctxt) $ X86.canonicalize i
-  (p,_) <- get
-  swrite_flags ctxt (top ctxt "") i -- $ trace("sexec_isntr: "++ show i++"\n"++show p) i
-
+  swrite_flags ctxt (top ctxt "") i 
 
 
 

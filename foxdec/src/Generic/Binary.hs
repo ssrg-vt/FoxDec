@@ -59,13 +59,16 @@ instance Show SymbolTable where
     show_entry (a0,Internal_Label f)     = showHex a0 ++ " --> " ++ f ++ " (internal)"
 
 
+-- | Is the symbol an internal label?
 is_internal_symbol (Internal_Label _) = True
 is_internal_symbol _ = False
 
+-- | Is the symbol an external label?
 is_external_symbol (Relocated_Function _) = True
 is_external_symbol (Relocated_Label _) = True
 is_external_symbol _ = False
 
+-- | Returns the name from the symbol
 symbol_to_name (Relocated_Function str) = Just str
 symbol_to_name (Relocated_Label str) = Just str
 symbol_to_name (Internal_Label str) = Just str

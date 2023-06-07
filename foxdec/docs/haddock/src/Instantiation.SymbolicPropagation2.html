@@ -1,0 +1,1621 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses, DeriveGeneric, FlexibleInstances, Strict#-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">{-|
+Module      : SymbolicPropagation
+Description : Provides an instantiation of all function necessary to do symbolic propagation
+-}</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Instantiation.SymbolicPropagation2</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Config.html"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SValue.html"><span class="hs-identifier">Data.SValue</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.JumpTarget.html"><span class="hs-identifier">Data.JumpTarget</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html"><span class="hs-identifier">Data.SymbolicExpression</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Analysis.ControlFlow.html"><span class="hs-identifier">Analysis.ControlFlow</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Analysis.Pointers.html"><span class="hs-identifier">Analysis.Pointers</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Analysis.FunctionNames.html"><span class="hs-identifier">Analysis.FunctionNames</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Analysis.Context.html"><span class="hs-identifier">Analysis.Context</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.SymbolicConstituents.html"><span class="hs-identifier">Generic.SymbolicConstituents</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.SymbolicPropagation.html"><span class="hs-identifier">Generic.SymbolicPropagation</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.Binary.html"><span class="hs-identifier">Generic.Binary</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="X86.Opcode.html"><span class="hs-identifier">X86.Opcode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier">Opcode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isCondJump"><span class="hs-identifier">isCondJump</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isJump"><span class="hs-identifier">isJump</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="X86.Register.html"><span class="hs-identifier">X86.Register</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="X86.Conventions.html"><span class="hs-identifier">X86.Conventions</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="X86.Instruction.html"><span class="hs-identifier">X86.Instruction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86.Instruction.html#addressof"><span class="hs-identifier">addressof</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.HasSize.html"><span class="hs-identifier">Generic.HasSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.HasSize.html#sizeof"><span class="hs-identifier">sizeof</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="X86.Instruction.html"><span class="hs-identifier">X86.Instruction</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X86</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.Instruction.html"><span class="hs-identifier">Generic.Instruction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.Instruction.html#GenericInstruction"><span class="hs-identifier">GenericInstruction</span></a></span><span class="hs-special">(</span><span class="annot"><a href="Generic.Instruction.html#Instruction"><span class="hs-identifier">Instruction</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.Address.html"><span class="hs-identifier">Generic.Address</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Generic.Address.html#AddressWord64"><span class="hs-identifier">AddressWord64</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Generic.Operand.html"><span class="hs-identifier">Generic.Operand</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">join</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;|&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NES</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Either</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.|.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.&amp;.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">xor</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">complement</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftA2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">{--
+
+is_local_ptrvalue (Base_StackPointer _) = True
+is_local_ptrvalue _                     = False
+
+is_local_svalue fctxt (SPointer ptrs) = any is_local_ptrvalue ptrs
+is_local_svalue fctxt (SConcrete es)  = any (any isStackPointer . try_promote_expr fctxt) es
+is_local_svalue fctxt _               = False
+
+
+
+
+
+-- Concert SValues to SExpressions
+ptrvalue_to_expr (Base_StackPointer f) = simp $ SE_Op Plus 64 [SE_Var $ SP_StackPointer f,Bottom $ FromCall &quot;&quot;]
+ptrvalue_to_expr (Base_Section i)      = SE_Op Plus 64 [SE_Immediate i,Bottom $ FromCall &quot;&quot;]
+ptrvalue_to_expr (Base_Malloc id h)    = simp $ SE_Op Plus 64 [SE_Malloc id h,Bottom $ FromCall &quot;&quot;]
+ptrvalue_to_expr (Base_StatePart sp)   = simp $ SE_Op Plus 64 [SE_Var sp,Bottom $ FromCall &quot;&quot;]
+ptrvalue_to_expr (Base_TLS)            = simp $ SE_Op Plus 64 [SE_Var (SP_Reg FS),Bottom $ FromCall &quot;&quot;]
+
+addends_to_expr = NES.foldr mk_plus (Bottom $ FromCall &quot;&quot;) . NES.map SE_Var
+ where
+  mk_plus e0 e1 = SE_Op Plus 64 [e0,e1]
+
+csvalue_to_exprs (SPointer ptrs) = S.map ptrvalue_to_expr $ NES.toSet ptrs
+csvalue_to_exprs (SConcrete es)  = NES.toSet es
+csvalue_to_exprs (SAddends adds) = S.singleton $ addends_to_expr adds
+csvalue_to_exprs Top             = S.empty
+
+
+-- Try to get an immediate value from an SValue
+ctry_immediate Top = Nothing
+ctry_immediate (SConcrete es)
+  | NES.size es == 1 = try_imm $ NES.findMin es
+  | otherwise        = Nothing
+ where
+  try_imm (SE_Immediate i) = Just i
+  try_imm _                = Nothing
+ctry_immediate _ = Nothing
+
+-- If the SValue represents a single concrete deterministic SExpression, retrieve that SExpression.
+ctry_deterministic Top = Nothing
+ctry_deterministic (SPointer ptrs) = Nothing
+ctry_deterministic (SConcrete es)
+  | NES.size es == 1 = Just $ NES.findMin es
+  | otherwise        = Nothing
+ctry_deterministic _ = Nothing
+
+cimmediate :: Integral i =&gt; FContext -&gt; i -&gt; SValue
+cimmediate fctxt = mk_concrete fctxt . NES.singleton . SE_Immediate . fromIntegral
+
+
+
+-- CONSTRUCTION
+-- Construct an SValue from SExpressions
+mk_concrete fctxt es
+  | NES.size es &gt; ctxt_max_num_of_cases (f_ctxt fctxt) = error $ &quot;Too many cases: &quot; ++ show es
+  | otherwise = SConcrete $ NES.map simp es 
+-- Construct an SValue from SAddends
+mk_saddends fctxt es
+  | NES.size es &gt; ctxt_max_num_of_cases (f_ctxt fctxt) = Top 
+  | otherwise = SAddends es
+-- Construct an SValue from SPointers
+mk_spointer fctxt ptrs 
+  | NES.size ptrs &gt; ctxt_max_num_of_cases (f_ctxt fctxt) = error $ &quot;Too many cases: &quot; ++ show ptrs
+  | otherwise = SPointer ptrs
+
+
+-- WIDENING
+
+-- Try to promote (and thus also widen) a concrete expression to pointer base
+try_promote_expr :: FContext -&gt; SimpleExpr -&gt; Maybe PtrValue
+try_promote_expr fctxt (SE_Op Plus _ [e0,SE_Immediate imm])  = try_promote_expr fctxt e0
+try_promote_expr fctxt (SE_Op Plus _ [SE_Immediate imm,e0])  = try_promote_expr fctxt e0
+try_promote_expr fctxt (SE_Op Minus _ [e0,SE_Immediate imm]) = try_promote_expr fctxt e0
+try_promote_expr fctxt e                                     = promote_addends $ get_addends e
+ where
+  promote_addends addends =
+    case filter ((/=) Nothing) $ S.toList $ S.map try_promote_addend addends of 
+      [Just ptr] -&gt; Just ptr
+      []         -&gt; Nothing
+      x          -&gt; trace (&quot;Pointer with multiple promotable addends: &quot; ++ show e ++ &quot;   &quot; ++ show x) Nothing
+
+  try_promote_addend (SE_Var (SP_StackPointer f))                     = Just $ Base_StackPointer f
+  try_promote_addend (SE_Malloc id hash)                              = Just $ Base_Malloc id hash
+  try_promote_addend (SE_Var (SP_Reg FS))                             = Just $ Base_TLS
+  try_promote_addend e@(SE_Var sp)                                               
+    | possible_pointer_addend fctxt e                                 = Just $ Base_StatePart sp
+    | otherwise                                                       = Nothing
+  try_promote_addend e                                                = Nothing
+
+  possible_pointer_addend fctxt (SE_Var sp) = mk_sstatepart fctxt sp `S.member` (S.map fst sps)
+  possible_pointer_addend _  _              = False
+
+  FInit sps _ = f_init fctxt
+  ctxt = f_ctxt fctxt
+
+immediate_maybe_a_pointer fctxt a = find_section_for_address ctxt a /= Nothing || find_section_ending_at ctxt a /= Nothing || has_symbol a
+ where
+  ctxt = f_ctxt fctxt
+  has_symbol a =
+    case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+      Just (Internal_Label f)  -&gt; True
+      Just (Relocated_Label f) -&gt; True
+      _                        -&gt; False
+
+expr_maybe_a_pointer fctxt (SE_Immediate a) = immediate_maybe_a_pointer fctxt a
+expr_maybe_a_pointer fctxt e                = try_promote_expr fctxt e /= Nothing 
+
+svalue_maybe_a_pointer fctxt (SPointer _)   = True
+svalue_maybe_a_pointer fctxt (SConcrete es) = all (expr_maybe_a_pointer fctxt) es
+svalue_maybe_a_pointer fctxt _              = False
+
+try_widen_to_section fctxt a = (\(_,_,a0,_) -&gt; Base_Section a0) &lt;$&gt; (find_section_for_address ctxt a &lt;|&gt; find_section_ending_at ctxt a)
+ where
+  ctxt = f_ctxt fctxt
+
+cwiden :: FContext -&gt; String -&gt; SValue -&gt; SValue
+cwiden fctxt msg Top             = Top
+cwiden fctxt msg (SPointer ptrs) = widen_ptrs fctxt (&quot;cwiden&quot; ++ msg) ptrs
+cwiden fctxt msg (SConcrete es)  = widen_exprs fctxt es
+cwiden fctxt msg (SAddends adds) = widen_addends fctxt adds
+
+widen_ptrs fctxt msg ptrs 
+  | NES.size ptrs &gt; get_max_num_of_cases = Top
+  | otherwise = mk_spointer fctxt ptrs
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+
+widen_exprs fctxt es = 
+ let ptrs = NES.map try_widen_to_pointer es in
+   --if all ((/=) Nothing) ptrs then
+   --  cap_ptrs $ NES.map fromJust ptrs
+   if all ((==) Nothing) ptrs then
+     cap_addends $ mapMaybeS try_get_statepart $ S.unions $ NES.map get_addends es
+   else
+     cap_ptrs $ NES.unsafeFromSet $ S.map fromJust $ NES.filter ((/=) Nothing) ptrs -- TODO! This may loose pointers. error $ &quot;TODO: &quot; ++ show es ++ show (f_init fctxt) ++ show ptrs
+ where
+  try_widen_to_pointer (SE_Immediate imm)
+    | immediate_maybe_a_pointer fctxt imm = Just $ fromJust $ try_widen_to_section fctxt imm
+    | otherwise = Nothing
+  try_widen_to_pointer e = try_promote_expr fctxt e
+
+  cap_ptrs ptrs
+    | NES.size ptrs &gt; get_max_num_of_cases = Top
+    | otherwise = mk_spointer fctxt ptrs
+
+  cap_addends adds 
+    | S.null adds || S.size adds &gt; get_max_num_of_cases = Top
+    | otherwise = mk_saddends fctxt $ NES.unsafeFromSet adds
+
+  try_get_statepart (SE_Var sp) = Just sp -- TODO return values of functions?
+  try_get_statepart _           = Nothing
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+
+widen_addends fctxt adds
+ | NES.size adds &gt; get_max_num_of_cases = Top
+ | otherwise = mk_saddends fctxt adds
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+
+cwiden_all :: FContext -&gt; String -&gt; [SValue] -&gt; SValue
+cwiden_all fctxt msg []     = Top
+cwiden_all fctxt msg (v:vs) = foldr1 (cjoin fctxt msg) $ map (cwiden fctxt msg) (v:vs)
+
+
+
+-- JOINING
+-- cjoin fctxt msg v0 v1 | trace (&quot;cjoin: &quot;++ show (v0,v1)) False = error &quot;trace&quot;
+cjoin fctxt msg (SPointer vs0) (SPointer vs1) =
+  let vs' = NES.union vs0 vs1 in
+    if NES.size vs' &lt;= ctxt_max_num_of_cases (f_ctxt fctxt) then
+      mk_spointer fctxt vs'
+    else
+      widen_ptrs fctxt &quot;join&quot; vs'
+cjoin fctxt msg (SConcrete es0) (SConcrete es1) =
+  case NES.foldr insert (Just es1) es0 of
+    Just es' -&gt;
+      if NES.size es' &lt;= ctxt_max_num_of_cases (f_ctxt fctxt) then
+        mk_concrete fctxt es'
+      else
+        widen_exprs fctxt es'
+    _ -&gt; widen_exprs fctxt $ NES.union es0 es1
+ where
+  insert _ Nothing = Nothing 
+  insert e0@(SE_Immediate a0) (Just es1)
+    | immediate_maybe_a_pointer fctxt a0 =
+      case find (imm_in_same_section a0) es1 of
+        Nothing -&gt; Just $ NES.insert e0 es1
+        Just e1 -&gt; Nothing
+    | otherwise = Just $ NES.insert e0 es1
+  insert e0 (Just es1) = Just $ NES.insert e0 es1
+
+  imm_in_same_section a0 (SE_Immediate imm1)
+    | immediate_maybe_a_pointer fctxt imm1 = try_widen_to_section fctxt a0 == try_widen_to_section fctxt imm1
+    | otherwise = False
+  
+  imm_in_same_section a0 _ = False
+
+{--
+  let es' = NES.union es0 es1 in
+    if NES.size es' &lt;= ctxt_max_num_of_cases (f_ctxt fctxt) then
+      if NES.size es' &gt;= 3 &amp;&amp; all isImmediateExpr es' &amp;&amp; all (expr_maybe_a_pointer fctxt) es' then
+        error $ &quot;joining of &quot; ++ show es'
+      else
+        mk_concrete fctxt es'
+    else
+      widen_exprs fctxt es'--}
+cjoin fctxt msg (SAddends adds0) (SAddends adds1) = mk_saddends fctxt $ NES.union adds0 adds1
+
+cjoin fctxt msg ptr0@(SConcrete es0)  ptr1@(SPointer _)     = cjoin fctxt msg ptr1 ptr0
+cjoin fctxt msg ptr0@(SPointer _)     ptr1@(SConcrete es1)  =
+  case widen_exprs fctxt es1 of
+    SPointer ptrs1 -&gt; cjoin fctxt msg ptr0 (SPointer ptrs1)
+    _ -&gt; Top --  trace $ &quot;TODO: joining of &quot; ++ show (ptr0,ptr1) ++ &quot;\n&quot; ++ msg
+
+cjoin fctxt msg ptr0@(SAddends adds0) ptr1@(SConcrete es1)  = 
+  case cwiden fctxt msg ptr1 of
+    SAddends adds1 -&gt; mk_saddends fctxt $ NES.union adds0 adds1
+    SPointer ptrs1 -&gt; Top -- error $ &quot;TODO: joining of &quot; ++ show (ptr0,ptr1) -- cjoin fctxt msg (mk_saddends fctxt adds0) $ cwiden fctxt msg v1
+    _              -&gt; Top
+cjoin fctxt msg ptr0@(SConcrete es0)  ptr1@(SAddends adds1) = cjoin fctxt msg ptr1 ptr0
+
+cjoin fctxt msg ptr0@(SPointer _)     ptr1@(SAddends adds1) = ptr0
+cjoin fctxt msg ptr0@(SAddends adds0) ptr1@(SPointer _)     = ptr1
+
+cjoin fctxt msg _ Top = Top
+cjoin fctxt msg Top _ = Top
+
+cjoin_all :: Foldable t =&gt; FContext -&gt; String -&gt; t SValue -&gt; SValue
+cjoin_all fctxt msg es
+  | null es   = error $ &quot;Cannot join [], msg = &quot; ++ msg
+  | otherwise = foldr1 (cjoin fctxt msg) es
+
+
+
+
+
+svalue_plus :: FContext -&gt; Int -&gt; SValue -&gt; SValue -&gt; SValue
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) = cwiden fctxt &quot;svalue_plus&quot; $ cjoin fctxt &quot;svalue_plus1&quot; v0 v1
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SAddends _)     = cwiden fctxt &quot;svalue_plus2&quot; v0
+svalue_plus fctxt si v1@(SAddends _) v0@(SPointer ptrs0)     = cwiden fctxt &quot;svalue_plus3&quot; v0
+svalue_plus fctxt si v1@(SConcrete es1) v0@(SPointer ptrs0)  = svalue_plus fctxt si v0 v1
+svalue_plus fctxt si v0@(SPointer ptrs0) v1@(SConcrete es1)  = cwiden fctxt &quot;svalue_plus4&quot; v0
+svalue_plus fctxt si v0@(SConcrete es0) v1@(SConcrete es1) =
+   let es' = NES.map (uncurry plus) $ NES.cartesianProduct es0 es1 in 
+     if NES.size es' &lt;= get_max_num_of_cases then
+       mk_concrete fctxt es'
+     else
+       widen_exprs fctxt es'
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+  plus e0 e1 = simp $ SE_Op Plus si [e0,e1]
+svalue_plus fctxt si v1@(SAddends adds1)  v0@(SConcrete es0) = svalue_plus fctxt si v0 v1
+svalue_plus fctxt si v0@(SConcrete es0) v1@(SAddends adds1)  = 
+  case cwiden fctxt &quot;apply_plus&quot; v0 of
+    SAddends adds0 -&gt; cwiden fctxt &quot;apply_plus&quot; $ mk_saddends fctxt $ NES.union adds0 adds1
+    SPointer ptrs0 -&gt; cwiden fctxt &quot;apply_plus&quot; $ SPointer ptrs0
+    Top            -&gt; Top
+svalue_plus fctxt si v0@(SAddends adds0) v1@(SAddends adds1) = cwiden fctxt &quot;apply_plus&quot; $ mk_saddends fctxt $ NES.union adds0 adds1
+
+svalue_plus fctxt si v0@(SPointer ptrs0) Top = cwiden fctxt &quot;svalue_plus&quot; v0
+svalue_plus fctxt si Top v0@(SPointer ptrs0) = cwiden fctxt &quot;svalue_plus&quot; v0
+
+svalue_plus fctxt si Top v0@(SConcrete es0) = cwiden fctxt &quot;apply_plus&quot; v0
+svalue_plus fctxt si v0@(SConcrete es0) Top = cwiden fctxt &quot;apply_plus&quot; v0
+
+svalue_plus fctxt si Top v0@(SAddends adds0) = svalue_plus fctxt si v0 Top
+svalue_plus fctxt si v0@(SAddends adds0) Top = Top
+
+svalue_plus fctxt si Top Top = Top 
+
+
+
+svalue_minus :: FContext -&gt; Int -&gt; SValue -&gt; SValue -&gt; SValue
+svalue_minus fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) = cwiden fctxt &quot;svalue_minus1&quot; v0
+svalue_minus fctxt si v0@(SPointer ptrs0) v1@(SAddends _)     = cwiden fctxt &quot;svalue_minus2&quot; v0
+svalue_minus fctxt si v0@(SAddends _)     v1@(SPointer ptrs1) = cwiden fctxt &quot;svalue_minus3&quot; v0
+svalue_minus fctxt si v0@(SConcrete es1)  v1@(SPointer ptrs1) = Top -- error $ &quot;TODO: &quot; ++ show (v0,v1) --  cwiden fctxt &quot;svalue_minus4&quot; v0
+svalue_minus fctxt si v0@(SPointer ptrs0) v1@(SConcrete es1)  = cwiden fctxt &quot;svalue_plus4&quot; v0{--
+   let ptrs' = NES.map (uncurry minus) $ NES.cartesianProduct ptrs0 es1 in 
+     if all isLeft ptrs' then
+       if NES.size ptrs' &lt;= get_max_num_of_cases then
+         mk_spointer fctxt $ NES.map mkLeft ptrs'
+       else
+         widen_ptrs fctxt &quot;4&quot; $ NES.map mkLeft ptrs'
+     else if all isRight ptrs' then
+       if NES.size ptrs' &lt;= get_max_num_of_cases then
+         promote fctxt $ mk_concrete fctxt $ NES.map mkRight ptrs'
+       else
+         widen_exprs fctxt $ NES.map mkRight ptrs'
+     else
+       widen_ptrs fctxt &quot;5&quot; ptrs0
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+  minus b0                           (SE_Immediate 0)  = Left b0
+  minus (Base_Immediate i0)          (SE_Immediate i1) = 
+    case cimmediate fctxt $ i0 - i1 of
+      SPointer ptrs -&gt; Left $ NES.findMin ptrs
+      SConcrete es  -&gt; Right $ NES.findMin es
+  minus b0                           (SE_Immediate i1) = Left $ mod_offset b0 (\offset -&gt; offset - i1)
+  minus b0                           _                 = Left $ set_unknown_offset fctxt &quot;minus2&quot; b0--}
+svalue_minus fctxt si v0@(SConcrete es0) v1@(SConcrete es1) =
+   let es' = NES.map (uncurry minus) $ NES.cartesianProduct es0 es1 in 
+     if NES.size es' &lt;= get_max_num_of_cases then
+       mk_concrete fctxt es'
+     else
+       widen_exprs fctxt es'
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+  minus e0 e1 = simp $ SE_Op Minus si [e0,e1]
+svalue_minus fctxt si v0@(SAddends adds0)  v1@(SConcrete es1)
+  | any (expr_maybe_a_pointer fctxt) es1 = error $ &quot;TODO: &quot; ++ show (v0,v1)
+  | otherwise = cwiden fctxt &quot;svalue_minus4&quot; v0
+svalue_minus fctxt si v0@(SConcrete es0) v1@(SAddends adds1)  = cwiden fctxt &quot;svalue_minus5&quot; v0
+svalue_minus fctxt si v0@(SAddends adds0) v1@(SAddends adds1) = Top -- cwiden fctxt &quot;svalue_minus&quot; v0
+svalue_minus fctxt si Top v = Top 
+svalue_minus fctxt si v Top = cwiden fctxt &quot;svalue_minus&quot; v  
+
+
+
+
+svalue_and :: FContext -&gt; Int -&gt; SValue -&gt; SValue -&gt; SValue
+svalue_and fctxt si v0@(SPointer ptrs0) v1@(SPointer ptrs1) = error $ &quot;Cannot apply AND to two pointers: &quot; ++ show (v0,v1)
+--svalue_and fctxt si v0@(SPointer ptrs0) v1@(SAddends _)     = cwiden fctxt &quot;svalue_and&quot; v0
+--svalue_and fctxt si v1@(SAddends _) v0@(SPointer ptrs0)     = cwiden fctxt &quot;svalue_and&quot; v0
+svalue_and fctxt si v0@(SPointer ptrs0) v1@(SConcrete es1)  = cwiden fctxt &quot;svalue_and&quot; v0
+svalue_and fctxt si v1@(SConcrete es1) v0@(SPointer ptrs0)  = svalue_and fctxt si v1 v0
+svalue_and fctxt si v0@(SConcrete es0) v1@(SConcrete es1) =
+   let es' = NES.map (uncurry and) $ NES.cartesianProduct es0 es1 in 
+     if NES.size es' &lt;= get_max_num_of_cases then
+       mk_concrete fctxt es'
+     else
+       widen_exprs fctxt es'
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+  and e0 e1 = simp $ SE_Op And si [e0,e1]
+svalue_and fctxt si v0 v1 = Top
+
+
+
+
+
+apply_expr_op :: FContext -&gt; String -&gt; ([SimpleExpr] -&gt; Maybe SimpleExpr) -&gt; [SValue] -&gt; SValue
+apply_expr_op fctxt msg f vs
+  | all isConcrete vs ||  all isImmediate vs  =
+      let ess = map csvalue_to_exprs vs in
+        if product (map S.size ess) &lt;= get_max_num_of_cases then
+          let es' = map f $ crossProduct $ map S.toList ess in
+            if Nothing `elem` es' then
+              cwiden_all fctxt (&quot;Abstraction applying function to: &quot; ++ show vs) vs
+            else
+              mk_concrete fctxt $ neFromList $ map fromJust es'
+        else
+          cwiden_all fctxt (&quot;Exceeding num of cases: &quot; ++ show vs) vs
+  | any isPointer vs   = Top -- trace (&quot;Computation to pointers: &quot; ++ msg ++ &quot;: &quot; ++ show vs)
+  | Top `elem` vs      = Top
+  | otherwise          = Top -- trace (&quot;Making top from: &quot; ++ show vs) 
+ where
+  get_max_num_of_cases = ctxt_max_num_of_cases $ f_ctxt fctxt
+
+
+
+data CSemantics = ApplyPlus Int | ApplyMinus Int | ApplyNeg Int | ApplyDec Int | ApplyInc Int | ApplyAnd Int |
+                  ApplyMov | ApplyCMov |
+                  Apply ([SimpleExpr] -&gt; SimpleExpr) | SetXX | SExtension_HI | NoSemantics
+
+
+mk_expr :: FContext -&gt; SimpleExpr -&gt; Maybe SimpleExpr
+mk_expr fctxt = trim_expr fctxt . simp
+ where
+  trim_expr fctxt e
+    | expr_size e &gt; get_max_expr_size = Nothing
+    | otherwise = Just e
+  get_max_expr_size = ctxt_max_expr_size $ f_ctxt fctxt
+
+
+
+csemantics :: FContext -&gt; String -&gt; SymbolicOperation SValue -&gt; SValue
+csemantics fctxt msg (SO_Plus  a b)         = svalue_plus fctxt 64 a b
+csemantics fctxt msg (SO_Minus a b)         = svalue_minus fctxt 64 a b
+csemantics fctxt msg (SO_Times a b)         = apply_expr_op fctxt &quot;times&quot; (mk_expr fctxt . SE_Op Times 64) [a,b]
+csemantics fctxt msg (SO_Overwrite n a b)   = apply_expr_op fctxt &quot;overwrite&quot; (\[e0,e1] -&gt; mk_expr fctxt $ SE_Overwrite n e0 e1) [a,b]
+csemantics fctxt msg (SO_SExtend l h a)     = apply_expr_op fctxt &quot;sextend&quot; (\[e] -&gt; mk_expr fctxt $ SE_SExtend l h e) [a]
+csemantics fctxt msg (SO_Bit h a)           = apply_expr_op fctxt (msg ++ &quot;takebits&quot; ++ show h) (\[e] -&gt; mk_expr fctxt $ SE_Bit h e) [a]
+csemantics fctxt msg (SO_Op op si si' es)   = 
+  case mnemonic_to_semantics op (8*si) (((*) 8) &lt;$&gt; si') of
+    ApplyMov       -&gt; es!!0
+    ApplyCMov      -&gt; cjoin        fctxt &quot;cmov&quot; (es!!0) (es!!1)
+    ApplyPlus  si  -&gt; svalue_plus  fctxt si (es!!0) (es!!1)
+    ApplyInc   si  -&gt; svalue_plus  fctxt si (es!!0) (cimmediate fctxt 1)
+    ApplyMinus si  -&gt; svalue_minus fctxt si (es!!0) (es!!1)
+    ApplyDec   si  -&gt; svalue_minus fctxt si (es!!0) (cimmediate fctxt 1)
+    ApplyNeg   si  -&gt; svalue_minus fctxt si (cimmediate fctxt 0) (es!!0)
+    ApplyAnd   si  -&gt; svalue_and   fctxt si (es!!0) (es!!1)
+    Apply sop      -&gt; apply_expr_op fctxt (msg ++ &quot;, op = &quot; ++ show op) (mk_expr fctxt . sop) es
+    SetXX          -&gt; mk_concrete fctxt $ neFromList [SE_Immediate 0,SE_Immediate 1]
+    SExtension_HI  -&gt; mk_concrete fctxt $ neFromList [SE_Immediate 0,SE_Immediate 18446744073709551615]
+    NoSemantics    -&gt; Top 
+                     -- trace (&quot;Widening due to operand: &quot; ++ show op) 
+  
+
+
+
+
+
+
+mnemonic_to_semantics SUB si si'     = ApplyMinus si
+mnemonic_to_semantics NEG si si'     = ApplyNeg si
+mnemonic_to_semantics DEC si si'     = ApplyDec si
+
+mnemonic_to_semantics ADD si si'     = ApplyPlus si
+mnemonic_to_semantics INC si si'     = ApplyInc si
+mnemonic_to_semantics XADD si si'    = error $ &quot;TODO: XADD&quot;
+
+mnemonic_to_semantics IMUL_LO si si' = Apply $ SE_Op Times si
+mnemonic_to_semantics SHL si si'     = Apply $ shl
+ where
+  shl [a,SE_Immediate i] = SE_Op Times si [a,SE_Immediate $ 2^i]
+  shl [a,b]              = SE_Op Shl si [a,b]
+
+mnemonic_to_semantics IDIV_LO si si' = Apply $ SE_Op Div si
+mnemonic_to_semantics SAR si si'     = Apply $ sar
+ where
+  sar [a,SE_Immediate i] = SE_Op Div si [a,SE_Immediate $ 2^i]
+  sar [a,b]              = SE_Op Sar si [a,b]
+
+mnemonic_to_semantics DIV_LO si si'  = Apply $ SE_Op Udiv si
+mnemonic_to_semantics SHR si si'     = Apply $ shr
+ where
+  shr [a,SE_Immediate i] = SE_Op Udiv si [a,SE_Immediate $ 2^i]
+  shr [a,b]              = SE_Op Shr si [a,b]
+
+
+mnemonic_to_semantics BSR si si'     = Apply $ (\[a] -&gt; SE_Op Bsr si [SE_Immediate 0,a])
+mnemonic_to_semantics ROL si si'     = Apply $ SE_Op Rol si
+mnemonic_to_semantics ROR si si'     = Apply $ SE_Op Ror si
+mnemonic_to_semantics BSWAP si si'   = Apply $ SE_Op Bswap si
+
+mnemonic_to_semantics PEXTRB si si'  = Apply $ (\[a,b,c] -&gt; SE_Op Pextr si [a,b,c])
+mnemonic_to_semantics PEXTRD si si'  = Apply $ (\[a,b,c] -&gt; SE_Op Pextr si [a,b,c])
+mnemonic_to_semantics PEXTRQ si si'  = Apply $ (\[a,b,c] -&gt; SE_Op Pextr si [a,b,c])
+
+mnemonic_to_semantics AND si si'     = ApplyAnd si
+mnemonic_to_semantics OR  si si'     = Apply $ SE_Op Or si
+mnemonic_to_semantics NOT si si'     = Apply $ (\[a] -&gt; SE_Op Not si [a])
+
+mnemonic_to_semantics XOR    si si'  = Apply $ SE_Op Xor si
+mnemonic_to_semantics PXOR   si si'  = Apply $ SE_Op Xor si
+mnemonic_to_semantics VPXOR  si si'  = Apply $ SE_Op Xor si
+mnemonic_to_semantics XORPS  si si'  = Apply $ SE_Op Xor si
+mnemonic_to_semantics XORPD  si si'  = Apply $ SE_Op Xor si
+
+mnemonic_to_semantics MOV     si si'  = ApplyMov
+mnemonic_to_semantics MOVSD   si si'  = ApplyMov
+mnemonic_to_semantics MOVSS   si si'  = ApplyMov
+mnemonic_to_semantics MOVAPS  si si'  = ApplyMov
+mnemonic_to_semantics MOVAPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVUPS  si si'  = ApplyMov
+mnemonic_to_semantics MOVUPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVABS  si si'  = ApplyMov
+mnemonic_to_semantics MOVDQU  si si'  = ApplyMov
+mnemonic_to_semantics MOVDQA  si si'  = ApplyMov
+mnemonic_to_semantics MOVLPD  si si'  = ApplyMov
+mnemonic_to_semantics MOVD    si si'  = ApplyMov
+mnemonic_to_semantics MOVQ    si si'  = ApplyMov -- TODO if prefix = Nothing?
+mnemonic_to_semantics VMOVD   si si'  = ApplyMov 
+mnemonic_to_semantics VMOVAPD si si'  = ApplyMov
+mnemonic_to_semantics VMOVAPS si si'  = ApplyMov
+mnemonic_to_semantics MOVZX   si si'  = ApplyMov
+
+mnemonic_to_semantics MOVSX  si (Just si') = Apply $ SE_SExtend si' si . head
+mnemonic_to_semantics MOVSXD si (Just si') = Apply $ SE_SExtend si' si . head
+mnemonic_to_semantics CDQE   si (Just si') = Apply $ SE_SExtend si' si . head
+mnemonic_to_semantics CWDE   si (Just si') = Apply $ SE_SExtend si' si . head
+mnemonic_to_semantics CBW    si (Just si') = Apply $ SE_SExtend si' si . head
+
+mnemonic_to_semantics CWD    si (Just si') = SExtension_HI
+mnemonic_to_semantics CDQ    si (Just si') = SExtension_HI
+mnemonic_to_semantics CQO    si (Just si') = SExtension_HI
+
+
+mnemonic_to_semantics SETO   si si' = SetXX 
+mnemonic_to_semantics SETNO  si si' = SetXX
+mnemonic_to_semantics SETS   si si' = SetXX
+mnemonic_to_semantics SETNS  si si' = SetXX
+mnemonic_to_semantics SETE   si si' = SetXX
+mnemonic_to_semantics SETZ   si si' = SetXX
+mnemonic_to_semantics SETNE  si si' = SetXX
+mnemonic_to_semantics SETNZ  si si' = SetXX
+mnemonic_to_semantics SETB   si si' = SetXX
+mnemonic_to_semantics SETNAE si si' = SetXX
+mnemonic_to_semantics SETC   si si' = SetXX
+mnemonic_to_semantics SETNB  si si' = SetXX
+mnemonic_to_semantics SETAE  si si' = SetXX
+mnemonic_to_semantics SETNC  si si' = SetXX
+mnemonic_to_semantics SETBE  si si' = SetXX
+mnemonic_to_semantics SETNA  si si' = SetXX
+mnemonic_to_semantics SETA   si si' = SetXX
+mnemonic_to_semantics SETNBE si si' = SetXX
+mnemonic_to_semantics SETL   si si' = SetXX
+mnemonic_to_semantics SETNGE si si' = SetXX
+mnemonic_to_semantics SETG   si si' = SetXX
+mnemonic_to_semantics SETGE  si si' = SetXX
+mnemonic_to_semantics SETNL  si si' = SetXX
+mnemonic_to_semantics SETLE  si si' = SetXX
+mnemonic_to_semantics SETNG  si si' = SetXX
+mnemonic_to_semantics SETNLE si si' = SetXX
+mnemonic_to_semantics SETP   si si' = SetXX
+mnemonic_to_semantics SETPE  si si' = SetXX
+mnemonic_to_semantics SETNP  si si' = SetXX
+mnemonic_to_semantics SETPO  si si' = SetXX
+
+mnemonic_to_semantics CMOVO   si si' = ApplyCMov 
+mnemonic_to_semantics CMOVNO  si si' = ApplyCMov
+mnemonic_to_semantics CMOVS   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNS  si si' = ApplyCMov
+mnemonic_to_semantics CMOVE   si si' = ApplyCMov
+mnemonic_to_semantics CMOVZ   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNZ  si si' = ApplyCMov
+mnemonic_to_semantics CMOVB   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNAE si si' = ApplyCMov
+mnemonic_to_semantics CMOVC   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNB  si si' = ApplyCMov
+mnemonic_to_semantics CMOVAE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNC  si si' = ApplyCMov
+mnemonic_to_semantics CMOVBE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNA  si si' = ApplyCMov
+mnemonic_to_semantics CMOVA   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNBE si si' = ApplyCMov
+mnemonic_to_semantics CMOVL   si si' = ApplyCMov
+mnemonic_to_semantics CMOVNGE si si' = ApplyCMov
+mnemonic_to_semantics CMOVG   si si' = ApplyCMov
+mnemonic_to_semantics CMOVGE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNL  si si' = ApplyCMov
+mnemonic_to_semantics CMOVLE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNG  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNLE si si' = ApplyCMov
+mnemonic_to_semantics CMOVP   si si' = ApplyCMov
+mnemonic_to_semantics CMOVPE  si si' = ApplyCMov
+mnemonic_to_semantics CMOVNP  si si' = ApplyCMov
+mnemonic_to_semantics CMOVPO  si si' = ApplyCMov
+
+
+--TODO TEST
+--TODO other sign extension thingies
+
+mnemonic_to_semantics _      _ _  = NoSemantics
+
+
+cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs = flg mnemonic
+ where
+  flg CMP      = FS_CMP Nothing (srcs!!0) (srcs!!1)
+
+  flg PUSH     = flgs
+  flg POP      = flgs
+  flg LEA      = flgs
+  flg LEAVE    = flgs
+  flg NOP      = flgs
+  flg UD2      = flgs
+  flg ENDBR64  = flgs
+  flg HLT      = flgs
+  flg WAIT     = flgs
+  flg MFENCE   = flgs
+  flg CLFLUSH  = flgs
+  flg MOV      = flgs
+  flg MOVSD    = flgs
+  flg MOVSS    = flgs
+  flg MOVAPS   = flgs
+  flg MOVAPD   = flgs
+  flg MOVUPS   = flgs
+  flg MOVUPD   = flgs
+  flg MOVABS   = flgs
+  flg MOVDQU   = flgs
+  flg MOVDQA   = flgs
+  flg MOVLPD   = flgs
+  flg MOVD     = flgs
+  flg VMOVD    = flgs
+  flg VMOVAPD  = flgs
+  flg VMOVAPS  = flgs
+  flg MOVZX    = flgs
+  flg MOVSX    = flgs
+  flg MOVSXD   = flgs
+  flg CMOVO    = flgs
+  flg CMOVNO   = flgs
+  flg CMOVS    = flgs
+  flg CMOVNS   = flgs
+  flg CMOVE    = flgs
+  flg CMOVZ    = flgs
+  flg CMOVNE   = flgs
+  flg CMOVNZ   = flgs
+  flg CMOVB    = flgs
+  flg CMOVNAE  = flgs
+  flg CMOVC    = flgs
+  flg CMOVNB   = flgs
+  flg CMOVAE   = flgs
+  flg CMOVNC   = flgs
+  flg CMOVBE   = flgs
+  flg CMOVNA   = flgs
+  flg CMOVA    = flgs
+  flg CMOVNBE  = flgs
+  flg CMOVL    = flgs
+  flg CMOVNGE  = flgs
+  flg CMOVG    = flgs
+  flg CMOVGE   = flgs
+  flg CMOVNL   = flgs
+  flg CMOVLE   = flgs
+  flg CMOVNG   = flgs
+  flg CMOVNLE  = flgs
+  flg CMOVP    = flgs
+  flg CMOVPE   = flgs
+  flg CMOVNP   = flgs
+  flg CMOVPO   = flgs
+  flg SETO     = flgs
+  flg SETNO    = flgs
+  flg SETS     = flgs
+  flg SETNS    = flgs
+  flg SETE     = flgs
+  flg SETZ     = flgs
+  flg SETNE    = flgs
+  flg SETNZ    = flgs
+  flg SETB     = flgs
+  flg SETNAE   = flgs
+  flg SETC     = flgs
+  flg SETNB    = flgs
+  flg SETAE    = flgs
+  flg SETNC    = flgs
+  flg SETBE    = flgs
+  flg SETNA    = flgs
+  flg SETA     = flgs
+  flg SETNBE   = flgs
+  flg SETL     = flgs
+  flg SETNGE   = flgs
+  flg SETG     = flgs
+  flg SETGE    = flgs
+  flg SETNL    = flgs
+  flg SETLE    = flgs
+  flg SETNG    = flgs
+  flg SETNLE   = flgs
+  flg SETP     = flgs
+  flg SETPE    = flgs
+  flg SETNP    = flgs
+  flg SETPO    = flgs
+  flg CBW      = flgs
+  flg CWDE     = flgs
+  flg CDQE     = flgs
+  flg CWD      = flgs
+  flg CDQ      = flgs
+  flg CQO      = flgs
+  flg XCHG     = flgs
+  flg mnemonic = if isJump mnemonic || isCondJump mnemonic then flgs else None -- TODO
+
+
+
+
+
+mk_cvalue fctxt = mk_concrete fctxt . NES.singleton
+
+mk_cmem_value :: FContext -&gt; String -&gt; SValue -&gt; SValue -&gt; SValue
+mk_cmem_value fctxt msg a si = 
+  case ctry_immediate si of
+    Just si' -&gt; mk (S.toList $ cmk_mem_addresses fctxt msg a) si' 
+    Nothing  -&gt; Top -- trace (&quot;Reading Top from memory: &quot; ++ show (msg,a,si)) Top
+ where
+  mk [SPointer ptrs] si'
+    | NES.size ptrs == 1 = mk_cvalue fctxt $ SE_Var $ SP_Mem (ptrvalue_to_expr $ NES.findMin ptrs) $ fromIntegral si'
+    | otherwise          = Top
+  mk [SConcrete as]  si'
+    | NES.size as == 1   = mk_cvalue fctxt $ SE_Var $ SP_Mem (NES.findMin as) $ fromIntegral si'
+    | otherwise          = Top
+  mk _               si' = Top -- trace (&quot;Reading from uninitialized memory: &quot; ++ show (msg,a,si)) Top 
+
+-- TODO also return size of region
+cmk_mem_addresses :: FContext -&gt; String -&gt; SValue -&gt; S.Set SValue
+cmk_mem_addresses fctxt msg ptr = mk ptr
+ where
+  mk Top             = S.singleton Top
+  mk (SPointer ptrs) = S.map (mk_spointer fctxt . NES.singleton)  $ NES.toSet ptrs
+  mk (SConcrete es)
+    | any is_return_value es = -- trace (&quot;Making mem address: &quot; ++ show ptr ++ &quot; (msg = &quot; ++ msg ++ &quot;)&quot;) $ 
+                               S.map (mk_cvalue fctxt) $ NES.toSet es -- TODO provide as output result
+    | otherwise              = S.map (mk_cvalue fctxt) $ NES.toSet es 
+  mk (SAddends es)   = S.singleton Top -- error $ &quot;Making mem address: &quot; ++ show ptr ++ &quot; (msg = &quot; ++ msg ++ &quot;)&quot;
+
+  is_return_value (Bottom (FromCall f)) = f /= &quot;&quot;
+  is_return_value _ = False
+
+mk_sstatepart fctxt (SP_Reg r)    = SSP_Reg r
+mk_sstatepart fctxt (SP_Mem a si) = SSP_Mem (mk_cvalue fctxt a) si -- TODO widen a if contains_bot
+
+
+
+
+data PtrBase =
+    PtrBase_StackPointer String
+  | PtrBase_Section Word64
+  | PtrBase_Malloc (Maybe Word64) (Maybe String)
+  | PtrBase_FunctionPtr Word64 String
+  | PtrBase_ReturnAddr String
+  | PtrBase_TLS 
+  | PtrBase_StatePart StatePart 
+  | PtrBase_Immediate Word64
+  | PtrBaseUnknown  -- TODO ad SimpleExpr
+ deriving (Eq,Ord,Show)
+
+
+
+svalue_to_bases fctxt (SPointer ptrs) = NES.map get_base ptrs
+ where
+  get_base (Base_StackPointer f) = PtrBase_StackPointer f
+  get_base (Base_Section i)      = PtrBase_Section i
+  get_base (Base_Malloc id h)    = PtrBase_Malloc id h
+  get_base (Base_StatePart sp)   = PtrBase_StatePart sp
+  get_base (Base_TLS)            = PtrBase_TLS
+svalue_to_bases fctxt (SConcrete es) = NES.unions $ NES.map get_base es
+ where
+  get_base (SE_Immediate imm)
+    | immediate_maybe_a_pointer fctxt imm = NES.singleton $ PtrBase_Immediate imm
+    | otherwise = NES.singleton PtrBaseUnknown
+  get_base (SE_Op Plus _ [e0,SE_Immediate imm])
+    | immediate_maybe_a_pointer fctxt imm = NES.singleton $ PtrBase_Immediate imm
+    | otherwise = get_base e0
+  get_base (SE_Op Plus _ [SE_Immediate imm,e0])
+    | immediate_maybe_a_pointer fctxt imm = NES.singleton $ PtrBase_Immediate imm
+    | otherwise = get_base e0
+  get_base (SE_Op Minus _ [e0,SE_Immediate imm]) = get_base e0
+  get_base (SE_Var (SP_Mem (SE_Var (SP_StackPointer f)) 8)) = NES.singleton $ PtrBase_ReturnAddr f
+  get_base (SE_Var (SP_Mem (SE_Immediate imm) 8)) =
+    case try_relocated_pointer fctxt imm of
+      Nothing -&gt; NES.singleton $ PtrBaseUnknown
+      Just f  -&gt; NES.singleton $ PtrBase_FunctionPtr imm f
+  get_base e = 
+    case try_promote_expr fctxt e of
+      Nothing  -&gt; NES.singleton PtrBaseUnknown
+      Just ptr -&gt; svalue_to_bases fctxt $ SPointer $ NES.singleton ptr
+svalue_to_bases _ _ = NES.singleton PtrBaseUnknown
+
+
+cseparate :: FContext -&gt; String -&gt; SValue -&gt; SValue -&gt; SValue -&gt; SValue -&gt; Bool
+-- cseparate fctxt msg v0 s0 v1 si1 | trace (&quot;cseparate: &quot;++ show (v0,v1)) False = error &quot;trace&quot;
+cseparate fctxt msg Top si0 a1 si1 = False
+cseparate fctxt msg a0 si0 Top si1 = False
+cseparate fctxt msg a0 si0 a1 si1 =
+  let si0'         = ctry_immediate si0
+      si1'         = ctry_immediate si1 in
+    or
+      [ separation_based_on_necessity a0 si0' a1 si1'
+      , separation_of_svalues a0 a1 ]
+ where
+  separation_based_on_necessity a0 si0' a1 si1' =
+    let es0 = csvalue_to_exprs a0
+        es1 = csvalue_to_exprs a1 in
+      and
+        [ es0 /= S.empty
+        , es1 /= S.empty
+        , all (uncurry $ necessarily_separate si0' si1') $ S.cartesianProduct es0 es1 ]
+
+  -- Separation of two symbolic expressions with known immediate sizes
+  necessarily_separate (Just si0') (Just si1') a0 a1 = necessarily_separate_expressions a0 si0' a1 si1'
+  necessarily_separate _ _ _ _ = False
+
+
+  separation_of_svalues v0 v1 = v0 /= v1 &amp;&amp; (all (uncurry $ separate_bases) $ NES.cartesianProduct (svalue_to_bases fctxt v0) (svalue_to_bases fctxt v1))
+
+
+  -- Separation using pointer bases 
+  separate_bases PtrBaseUnknown PtrBaseUnknown = True -- trace (&quot;Separation of &quot; ++ show (a0, si0, a1, si1,svalue_to_bases fctxt a0,svalue_to_bases fctxt a1) ++ &quot;\nFINIT ==\n&quot; ++ show (f_init fctxt) ++ &quot;\nmsg = &quot; ++ msg)  TODO add VC
+  separate_bases v0 PtrBaseUnknown = separate_bases PtrBaseUnknown v0
+  separate_bases PtrBaseUnknown _ = True -- trace (&quot;Separation of &quot; ++ show (a0, si0, a1, si1,svalue_to_bases fctxt a0,svalue_to_bases fctxt a1) ++ &quot;\nFINIT ==\n&quot; ++ show (f_init fctxt) ++ &quot;\nmsg = &quot; ++ msg) TODO add VC
+
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_StackPointer f1) 
+    | f0 == f1  = False --if (a0,si0) == (a1,si1) then False else error $ &quot;sep of &quot; ++ show (a0,si0,a1,si1) 
+    | otherwise = True -- TODO ADD VC
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Section _)         = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Malloc _ _)        = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_FunctionPtr _ _)   = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_TLS)               = True
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_StatePart _)       = True -- TODO add vc
+  separate_bases (PtrBase_StackPointer f0) (PtrBase_Immediate _ )      = True
+
+  separate_bases (PtrBase_Section a0)      (PtrBase_Section a1)         = a0 /= a1 -- TODO ADD VC
+  separate_bases (PtrBase_Section a0)      (PtrBase_Malloc id1 h1)      = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_FunctionPtr _ _ )   = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_TLS)                = True
+  separate_bases (PtrBase_Section a0)      (PtrBase_StatePart sp1)      =
+    case find (\(sp',_) -&gt; mk_sstatepart fctxt sp1 == sp') sps of
+      Just (_,Just imm) -&gt; error &quot;Should not happen?&quot; -- cseparate fctxt msg a0 si0 imm si1
+      _ -&gt; True
+  separate_bases (PtrBase_Section a0)      (PtrBase_Immediate i1)       = pointers_from_different_global_section (f_ctxt fctxt) a0 i1 -- TODO ADD VC
+
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_Malloc id1 h1)        = id0 /= id1
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_FunctionPtr _ _ )     = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_TLS)                  = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_StatePart _  )        = True
+  separate_bases (PtrBase_Malloc id0 h0)   (PtrBase_Immediate _)          = True
+
+
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_FunctionPtr a1 _)    = a0 /= a1
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_TLS)                 = True
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_StatePart _  )       = True
+  separate_bases (PtrBase_FunctionPtr a0 _) (PtrBase_Immediate i1)        = True -- TODO???
+
+  separate_bases (PtrBase_TLS)              (PtrBase_TLS)                 = False
+  separate_bases (PtrBase_TLS)              (PtrBase_StatePart _  )       = True
+  separate_bases (PtrBase_TLS)              (PtrBase_Immediate _  )       = True
+
+  separate_bases (PtrBase_StatePart sp0)    (PtrBase_StatePart sp1)       = 
+    case M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m of
+      Just Separate -&gt; True
+      _             -&gt; False
+  separate_bases (PtrBase_StatePart sp0)    (PtrBase_Immediate imm1)      =
+    case find (\(sp',_) -&gt; mk_sstatepart fctxt sp0 == sp') sps of
+      Just (_,Just imm) -&gt; error &quot;Should not happen?&quot; -- cseparate fctxt msg a0 si0 imm si1
+      _ -&gt; True 
+
+  separate_bases (PtrBase_Immediate i0)    (PtrBase_Immediate i1)      
+    | pointers_from_different_global_section (f_ctxt fctxt) i0 i1 = True -- TODO ADD VC
+    | i0 /= i1                                                    = False -- REMOVE TODO ADD VC error $ &quot;Separation of &quot; ++ show (a0, si0, a1, si1) ++ &quot;\nFINIT ==\n&quot; ++ show (f_init fctxt) ++ &quot;\nmsg = &quot; ++ msg
+    | otherwise                                                   = False
+
+
+  separate_bases b0 b1 = separate_bases b1 b0
+
+  FInit sps m = f_init fctxt 
+
+
+get_addends (SE_Op Plus _ es)      = S.unions $ S.map get_addends $ S.fromList es
+get_addends (SE_Op Minus _ (e:es)) = get_addends e
+get_addends e                      = S.singleton e
+
+
+calias fctxt a0 si0 a1 si1 = (a0,si0) == (a1,si1) ||
+  case (ctry_immediate si0, ctry_immediate si1) of
+   (Just si0',Just si1') -&gt; si0' == si1' &amp;&amp; aliassing a0 si0' a1 si1' 
+   _                     -&gt; False
+ where
+  -- aliassing (SPointer vs0) si0' (SPointer vs1) si1' = all (uncurry $ aliassing_ptrvalues si0' si1') (NES.cartesianProduct vs0 vs1)
+  aliassing (SConcrete e0) si0' (SConcrete e1) si1' = e0 == e1
+  aliassing _ _ _ _ = False
+
+
+  -- TODO experiment with this
+  --aliassing_ptrvalues si0' si1' (Base_StatePart sp0 (PtrOffset off0)) (Base_StatePart sp1 (PtrOffset off1)) = off0 == off1 &amp;&amp; or
+  --  [ sp0 == sp1
+  --  , M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m == Just Aliassing ]
+  {--
+  aliassing_ptrvalues si0' si1' ptr0 ptr1 = and
+    [ ptr0 == ptr1
+    , not $ has_unknown_offset ptr0
+    , not $ has_unknown_offset ptr1 ]
+--}
+  FInit _ m = f_init fctxt
+
+cenclosed fctxt a0 si0 a1 si1 = 
+  case (ctry_immediate si0, ctry_immediate si1) of
+    (Just si0',Just si1') -&gt; 
+      let a0s  = csvalue_to_exprs a0
+          a1s  = csvalue_to_exprs a1 in
+        not (S.null a0s) &amp;&amp; not (S.null a1s) &amp;&amp; all (\a0 -&gt; all (\a1 -&gt; necessarily_enclosed a0 si0' a1 si1') a1s) a0s
+    _ -&gt; False
+
+
+
+
+csensitive fctxt a si v =
+  case (ctry_deterministic a,ctry_immediate si, ctry_deterministic v) of
+    (Just a',Just si',Just v') -&gt; is_top_stackframe a' si' v' || is_pushed_reg a' si' v' 
+    _                          -&gt; False
+ where
+  is_initial_reg (SE_Var (SP_Reg _)) = True
+  is_initial_reg _                   = False
+  
+  is_top_stackframe a' si' v' = si' == 8 &amp;&amp; a' == (SE_Var $ SP_StackPointer (function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)))
+  is_pushed_reg a' si' v' = is_initial_reg v' &amp;&amp; expr_is_highly_likely_local_pointer fctxt a'
+
+
+cread_from_ro_data fctxt a si = 
+  case (ctry_immediate a,ctry_immediate si) of
+    (Just a',Just si') -&gt; cimmediate fctxt &lt;$&gt; read_from_ro_datasection (f_ctxt fctxt) a' (fromIntegral si')
+    _                  -&gt; Nothing
+
+cread_from_data fctxt a si = 
+  case (ctry_immediate a,ctry_immediate si) of
+    (Just a',Just si') -&gt; cimmediate fctxt &lt;$&gt; read_from_datasection (f_ctxt fctxt) a' (fromIntegral si')
+    _                  -&gt; Nothing
+
+ctry_relocation fctxt a si = 
+  case (ctry_immediate a, ctry_immediate si) of
+    (Just a',Just si) -&gt; try_reloc a' &lt;|&gt; ((\_ -&gt; mk_value a') &lt;$&gt; try_relocated_pointer fctxt a')
+    _                 -&gt; Nothing
+ where
+  ctxt = f_ctxt fctxt
+
+  try_reloc a' = get_trgt &lt;$&gt; (find (is_reloc_for a') $ ctxt_relocs $ f_ctxt fctxt)
+  is_reloc_for a' (Relocation a0 a1) = a0 == a'
+  get_trgt (Relocation a0 a1) = cimmediate fctxt a1
+
+  mk_value a' = mk_cvalue fctxt $ SE_Var $ SP_Mem (SE_Immediate a') 8
+
+
+-- If *[a,8] contains a relocated value to some function f, return that function
+try_relocated_pointer fctxt a =
+  case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+    Just (Relocated_Function f) -&gt; Just f -- Just $ mk_spointer fctxt $ NES.singleton $ Base_FunctionPtr a f
+    _ -&gt; Nothing
+ where
+  ctxt = f_ctxt fctxt
+
+
+
+
+
+instance SymbolicExecutable FContext SValue where
+  sseparate                = cseparate
+  senclosed                = cenclosed
+  salias                   = calias
+  ssensitive               = csensitive
+  sread_from_ro_data       = cread_from_ro_data
+  smk_mem_addresses        = cmk_mem_addresses
+  sjoin                    = cjoin_all
+  swiden                   = cwiden
+  ssemantics               = csemantics
+  sflg_semantics           = cflg_semantics
+  simmediate               = cimmediate
+  top                      = \_ -&gt; Top
+  mk_svalue                = mk_cvalue
+  mk_smem_value            = mk_cmem_value
+  sjump                    = jump
+  scall                    = call
+  stry_jump_targets        = ctry_jump_targets
+  stry_immediate           = \_ -&gt; ctry_immediate 
+  stry_deterministic       = \_ -&gt; ctry_deterministic 
+  stry_relocation          = ctry_relocation
+  svalue_to_exprs          = \_ -&gt; csvalue_to_exprs
+  saddress_has_instruction = \ctxt _ -&gt; address_has_instruction (f_ctxt ctxt)
+
+
+instance Propagator FContext Predicate where
+  tau     = sexec_block
+  join    = sjoin_states
+  implies = simplies
+
+
+
+
+
+
+
+-- get the currently known invariant for the given instruction address
+get_invariant :: FContext -&gt; Int -&gt; Maybe Predicate
+get_invariant fctxt a = do
+  let ctxt   = f_ctxt fctxt
+  let entry  = f_entry fctxt
+  g         &lt;- IM.lookup entry $ ctxt_cfgs   ctxt
+  invs      &lt;- IM.lookup entry $ ctxt_invs   ctxt
+  blockId   &lt;- IM.lookup a $ cfg_addr_to_blockID g
+  p         &lt;- IM.lookup blockId invs
+  instrs    &lt;- IM.lookup blockId $ cfg_instrs g
+
+  return $ fst $ sexec_block fctxt (takeWhile (\i -&gt; fromIntegral (addressof i) /= a) instrs) Nothing p
+
+
+
+-- | The initial predicate.
+init_pred ::
+  FContext                      -- ^ The current context
+  -&gt; String                     -- ^ The current function
+  -&gt; Invariants                 -- ^ The currently available invariants
+  -&gt; S.Set (NodeInfo,Predicate) -- ^ The currently known postconditions
+  -&gt; S.Set SStatePart            -- ^ The currently known stateparts of the function
+  -&gt; Predicate
+init_pred fctxt f curr_invs curr_posts curr_sps =
+  let FInit finit _        = f_init fctxt -- M.filter (not . contains_bot) $ 
+
+      sps                  = S.unions [curr_sps, S.map fst finit, (S.delete (SSP_Reg RIP) $ gather_stateparts curr_invs curr_posts)]
+      (regs,regions)       = partitionWith reg_or_mem $ S.toList sps
+
+      rsp0                 = SE_Var $ SP_StackPointer f
+      write_stack_pointer  = execSstate (swrite_rreg fctxt RSP $ mk rsp0)
+      top_stack_frame      = mk $ SE_Var (SP_Mem rsp0 8)
+      write_return_address = execSstate (swrite_mem fctxt (mk rsp0) (cimmediate fctxt 8) top_stack_frame)
+
+      sregs                = M.fromList $ map (\r -&gt; (r,mk $ SE_Var (SP_Reg r))) regs
+      smem                 = S.empty in
+    write_stack_pointer $ write_return_address $ write_finit (S.toList finit) $ (Sstate sregs smem None) 
+ where
+  mk = mk_svalue fctxt
+
+  reg_or_mem (SSP_Reg r) = Left r
+  reg_or_mem (SSP_Mem a si) = Right (a,si)
+
+  write_finit [] s                   = s
+  write_finit ((sp,Nothing):finit) s = write_finit finit s
+  write_finit ((sp,Just v):finit)  s = write_finit finit $ execSstate (write_sp fctxt sp v) s
+
+
+-- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
+gather_stateparts ::
+     Invariants                 -- ^ The currently available invariants
+  -&gt; S.Set (NodeInfo,Predicate) -- ^ The currently known postconditions
+  -&gt; S.Set SStatePart
+gather_stateparts invs posts = S.unions [IM.foldr accumulate_stateparts S.empty invs, get_stateparts_of_sstates (S.map snd posts)]
+ where
+  accumulate_stateparts p = S.union (get_stateparts_of_sstate p)
+
+  get_stateparts_of_sstates ps = S.unions $ map get_stateparts_of_sstate $ S.toList $ ps
+
+get_stateparts_of_sstate (Sstate sregs smem _) = S.unions [gather_regs sregs, gather_reg_values sregs, gather_regions smem, gather_mem_values smem]
+ where
+  gather_regs       regs = S.fromList $ map SSP_Reg $ M.keys regs 
+  gather_reg_values regs = S.empty -- TODO
+  gather_regions    mem  = S.fromList $ catMaybes $ map mk_mem_region $ S.toList mem
+  gather_mem_values mem  = S.empty -- TODO
+
+  mk_mem_region ((a,si),_) = 
+    case (ctry_deterministic a, ctry_immediate si) of
+      (Just a', Just si') -&gt; Just $ SSP_Mem a $ fromIntegral si'
+      _                   -&gt; Nothing
+
+
+
+
+mapMaybeS :: Ord b =&gt; (a -&gt; Maybe b) -&gt; S.Set a -&gt; S.Set b
+mapMaybeS f = S.map fromJust . S.filter ((/=) Nothing) . S.map f
+
+-- | Convert the current invariant into a function initialisation
+invariant_to_finit :: FContext -&gt; Predicate -&gt; FInit
+invariant_to_finit fctxt p = 
+  let sps   = mapMaybeS maybe_read_sp $ get_stateparts_of_sstate p
+      pairs = S.toList $ S.filter (\(x,y) -&gt; x /= y) $ S.cartesianProduct sps sps
+      finit = FInit (S.map keep_globals sps) (M.fromList $ map mk_memrel pairs) in
+    finit -- trace (&quot;Turning into finit, precondition: \n&quot; ++ show p ++ &quot;\n--&gt;\n&quot; ++ show finit) finit 
+ where
+  keep_globals (sp,v) 
+    | is_global v = (sp,Just v)
+    | otherwise   = (sp,Nothing)
+
+  maybe_read_sp sp
+    | suitable_sp sp =
+      let v = evalSstate (read_sp fctxt sp) p in
+        onlyWhen (svalue_maybe_a_pointer fctxt v) (sp,v)
+    | otherwise = Nothing
+
+  suitable_sp (SSP_Reg r)    = r `notElem` [RIP,RSP,RBP]
+  suitable_sp (SSP_Mem a si) = is_global a
+
+
+  mk_memrel ((sp0,v0),(sp1,v1))
+    | cseparate fctxt &quot;invariant_to_finit&quot; v0 mk0 v1 mk0 = ((sp0,sp1),Separate)
+    | calias fctxt v0 mk0 v1 mk0 = ((sp0,sp1),Aliassing)
+    | otherwise = ((sp0,sp1),Unknown) -- TODO
+  mk0 = cimmediate fctxt 1
+
+
+  is_global (SPointer ptrs) = all is_global_ptr ptrs 
+  is_global (SConcrete es)  = all isImmediateExpr es &amp;&amp; all (expr_maybe_a_pointer fctxt) es
+
+  is_global_ptr (Base_Section _)       = True
+  is_global_ptr _                      = False
+
+
+
+
+
+-- | The join between two function initialisations
+join_finit :: FContext -&gt; FInit -&gt; FInit -&gt; FInit
+join_finit fctxt f0@(FInit sps0 m0) f1@(FInit sps1 m1)
+  | f0 == f1 = f0
+  --  | f0 == init_finit = f1
+  --  | f1 == init_finit = f0
+  | otherwise = FInit (S.intersection sps0 sps1) (join_m m0 m1)
+ where
+  join_sps sps0 sps1 = S.foldr insert_sp sps1 sps0
+
+  insert_sp (sp0,v0) sps1 =
+    case find (\(sp1,_) -&gt; sp0 == sp1) sps1 of
+      Nothing       -&gt; sps1
+      Just (sp1,v1) -&gt; S.insert (sp1,join_v v0 v1) $ S.delete (sp1,v1) sps1
+
+  join_v (Just v0@(SPointer _)) (Just v1@(SPointer _)) = Just $ cjoin fctxt &quot;join_finit&quot; v0 v1
+  join_v v0 v1               = Nothing
+
+  join_m = M.intersectionWith join_rel
+
+  join_rel r0 r1
+    | r0 == r1  = r0
+    | otherwise = Unknown
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+data ExternalFunctionOutput = FreshPointer | UnknownReturnValue | Input Register
+
+data ExternalFunctionBehavior = ExternalFunctionBehavior {
+  f_inputs :: [Register],
+  f_output :: ExternalFunctionOutput
+ }
+
+
+param 0 = RDI 
+param 1 = RSI
+param 2 = RDX
+param 3 = RCX
+param 4 = R8
+param 5 = R9
+
+
+pure_and_fresh = ExternalFunctionBehavior [] FreshPointer
+pure_and_unknown = ExternalFunctionBehavior [] UnknownReturnValue
+
+external_function_behavior :: FContext -&gt; String -&gt; ExternalFunctionBehavior
+-- | a list of some function that return a heap-pointer through RAX.
+-- The pointer is assumed to  be fresh.
+external_function_behavior _ &quot;_malloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;malloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;_malloc_create_zone&quot; = pure_and_fresh
+external_function_behavior _ &quot;_malloc_default_zone&quot; = pure_and_fresh
+external_function_behavior _ &quot;_malloc_zone_malloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;_calloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;calloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;_malloc_zone_calloc&quot; = pure_and_fresh
+external_function_behavior _ &quot;_mmap&quot; = pure_and_fresh
+external_function_behavior _ &quot;_av_mallocz&quot; = pure_and_fresh
+external_function_behavior _ &quot;___error&quot; = pure_and_fresh
+external_function_behavior _ &quot;_localeconv&quot; = pure_and_fresh
+external_function_behavior _ &quot;localeconv&quot; = pure_and_fresh
+external_function_behavior _ &quot;strerror&quot; = pure_and_fresh
+external_function_behavior _ &quot;_strerror&quot; = pure_and_fresh
+external_function_behavior _ &quot;_strerror_r&quot; = pure_and_fresh
+external_function_behavior _ &quot;_wcserror&quot; = pure_and_fresh
+external_function_behavior _ &quot;__wcserror&quot; = pure_and_fresh
+external_function_behavior _ &quot;_EVP_CIPHER_CTX_new&quot; = pure_and_fresh
+external_function_behavior _ &quot;strdup&quot; = pure_and_fresh
+external_function_behavior _ &quot;_strdup&quot; = pure_and_fresh
+external_function_behavior _ &quot;_getenv&quot; = pure_and_fresh
+external_function_behavior _ &quot;getenv&quot; = pure_and_fresh
+external_function_behavior _ &quot;_open&quot; = pure_and_fresh
+external_function_behavior _ &quot;_fts_read$INODE64&quot; = pure_and_fresh
+external_function_behavior _ &quot;_fts_open$INODE64&quot; = pure_and_fresh
+external_function_behavior _ &quot;_opendir$INODE64&quot; = pure_and_fresh
+external_function_behavior _ &quot;fopen&quot; = pure_and_fresh
+external_function_behavior _ &quot;_fopen&quot; = pure_and_fresh
+external_function_behavior _ &quot;_fdopen&quot; = pure_and_fresh
+external_function_behavior _ &quot;_wfdopen&quot; = pure_and_fresh
+external_function_behavior _ &quot;_fgetln&quot; = pure_and_fresh
+external_function_behavior _ &quot;fgetln&quot; = pure_and_fresh
+external_function_behavior _ &quot;_setlocale&quot; = pure_and_fresh
+external_function_behavior _ &quot;_wsetlocale&quot; = pure_and_fresh
+external_function_behavior _ &quot;__ctype_b_loc&quot; = pure_and_fresh
+external_function_behavior _ &quot;dcgettext&quot; = pure_and_fresh
+external_function_behavior _ &quot;nl_langinfo&quot; = pure_and_fresh
+external_function_behavior _ &quot;setlocale&quot; = pure_and_fresh
+external_function_behavior _ &quot;__errno_location&quot; = pure_and_fresh
+external_function_behavior _ &quot;_popen&quot; = pure_and_fresh
+external_function_behavior _ &quot;__ctype_tolower_loc&quot; = pure_and_fresh
+external_function_behavior _ &quot;__ctype_toupper_loc&quot; = pure_and_fresh
+external_function_behavior _ &quot;readdir&quot; = pure_and_fresh
+external_function_behavior _ &quot;getmntent&quot; = pure_and_fresh
+external_function_behavior _ &quot;setmntent&quot; = pure_and_fresh
+external_function_behavior _ &quot;hasmntopt&quot; = pure_and_fresh
+-- | A list of some functions that are assumed not to change the state in any significant way, and that return an unknown bottom value through RAX
+external_function_behavior _ &quot;feof&quot; = pure_and_unknown
+external_function_behavior _ &quot;_feof&quot; = pure_and_unknown
+external_function_behavior _ &quot;_getc&quot; = pure_and_unknown
+external_function_behavior _ &quot;getc&quot; = pure_and_unknown
+external_function_behavior _ &quot;fgetc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fgetc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fgetwc&quot; = pure_and_unknown
+external_function_behavior _ &quot;fgetwc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fnmatch&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fputc&quot; = pure_and_unknown
+external_function_behavior _ &quot;fputc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_close&quot; = pure_and_unknown
+external_function_behavior _ &quot;close&quot; = pure_and_unknown
+external_function_behavior _ &quot;fwrite&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fwrite&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fflush&quot; = pure_and_unknown
+external_function_behavior _ &quot;___maskrune&quot; = pure_and_unknown
+external_function_behavior _ &quot;_getbsize&quot; = pure_and_unknown
+external_function_behavior _ &quot;_printf&quot; = pure_and_unknown
+external_function_behavior _ &quot;printf&quot; = pure_and_unknown
+external_function_behavior _ &quot;vprintf&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fprintf&quot; = pure_and_unknown
+external_function_behavior _ &quot;fprintf&quot; = pure_and_unknown
+external_function_behavior _ &quot;vfprintf&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fprintf_l&quot; = pure_and_unknown
+external_function_behavior _ &quot;fwprintf&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fwprintf_l&quot; = pure_and_unknown
+external_function_behavior _ &quot;__fprintf_chk&quot; = pure_and_unknown
+external_function_behavior _ &quot;__printf_chk&quot; = pure_and_unknown
+external_function_behavior _ &quot;_putchar&quot; = pure_and_unknown
+external_function_behavior _ &quot;_puts&quot; = pure_and_unknown
+external_function_behavior _ &quot;fputs&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fputs&quot; = pure_and_unknown
+external_function_behavior _ &quot;_btowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;btowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;mbtowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_mbtowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_mbrtowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;mbrtowc&quot; = pure_and_unknown
+external_function_behavior _ &quot;_atof&quot; = pure_and_unknown
+external_function_behavior _ &quot;atof&quot; = pure_and_unknown
+external_function_behavior _ &quot;_strcmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;_strncmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;strcmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;strncmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;strlen&quot; = pure_and_unknown
+external_function_behavior _ &quot;_ilogb&quot; = pure_and_unknown
+external_function_behavior _ &quot;_atoi&quot; = pure_and_unknown
+external_function_behavior _ &quot;_getopt&quot; = pure_and_unknown
+external_function_behavior _ &quot;getopt_long&quot; = pure_and_unknown
+external_function_behavior _ &quot;_free&quot; = pure_and_unknown
+external_function_behavior _ &quot;_warn&quot; = pure_and_unknown
+external_function_behavior _ &quot;_warnx&quot; = pure_and_unknown
+external_function_behavior _ &quot;__errno_location&quot; = pure_and_unknown
+external_function_behavior _ &quot;__libc_start_main&quot; = pure_and_unknown
+external_function_behavior _ &quot;__cxa_finalize&quot; = pure_and_unknown
+external_function_behavior _ &quot;perror&quot; = pure_and_unknown
+external_function_behavior _ &quot;fclose&quot; = pure_and_unknown
+external_function_behavior _ &quot;free&quot; = pure_and_unknown
+external_function_behavior _ &quot;unlink&quot; = pure_and_unknown
+external_function_behavior _ &quot;unlinkat&quot; = pure_and_unknown
+external_function_behavior _ &quot;strspn&quot; = pure_and_unknown
+external_function_behavior _ &quot;utimensat&quot; = pure_and_unknown
+external_function_behavior _ &quot;fdatasync&quot; = pure_and_unknown
+external_function_behavior _ &quot;fsync&quot; = pure_and_unknown
+external_function_behavior _ &quot;isatty&quot; = pure_and_unknown
+external_function_behavior _ &quot;strcspn&quot; = pure_and_unknown
+external_function_behavior _ &quot;memcmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;_memcmp&quot; = pure_and_unknown
+external_function_behavior _ &quot;isprint&quot; = pure_and_unknown
+external_function_behavior _ &quot;iswprint&quot; = pure_and_unknown
+external_function_behavior _ &quot;_isprint_l&quot; = pure_and_unknown
+external_function_behavior _ &quot;_iswprint_l&quot; = pure_and_unknown
+external_function_behavior _ &quot;__cxa_atexit&quot; = pure_and_unknown
+external_function_behavior _ &quot;towlower&quot; = pure_and_unknown
+external_function_behavior _ &quot;towupper&quot; = pure_and_unknown
+external_function_behavior _ &quot;iswalnum&quot; = pure_and_unknown
+external_function_behavior _ &quot;fseeko&quot; = pure_and_unknown
+external_function_behavior _ &quot;fflush&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fclose&quot; = pure_and_unknown
+external_function_behavior _ &quot;_fgets&quot; = pure_and_unknown
+external_function_behavior _ &quot;_ferror&quot; = pure_and_unknown
+external_function_behavior _ &quot;_strtol&quot; = pure_and_unknown
+external_function_behavior _ &quot;_strtoul&quot; = pure_and_unknown
+external_function_behavior _ &quot;_munmap&quot; = pure_and_unknown
+
+
+
+-- | A list of some functions that return bottom and write to pointers passed by parameters
+--external_function_behavior _ &quot;_sysctlbyname&quot; = ExternalFunctionBehavior [param 2, param 4] UnknownReturnValue
+--external_function_behavior _ &quot;_fstat$INODE64&quot; = ExternalFunctionBehavior [param 1] UnknownReturnValue
+--external_function_behavior _ &quot;_fstatfs$INODE64&quot; = ExternalFunctionBehavior [param 1] UnknownReturnValue
+--external_function_behavior _ &quot;_statfs$INODE64&quot; = ExternalFunctionBehavior [param 1] UnknownReturnValue
+external_function_behavior _ &quot;snprintf&quot;             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_snprintf&quot;            = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_snprintf_l&quot;          = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_snwprintf&quot;           = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_snwprintf_l&quot;         = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;__snprintf_chk&quot;       = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_vsnprintf&quot;           = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;sprintf&quot;              = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;_sprintf&quot;             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;___bzero&quot;             = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;sigprocmask&quot;          = ExternalFunctionBehavior [param 2] UnknownReturnValue
+external_function_behavior _ &quot;__strcat_chk&quot;         = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;strcat&quot;               = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;strlcpy&quot;              = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;___strlcpy_chk&quot;       = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;sigemptyset&quot;          = ExternalFunctionBehavior [param 0] UnknownReturnValue
+external_function_behavior _ &quot;sigaction&quot;            = ExternalFunctionBehavior [param 2] UnknownReturnValue
+external_function_behavior _ &quot;localtime&quot;            = ExternalFunctionBehavior [param 0] FreshPointer
+external_function_behavior _ &quot;memset&quot;               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_memset&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;__memset_chk&quot;         = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;___memset_chk&quot;        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_index&quot;               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_rindex&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+
+-- A list of functions that return a pointer given to them by a parameter
+external_function_behavior _ &quot;_realloc&quot;             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_malloc_zone_realloc&quot; = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_recallocarray&quot;       = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;realloc&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strcpy&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;__strcpy_chk&quot;         = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_strncpy&quot;             = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;strcpy&quot;               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;strncpy&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;memcpy&quot;               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_memcpy&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;__memcpy_chk&quot;         = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;___memcpy_chk&quot;        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;__memmove_chk&quot;        = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;memmove&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_memmove&quot;             = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;strcat&quot;               = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;_strcat&quot;              = ExternalFunctionBehavior [param 0] $ Input $ param 0
+external_function_behavior _ &quot;strchr&quot;               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strchr&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;strrchr&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strrchr&quot;             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_memchr&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;memchr&quot;               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strstr&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strpbrk&quot;             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strtok&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;strtok&quot;               = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ &quot;_strlen&quot;              = ExternalFunctionBehavior [] $ Input $ param 0
+
+
+external_function_behavior fctxt f
+ | is_exiting_function_call f = pure_and_unknown
+ | otherwise                  = ExternalFunctionBehavior [] UnknownReturnValue -- trace (&quot;Unknown external function: &quot; ++ f) $ 
+
+
+
+{-- TODO
+ - functions calling function pointers
+ - __cxa_finalize
+ - __libc_start_main
+ - pthread_*
+ --}
+
+
+
+
+
+
+-- | Backward transposition
+-- Let p be the current predicate and let the equality sp == v be from the predicate after execution of an internal function.
+-- For example, p contains:
+--   RSP == RSP0 - 64
+--   RSI == 10
+--
+-- And after execution of the function, we have:
+--   *[RSP0+16,8] == RSI0
+--
+-- Transposing this equality produces:
+--   *[RSP0-40,8] == 10
+
+transpose_bw_ptrvalue :: FContext -&gt; Sstate SValue -&gt; Sstate SValue -&gt; PtrValue -&gt; SValue
+transpose_bw_ptrvalue fctxt p q (Base_StackPointer f)     = cwiden fctxt &quot;transpose_bw_ptrvalue&quot; $ evalSstate (read_sp fctxt (SSP_Reg RSP)) p
+transpose_bw_ptrvalue fctxt p q b@(Base_Section i)        = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_Malloc _ _)       = mk_spointer fctxt $ NES.singleton b
+transpose_bw_ptrvalue fctxt p q b@(Base_TLS)              = error $ &quot;Transposition of TLS&quot;
+transpose_bw_ptrvalue fctxt p q b@(Base_StatePart sp)     = cwiden fctxt &quot;transpose_bw_ptrvalue&quot; $ evalSstate (read_sp fctxt $ transpose_bw_sp fctxt p sp) p
+
+transpose_bw_spointer :: FContext -&gt; Sstate SValue -&gt; Sstate SValue -&gt; SValue -&gt; SValue
+transpose_bw_spointer fctxt p q (SPointer ptrs) = cjoin_all fctxt &quot;transpose_bw&quot; $ NES.map (transpose_bw_ptrvalue fctxt p q) ptrs
+transpose_bw_spointer fctxt p q (SConcrete es)  = cjoin_all fctxt &quot;transpose_bw&quot; $ NES.map (transpose_bw_e fctxt p) es
+transpose_bw_spointer fctxt p q (SAddends adds) = cwiden_all fctxt &quot;transpose_bw&quot; $ neSetToList $ NES.map (transpose_bw_e fctxt p . SE_Var) adds
+transpose_bw_spointer fctxt p q Top             = Top
+
+
+
+    
+transpose_bw_reg :: FContext -&gt; Sstate SValue -&gt; Sstate SValue -&gt; (Register, SValue) -&gt; Maybe (Register, SValue)
+transpose_bw_reg fctxt p q (r,v) =
+  let v' = transpose_bw_spointer fctxt p q v in
+    Just $ (r,v')
+
+transpose_bw_mem :: FContext -&gt; Sstate SValue -&gt; Sstate SValue -&gt; ((SValue,SValue), SValue) -&gt; Maybe ((SValue,SValue), SValue)
+transpose_bw_mem fctxt p q ((a,si),v) =
+  let a'  = transpose_bw_spointer fctxt p q a
+      si' = transpose_bw_spointer fctxt p q si in
+    Just ((a',si'), transpose_bw_spointer fctxt p q v)
+
+
+
+
+transpose_bw_e :: FContext -&gt; Sstate SValue -&gt; SimpleExpr -&gt; SValue
+transpose_bw_e fctxt p (Bottom (FromCall f))            = mk_cvalue fctxt $ Bottom (FromCall f)
+transpose_bw_e fctxt p (SE_Malloc id hash)              = mk_cvalue fctxt $ SE_Malloc id hash
+transpose_bw_e fctxt p (SE_Immediate i)                 = cimmediate fctxt i
+transpose_bw_e fctxt p (SE_StatePart sp)                = Top
+transpose_bw_e fctxt p (SE_Var (SP_StackPointer f))     = evalSstate (read_sp fctxt (SSP_Reg RSP)) p
+transpose_bw_e fctxt p (SE_Var sp)                      = evalSstate (read_sp fctxt $ transpose_bw_sp fctxt p sp) p
+transpose_bw_e fctxt p (SE_Bit i e)                     = csemantics fctxt &quot;transpose_bw&quot; $ SO_Bit i $ transpose_bw_e fctxt p e
+transpose_bw_e fctxt p (SE_SExtend l h e)               = csemantics fctxt &quot;transpose_bw&quot; $ SO_SExtend l h $ transpose_bw_e fctxt p e
+transpose_bw_e fctxt p (SE_Op Plus si [a,b])            = csemantics fctxt &quot;transpose_bw&quot; $ SO_Op ADD (si `div` 8) Nothing [transpose_bw_e fctxt p a,transpose_bw_e fctxt p b]
+transpose_bw_e fctxt p (SE_Op Minus si [a,b])           = csemantics fctxt &quot;transpose_bw&quot; $ SO_Op SUB (si `div` 8) Nothing [transpose_bw_e fctxt p a,transpose_bw_e fctxt p b]
+transpose_bw_e fctxt p (SE_Op op si es)                 = apply_expr_op fctxt &quot;transpose_bw&quot; (mk_expr fctxt . SE_Op op si) $ map (transpose_bw_e fctxt p) es
+transpose_bw_e fctxt p (SE_Overwrite i a b)             = csemantics fctxt &quot;transpose_bw&quot; $ SO_Overwrite i (transpose_bw_e fctxt p a) (transpose_bw_e fctxt p b)
+
+transpose_bw_sp fctxt p (SP_Reg r) = SSP_Reg r
+transpose_bw_sp fctxt p (SP_Mem a si) = SSP_Mem (transpose_bw_e fctxt p a) si
+
+
+
+read_sp :: FContext -&gt; SStatePart -&gt; State (Sstate SValue, VCS) SValue
+read_sp fctxt (SSP_Reg r)    = sread_reg fctxt r
+read_sp fctxt (SSP_Mem a si) = sread_mem fctxt &quot;read_sp&quot; a si'
+ where
+   si' = cimmediate fctxt $ fromIntegral si
+
+write_sp :: FContext -&gt; SStatePart -&gt; SValue -&gt; State (Sstate SValue, VCS) ()
+write_sp fctxt (SSP_Reg r)    v = swrite_reg fctxt r v
+write_sp fctxt (SSP_Mem a si) v = swrite_mem fctxt a (cimmediate fctxt si) v
+
+
+data FunctionType = AnalyzedInternalFunction (Sstate SValue) | ExternalFunction | AnalyzedInternalFunctionTerminates | AnalyzedInternalFunctionUnknown
+
+get_function_type fctxt i f_callee =
+  ftype $ map postcondition_of_jump_target $ resolve_jump_target (f_ctxt fctxt) i
+ where
+  ftype posts
+    | all ((==) (Just Terminating)) posts                                = AnalyzedInternalFunctionTerminates
+    | all is_returning posts                                             = AnalyzedInternalFunction $ supremum fctxt $ map fromReturning posts
+    | &quot;0x&quot; `isPrefixOf` f_callee || &quot;indirection@&quot; `isPrefixOf` f_callee = AnalyzedInternalFunctionUnknown
+    | otherwise                                                          = ExternalFunction
+
+  fromReturning (Just (ReturningWith q)) = q
+  is_returning  (Just (ReturningWith q)) = True
+  is_returning  _                        = False
+
+  postcondition_of_jump_target (ImmediateAddress a) = IM.lookup (fromIntegral a) (ctxt_calls $ f_ctxt fctxt)
+  postcondition_of_jump_target _                    = Nothing
+
+
+
+-- | Executes semantics for external functions.
+call :: FContext -&gt; Bool -&gt; X86.Instruction -&gt; State (Sstate SValue,VCS) ()
+call fctxt is_jump i = do
+  case get_function_type fctxt i f_callee of
+    AnalyzedInternalFunctionUnknown    -&gt; unknown_internal_function fctxt i
+    AnalyzedInternalFunctionTerminates -&gt; incr_rsp
+    AnalyzedInternalFunction q         -&gt; internal_function q
+    ExternalFunction                   -&gt; external_function 
+ where
+  external_function = case external_function_behavior fctxt f_callee of
+    ExternalFunctionBehavior params output -&gt; {--mapM_ write_param params &gt;&gt; --} write_output output &gt;&gt; incr_rsp-- writing to params really roughly overapproximates
+
+  write_output FreshPointer       = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ SE_Malloc (Just (addressof i)) (Just &quot;&quot;))
+  write_output UnknownReturnValue = swrite_reg fctxt RAX $ (mk_cvalue fctxt $ Bottom (FromCall f_callee))
+  write_output (Input r)          = sread_reg fctxt r &gt;&gt;= swrite_reg fctxt RAX
+
+  incr_rsp
+    | is_jump   = sexec_instr fctxt (Instruction (AddressWord64 0) Nothing ADD Nothing [Storage RSP, Immediate 8] Nothing)
+    | otherwise = return ()
+
+  decr_rsp
+    | not is_jump  = sexec_instr fctxt (Instruction (AddressWord64 0) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing)
+    | otherwise    = return ()
+
+  internal_function q = do
+    -- push return address if is call
+    decr_rsp
+
+    (p,vcs) &lt;- get
+    -- obtain the postcondition of the function, and do backwards transposition
+    let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt p q) $ filter ((/=) RIP . fst) $ sstate_to_reg_eqs q
+    let q_eqs_transposed_mem   = catMaybes $ map (transpose_bw_mem fctxt p q) $ filter do_transfer $ sstate_to_mem_eqs q
+    -- write transposed postcondition to current state
+    mapM_ (\((a,si),v) -&gt; swrite_mem fctxt a si v) $ q_eqs_transposed_mem 
+    mapM_ (\(r,v) -&gt; swrite_reg fctxt r v) $ q_eqs_transposed_regs
+
+
+  -- in case of an external function, which is passed a parameter $r$ 
+  -- do a write to region [r+bot,1] to muddle the state. The value written to that region is an abstraction of what is already there.
+  write_param r = do
+    a      &lt;- sread_reg fctxt r
+    let a'  = cwiden fctxt &quot;write_param&quot; a
+    let si' = Top
+    v'     &lt;- gets ((evalSstate $ sread_mem fctxt &quot;write_param&quot; a Top) . fst)
+    let bot = cwiden fctxt &quot;write_param_v&quot; v'
+    swrite_mem fctxt a' si' bot
+
+
+  do_transfer ((a,si),v) = not (is_initial (a,si) v) &amp;&amp; not (is_top_stackframe a si) &amp;&amp; not (is_local_svalue a)
+  
+  is_initial :: (SValue,SValue) -&gt; SValue -&gt; Bool
+  is_initial (a,si) v =
+    case (ctry_deterministic a, ctry_immediate si) of
+      (Just a', Just si') -&gt; v == mk_svalue fctxt (SE_Var (SP_Mem a' (fromIntegral si')))
+      _                   -&gt; False
+
+  is_top_stackframe (SConcrete es) si = NES.size es == 1 &amp;&amp; 
+    case (NES.findMin es,ctry_deterministic si) of
+      (SE_Var (SP_StackPointer _), Just _) -&gt; True
+      _ -&gt; False
+  is_top_stackframe _ _ = False
+
+  is_local_svalue (SPointer ptrs) = any is_local_ptrvalue ptrs
+  is_local_svalue (SConcrete es)  = any is_local_expr es
+  is_local_svalue (SAddends adds) = any is_local_var $ NES.map SE_Var adds
+  is_local_svalue Top             = False
+
+  is_local_expr = any is_local_var . get_addends
+
+  is_local_var (SE_Var (SP_StackPointer _)) = True
+  is_local_var (SE_Var (SP_Mem a si))       = is_local_expr a
+  is_local_var _                            = False
+
+
+
+  f_name  = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
+  f_callee = function_name_of_instruction (f_ctxt fctxt) i
+
+  sstate_to_reg_eqs (Sstate regs _ _) = M.toList regs
+  sstate_to_mem_eqs (Sstate _ mem _) = S.toList mem
+
+
+
+  unknown_internal_function fctxt i = incr_rsp -- TODO try as external
+
+
+jump :: FContext -&gt; X86.Instruction -&gt; State (Sstate SValue,VCS) ()
+jump fctxt i
+  | jump_is_actually_a_call (f_ctxt fctxt) i = call fctxt True i &gt;&gt; sexec_instr fctxt (Instruction (AddressWord64 0) Nothing SUB Nothing [Storage RSP, Immediate 8] Nothing) &gt;&gt; sreturn fctxt
+  | otherwise                                = return ()
+
+
+ctry_jump_targets :: FContext -&gt; SValue -&gt; Maybe (S.Set ResolvedJumpTarget)
+ctry_jump_targets fctxt ptr = try ptr
+ where
+  try (SPointer ptrs) = trace (&quot;Cannot resolve indirection: &quot; ++ show ptr) Nothing
+  try (SConcrete es) = 
+    let addresses = NES.map try_address es in
+      if all ((==) Nothing) addresses then
+        trace (&quot;Cannot resolve indirection: &quot; ++ show ptr) Nothing
+      --else if any ((==) Nothing) addresses then
+      --  error $ &quot;TODO:&quot; ++ show ptr
+      else --TODO ADD VC
+        Just $ S.map fromJust $ S.filter ((/=) Nothing) $ NES.toSet addresses
+  try _ = Nothing
+
+
+
+  try_address (SE_Immediate a)
+    | address_has_instruction (f_ctxt fctxt) a = Just $ ImmediateAddress a 
+    | otherwise = try_symbol a
+  try_address (SE_Var (SP_Mem (SE_Immediate a) 8)) = External &lt;$&gt; try_relocated_pointer fctxt a
+  try_address _ = Nothing
+
+  try_symbol a =
+    case IM.lookup (fromIntegral a) $ ctxt_symbol_table $ f_ctxt fctxt of
+      Just (Internal_Label f)  -&gt; Just $ External f
+      Just (Relocated_Label f) -&gt; Just $ External f
+      _                        -&gt; Nothing
+
+
+--}</span><span>
+</span><span id="line-1621"></span></pre></body></html>

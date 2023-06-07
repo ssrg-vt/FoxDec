@@ -23,7 +23,7 @@ Description : Some customizable constants.
 </span><span id="line-23"></span><span>
 </span><span id="line-24"></span><span>
 </span><span id="line-25"></span><span class="hs-comment">-- | A datastructure storing all configurable options</span><span>
-</span><span id="line-26"></span><span id="local-6989586621679332205"><span id="local-6989586621679332206"></span></span><span class="hs-keyword">data</span><span> </span><span id="Config"><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Config"><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span>
+</span><span id="line-26"></span><span id="local-6989586621679346213"><span id="local-6989586621679346214"></span></span><span class="hs-keyword">data</span><span> </span><span id="Config"><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Config"><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span>
 </span><span id="line-27"></span><span>  </span><span id="continue_on_unknown_instruction"><span class="annot"><span class="annottext">Config -&gt; Bool
 </span><a href="Config.html#continue_on_unknown_instruction"><span class="hs-identifier hs-var hs-var">continue_on_unknown_instruction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
 </span><span id="line-28"></span><span>  </span><span class="hs-comment">-- ^ When encountering an unknown instruction do we either</span><span>
@@ -84,12 +84,18 @@ Description : Some customizable constants.
 </span><span id="line-74"></span><span>  </span><span class="hs-comment">-- Sane default: 20000</span><span>
 </span><span id="line-75"></span><span>  </span><span>
 </span><span id="line-76"></span><span>  </span><span id="max_expr_size"><span class="annot"><span class="annottext">Config -&gt; Natural
-</span><a href="Config.html#max_expr_size"><span class="hs-identifier hs-var hs-var">max_expr_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span>
+</span><a href="Config.html#max_expr_size"><span class="hs-identifier hs-var hs-var">max_expr_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span class="hs-special">,</span><span>
 </span><span id="line-77"></span><span>  </span><span class="hs-comment">-- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.</span><span>
 </span><span id="line-78"></span><span>  </span><span class="hs-comment">-- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.</span><span>
 </span><span id="line-79"></span><span>  </span><span class="hs-comment">-- Sane default: 3000</span><span>
-</span><span id="line-80"></span><span> </span><span class="hs-special">}</span><span>
-</span><span id="line-81"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall x. Config -&gt; Rep Config x)
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>  </span><span id="nasm_with_safe_labels"><span class="annot"><span class="annottext">Config -&gt; Bool
+</span><a href="Config.html#nasm_with_safe_labels"><span class="hs-identifier hs-var hs-var">nasm_with_safe_labels</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-comment">-- ^ If set to True, then the NASM code will have longer labels (less readable) but always correct.</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">-- If set to False, labels may occur twice preventing compilation.</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-comment">-- Sane default: True</span><span>
+</span><span id="line-85"></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall x. Config -&gt; Rep Config x)
 -&gt; (forall x. Rep Config x -&gt; Config) -&gt; Generic Config
 forall x. Rep Config x -&gt; Config
 forall x. Config -&gt; Rep Config x
@@ -97,7 +103,7 @@ forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
 $cto :: forall x. Rep Config x -&gt; Config
 $cfrom :: forall x. Config -&gt; Rep Config x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679332184"><span id="local-6989586621679332186"><span id="local-6989586621679332188"><span class="annot"><span class="annottext">Int -&gt; Config -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679346191"><span id="local-6989586621679346193"><span id="local-6989586621679346195"><span class="annot"><span class="annottext">Int -&gt; Config -&gt; ShowS
 [Config] -&gt; ShowS
 Config -&gt; String
 (Int -&gt; Config -&gt; ShowS)
@@ -111,18 +117,18 @@ $cshow :: Config -&gt; String
 showsPrec :: Int -&gt; Config -&gt; ShowS
 $cshowsPrec :: Int -&gt; Config -&gt; ShowS
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
-</span><span id="line-82"></span><span>
-</span><span id="line-83"></span><span>
-</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679332181"><span class="annot"><span class="hs-identifier hs-type">FromDhall</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span><span>
-</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679332176"><span id="local-6989586621679332178"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span></span><span>
-</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679332173"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span><span>
 </span><span id="line-87"></span><span>
-</span><span id="line-88"></span><span class="hs-comment">-- | Given a filename, parse a config in the Dhall language</span><span>
-</span><span id="line-89"></span><span class="hs-comment">-- See: https://dhall-lang.org</span><span>
-</span><span id="line-90"></span><span class="annot"><a href="Config.html#parse_config"><span class="hs-identifier hs-type">parse_config</span></a></span><span> </span><span class="hs-glyph">::</span><span>
-</span><span id="line-91"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>    </span><span class="hs-comment">-- ^ The filename</span><span>
-</span><span id="line-92"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
-</span><span id="line-93"></span><span id="parse_config"><span class="annot"><span class="annottext">parse_config :: String -&gt; IO Config
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679346188"><span class="annot"><span class="hs-identifier hs-type">FromDhall</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679346183"><span id="local-6989586621679346185"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679346180"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Given a filename, parse a config in the Dhall language</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- See: https://dhall-lang.org</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Config.html#parse_config"><span class="hs-identifier hs-type">parse_config</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-96"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>    </span><span class="hs-comment">-- ^ The filename</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-98"></span><span id="parse_config"><span class="annot"><span class="annottext">parse_config :: String -&gt; IO Config
 </span><a href="Config.html#parse_config"><span class="hs-identifier hs-var hs-var">parse_config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Decoder Config -&gt; Text -&gt; IO Config
 forall a. Decoder a -&gt; Text -&gt; IO a
 </span><span class="hs-identifier hs-var">input</span></span><span> </span><span class="annot"><span class="annottext">Decoder Config
@@ -131,6 +137,6 @@ forall a. FromDhall a =&gt; Decoder a
 forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
 </span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
 </span><span class="hs-identifier hs-var">pack</span></span><span>
-</span><span id="line-94"></span><span>
-</span><span id="line-95"></span><span>
-</span><span id="line-96"></span></pre></body></html>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span></pre></body></html>

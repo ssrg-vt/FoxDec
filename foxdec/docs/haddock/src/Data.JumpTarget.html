@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_KRjP8NY01Wt0EeGa6XNW3g"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}</span><span>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_1jXeTCvBdTr0ntADboKNqR"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}</span><span>
 </span><span id="line-2"></span><span>
 </span><span id="line-3"></span><span class="hs-comment">{-|
 Module      : JumpTarget
@@ -13,11 +13,11 @@ Description : A datatype for resolving the operand of a jump/call
 </span><span id="line-13"></span><span>
 </span><span id="line-14"></span><span>
 </span><span id="line-15"></span><span class="hs-comment">-- | Resolving the operand of a jump/call can produce one of the following.</span><span>
-</span><span id="line-16"></span><span id="local-6989586621679332273"><span id="local-6989586621679332274"></span></span><span class="hs-keyword">data</span><span> </span><span id="ResolvedJumpTarget"><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-var">ResolvedJumpTarget</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-16"></span><span id="local-6989586621679346281"><span id="local-6989586621679346282"></span></span><span class="hs-keyword">data</span><span> </span><span id="ResolvedJumpTarget"><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-var">ResolvedJumpTarget</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-17"></span><span>   </span><span id="Unresolved"><span class="annot"><a href="Data.JumpTarget.html#Unresolved"><span class="hs-identifier hs-var">Unresolved</span></a></span></span><span>               </span><span class="hs-comment">-- ^ An indirect branch that has not been resolved yet</span><span>
 </span><span id="line-18"></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="External"><span class="annot"><a href="Data.JumpTarget.html#External"><span class="hs-identifier hs-var">External</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>          </span><span class="hs-comment">-- ^ A call to external function f</span><span>
 </span><span id="line-19"></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ImmediateAddress"><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-var">ImmediateAddress</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>  </span><span class="hs-comment">-- ^ An internal call to the given address</span><span>
-</span><span id="line-20"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679332266"><span id="local-6989586621679332268"><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
+</span><span id="line-20"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679346274"><span id="local-6989586621679346276"><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool
 (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
 -&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
 -&gt; Eq ResolvedJumpTarget
@@ -35,7 +35,7 @@ forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
 $cto :: forall x. Rep ResolvedJumpTarget x -&gt; ResolvedJumpTarget
 $cfrom :: forall x. ResolvedJumpTarget -&gt; Rep ResolvedJumpTarget x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679332247"><span id="local-6989586621679332249"><span id="local-6989586621679332251"><span id="local-6989586621679332253"><span id="local-6989586621679332255"><span id="local-6989586621679332257"><span id="local-6989586621679332259"><span class="annot"><span class="annottext">Eq ResolvedJumpTarget
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679346255"><span id="local-6989586621679346257"><span id="local-6989586621679346259"><span id="local-6989586621679346261"><span id="local-6989586621679346263"><span id="local-6989586621679346265"><span id="local-6989586621679346267"><span class="annot"><span class="annottext">Eq ResolvedJumpTarget
 Eq ResolvedJumpTarget
 -&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Ordering)
 -&gt; (ResolvedJumpTarget -&gt; ResolvedJumpTarget -&gt; Bool)
@@ -76,21 +76,21 @@ $cp1Ord :: Eq ResolvedJumpTarget
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
 </span><span id="line-21"></span><span>
 </span><span id="line-22"></span><span>
-</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679332241"><span id="local-6989586621679332244"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-type">ResolvedJumpTarget</span></a></span></span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679346249"><span id="local-6989586621679346252"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-type">ResolvedJumpTarget</span></a></span></span></span><span>
 </span><span id="line-24"></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-25"></span><span>  </span><span id="local-6989586621679332239"><span class="annot"><span class="annottext">show :: ResolvedJumpTarget -&gt; String
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679346247"><span class="annot"><span class="annottext">show :: ResolvedJumpTarget -&gt; String
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget
 </span><a href="Data.JumpTarget.html#Unresolved"><span class="hs-identifier hs-var">Unresolved</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;Unresolved&quot;</span></span><span>
-</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#External"><span class="hs-identifier hs-type">External</span></a></span><span> </span><span id="local-6989586621679332237"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679332237"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679332237"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-type">ImmediateAddress</span></a></span><span> </span><span id="local-6989586621679332236"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679332236"><span class="hs-identifier hs-var">imm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#External"><span class="hs-identifier hs-type">External</span></a></span><span> </span><span id="local-6989586621679346245"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679346245"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679346245"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-type">ImmediateAddress</span></a></span><span> </span><span id="local-6989586621679346244"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679346244"><span class="hs-identifier hs-var">imm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
 forall a. (Integral a, Show a) =&gt; a -&gt; String
 </span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679332236"><span class="hs-identifier hs-var">imm</span></a></span><span>
+</span><a href="#local-6989586621679346244"><span class="hs-identifier hs-var">imm</span></a></span><span>
 </span><span id="line-28"></span></pre></body></html>

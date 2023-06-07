@@ -82,9 +82,9 @@ ctxt_mk_function_boundary ctxt entry =
   show_chunk [i]   = showHex i ++ " (single instruction)"
   show_chunk chunk = showHex (head chunk) ++ "-->" ++ showHex (last chunk)
 
-mk_consecutive_chunks :: [Int] -> [[Int]]
-mk_consecutive_chunks = split_consecutives . sort
- where
+  mk_consecutive_chunks :: [Int] -> [[Int]]
+  mk_consecutive_chunks = split_consecutives . sort
+
   split_consecutives :: [Int] -> [[Int]]
   split_consecutives []         = []
   split_consecutives [i]        = [[i]]

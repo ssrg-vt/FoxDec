@@ -1,7 +1,13 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, DeriveGeneric, StandaloneDeriving, StrictData #-}
 
 
-module OutputGeneration.Metrics where
+module OutputGeneration.Metrics (
+  num_of_instructions,
+  num_of_unres_inds_in_cfg,
+  num_of_blocks,
+  num_of_edges, 
+  mk_metrics
+ ) where
 
 import Base
 
@@ -64,6 +70,7 @@ metrics = M.fromList [
  ]
 
 
+-- | Returns all generated metrics in JSON and pretty-printed
 mk_metrics :: Context -> (String,String)
 mk_metrics ctxt =
   let instrs                          = S.toList $ ctxt_get_instructions ctxt
@@ -150,6 +157,7 @@ num_of_verif_error = IM.size . IM.filter isVerificationError . ctxt_results
 -- | Number of unresolved indirections
 num_of_unres_inds ctxt chkKind = sum (map (num_of_unres_inds_in_cfg ctxt chkKind) $ IM.elems $ ctxt_cfgs ctxt)
 
+-- | Number of unresolved indirections in the given CFG
 num_of_unres_inds_in_cfg ctxt chkKind g = 
   let blocks  = IM.keys $ cfg_blocks g in
     length (filter (\b -> node_info_of ctxt g b == UnresolvedIndirection && ends_in_kind b) blocks)

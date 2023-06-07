@@ -1,7 +1,9 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, DeriveGeneric, StandaloneDeriving, StrictData #-}
 
 
-module OutputGeneration.JSON where
+module OutputGeneration.JSON (
+  generate_json
+  ) where
 
 
 
@@ -59,8 +61,13 @@ import Debug.Trace
 
 
 
-
-generate_json :: Context -> String -> String -> Bool -> IO ()
+-- | Generate JSON
+generate_json :: 
+  Context 
+  -> String -- ^ The file name to write the pretty-printed JSON
+  -> String -- ^ The file name to write the JSON
+  -> Bool   -- ^ Should we include invariants?
+  -> IO ()
 generate_json ctxt fname_plain fname_json verbose = do
   let entries = ctxt_get_function_entries ctxt
 

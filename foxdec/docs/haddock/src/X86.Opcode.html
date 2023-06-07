@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_9EN8lw8OEq8FdJKmF3YAKj"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_9Nft9nIuAunCQz9YtuYveK"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
 </span><span id="line-2"></span><span>
 </span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">X86.Opcode</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier">Opcode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isJump"><span class="hs-identifier">isJump</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isCondJump"><span class="hs-identifier">isCondJump</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isCall"><span class="hs-identifier">isCall</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isRet"><span class="hs-identifier">isRet</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="X86.Opcode.html#isHalt"><span class="hs-identifier">isHalt</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
 </span><span id="line-4"></span><span>
@@ -8,7 +8,7 @@
 </span><span id="line-8"></span><span>
 </span><span id="line-9"></span><span>
 </span><span id="line-10"></span><span class="hs-comment">-- | Opcodes / mnemonics</span><span>
-</span><span id="line-11"></span><span id="local-6989586621679334664"><span id="local-6989586621679334665"></span></span><span class="hs-keyword">data</span><span> </span><span id="Opcode"><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-var">Opcode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-11"></span><span id="local-6989586621679348672"><span id="local-6989586621679348673"></span></span><span class="hs-keyword">data</span><span> </span><span id="Opcode"><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-var">Opcode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
 </span><span id="line-12"></span><span>    </span><span id="InvalidOpcode"><span class="annot"><a href="X86.Opcode.html#InvalidOpcode"><span class="hs-identifier hs-var">InvalidOpcode</span></a></span></span><span>
 </span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AAA"><span class="annot"><a href="X86.Opcode.html#AAA"><span class="hs-identifier hs-var">AAA</span></a></span></span><span>
 </span><span id="line-14"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AAD"><span class="annot"><a href="X86.Opcode.html#AAD"><span class="hs-identifier hs-var">AAD</span></a></span></span><span>
@@ -613,7 +613,7 @@
 </span><span id="line-613"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XOR"><span class="annot"><a href="X86.Opcode.html#XOR"><span class="hs-identifier hs-var">XOR</span></a></span></span><span>
 </span><span id="line-614"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XORPD"><span class="annot"><a href="X86.Opcode.html#XORPD"><span class="hs-identifier hs-var">XORPD</span></a></span></span><span>
 </span><span id="line-615"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XORPS"><span class="annot"><a href="X86.Opcode.html#XORPS"><span class="hs-identifier hs-var">XORPS</span></a></span></span><span>
-</span><span id="line-616"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334054"><span id="local-6989586621679334056"><span id="local-6989586621679334058"><span class="annot"><span class="annottext">Int -&gt; Opcode -&gt; ShowS
+</span><span id="line-616"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679348062"><span id="local-6989586621679348064"><span id="local-6989586621679348066"><span class="annot"><span class="annottext">Int -&gt; Opcode -&gt; ShowS
 [Opcode] -&gt; ShowS
 Opcode -&gt; String
 (Int -&gt; Opcode -&gt; ShowS)
@@ -626,7 +626,7 @@ show :: Opcode -&gt; String
 $cshow :: Opcode -&gt; String
 showsPrec :: Int -&gt; Opcode -&gt; ShowS
 $cshowsPrec :: Int -&gt; Opcode -&gt; ShowS
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679334049"><span id="local-6989586621679334051"><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679348057"><span id="local-6989586621679348059"><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
 (Opcode -&gt; Opcode -&gt; Bool)
 -&gt; (Opcode -&gt; Opcode -&gt; Bool) -&gt; Eq Opcode
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
@@ -634,7 +634,7 @@ forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
 $c/= :: Opcode -&gt; Opcode -&gt; Bool
 == :: Opcode -&gt; Opcode -&gt; Bool
 $c== :: Opcode -&gt; Opcode -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679334033"><span id="local-6989586621679334035"><span id="local-6989586621679334037"><span id="local-6989586621679334039"><span id="local-6989586621679334041"><span id="local-6989586621679334043"><span id="local-6989586621679334045"><span class="annot"><span class="annottext">Eq Opcode
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679348041"><span id="local-6989586621679348043"><span id="local-6989586621679348045"><span id="local-6989586621679348047"><span id="local-6989586621679348049"><span id="local-6989586621679348051"><span id="local-6989586621679348053"><span class="annot"><span class="annottext">Eq Opcode
 Eq Opcode
 -&gt; (Opcode -&gt; Opcode -&gt; Ordering)
 -&gt; (Opcode -&gt; Opcode -&gt; Bool)
@@ -682,15 +682,15 @@ $cto :: forall x. Rep Opcode x -&gt; Opcode
 $cfrom :: forall x. Opcode -&gt; Rep Opcode x
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
 </span><span id="line-617"></span><span>
-</span><span id="line-618"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679334025"><span id="local-6989586621679334027"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span></span><span>
-</span><span id="line-619"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679334022"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span><span>
+</span><span id="line-618"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679348033"><span id="local-6989586621679348035"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span></span><span>
+</span><span id="line-619"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679348030"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span></span><span>
 </span><span id="line-620"></span><span>
 </span><span id="line-621"></span><span class="hs-comment">-- | Returns true iff m is the mnemonic of a conditional jump</span><span>
 </span><span id="line-622"></span><span class="annot"><a href="X86.Opcode.html#isCondJump"><span class="hs-identifier hs-type">isCondJump</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-623"></span><span id="isCondJump"><span class="annot"><span class="annottext">isCondJump :: Opcode -&gt; Bool
-</span><a href="X86.Opcode.html#isCondJump"><span class="hs-identifier hs-var hs-var">isCondJump</span></a></span></span><span> </span><span id="local-6989586621679334020"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334020"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334020"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><a href="X86.Opcode.html#isCondJump"><span class="hs-identifier hs-var hs-var">isCondJump</span></a></span></span><span> </span><span id="local-6989586621679348028"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348028"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348028"><span class="hs-identifier hs-var">m</span></a></span><span>
 </span><span id="line-624"></span><span>  </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Opcode
@@ -769,9 +769,9 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span id="line-661"></span><span class="hs-comment">-- | Returns true iff m is the mnemonic of a halting instruction</span><span>
 </span><span id="line-662"></span><span class="annot"><a href="X86.Opcode.html#isHalt"><span class="hs-identifier hs-type">isHalt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-663"></span><span id="isHalt"><span class="annot"><span class="annottext">isHalt :: Opcode -&gt; Bool
-</span><a href="X86.Opcode.html#isHalt"><span class="hs-identifier hs-var hs-var">isHalt</span></a></span></span><span> </span><span id="local-6989586621679334018"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334018"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334018"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
+</span><a href="X86.Opcode.html#isHalt"><span class="hs-identifier hs-var hs-var">isHalt</span></a></span></span><span> </span><span id="local-6989586621679348026"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348026"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348026"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; Opcode -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86.Opcode.html#HLT"><span class="hs-identifier hs-var">HLT</span></a></span><span>
@@ -779,9 +779,9 @@ forall a. Eq a =&gt; a -&gt; a -&gt; Bool
 </span><span id="line-665"></span><span class="hs-comment">-- | Returns true iff m is the mnemonic of a jump</span><span>
 </span><span id="line-666"></span><span class="annot"><a href="X86.Opcode.html#isJump"><span class="hs-identifier hs-type">isJump</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-667"></span><span id="isJump"><span class="annot"><span class="annottext">isJump :: Opcode -&gt; Bool
-</span><a href="X86.Opcode.html#isJump"><span class="hs-identifier hs-var hs-var">isJump</span></a></span></span><span> </span><span id="local-6989586621679334017"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334017"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
+</span><a href="X86.Opcode.html#isJump"><span class="hs-identifier hs-var hs-var">isJump</span></a></span></span><span> </span><span id="local-6989586621679348025"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348025"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348025"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86.Opcode.html#JMP"><span class="hs-identifier hs-var">JMP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Opcode
@@ -791,9 +791,9 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span id="line-669"></span><span class="hs-comment">-- | Returns true iff m is the mnemonic of a call</span><span>
 </span><span id="line-670"></span><span class="annot"><a href="X86.Opcode.html#isCall"><span class="hs-identifier hs-type">isCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-671"></span><span id="isCall"><span class="annot"><span class="annottext">isCall :: Opcode -&gt; Bool
-</span><a href="X86.Opcode.html#isCall"><span class="hs-identifier hs-var hs-var">isCall</span></a></span></span><span> </span><span id="local-6989586621679334016"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334016"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334016"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
+</span><a href="X86.Opcode.html#isCall"><span class="hs-identifier hs-var hs-var">isCall</span></a></span></span><span> </span><span id="local-6989586621679348024"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348024"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348024"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86.Opcode.html#CALL"><span class="hs-identifier hs-var">CALL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Opcode
@@ -802,9 +802,9 @@ forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span id="line-673"></span><span class="hs-comment">-- | Returns true iff m is the mnemonic of a return</span><span>
 </span><span id="line-674"></span><span class="annot"><a href="X86.Opcode.html#isRet"><span class="hs-identifier hs-type">isRet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
 </span><span id="line-675"></span><span id="isRet"><span class="annot"><span class="annottext">isRet :: Opcode -&gt; Bool
-</span><a href="X86.Opcode.html#isRet"><span class="hs-identifier hs-var hs-var">isRet</span></a></span></span><span> </span><span id="local-6989586621679334015"><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334015"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
-</span><a href="#local-6989586621679334015"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
+</span><a href="X86.Opcode.html#isRet"><span class="hs-identifier hs-var hs-var">isRet</span></a></span></span><span> </span><span id="local-6989586621679348023"><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348023"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Opcode
+</span><a href="#local-6989586621679348023"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Opcode -&gt; [Opcode] -&gt; Bool
 forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
 </span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Opcode
 </span><a href="X86.Opcode.html#RET"><span class="hs-identifier hs-var">RET</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Opcode

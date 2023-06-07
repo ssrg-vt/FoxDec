@@ -4,7 +4,13 @@
 Module      : SymbolicPropagation
 Description : Provides an instantiation of all functions necessary to do symbolic propagation
 -}
-module Instantiation.SymbolicPropagation where
+module Instantiation.SymbolicPropagation (
+ get_invariant,
+ init_pred,
+ invariant_to_finit,
+ join_finit,
+ gather_stateparts
+ ) where
 
 
 import Base
@@ -953,7 +959,7 @@ instance Propagator FContext Predicate where
 
 
 
--- get the currently known invariant for the given instruction address
+-- | Get the currently known invariant for the given instruction address
 get_invariant :: FContext -> Int -> Maybe Predicate
 get_invariant fctxt a = do
   let ctxt   = f_ctxt fctxt
@@ -1086,8 +1092,6 @@ invariant_to_finit fctxt p =
 join_finit :: FContext -> FInit -> FInit -> FInit
 join_finit fctxt f0@(FInit sps0 m0) f1@(FInit sps1 m1)
   | f0 == f1 = f0
-  --  | f0 == init_finit = f1
-  --  | f1 == init_finit = f0
   | otherwise = FInit (S.intersection sps0 sps1) (M.intersectionWith join_rel m0 m1)
  where
   join_rel r0 r1

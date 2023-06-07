@@ -283,9 +283,11 @@ expr_size_bottyp (FromCall _)                   = 1
 
 
 
-
+-- | Sign-extension from 32 to 64 bits
 sextend_32_64 w = if testBit w 31 then w .|. 0xFFFFFFFF00000000 else w
+-- | Sign-extension from 16 to 64 bits
 sextend_16_64 w = if testBit w 15 then w .|. 0xFFFFFFFFFFFF0000 else w
+-- | Sign-extension from 8 to 64 bits
 sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 
 

@@ -1,7 +1,9 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StrictData #-}
 
 
-module Algorithm.L0_Lifting where
+module Algorithm.L0_Lifting (
+  lift_to_L0
+ ) where
 
 
 
@@ -76,7 +78,7 @@ to_out   = whenM (gets ctxt_verbose) . to_out_r
 to_log log s = liftIO $ appendFile log $ s ++ "\n"
 
 
--- the main algorithm
+-- | The main algorithm for lifting a binary to an L0 representation (i.e., a Hoare Graph)
 lift_to_L0 :: StateT Context IO ()
 lift_to_L0 = do
   -- 1.) read entry points, clear .indirections file
@@ -261,7 +263,7 @@ ctxt_get_new_calls entry = do
       (_,Just finit,Just inv)    -> do
         let finit' = join_finit fctxt (invariant_to_finit fctxt inv) finit
         if finit /= finit' || (graph_is_vertex (ctxt_entries ctxt) (fromIntegral trgt) && not (graph_is_edge (ctxt_entries ctxt) entry (fromIntegral trgt))) then
-          return (fromIntegral trgt,finit') -- $ trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit fctxt inv) ++ "\n" ++ show finit') 
+          return (fromIntegral trgt,finit') -- trace ("new finit@" ++ showHex trgt ++ "\n" ++ show finit ++ "\n" ++ show (invariant_to_finit fctxt inv) ++ "\n" ++ show finit') 
         else
           Nothing
       (_,_,Nothing) -> Nothing -- time out

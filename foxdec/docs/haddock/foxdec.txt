@@ -30,7 +30,13 @@ readHex' :: (Eq a, Num a) => String -> a
 im_lookup :: [Char] -> IntMap p -> Key -> p
 
 -- | use a default value in case of <tt>Nothing</tt>
-orElse :: Maybe p -> p -> p
+orElse :: Eq a => Maybe a -> a -> a
+
+-- | try something else if first result failed
+orTry :: Eq a => Maybe a -> Maybe a -> Maybe a
+
+-- | return only if Bool holds
+onlyWhen :: Bool -> a -> Maybe a
 
 -- | A value exists (is not Nothing) and satisfies the predicate
 existsAndSatisfies :: Maybe t -> (t -> Bool) -> Bool
@@ -65,6 +71,7 @@ crossProduct :: [[a]] -> [[a]]
 crossProduct_size :: Foldable t => [t a] -> Int
 neFromList :: Ord a => [a] -> NESet a
 neSetToList :: NESet a -> [a]
+quotientBy :: Ord a => (a -> a -> Bool) -> Set a -> Set (Set a)
 
 -- | Generic graph with ints as vertices.
 data Graph
@@ -117,7 +124,7 @@ module Config
 
 -- | A datastructure storing all configurable options
 data Config
-Config :: Bool -> Bool -> Bool -> Bool -> Bool -> Natural -> Natural -> Natural -> Natural -> Natural -> Natural -> Config
+Config :: Bool -> Bool -> Bool -> Bool -> Bool -> Natural -> Natural -> Natural -> Natural -> Natural -> Natural -> Bool -> Config
 
 -- | When encountering an unknown instruction do we either * report it to
 --   stderr but continue (True), or * exit with an error message (False)?
@@ -164,6 +171,11 @@ Config :: Bool -> Bool -> Bool -> Bool -> Bool -> Natural -> Natural -> Natural 
 --   Does not affect soundness, but if the value is set too low, then the
 --   results becomes overly overapproximative. Sane default: 3000
 [max_expr_size] :: Config -> Natural
+
+-- | If set to True, then the NASM code will have longer labels (less
+--   readable) but always correct. If set to False, labels may occur twice
+--   preventing compilation. Sane default: True
+[nasm_with_safe_labels] :: Config -> Bool
 
 -- | Given a filename, parse a config in the Dhall language See:
 --   <a>https://dhall-lang.org</a>
@@ -255,7 +267,7 @@ SectionsInfo :: [(String, String, Word64, Word64)] -> Word64 -> Word64 -> Sectio
 --   from address 0xaaaa produces the value 0xbbbb
 data Symbol
 
--- | Address a0 is a pointer to memory sotring the entry of an external
+-- | Address a0 is a pointer to memory storing the entry of an external
 --   function
 Relocated_Function :: String -> Symbol
 
@@ -266,8 +278,14 @@ Relocated_Label :: String -> Symbol
 Internal_Label :: String -> Symbol
 data SymbolTable
 SymbolTable :: IntMap Symbol -> SymbolTable
+
+-- | Is the symbol an internal label?
 is_internal_symbol :: Symbol -> Bool
+
+-- | Is the symbol an external label?
 is_external_symbol :: Symbol -> Bool
+
+-- | Returns the name from the symbol
 symbol_to_name :: Symbol -> Maybe String
 data Relocation
 
@@ -392,6 +410,9 @@ instance Data.Serialize.Serialize Data.Elf.Elf
 instance Generic.Binary.BinaryClass Data.Elf.Elf
 
 module Instantiation.BinaryMacho
+
+-- | Read in all files needed to read in MACHO binary executable: data,
+--   ro_data, symbols, sections, and entries.
 macho_read_file :: String -> String -> IO Macho
 instance Generic.Binary.BinaryClass Instantiation.BinaryMacho.Macho
 
@@ -1489,19 +1510,27 @@ contains_bot :: SimpleExpr -> Bool
 -- | Returns true iff the statepart contains Bot
 contains_bot_sp :: StatePart -> Bool
 
+-- | concatMap function p over all bottom values in the expression
+all_bot_satisfy :: (BotTyp -> Bool) -> SimpleExpr -> Bool
+
 -- | Simplification of symbolic expressions.
 --   
 --   Must always produce an expression logically equivalent to the
---   original. TODO:
---   overwrite(8,Bot[src|RSP_0x1000070ec,malloc<tt>100007204()|],b8(Bot[m|RSP_0x1000070ec,malloc</tt>100007204()|]))
+--   original.
 simp :: SimpleExpr -> SimpleExpr
 
 -- | Pretty print expression, showing Bottom expressions only as Bot
 pp_expr :: SimpleExpr -> [Char]
 
 expr_size :: SimpleExpr -> Int
+
+-- | Sign-extension from 32 to 64 bits
 sextend_32_64 :: (Bits p, Num p) => p -> p
+
+-- | Sign-extension from 16 to 64 bits
 sextend_16_64 :: (Bits p, Num p) => p -> p
+
+-- | Sign-extension from 8 to 64 bits
 sextend_8_64 :: (Bits p, Num p) => p -> p
 instance GHC.Classes.Ord Data.SymbolicExpression.PointerBase
 instance GHC.Classes.Eq Data.SymbolicExpression.PointerBase
@@ -1576,90 +1605,219 @@ type VCS = Set VerificationCondition
 
 -- | Add a function_pointer_intro to the given symbolic predicate
 add_function_pointer :: Word64 -> Key -> (a, Set VerificationCondition) -> (a, Set VerificationCondition)
-data SymbolicOperation a
-SO_Op :: Opcode -> Int -> Maybe Int -> [a] -> SymbolicOperation a
-SO_Bit :: Int -> a -> SymbolicOperation a
-SO_SExtend :: Int -> Int -> a -> SymbolicOperation a
-SO_Overwrite :: Int -> a -> a -> SymbolicOperation a
-SO_Plus :: a -> a -> SymbolicOperation a
-SO_Minus :: a -> a -> SymbolicOperation a
-SO_Times :: a -> a -> SymbolicOperation a
-class (Ord a, Eq a, Show a) => SymbolicExecutable ctxt a
-sseparate :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> a -> a -> Bool
-senclosed :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> a -> Bool
-salias :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> a -> Bool
-ssensitive :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> Bool
-sread_from_ro_data :: SymbolicExecutable ctxt a => ctxt -> a -> a -> Maybe a
-smk_mem_addresses :: SymbolicExecutable ctxt a => ctxt -> a -> Set a
-sjoin :: (SymbolicExecutable ctxt a, Foldable t) => ctxt -> String -> t a -> a
-swiden :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a
-top :: SymbolicExecutable ctxt a => ctxt -> a
-ssemantics :: SymbolicExecutable ctxt a => ctxt -> SymbolicOperation a -> a
-sflg_semantics :: SymbolicExecutable ctxt a => ctxt -> a -> Instruction -> FlagStatus -> FlagStatus
-simmediate :: (SymbolicExecutable ctxt a, Integral i) => ctxt -> i -> a
-mk_svalue :: SymbolicExecutable ctxt a => ctxt -> SimpleExpr -> a
-mk_smem_value :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> a
-scall :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
-sjump :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
-stry_jump_targets :: SymbolicExecutable ctxt a => ctxt -> a -> Maybe (Set ResolvedJumpTarget)
-stry_immediate :: SymbolicExecutable ctxt a => ctxt -> a -> Maybe Word64
-stry_deterministic :: SymbolicExecutable ctxt a => ctxt -> a -> Maybe SimpleExpr
-spointer_to_exprs :: SymbolicExecutable ctxt a => ctxt -> a -> Set SimpleExpr
-saddress_has_instruction :: SymbolicExecutable ctxt a => ctxt -> a -> Word64 -> Bool
-data Sstate a
-Sstate :: Map Register a -> Set ((a, a), a) -> FlagStatus -> Sstate a
-[sregs] :: Sstate a -> Map Register a
-[smem] :: Sstate a -> Set ((a, a), a)
-[sflags] :: Sstate a -> FlagStatus
-execSstate :: State (Sstate a, VCS) b -> Sstate a -> Sstate a
-evalSstate :: State (Sstate a, VCS) b -> Sstate a -> b
+data SymbolicOperation v
+SO_Op :: Opcode -> Int -> Maybe Int -> [v] -> SymbolicOperation v
+SO_Bit :: Int -> v -> SymbolicOperation v
+SO_SExtend :: Int -> Int -> v -> SymbolicOperation v
+SO_Overwrite :: Int -> v -> v -> SymbolicOperation v
+SO_Plus :: v -> v -> SymbolicOperation v
+SO_Minus :: v -> v -> SymbolicOperation v
+SO_Times :: v -> v -> SymbolicOperation v
+data RegionSize
+Nat :: Word64 -> RegionSize
+UnknownSize :: RegionSize
+class (Ord v, Eq v, Show v, Eq p, Ord p, Show p) => SymbolicExecutable ctxt v p | ctxt -> v p
+sseparate :: SymbolicExecutable ctxt v p => ctxt -> String -> p -> RegionSize -> p -> RegionSize -> Bool
+senclosed :: SymbolicExecutable ctxt v p => ctxt -> p -> RegionSize -> p -> RegionSize -> Bool
+salias :: SymbolicExecutable ctxt v p => ctxt -> p -> RegionSize -> p -> RegionSize -> Bool
+ssensitive :: SymbolicExecutable ctxt v p => ctxt -> p -> RegionSize -> v -> Bool
+sread_from_ro_data :: SymbolicExecutable ctxt v p => ctxt -> p -> RegionSize -> Maybe v
+smk_mem_addresses :: SymbolicExecutable ctxt v p => ctxt -> String -> v -> Set p
+sjoin_values :: (SymbolicExecutable ctxt v p, Foldable t) => ctxt -> String -> t v -> v
+swiden_values :: SymbolicExecutable ctxt v p => ctxt -> String -> v -> v
+sjoin_pointers :: SymbolicExecutable ctxt v p => ctxt -> [p] -> [p]
+top :: SymbolicExecutable ctxt v p => ctxt -> String -> v
+ssemantics :: SymbolicExecutable ctxt v p => ctxt -> String -> SymbolicOperation v -> v
+sflg_semantics :: SymbolicExecutable ctxt v p => ctxt -> v -> Instruction -> FlagStatus -> FlagStatus
+simmediate :: (SymbolicExecutable ctxt v p, Integral i) => ctxt -> i -> v
+smk_init_reg_value :: SymbolicExecutable ctxt v p => ctxt -> Register -> v
+smk_init_mem_value :: SymbolicExecutable ctxt v p => ctxt -> String -> p -> RegionSize -> v
+scall :: SymbolicExecutable ctxt v p => ctxt -> Bool -> Instruction -> State (Sstate v p, VCS) ()
+sjump :: SymbolicExecutable ctxt v p => ctxt -> Instruction -> State (Sstate v p, VCS) ()
+stry_jump_targets :: SymbolicExecutable ctxt v p => ctxt -> v -> Maybe (Set ResolvedJumpTarget)
+stry_immediate :: SymbolicExecutable ctxt v p => ctxt -> v -> Maybe Word64
+stry_deterministic :: SymbolicExecutable ctxt v p => ctxt -> v -> Maybe SimpleExpr
+stry_relocation :: SymbolicExecutable ctxt v p => ctxt -> p -> RegionSize -> Maybe v
+saddress_has_instruction :: SymbolicExecutable ctxt v p => ctxt -> Word64 -> Bool
+data Sstate v p
+Sstate :: Map Register v -> Map (p, RegionSize) v -> FlagStatus -> Sstate v p
+[sregs] :: Sstate v p -> Map Register v
+[smem] :: Sstate v p -> Map (p, RegionSize) v
+[sflags] :: Sstate v p -> FlagStatus
+execSstate :: State (Sstate v p, VCS) b -> Sstate v p -> Sstate v p
+evalSstate :: State (Sstate v p, VCS) a -> Sstate v p -> a
 
 -- | Read from a register
-sread_rreg :: SymbolicExecutable ctxt p => ctxt -> Register -> (Sstate p, b) -> p
-sread_reg :: SymbolicExecutable ctxt a => ctxt -> Register -> State (Sstate a, VCS) a
+sread_rreg :: SymbolicExecutable ctxt p1 p2 => ctxt -> Register -> (Sstate p1 p3, b) -> p1
+sread_reg :: SymbolicExecutable ctxt v p => ctxt -> Register -> State (Sstate v p, VCS) v
 
 -- | Write to a register
-swrite_rreg :: SymbolicExecutable ctxt a => ctxt -> Register -> a -> State (Sstate a, VCS) ()
-soverwrite_reg :: SymbolicExecutable ctxt a => ctxt -> Bool -> Register -> a -> State (Sstate a, VCS) ()
-swrite_reg :: SymbolicExecutable ctxt a => ctxt -> Register -> a -> State (Sstate a, VCS) ()
+swrite_rreg :: SymbolicExecutable ctxt v p => ctxt -> Register -> v -> State (Sstate v p, VCS) ()
+soverwrite_reg :: SymbolicExecutable ctxt v p => ctxt -> Bool -> Register -> v -> State (Sstate v p, VCS) ()
+swrite_reg :: SymbolicExecutable ctxt v p => ctxt -> Register -> v -> State (Sstate v p, VCS) ()
 
 -- | Read from memory
-sread_mem :: SymbolicExecutable ctxt a => ctxt -> String -> a -> a -> State (Sstate a, VCS) a
+sread_mem :: SymbolicExecutable ctxt v p => ctxt -> String -> v -> RegionSize -> State (Sstate v p, VCS) v
+sread_mem_from_ptr :: SymbolicExecutable ctxt v p => ctxt -> String -> p -> RegionSize -> State (Sstate v p, VCS) v
 
 -- | Write to memory
-swrite_mem :: SymbolicExecutable ctxt a => ctxt -> a -> a -> a -> State (Sstate a, VCS) ()
+swrite_mem :: SymbolicExecutable ctxt v p => ctxt -> Bool -> v -> RegionSize -> v -> State (Sstate v p, VCS) ()
+swrite_mem_to_ptr :: SymbolicExecutable ctxt v p => ctxt -> Bool -> p -> RegionSize -> v -> State (Sstate v p, VCS) ()
 
 -- | Given the address of an operand of an instruction, resolve it given
 --   the current state.
-sresolve_address :: SymbolicExecutable ctxt a => ctxt -> Address -> State (Sstate a, VCS) a
-sread_operand :: SymbolicExecutable ctxt a => ctxt -> String -> Operand -> State (Sstate a, VCS) a
-swrite_operand :: SymbolicExecutable ctxt a => ctxt -> Bool -> Operand -> a -> State (Sstate a, VCS) ()
-swrite_flags :: SymbolicExecutable ctxt a => ctxt -> a -> Instruction -> State (Sstate a, VCS) ()
+sresolve_address :: SymbolicExecutable ctxt v p => ctxt -> Address -> State (Sstate v p, VCS) v
+sread_operand :: SymbolicExecutable ctxt v p => ctxt -> String -> Operand -> State (Sstate v p, VCS) v
+swrite_operand :: SymbolicExecutable ctxt v p => ctxt -> Bool -> Operand -> v -> State (Sstate v p, VCS) ()
+swrite_flags :: SymbolicExecutable ctxt v p => ctxt -> v -> Instruction -> State (Sstate v p, VCS) ()
 clean_flg :: StatePart -> FlagStatus -> FlagStatus
 add_jump_to_pred :: Instruction -> Instruction -> FlagStatus -> FlagStatus
-sreturn :: SymbolicExecutable ctxt a => ctxt -> State (Sstate a, VCS) ()
-slea :: SymbolicExecutable ctxt a => ctxt -> AddressWord64 -> Operand -> Operand -> State (Sstate a, VCS) ()
+sreturn :: SymbolicExecutable ctxt v p => ctxt -> State (Sstate v p, VCS) ()
+slea :: SymbolicExecutable ctxt v p => ctxt -> AddressWord64 -> Operand -> Operand -> State (Sstate v p, VCS) ()
+smov :: SymbolicExecutable ctxt v p => ctxt -> a -> Instruction -> State (Sstate v p, VCS) ()
+sgeneric_cinstr :: SymbolicExecutable ctxt v p => ctxt -> Instruction -> State (Sstate v p, VCS) ()
 operand_size :: HasSize a => GenericOperand a -> Int
 maybe_operand_size :: HasSize storage => [GenericOperand storage] -> Maybe Int
-sexec_cinstr :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
-sset_rip :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
-sexec_instr :: SymbolicExecutable ctxt a => ctxt -> Instruction -> State (Sstate a, VCS) ()
-sexec_block :: SymbolicExecutable ctxt a => ctxt -> [Instruction] -> Maybe [Instruction] -> Sstate a -> (Sstate a, VCS)
-sjoin_mem :: SymbolicExecutable ctxt a => ctxt -> String -> Sstate a -> Sstate a -> Set ((a, a), a)
-sjoin_states :: SymbolicExecutable ctxt a => ctxt -> [Char] -> Sstate a -> Sstate a -> Sstate a
+sexec_cinstr :: SymbolicExecutable ctxt v p => ctxt -> Instruction -> State (Sstate v p, VCS) ()
+sset_rip :: SymbolicExecutable ctxt v p => ctxt -> Instruction -> State (Sstate v p, VCS) ()
+sexec_instr :: SymbolicExecutable ctxt v p => ctxt -> Instruction -> State (Sstate v p, VCS) ()
+sexec_block :: SymbolicExecutable ctxt v p => ctxt -> [GenericInstruction AddressWord64 Register Prefix Opcode Int] -> Maybe [GenericInstruction AddressWord64 Register Prefix Opcode Int] -> Sstate v p -> (Sstate v p, Set VerificationCondition)
+sjoin_mem :: SymbolicExecutable ctxt v p => ctxt -> String -> Sstate v p -> Sstate v p -> Map (p, RegionSize) v
+sjoin_states :: forall v p1 ctxt p2. (SymbolicExecutable ctxt v p1, SymbolicExecutable ctxt v p2) => ctxt -> [Char] -> Sstate v p1 -> Sstate v p1 -> Sstate v p1
 
 -- | The supremum of a list of predicates
-supremum :: SymbolicExecutable ctxt a => ctxt -> [Sstate a] -> Sstate a
-simplies :: forall a ctxt. SymbolicExecutable ctxt a => ctxt -> Sstate a -> Sstate a -> Bool
+supremum :: SymbolicExecutable ctxt v p => ctxt -> [Sstate v p] -> Sstate v p
+simplies :: SymbolicExecutable ctxt v p => ctxt -> Sstate v p -> Sstate v p -> Bool
 instance GHC.Classes.Ord Generic.SymbolicConstituents.VerificationCondition
 instance GHC.Classes.Eq Generic.SymbolicConstituents.VerificationCondition
 instance GHC.Generics.Generic Generic.SymbolicConstituents.VerificationCondition
-instance GHC.Generics.Generic (Generic.SymbolicConstituents.Sstate a)
-instance GHC.Classes.Ord a => GHC.Classes.Ord (Generic.SymbolicConstituents.Sstate a)
-instance GHC.Classes.Eq a => GHC.Classes.Eq (Generic.SymbolicConstituents.Sstate a)
-instance GHC.Show.Show a => GHC.Show.Show (Generic.SymbolicConstituents.Sstate a)
-instance (GHC.Classes.Ord a, Data.Serialize.Serialize a) => Data.Serialize.Serialize (Generic.SymbolicConstituents.Sstate a)
-instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Generic.SymbolicConstituents.Sstate a)
+instance GHC.Generics.Generic Generic.SymbolicConstituents.RegionSize
+instance GHC.Classes.Ord Generic.SymbolicConstituents.RegionSize
+instance GHC.Classes.Eq Generic.SymbolicConstituents.RegionSize
+instance GHC.Generics.Generic (Generic.SymbolicConstituents.Sstate v p)
+instance (GHC.Classes.Ord v, GHC.Classes.Ord p) => GHC.Classes.Ord (Generic.SymbolicConstituents.Sstate v p)
+instance (GHC.Classes.Eq v, GHC.Classes.Eq p) => GHC.Classes.Eq (Generic.SymbolicConstituents.Sstate v p)
+instance (GHC.Show.Show v, GHC.Show.Show p) => GHC.Show.Show (Generic.SymbolicConstituents.Sstate v p)
+instance (GHC.Classes.Ord v, Data.Serialize.Serialize v, GHC.Classes.Ord p, Data.Serialize.Serialize p) => Data.Serialize.Serialize (Generic.SymbolicConstituents.Sstate v p)
+instance (Control.DeepSeq.NFData v, Control.DeepSeq.NFData p) => Control.DeepSeq.NFData (Generic.SymbolicConstituents.Sstate v p)
+instance GHC.Show.Show Generic.SymbolicConstituents.RegionSize
+instance Data.Serialize.Serialize Generic.SymbolicConstituents.RegionSize
+instance Control.DeepSeq.NFData Generic.SymbolicConstituents.RegionSize
+
+
+module Data.SValue2
+data PtrValue
+Base_StackPointer :: String -> PtrValue
+Base_Section :: Word64 -> PtrValue
+Base_Malloc :: Maybe Word64 -> Maybe String -> PtrValue
+Base_TLS :: PtrValue
+Base_StatePart :: StatePart -> PtrValue
+data SValue
+SPointer :: NESet PtrValue -> SValue
+SConcrete :: NESet SimpleExpr -> SValue
+SAddends :: NESet StatePart -> SValue
+Top :: SValue
+show_set :: [[Char]] -> [Char]
+isImmediate :: SValue -> Bool
+isImmediateExpr :: SimpleExpr -> Bool
+isConcrete :: SValue -> Bool
+isPointer :: SValue -> Bool
+isSectionPtr :: PtrValue -> Bool
+isStackPointer :: PtrValue -> Bool
+instance GHC.Generics.Generic Data.SValue2.PtrValue
+instance GHC.Classes.Ord Data.SValue2.PtrValue
+instance GHC.Classes.Eq Data.SValue2.PtrValue
+instance GHC.Generics.Generic Data.SValue2.SValue
+instance GHC.Classes.Ord Data.SValue2.SValue
+instance GHC.Classes.Eq Data.SValue2.SValue
+instance Data.Serialize.Serialize Data.SValue2.SValue
+instance Control.DeepSeq.NFData Data.SValue2.SValue
+instance GHC.Show.Show Data.SValue2.SValue
+instance Data.Serialize.Serialize Data.SValue2.PtrValue
+instance Control.DeepSeq.NFData Data.SValue2.PtrValue
+instance GHC.Show.Show Data.SValue2.PtrValue
+
+
+module Data.SValue
+
+-- | A `pointer value` may have a `pointer offset` that is either a known
+--   fixed immediate or unknown
+data PtrOffset
+PtrOffset :: Word64 -> PtrOffset
+UnknownOffset :: PtrOffset
+
+-- | A `pointer value` consists of a `pointer base` and a `pointer offset`
+data SPointer
+
+-- | The stackpointer of the given function
+Base_StackPointer :: String -> PtrOffset -> SPointer
+
+-- | An immediate pointer
+Base_Immediate :: Word64 -> PtrOffset -> SPointer
+
+-- | A malloc return value
+Base_Malloc :: Maybe Word64 -> Maybe String -> PtrOffset -> SPointer
+
+-- | A function pointer (external)
+Base_FunctionPtr :: Word64 -> String -> PtrOffset -> SPointer
+
+-- | The return address of the given function
+Base_ReturnAddr :: String -> SPointer
+
+-- | The Thread Local Storage
+Base_TLS :: PtrOffset -> SPointer
+
+-- | The value initially stored in some statepart
+Base_StatePart :: StatePart -> PtrOffset -> SPointer
+
+-- | The return value of a function
+Base_FunctionReturn :: String -> PtrOffset -> SPointer
+
+-- | A `pointer addend` consists of a `pointer base`, some constant relativ
+--   to the initial state, or the return value of some function.
+data SAddend
+SAddend_StackPointer :: String -> SAddend
+SAddend_Immediate :: Word64 -> SAddend
+SAddend_Malloc :: Maybe Word64 -> Maybe String -> SAddend
+SAddend_FunctionPtr :: Word64 -> String -> SAddend
+SAddend_ReturnAddr :: String -> SAddend
+SAddend_TLS :: SAddend
+SAddend_StatePart :: StatePart -> SAddend
+SAddend_FunctionReturn :: String -> SAddend
+data SValue
+SConcrete :: NESet SimpleExpr -> SValue
+SAddends :: NESet (NESet SAddend) -> SValue
+Top :: SValue
+show_set :: [[Char]] -> [Char]
+isImmediateBase :: SAddend -> Bool
+isConcrete :: SValue -> Bool
+has_unknown_offset :: SPointer -> Bool
+liftOffsetMod :: (Word64 -> Word64) -> PtrOffset -> PtrOffset
+mod_offset :: (Word64 -> Word64) -> SPointer -> SPointer
+instance GHC.Generics.Generic Data.SValue.PtrOffset
+instance GHC.Classes.Ord Data.SValue.PtrOffset
+instance GHC.Classes.Eq Data.SValue.PtrOffset
+instance GHC.Generics.Generic Data.SValue.SPointer
+instance GHC.Classes.Ord Data.SValue.SPointer
+instance GHC.Classes.Eq Data.SValue.SPointer
+instance GHC.Classes.Ord Data.SValue.SAddend
+instance GHC.Classes.Eq Data.SValue.SAddend
+instance GHC.Generics.Generic Data.SValue.SAddend
+instance GHC.Classes.Ord Data.SValue.SValue
+instance GHC.Classes.Eq Data.SValue.SValue
+instance GHC.Generics.Generic Data.SValue.SValue
+instance Data.Serialize.Serialize Data.SValue.SValue
+instance Control.DeepSeq.NFData Data.SValue.SValue
+instance GHC.Show.Show Data.SValue.SValue
+instance Data.Serialize.Serialize Data.SValue.SAddend
+instance Control.DeepSeq.NFData Data.SValue.SAddend
+instance GHC.Show.Show Data.SValue.SAddend
+instance Data.Serialize.Serialize Data.SValue.SPointer
+instance Control.DeepSeq.NFData Data.SValue.SPointer
+instance GHC.Show.Show Data.SValue.SPointer
+instance Data.Serialize.Serialize Data.SValue.PtrOffset
+instance Control.DeepSeq.NFData Data.SValue.PtrOffset
+instance GHC.Show.Show Data.SValue.PtrOffset
 
 
 module Data.SPointer
@@ -1763,7 +1921,7 @@ VerificationError :: String -> VerificationResult
 Unverified :: VerificationResult
 
 -- | Predicates: symbolic states
-type Predicate = Sstate SPointer
+type Predicate = Sstate SValue SPointer
 
 -- | Invariants: a mapping of blockIDs to predicates
 type Invariants = IntMap Predicate
@@ -1790,8 +1948,13 @@ Domain_Bases :: NESet PointerBase -> PointerDomain
 Domain_Sources :: NESet BotSrc -> PointerDomain
 
 -- | A function initialisation consists of a mapping of registers to
---   symbolic pointers.
-type FInit = Map Register SPointer
+--   symbolic pointers TODO
+data MemRelation
+Separate :: MemRelation
+Aliassing :: MemRelation
+Unknown :: MemRelation
+data FInit
+FInit :: Set (StatePart, Maybe SValue) -> Map (SStatePart, SStatePart) MemRelation -> FInit
 
 -- | A function call
 data FReturnBehavior
@@ -1929,6 +2092,7 @@ set_ctxt_recursions :: IntMap IntSet -> Context -> Context
 set_ctxt_runningtime :: Int64 -> Context -> Context
 
 -- | intialize an empty context based on the command-line parameters
+init_finit :: FInit
 init_context :: Binary -> IORef (IntMap Instruction) -> Config -> Bool -> String -> String -> Context
 
 -- | purge the context before exporting it (may save a lot of disk space)
@@ -1955,6 +2119,9 @@ is_roughly_an_address :: Context -> Word64 -> Bool
 -- | Find a section for an address (see <tt><a>SectionsInfo</a></tt>)
 find_section_for_address :: Context -> Word64 -> Maybe (String, String, Word64, Word64)
 
+-- | Find a section ending at address (see <tt><a>SectionsInfo</a></tt>)
+find_section_ending_at :: Context -> Word64 -> Maybe (String, String, Word64, Word64)
+
 -- | Fetching an instruction
 --   
 --   Returns <tt>Nothing</tt> if the given address is out-of-range.
@@ -1962,9 +2129,6 @@ fetch_instruction :: Context -> Word64 -> IO (Maybe Instruction)
 
 -- | Pretty printing an instruction
 pp_instruction :: Context -> Instruction -> String
-
--- | Show function initialisaExpr
-show_finit :: FInit -> String
 
 -- | Is the given verification condition an assertion?
 is_assertion :: VerificationCondition -> Bool
@@ -2015,6 +2179,10 @@ instance GHC.Show.Show Analysis.Context.NodeInfo
 instance GHC.Classes.Ord Analysis.Context.PointerDomain
 instance GHC.Classes.Eq Analysis.Context.PointerDomain
 instance GHC.Generics.Generic Analysis.Context.PointerDomain
+instance GHC.Show.Show Analysis.Context.MemRelation
+instance GHC.Classes.Ord Analysis.Context.MemRelation
+instance GHC.Classes.Eq Analysis.Context.MemRelation
+instance GHC.Generics.Generic Analysis.Context.MemRelation
 instance GHC.Classes.Ord Analysis.Context.FReturnBehavior
 instance GHC.Classes.Eq Analysis.Context.FReturnBehavior
 instance GHC.Generics.Generic Analysis.Context.FReturnBehavior
@@ -2023,13 +2191,21 @@ instance GHC.Classes.Ord Analysis.Context.SStatePart
 instance GHC.Classes.Eq Analysis.Context.SStatePart
 instance GHC.Generics.Generic Analysis.Context.SStatePart
 instance GHC.Show.Show Analysis.Context.SStatePart
+instance GHC.Classes.Ord Analysis.Context.FInit
+instance GHC.Classes.Eq Analysis.Context.FInit
+instance GHC.Generics.Generic Analysis.Context.FInit
 instance GHC.Generics.Generic Analysis.Context.Context_
 instance Data.Serialize.Serialize Analysis.Context.Context_
 instance Control.DeepSeq.NFData Analysis.Context.Context_
+instance Data.Serialize.Serialize Analysis.Context.FInit
+instance Control.DeepSeq.NFData Analysis.Context.FInit
+instance GHC.Show.Show Analysis.Context.FInit
 instance Data.Serialize.Serialize Analysis.Context.SStatePart
 instance Control.DeepSeq.NFData Analysis.Context.SStatePart
 instance Data.Serialize.Serialize Analysis.Context.FReturnBehavior
 instance Control.DeepSeq.NFData Analysis.Context.FReturnBehavior
+instance Data.Serialize.Serialize Analysis.Context.MemRelation
+instance Control.DeepSeq.NFData Analysis.Context.MemRelation
 instance Data.Serialize.Serialize Analysis.Context.PointerDomain
 instance Control.DeepSeq.NFData Analysis.Context.PointerDomain
 instance GHC.Show.Show Analysis.Context.PointerDomain
@@ -2101,7 +2277,7 @@ module Data.JSON_Taxonomy
 --   { "instructions": [...], "control_flow": [...], ... }
 --   </pre>
 data JSON
-JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64, FunctionSummary)] -> [(Word64, [Invariant])] -> [(Word64, Word64, [Maybe SPointer])] -> JSON
+JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64, FunctionSummary)] -> [(Word64, [Invariant])] -> [(Word64, Word64, [Maybe SValue])] -> JSON
 
 -- | A list of <a>Instruction</a>s.
 [instructions] :: JSON -> [Instruction]
@@ -2123,7 +2299,7 @@ JSON :: [Instruction] -> ControlFlow -> [(Word64, FunctionBoundary)] -> [(Word64
 
 -- | Per instruction address, per function entry, the
 --   <b><a>PointerDomain</a></b> for each memory operand.
-[pointer_domains] :: JSON -> [(Word64, Word64, [Maybe SPointer])]
+[pointer_domains] :: JSON -> [(Word64, Word64, [Maybe SValue])]
 
 -- | The <b>ControlFlow</b> is provided as a mapping from instruction
 --   addresses to lists of instruction addresses.
@@ -2166,8 +2342,8 @@ type FunctionBoundary = String
 --   {"precondition" : [...], "postcondition" : [...]}
 --   </pre>
 data FunctionSummary
-FunctionSummary :: Predicate -> Postcondition -> FunctionSummary
-[precondition] :: FunctionSummary -> Predicate
+FunctionSummary :: String -> Postcondition -> FunctionSummary
+[precondition] :: FunctionSummary -> String
 [postcondition] :: FunctionSummary -> Postcondition
 
 -- | An <b>Invariant</b> contains:
@@ -2225,7 +2401,7 @@ UnknownRetBehavior :: Postcondition
 --   This predicate states that register <tt>RDI</tt> is a pointer with as
 --   base the return value of <tt>malloc</tt>, called at address
 --   <tt>4420</tt>. Register <tt>RSI</tt> contains an immediate value.
-type Predicate = Map StatePart SPointer
+type Predicate = Map StatePart SValue
 
 -- | An <b>Instruction</b> has an address, a prefix (which may also be
 --   <tt>null</tt>), a mnemonic/opcode, a list of operands (possibly empty)
@@ -2593,107 +2769,27 @@ implies :: Propagator ctxt pred => ctxt -> pred -> pred -> Bool
 do_prop :: Propagator ctxt pred => ctxt -> CFG -> Int -> pred -> (IntMap pred, Set VerificationCondition)
 
 
+module Instantiation.SymbolicPropagation2
+
+
 module Instantiation.SymbolicPropagation
-debug_abstraction :: Bool
-trace' :: FContext -> String -> a -> a
-cspointer_to_exprs :: SPointer -> Set SimpleExpr
-ctry_immediate :: SPointer -> Maybe Word64
-ctry_deterministic :: SPointer -> Maybe SimpleExpr
-cimmediate :: Integral i => i -> SPointer
-cwiden :: FContext -> String -> SPointer -> SPointer
-cwiden' :: FContext -> t -> SPointer -> SPointer
-cwiden_all_to_sources :: FContext -> String -> Set SPointer -> SPointer
-cjoin :: FContext -> String -> SPointer -> SPointer -> SPointer
-cjoin_all :: Foldable t => FContext -> String -> t SPointer -> SPointer
-spointer_plus :: FContext -> Int -> SPointer -> SPointer -> SPointer
-spointer_minus :: FContext -> Int -> SPointer -> SPointer -> SPointer
-apply_expr_op :: FContext -> ([SimpleExpr] -> Maybe SimpleExpr) -> [SPointer] -> SPointer
-data CSemantics
-ApplyPlus :: Int -> CSemantics
-ApplyMinus :: Int -> CSemantics
-ApplyNeg :: Int -> CSemantics
-ApplyDec :: Int -> CSemantics
-ApplyInc :: Int -> CSemantics
-Apply :: ([SimpleExpr] -> SimpleExpr) -> CSemantics
-SetXX :: CSemantics
-SExtension_HI :: CSemantics
-NoSemantics :: CSemantics
-mk_expr :: FContext -> SimpleExpr -> Maybe SimpleExpr
-csemantics :: FContext -> SymbolicOperation SPointer -> SPointer
-mnemonic_to_semantics :: Opcode -> Int -> Maybe Int -> CSemantics
-cflg_semantics :: p1 -> p2 -> GenericInstruction label Register prefix Opcode annotation -> FlagStatus -> FlagStatus
-mk_cvalue :: FContext -> SimpleExpr -> SPointer
-mk_sources :: FContext -> NESet BotSrc -> SPointer
-mk_cmem_value :: FContext -> p -> SPointer -> SPointer -> SPointer
-cmk_mem_addresses :: p -> SPointer -> Set SPointer
-srcs_of_spointer :: FContext -> SPointer -> Maybe (NESet BotSrc)
-cseparate :: FContext -> [Char] -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
-calias :: p -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
-cenclosed :: p -> SPointer -> SPointer -> SPointer -> SPointer -> Bool
-csensitive :: FContext -> SPointer -> SPointer -> SPointer -> Bool
-cread_from_ro_data :: FContext -> SPointer -> SPointer -> Maybe SPointer
-cread_from_data :: FContext -> SPointer -> SPointer -> Maybe SPointer
+
+-- | Get the currently known invariant for the given instruction address
 get_invariant :: FContext -> Int -> Maybe Predicate
 
 -- | The initial predicate.
 init_pred :: FContext -> String -> Invariants -> Set (NodeInfo, Predicate) -> Set SStatePart -> Predicate
-
--- | Given the currently known invariants and postconditions, gather all
---   stateparts occurring in the current function.
-gather_stateparts :: Invariants -> Set (NodeInfo, Predicate) -> Set SStatePart
 
 -- | Convert the current invariant into a function initialisation
 invariant_to_finit :: FContext -> Predicate -> FInit
 
 -- | The join between two function initialisations
 join_finit :: FContext -> FInit -> FInit -> FInit
-data ExternalFunctionOutput
-FreshPointer :: ExternalFunctionOutput
-UnknownReturnValue :: ExternalFunctionOutput
-Input :: Register -> ExternalFunctionOutput
-data ExternalFunctionBehavior
-ExternalFunctionBehavior :: [Register] -> ExternalFunctionOutput -> ExternalFunctionBehavior
-[f_inputs] :: ExternalFunctionBehavior -> [Register]
-[f_output] :: ExternalFunctionBehavior -> ExternalFunctionOutput
-param :: (Eq a, Num a) => a -> Register
-pure_and_fresh :: ExternalFunctionBehavior
-pure_and_unknown :: ExternalFunctionBehavior
 
--- | a list of some function that return a heap-pointer through RAX. The
---   pointer is assumed to be fresh.
-external_function_behavior :: FContext -> String -> ExternalFunctionBehavior
-
--- | Backward transposition Let p be the current predicate and let the
---   equality sp == v be from the predicate after execution of an internal
---   function. For example, p contains: RSP == RSP0 - 64 RSI == 10
---   
---   And after execution of the function, we have: *[RSP0+16,8] == RSI0
---   
---   Transposing this equality produces: *[RSP0-40,8] == 10
-transpose_bw_exprs :: FContext -> String -> String -> Sstate SPointer -> NESet SimpleExpr -> SPointer
-transpose_bw_spointer :: FContext -> String -> String -> Sstate SPointer -> SPointer -> SPointer
-transpose_bw_reg :: FContext -> String -> String -> Sstate SPointer -> (Register, SPointer) -> Maybe (Register, SPointer)
-transpose_bw_mem :: FContext -> String -> String -> Sstate SPointer -> ((SPointer, SPointer), SPointer) -> Maybe ((SPointer, SPointer), SPointer)
-transpose_bw_e :: FContext -> String -> String -> Sstate SPointer -> SimpleExpr -> SPointer
-transpose_bw_sp :: FContext -> String -> String -> Sstate SPointer -> StatePart -> SStatePart
-transpose_bw_bottyp :: FContext -> String -> String -> Sstate SPointer -> BotTyp -> Maybe BotTyp
-transpose_bw_src :: FContext -> String -> String -> Sstate SPointer -> BotSrc -> Maybe (NESet BotSrc)
-transpose_bw_base :: p1 -> String -> String -> p2 -> PointerBase -> PointerBase
-mk_NE_sources :: Ord a => NESet (Maybe (NESet a)) -> Maybe (NESet a)
-read_sp :: FContext -> SStatePart -> State (Sstate SPointer, VCS) SPointer
-data FunctionType
-AnalyzedInternalFunction :: Sstate SPointer -> FunctionType
-ExternalFunction :: FunctionType
-AnalyzedInternalFunctionTerminates :: FunctionType
-AnalyzedInternalFunctionUnknown :: FunctionType
-get_function_type :: FContext -> Instruction -> [Char] -> FunctionType
-
--- | Executes semantics for external functions.
-call :: FContext -> Instruction -> State (Sstate SPointer, VCS) ()
-unknown_internal_function :: Monad m => p1 -> p2 -> m ()
-jump :: FContext -> Instruction -> State (Sstate SPointer, VCS) ()
-ctry_jump_targets :: FContext -> SPointer -> Maybe (Set ResolvedJumpTarget)
-instance Generic.SymbolicConstituents.SymbolicExecutable Analysis.Context.FContext Data.SPointer.SPointer
+-- | Given the currently known invariants and postconditions, gather all
+--   stateparts occurring in the current function.
+gather_stateparts :: Invariants -> Set (NodeInfo, Predicate) -> Set SStatePart
+instance Generic.SymbolicConstituents.SymbolicExecutable Analysis.Context.FContext Data.SValue.SValue Data.SValue.SPointer
 instance Generic.SymbolicPropagation.Propagator Analysis.Context.FContext Analysis.Context.Predicate
 
 module OutputGeneration.Retrieval
@@ -2709,7 +2805,6 @@ ctxt_get_function_summary :: Num a => Context -> Int -> (a, (FInit, Maybe FRetur
 
 -- | Retrieves a textual representation of the function boundaries
 ctxt_mk_function_boundary :: Num a => Context -> Int -> (a, [Char])
-mk_consecutive_chunks :: [Int] -> [[Int]]
 
 -- | Given an address <tt>a</tt>, retrieve all invariants (the address may
 --   occur in multiple functions).
@@ -2720,7 +2815,7 @@ ctxt_get_inv :: Context -> Word64 -> (Word64, Maybe [(Word64, Predicate)])
 --   function of the instruction, addr is the address of the instruction
 --   ptrs is a list of symbolic pointers for each operand (or Nothing if
 --   not a memory-operand)
-ctxt_resolve_mem_operands :: Context -> [(Word64, Word64, [Maybe SPointer])]
+ctxt_resolve_mem_operands :: Context -> [(Word64, Word64, [Maybe SValue])]
 
 -- | Retrieve instruction for a given instruction address, both as
 --   datastructure and pretty-printed
@@ -2733,67 +2828,28 @@ ctxt_get_instruction_addresses :: Context -> Set Word64
 ctxt_get_controlflow :: Context -> Word64 -> IO (Word64, [Word64])
 
 module OutputGeneration.Metrics
-metrics :: Map [Char] [Char]
-mk_metrics :: Context -> (String, String)
-
--- | Show time in HH:MM:SS
-show_runningtime :: Int64 -> String
-
--- | Number of functions successfully verified
-num_of_verif_success :: Context -> Int
-
--- | Number of functions with unresolved indirections
-num_of_verif_unresolved :: Context -> Int
-
--- | Number of functions with a verification error
-num_of_verif_error :: Context -> Int
-
--- | Number of unresolved indirections
-num_of_unres_inds :: Context -> (Opcode -> Bool) -> Int
-num_of_unres_inds_in_cfg :: Context -> (Opcode -> Bool) -> CFG -> Int
-
--- | Number of resolved indirections
-num_of_resolved_indirection_calls :: Context -> Int
-num_of_resolved_indirection_jumps :: Context -> Int
 
 -- | Number of instructions in CFG
 num_of_instructions :: CFG -> Int
+
+-- | Number of unresolved indirections in the given CFG
+num_of_unres_inds_in_cfg :: Context -> (Opcode -> Bool) -> CFG -> Int
 
 -- | Number of basic blocks in CFG
 num_of_blocks :: CFG -> Int
 
 -- | Number of edges in CFG
 num_of_edges :: CFG -> Int
-mk_metric_pointerDesignations :: Context -> [(Word64, Word64, [Maybe SPointer])] -> Map String Int
-get_pointer_specifity_cpointer :: SymbolicExecutable FContext a => FContext -> a -> [Char]
-specifityMetricOf :: Map String Double -> Double
-metrics_metric_size :: Int
-metrics_descr_size :: Int
-round2dp :: Double -> Double
-intDiv :: (Integral a, Integral b) => a -> b -> Double
-data Metric
-Metric :: String -> String -> String -> Metric
 
--- | Name of the metric
-[metrics_name] :: Metric -> String
-
--- | Description of the metric
-[metrics_desc] :: Metric -> String
-
--- | Serialized value of the metric
-[metrics_value] :: Metric -> String
+-- | Returns all generated metrics in JSON and pretty-printed
+mk_metrics :: Context -> (String, String)
 instance GHC.Generics.Generic OutputGeneration.Metrics.Metric
 instance Data.Aeson.Types.ToJSON.ToJSON OutputGeneration.Metrics.Metric
 
 module OutputGeneration.JSON
+
+-- | Generate JSON
 generate_json :: Context -> String -> String -> Bool -> IO ()
-pp_json :: (Integral a1, Integral a2, SymbolicExecutable FContext a3, Show a1, Show a2) => Context -> Bool -> [Instruction] -> [(Word64, [Word64])] -> [(Word64, String)] -> [(Word64, (Map Register SPointer, Maybe FReturnBehavior))] -> [(a2, a1, [Maybe a3])] -> [(Word64, Maybe [(Word64, Predicate)])] -> [[Char]]
-pp_invs :: [(Word64, Maybe [(Word64, Predicate)])] -> [[Char]]
-pp_control_flow :: [(Word64, [Word64])] -> [String]
-pp_boundaries :: [(Word64, String)] -> [String]
-pp_summaries :: [(Word64, (Map Register SPointer, Maybe FReturnBehavior))] -> [[Char]]
-pp_mem_ops :: (Integral a1, Integral a2, SymbolicExecutable FContext a3, Show a1, Show a2) => Context -> [(a2, a1, [Maybe a3])] -> [[Char]]
-get_pointer_domain_cpointer :: SymbolicExecutable FContext a => FContext -> a -> [Char]
 instance Data.Aeson.Types.ToJSON.ToJSON X86.Register.Register
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.Address
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.Operand
@@ -2810,7 +2866,10 @@ instance Data.Aeson.Types.ToJSON.ToJSON Data.SymbolicExpression.SimpleExpr
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.Postcondition
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.FunctionSummary
 instance Data.Aeson.Types.ToJSON.ToJSON Analysis.Context.PointerDomain
-instance Data.Aeson.Types.ToJSON.ToJSON Data.SPointer.SPointer
+instance Data.Aeson.Types.ToJSON.ToJSON Data.SValue.PtrOffset
+instance Data.Aeson.Types.ToJSON.ToJSON Data.SValue.SAddend
+instance Data.Aeson.Types.ToJSON.ToJSON Data.SValue.SPointer
+instance Data.Aeson.Types.ToJSON.ToJSON Data.SValue.SValue
 instance Data.Aeson.Types.ToJSON.ToJSON Data.JSON_Taxonomy.JSON
 
 
@@ -2831,29 +2890,10 @@ __gmon_start_implementation :: [Char]
 
 -- | NASM contains external symbols, sections, and a footer
 data NASM
+instance GHC.Classes.Eq NASM.L0ToNASM.NASM_Line
 
 module Algorithm.L0_Lifting
-to_out_r :: String -> StateT Context IO ()
-to_out :: String -> StateT Context IO ()
-to_log :: MonadIO m => FilePath -> [Char] -> m ()
+
+-- | The main algorithm for lifting a binary to an L0 representation (i.e.,
+--   a Hoare Graph)
 lift_to_L0 :: StateT Context IO ()
-ctxt_find_dangling_function_pointers :: StateT Context IO [(Int, Int)]
-show_dangling_function_pointers :: (Integral b, Integral a, Show b, Show a) => [(a, b)] -> [Char]
-ctxt_get_recursive_calls :: Int -> StateT Context IO ()
-ctxt_reconsider_mutual_recursive_call :: StateT Context IO (Maybe (Int, IntSet))
-ctxt_get_new_calls :: (Eq a, Num a) => Int -> StateT Context IO [(a, FInit)]
-ctxt_add_entry_edge :: Int -> (Int, FInit) -> StateT Context IO ()
-ctxt_get_curr_posts :: Int -> StateT Context IO (FInit, Invariants, Set (NodeInfo, Predicate), Set SStatePart)
-ctxt_verify_proper_return :: Int -> StateT Context IO VerificationResult
-ctxt_add_to_results :: Key -> VerificationResult -> StateT Context IO ()
-ctxt_read_entries :: StateT Context IO [Int]
-ctxt_read_and_set_entries :: StateT Context IO ()
-ctxt_base_name :: Int -> StateT Context IO String
-ctxt_init_indirections :: StateT Context IO ()
-ctxt_generate_cfg :: Int -> StateT Context IO (Set (Instruction, Int))
-ctxt_add_invariants :: MonadState Context m => Key -> FInit -> Invariants -> Postconditions -> VCS -> Set SStatePart -> m ()
-ctxt_mk_fcontext :: Int -> StateT Context IO FContext
-ctxt_generate_invs :: Int -> Invariants -> Set (NodeInfo, Predicate) -> Set SStatePart -> StateT Context IO ()
-ctxt_del_entry :: Int -> StateT Context IO ()
-ctxt_add_call :: Int -> VerificationResult -> StateT Context IO ()
-ctxt_analyze_unresolved_indirections :: Int -> StateT Context IO Bool

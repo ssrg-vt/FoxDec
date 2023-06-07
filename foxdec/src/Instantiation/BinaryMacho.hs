@@ -77,7 +77,7 @@ instance BinaryClass Macho
     binary_entry = head . macho_entry
     binary_text_section_size = macho_text_section_size
 
-
+-- | Read in all files needed to read in MACHO binary executable: data, ro_data, symbols, sections, and entries.
 macho_read_file dirname name = do
   dat  <- read_data dirname name
   dump <- read_dump dirname name
