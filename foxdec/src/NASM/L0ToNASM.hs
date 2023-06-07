@@ -14,6 +14,7 @@ module NASM.L0ToNASM (lift_L0_to_NASM, render_NASM, __gmon_start_implementation,
 
 
 import Base
+import Config
 
 import OutputGeneration.Retrieval
 
@@ -176,9 +177,10 @@ block_label ctxt entry a blockID = (try_start_symbol `orTry` try_internal  `orTr
   try_internal = do
     sym  <- (IM.lookup (fromIntegral a) $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt)
     name <- symbol_to_name sym
-    -- TODO make configurable
-    -- return name
-    return $ "L" ++ showHex entry ++ "_" ++ name
+    if nasm_with_safe_labels (ctxt_config ctxt) then
+      return $ "L" ++ showHex entry ++ "_" ++ name
+    else
+      return name
   -- Try to see if the address stores a relocation
   try_relocation_label = reloc_label <$> find (reloc_for a) (ctxt_relocs ctxt)
 
