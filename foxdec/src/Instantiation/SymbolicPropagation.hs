@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, DeriveGeneric, FlexibleInstances#-}
+{-# LANGUAGE MultiParamTypeClasses, DeriveGeneric, FlexibleInstances, StrictData#-}
 
 {-|
 Module      : SymbolicPropagation
@@ -244,11 +244,27 @@ all_equal :: (Eq a) => [a] -> Bool
 all_equal [] = True
 all_equal xs = and $ map (== head xs) (tail xs)
 
+
+-- TODO joining global immediates can be prevented at the cost of scalability
 cjoin_pointers fctxt []    = []
 cjoin_pointers fctxt [ptr] = [ptr]
 cjoin_pointers fctxt ptrs
   | all_equal ptrs = [head ptrs]
-  | otherwise      = nub $ map (set_unknown_offset fctxt "cjoin_pointers") ptrs
+  | otherwise      = 
+    let ptrs'            = nub $ map (set_unknown_offset fctxt "cjoin_pointers") ptrs
+        (imms,remainder) = partition is_imm ptrs' in
+      merge_imms imms ++ remainder
+ where
+  is_imm (Base_Immediate _ _)  = True
+  is_imm _                     = False
+
+  get_imm (Base_Immediate i _) = i
+
+  merge_imms []   = []
+  merge_imms imms = [(\i -> Base_Immediate i UnknownOffset) $ minimum $ map get_imm imms]
+
+
+
 
 
 
@@ -747,10 +763,10 @@ cseparate :: FContext -> String -> SPointer -> RegionSize -> SPointer -> RegionS
 ---cseparate fctxt msg v0 s0 v1 si1 | trace ("cseparate: "++ show (v0,v1)) False = error "trace"
 cseparate fctxt msg a0 (Nat si0) a1 (Nat si1) = or
   [ separation_based_on_necessity a0 a1 
-  , separation_of_spointers fctxt msg a0 a1 ]
+  , separation_of_spointers fctxt msg a0 si0 a1 si1]
  where
   separation_based_on_necessity a0 a1 = necessarily_separate_expressions (spointer_to_expr a0) si0 (spointer_to_expr a1) si1
-cseparate fctxt msg a0 _ a1 _ = separation_of_spointers fctxt msg a0 a1 
+cseparate fctxt msg a0 _ a1 _ = separation_of_spointers fctxt msg a0 (2^20) a1 (2^20)
 
 
 mk_sstatepart fctxt (SP_Reg r)    = SSP_Reg r
@@ -759,7 +775,7 @@ mk_sstatepart fctxt (SP_Mem a si) =
     Just ptr -> SSP_Mem ptr si
     Nothing  -> error $ "CANNOT PROMOTE: " ++ show (a,si)
 
-separation_of_spointers fctxt msg v0 v1 = and
+separation_of_spointers fctxt msg v0 si0 v1 si1 = and
   [ v0 /= v1
   , separate_bases v0 v1 ]
  where
@@ -806,6 +822,8 @@ separation_of_spointers fctxt msg v0 v1 = and
 
 
 
+  separate_bases (Base_Immediate i0 (PtrOffset off0)) (Base_Immediate i1 UnknownOffset)  = i0 + off0 + si0 <= i1 -- TODO add VC
+  separate_bases (Base_Immediate i0 UnknownOffset) (Base_Immediate i1  (PtrOffset off1)) = i1 + off1 + si1 <= i0 -- TODO add VC
   separate_bases (Base_Immediate i0 _)     (Base_Immediate i1 _)
     | pointers_from_different_global_section (f_ctxt fctxt) i0 i1      = True -- TODO ADD VC
     | i0 /= i1                                                         = False -- REMOVE TODO ADD VC error $ "Separation of " ++ show (a0, si0, a1, si1) ++ "\nFINIT ==\n" ++ show (f_init fctxt) ++ "\nmsg = " ++ msg

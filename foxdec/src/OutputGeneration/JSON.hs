@@ -154,30 +154,10 @@ pp_summaries = map pp
 
 pp_mem_ops ctxt = map pp
  where
-  pp (entry,a,es) = "Address " ++ showHex a ++ ", entry: " ++ showHex entry ++ ": [" ++ intercalate "," (map pp_expr_option es) ++ "] " ++ concatMap (pp_dom entry) es
+  pp (entry,a,es) = "Address " ++ showHex a ++ ", entry: " ++ showHex entry ++ ": [" ++ intercalate "," (map pp_dom es) ++ "]"
 
-  pp_expr_option Nothing = "_"
-  pp_expr_option (Just e) = show e
-
-  pp_dom entry Nothing = "_"
-  pp_dom entry (Just e) =
-    let fctxt = mk_fcontext ctxt (fromIntegral entry) in
-      show e {-- TODO get_pointer_domain_cpointer fctxt e
-
-get_pointer_domain_cpointer fctxt v = exprs_to_domain $ svalue_to_exprs fctxt v
- where
-  exprs_to_domain es
-    | S.null es = "U"
-    | all (not . contains_bot) es = "C"
-    | all is_base $ S.map (get_pointer_domain fctxt) es = "B"
-    | otherwise = "S"
-  is_base (Just (C.Domain_Bases _)) = True
-  is_base _ = False
-
-
---}
-
-
+  pp_dom Nothing  = "_"
+  pp_dom (Just e) = show e
 
 
 instance ToJSON Register  where
