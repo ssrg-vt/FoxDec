@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts #-}
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StrictData #-}
 {-# OPTIONS_HADDOCK prune  #-}
 
 {-|
@@ -176,7 +176,9 @@ block_label ctxt entry a blockID = (try_start_symbol `orTry` try_internal  `orTr
   try_internal = do
     sym  <- (IM.lookup (fromIntegral a) $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt)
     name <- symbol_to_name sym
-    return $ name -- "L" ++ showHex entry ++ "_" ++ name
+    -- TODO make configurable
+    -- return name
+    return $ "L" ++ showHex entry ++ "_" ++ name
   -- Try to see if the address stores a relocation
   try_relocation_label = reloc_label <$> find (reloc_for a) (ctxt_relocs ctxt)
 
@@ -399,17 +401,19 @@ mk_jmp_call_instr ctxt entry cfg i@(Instruction addr pre op Nothing [op1] annot)
      -- see if address matches a symbol
     sym <- IM.lookup (fromIntegral a_v) $ IM.filter is_external_symbol $ ctxt_symbol_table ctxt
     name <- symbol_to_name sym
-    return $ strip_GLIBC name
+    return $ (sym,strip_GLIBC name)
   try_external _ = Nothing
 
-  mk_external "error" = NASM_Instruction $ concat
+  mk_external (Relocated_Label _,f)           = mk_normal_instr ctxt entry cfg i
+  mk_external (Relocated_Function _, "error") = NASM_Instruction $ concat
     [ "CALL error wrt ..plt\n  CALL exit wrt ..plt ; inserted, to ensure error always terminates"]
-  mk_external f = NASM_Instruction $ concat
+  mk_external (Relocated_Function _,f)        = NASM_Instruction $ concat
     [ prefix_to_NASM pre
     , opcode_to_NASM op
     , " "
     , f
     , " wrt ..plt" ]
+
 
   mk_call_to_imm =  NASM_Instruction $ concat
     [ prefix_to_NASM pre
@@ -569,7 +573,7 @@ size_directive_to_NASM _ 1  = "byte"
 size_directive_to_NASM _ 2  = "word"
 size_directive_to_NASM _ 4  = "dword"
 size_directive_to_NASM i 8  
-  | opcode i `elem` [ADDSD,SUBSD,DIVSD,MULSD,COMISD,UCOMISD] = "" -- NASM does not want size directives for these instructions
+  | opcode i `elem` [ADDSD,SUBSD,DIVSD,MULSD,COMISD,UCOMISD,MINSD,MAXSD] = "" -- NASM does not want size directives for these instructions
   | otherwise = "qword"
 size_directive_to_NASM _ 10 = "tword"
 size_directive_to_NASM i 16
@@ -777,7 +781,7 @@ generic_data_section ctxt pick_section read_from =
 
   try_symbolize_imm a1 = 
     case symbolize_immediate ctxt Nothing False $ fromIntegral a1 of
-      Just str -> str
+      Just str -> if "RELA_.text" `isPrefixOf` str then "ERROR: UNTRANSLATED ENTRY ADDRESS " ++ showHex a1 else str 
       Nothing  -> "ERROR: could not symbolize relocated immediate value 0x" ++ showHex a1
 
 bss_data_section ctxt = 

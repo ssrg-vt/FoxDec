@@ -53,3 +53,5 @@ docs/manual/*.fdb_latexmk
 docs/manual/*.fls
 
 temp*
+
+foxdec/release/FoxDec/

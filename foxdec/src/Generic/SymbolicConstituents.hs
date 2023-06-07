@@ -216,7 +216,8 @@ swrite_reg ctxt = soverwrite_reg ctxt True
 sread_mem :: SymbolicExecutable ctxt v p => ctxt -> String -> v -> RegionSize -> State (Sstate v p,VCS) v
 --sread_mem ctxt msg a si | trace ("sread_mem: "++ show (a,si)) False = error "trace"
 sread_mem ctxt msg a si = do
-  let ptrs = smk_mem_addresses ctxt "sread_mem" a
+  (p,_) <- get
+  let ptrs = smk_mem_addresses ctxt ("sread_mem" ++ show (msg,a,si,p)) a
   if S.null ptrs then
     return $ top ctxt "read_mem from top"
   else do

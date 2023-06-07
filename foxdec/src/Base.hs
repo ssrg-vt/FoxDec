@@ -130,6 +130,16 @@ neFromList  = NES.unsafeFromSet . S.fromList
 neSetToList = S.toList . NES.toSet
 
 
+-- Partition a set into equivalence classes
+-- NOTE: for lists over Ord elements, one an do this more efficiently
+quotientBy :: Ord a => (a -> a -> Bool) -> S.Set a -> S.Set (S.Set a)
+quotientBy eq s =
+  case S.minView s of
+    Nothing     -> S.empty
+    Just (a,s') ->
+      let (group,remainder) = S.partition (eq a) s' in
+        S.insert (S.insert a group) $ quotientBy eq remainder
+
 --------------------------------------------
 -- | Generic graph with ints as vertices.
 --------------------------------------------

@@ -438,6 +438,7 @@ remove_destination mnemonic =
          , FCMOVB, FCMOVE, FCMOVBE, FCMOVU, FCMOVNB, FCMOVNE, FCMOVNBE, FCMOVNU
          , SCAS, SCASB, SCASD
          , EMMS
+         , CLD
      ]
 
 -- Does the instruction need no modification?

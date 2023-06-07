@@ -83,16 +83,36 @@ ctry_deterministic _ = Nothing
 
 
 
-quotientBy :: Ord a => (a -> a -> Bool) -> S.Set a -> S.Set (S.Set a)
-quotientBy eq = mk_quotient
- where
-  mk_quotient s
-    | S.null s  = S.empty
-    | otherwise =
-      let (a,s')   = S.deleteFindMin s
-          (as,s'') = S.partition (eq a) s' in
-        S.insert (S.insert a as) $ mk_quotient s''
 
+-- When doing abstraction, immediate values are grouped according to whether they are pointers into the same section.
+-- Immediates within the same section are merged into one immediate (the lowest).
+-- For example, if the values {0x2050, 0x2052, 0x2054} are abstracted and there is a data section starting at 0x2000 with size 0x100,
+-- the value 0x2050 + Top is produced
+group_immediates :: FContext -> NES.NESet (S.Set SAddend) -> S.Set (S.Set SAddend)
+group_immediates fctxt addends =
+  let (imms,remainder) = S.partition is_imm $ NES.toSet addends in
+    if S.null imms then
+      remainder
+    else
+      S.union (S.map merge_imms $ group_imms_by_section imms) remainder
+ where
+  is_imm bs = S.size bs == 1 && all isImmediateBase bs
+
+  group_imms_by_section :: S.Set (S.Set SAddend) -> S.Set (S.Set (S.Set SAddend))
+  group_imms_by_section = quotientBy same_section
+
+  same_section imms0 imms1 = get_section_for (get_imm $ S.findMin imms0) == get_section_for (get_imm $ S.findMin imms1)
+
+  get_section_for a =
+    let ctxt = f_ctxt fctxt in
+      find_section_for_address ctxt a <|> find_section_ending_at ctxt a
+
+  merge_imms = S.singleton . SAddend_Immediate . minimum . S.map (get_imm . S.findMin)
+  get_imm (SAddend_Immediate imm) = imm
+
+
+-- When doing abstraction, we cap the number of nested dereferences, group them if they have the some inner deref,
+-- and abstract over them using Top
 group_nested_dereferences :: S.Set (S.Set SAddend) -> S.Set (S.Set SAddend)
 group_nested_dereferences ptrs =
   let (derefs,remainder) = S.partition is_deref ptrs
@@ -112,7 +132,6 @@ group_nested_dereferences ptrs =
         derefs = get_inner_derefs ptr in
       S.map SAddend_StatePart derefs
 
-
   get_inner_derefs = S.unions . S.map get_inner_derefs_base
   get_inner_derefs_base b@(SAddend_StatePart sp) = inner_derefs $ SE_Var sp
 
@@ -124,7 +143,6 @@ group_nested_dereferences ptrs =
   inner_derefs e@(SE_SExtend l h e0)    = inner_derefs e0
   inner_derefs e@(SE_Overwrite h e0 e1) = S.unions $ map inner_derefs [e0,e1]
   inner_derefs e                        = S.empty
-
 
 
 
@@ -143,20 +161,8 @@ mk_concrete fctxt msg = cap . NES.map simp -- TODO simp should be unnecessary?
 mk_concreteS fctxt = mk_concrete fctxt "mk_concreteS" . NES.singleton
 
 mk_addends :: FContext -> String -> NES.NESet (S.Set SAddend) -> SValue
-mk_addends fctxt msg = mk . group_nested_dereferences . group_immediates
+mk_addends fctxt msg = mk . group_nested_dereferences . group_immediates fctxt
  where
-  group_immediates :: NES.NESet (S.Set SAddend) -> S.Set (S.Set SAddend)
-  group_immediates addends =
-    let (imms,remainder) = S.partition is_imm $ NES.toSet addends in
-      if S.null imms then
-        remainder
-      else
-        S.insert (merge_imms imms) remainder
-
-  is_imm bs = S.size bs == 1 && all isImmediateBase bs
-  merge_imms = S.singleton . SAddend_Immediate . minimum . S.map (get_imm . S.findMin)
-  get_imm (SAddend_Immediate imm) = imm
-
   mk addends
     | any S.null addends = mk_top $ "mk_addends: " ++ msg ++ "\n" ++ show addends
     | S.size addends > 5 = mk_top $ "mk_addends: " ++ msg ++ "\n" ++ show addends -- TODO 5: num_of_addends
@@ -167,13 +173,8 @@ cimmediate fctxt = mk_concrete fctxt "cimmediate" . NES.singleton . SE_Immediate
 
 
 -- WIDENING
-set_unknown_offset fctxt msg (Base_StackPointer f  offset) = Base_StackPointer f UnknownOffset 
-set_unknown_offset fctxt msg (Base_Immediate a)            = 
-  let ctxt = f_ctxt fctxt in
-    case find_section_for_address ctxt a <|> find_section_ending_at ctxt a of
-      Just  (_,_,a0,_) -> Base_Section a0
-      Nothing -> error $ showHex a ++ " is not a pointer " ++ show (IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt) ++ "\n" ++ msg
-set_unknown_offset fctxt msg (Base_Section i)               = Base_Section i
+set_unknown_offset fctxt msg (Base_StackPointer f   offset) = Base_StackPointer f UnknownOffset 
+set_unknown_offset fctxt msg (Base_Immediate a      offset) = Base_Immediate a UnknownOffset
 set_unknown_offset fctxt msg (Base_Malloc id h      offset) = Base_Malloc id h UnknownOffset
 set_unknown_offset fctxt msg (Base_FunctionPtr a f  offset) = Base_FunctionPtr a f UnknownOffset
 set_unknown_offset fctxt msg (Base_TLS              offset) = Base_TLS UnknownOffset
@@ -200,8 +201,8 @@ abstract_addends fctxt (SE_Var sp)                             = S.singleton $ S
 abstract_addends fctxt (Bottom (FromCall f))
   | f == ""                                                    = S.empty
   | otherwise                                                  = S.singleton $ SAddend_FunctionReturn f
+abstract_addends fctxt (SE_Bit h e)                            = abstract_addends fctxt e
 abstract_addends fctxt _                                       = S.empty
--- TODO takebits?
 
 
 
@@ -275,12 +276,14 @@ try_promote_expr :: FContext -> Bool -> SimpleExpr -> Maybe SPointer
 try_promote_expr fctxt strict (SE_Op Plus si [SE_Immediate imm,e0]) = try_promote_expr fctxt strict (SE_Op Plus si [e0,SE_Immediate imm])
 try_promote_expr fctxt strict (SE_Op Plus si [e0,SE_Immediate imm]) = 
   case try_promote_expr fctxt strict e0 of
-    Just (Base_Immediate i) -> try_promote_expr fctxt strict $ SE_Immediate $ i + imm
+    Just b@(Base_Immediate i (PtrOffset i0)) -> (try_promote_expr fctxt strict $ SE_Immediate $ i + i0 + imm) `orTry` (Just $ set_unknown_offset fctxt "try_promote_expr" b)
+    Just b@(Base_Immediate i _)              -> Just b
     Nothing -> set_unknown_offset fctxt "try_promote_expr" <$> (try_promote_expr fctxt strict $ SE_Immediate imm)
     x -> mod_offset ((+) imm) <$> x
 try_promote_expr fctxt strict (SE_Op Minus _ [e0,SE_Immediate imm]) =
   case try_promote_expr fctxt strict e0 of
-    Just (Base_Immediate i) -> try_promote_expr fctxt strict $ SE_Immediate $ i - imm
+    Just b@(Base_Immediate i (PtrOffset i0)) -> (try_promote_expr fctxt strict $ SE_Immediate $ i + i0 - imm)  `orTry` (Just $ set_unknown_offset fctxt "try_promote_expr" b)
+    Just b@(Base_Immediate i _)              -> Just b
     x -> mod_offset (\v -> v - imm) <$> x
 try_promote_expr fctxt strict e =
   let promotions = map (\a -> (a,try_promote_addend a)) $ S.toList $ addends_of e
@@ -297,12 +300,13 @@ try_promote_expr fctxt strict e =
 
   try_promote_addend (SE_Var (SP_StackPointer f))         = Just $ Base_StackPointer f $ PtrOffset 0
   try_promote_addend (SE_Immediate imm)
-    | immediate_maybe_a_pointer fctxt imm                 = Just $ Base_Immediate $ imm
+    | immediate_maybe_a_pointer fctxt imm                 = Just $ Base_Immediate imm (PtrOffset 0)
     | otherwise                                           = Nothing
   try_promote_addend (SE_Malloc id hash)                  = Just $ Base_Malloc id hash $ PtrOffset 0
-  try_promote_addend (SE_Var sp@(SP_Mem (SE_Immediate a) 8)) 
-    | not strict                                          = Just $ Base_StatePart sp $ PtrOffset 0
-    | otherwise                                           = (\f -> Base_FunctionPtr a f $ PtrOffset 0) <$> try_relocated_pointer fctxt a
+  try_promote_addend (SE_Var sp@(SP_Mem (SE_Immediate a) 8)) =
+    case (\f -> Base_FunctionPtr a f $ PtrOffset 0) <$> try_relocated_pointer fctxt a of
+      Nothing -> if strict then Nothing else Just $ Base_StatePart sp $ PtrOffset 0
+      Just p  -> Just p
   -- TODO return address
   try_promote_addend (SE_Var (SP_Reg FS))                 = Just $ Base_TLS $ PtrOffset 0
   try_promote_addend e@(SE_Var sp)                        
@@ -328,7 +332,7 @@ cmk_mem_addresses :: FContext -> String -> SValue -> S.Set SPointer
 cmk_mem_addresses fctxt msg v@(SConcrete es) = 
   let as = S.map mk $ NES.toSet es in
     if Nothing `S.member` as then
-      cmk_mem_addresses fctxt msg $ cwiden fctxt ("cmk_mem_addresses: " ++ msg) v
+      cmk_mem_addresses fctxt msg $ cwiden fctxt ("cmk_mem_addresses of " ++ show v ++ ": " ++ msg) v
     else
       S.map fromJust as
  where
@@ -340,11 +344,11 @@ cmk_mem_addresses fctxt msg v@(SAddends adds) = mapMaybeS mk $ NES.toSet adds
     let ptrs = NES.map saddend_to_spointer adds
         (strict,nonstrict) = S.partition is_strict $ NES.toSet ptrs in
       if S.null strict && S.size nonstrict == 1 then
-        Just $ set_unknown_offset fctxt ("cmk_mem_addresses, " ++ msg) $ S.findMin nonstrict
+        Just $ set_unknown_offset fctxt ("cmk_mem_addresses (1) of " ++ show v ++ ": " ++  msg) $ S.findMin nonstrict
       else if S.size strict == 1 then
-        Just $ set_unknown_offset fctxt ("cmk_mem_addresses, " ++ msg) $ S.findMin strict
+        Just $ set_unknown_offset fctxt ("cmk_mem_addresses (2) of " ++ show v ++ ": " ++  msg) $ S.findMin strict
       else
-        traceTop ("cmk_mem_addresses, " ++ msg ++ "\n" ++ show v ++ "\n" ++ show (strict,nonstrict)) Nothing
+        traceTop ("cmk_mem_addresses of " ++ show v ++ ": " ++  msg ++ "\n" ++ show v ++ "\n" ++ show (strict,nonstrict)) Nothing
 
   is_strict (Base_StatePart sp _)     = possible_pointer_addend fctxt (SE_Var sp)
   is_strict (Base_FunctionReturn f _) = False
@@ -353,9 +357,9 @@ cmk_mem_addresses fctxt msg t@Top = S.empty
 
 
 -- Concert SValues to SExpressions
+-- TODO UnknownOffsets?
 saddend_to_spointer (SAddend_StackPointer f)   = Base_StackPointer f $ PtrOffset 0
-saddend_to_spointer (SAddend_Immediate i)      = Base_Immediate i
-saddend_to_spointer (SAddend_Section i)        = Base_Section i
+saddend_to_spointer (SAddend_Immediate i)      = Base_Immediate i $ PtrOffset 0
 saddend_to_spointer (SAddend_Malloc id h)      = Base_Malloc id h $ PtrOffset 0
 saddend_to_spointer (SAddend_FunctionPtr a f)  = Base_FunctionPtr a f $ PtrOffset 0
 saddend_to_spointer (SAddend_ReturnAddr f)     = Base_ReturnAddr f
@@ -720,8 +724,7 @@ offset_to_expr (PtrOffset i) e = simp $ SE_Op Plus 64 [e,SE_Immediate i]
 
 -- Concert SValues to SExpressions
 spointer_to_expr (Base_StackPointer f  offset)  = offset_to_expr offset $ SE_Var $ SP_StackPointer f
-spointer_to_expr (Base_Immediate i)             = SE_Immediate i
-spointer_to_expr (Base_Section i)               = SE_Op Plus 64 [SE_Immediate i,Bottom $ FromCall ""]
+spointer_to_expr (Base_Immediate i     offset)  = offset_to_expr offset $ SE_Immediate i
 spointer_to_expr (Base_Malloc id h     offset)  = offset_to_expr offset $ SE_Malloc id h
 spointer_to_expr (Base_FunctionPtr a f offset)  = offset_to_expr offset $ SE_Var $ SP_Mem (SE_Immediate a) 8
 spointer_to_expr (Base_ReturnAddr f)            = SE_Var $ SP_Mem (SE_Var $ SP_StackPointer f) 8
@@ -764,34 +767,30 @@ separation_of_spointers fctxt msg v0 v1 = and
   separate_bases (Base_StackPointer f0 _) (Base_StackPointer f1 _)
     | f0 == f1  = False -- if (a0,si0) == (a1,si1) then False else trace ("SEP: " ++ show (a0,si0,a1,si1)) False
     | otherwise = True -- TODO ADD VC
-  separate_bases (Base_StackPointer f0 _) (Base_Section _)              = True
   separate_bases (Base_StackPointer f0 _) (Base_Malloc _ _ _)           = True
   separate_bases (Base_StackPointer f0 _) (Base_FunctionPtr _ _ _)      = True
   separate_bases (Base_StackPointer f0 _) (Base_TLS _)                  = True
   separate_bases (Base_StackPointer f0 _) (Base_StatePart _ _)          = True -- TODO add vc
-  separate_bases (Base_StackPointer f0 _) (Base_Immediate _)            = True
+  separate_bases (Base_StackPointer f0 _) (Base_Immediate _ _)          = True
   separate_bases (Base_StackPointer f0 _) (Base_FunctionReturn _ _)     = True-- TODO add vc
 
   separate_bases (Base_Malloc id0 h0 _)   (Base_Malloc id1 h1 _)        = id0 /= id1
   separate_bases (Base_Malloc id0 h0 _)   (Base_FunctionPtr _ _ _)      = True
   separate_bases (Base_Malloc id0 h0 _)   (Base_TLS _)                  = True
   separate_bases (Base_Malloc id0 h0 _)   (Base_StatePart _ _)          = True
-  separate_bases (Base_Malloc id0 h0 _)   (Base_Immediate _)            = True
-  separate_bases (Base_Malloc id0 h0 _)   (Base_Section _)              = True
+  separate_bases (Base_Malloc id0 h0 _)   (Base_Immediate _ _)          = True
   separate_bases (Base_Malloc id0 h0 _)   (Base_FunctionReturn _ _)     = True
 
 
   separate_bases (Base_FunctionPtr a0 _ _) (Base_FunctionPtr a1 _ _)    = a0 /= a1
   separate_bases (Base_FunctionPtr a0 _ _) (Base_TLS _)                 = True
   separate_bases (Base_FunctionPtr a0 _ _) (Base_StatePart _  _)        = True
-  separate_bases (Base_FunctionPtr a0 _ _) (Base_Immediate i1)          = True -- TODO???
-  separate_bases (Base_FunctionPtr a0 _ _) (Base_Section _)             = True
+  separate_bases (Base_FunctionPtr a0 _ _) (Base_Immediate i1 _)        = True -- TODO???
   separate_bases (Base_FunctionPtr a0 _ _) (Base_FunctionReturn _ _)    = True-- TODO add vc
 
   separate_bases (Base_TLS _)              (Base_TLS _)                 = False
   separate_bases (Base_TLS _)              (Base_StatePart _ _)         = True
-  separate_bases (Base_TLS _)              (Base_Immediate _)           = True
-  separate_bases (Base_TLS _)              (Base_Section _)             = True
+  separate_bases (Base_TLS _)              (Base_Immediate _ _)         = True
   separate_bases (Base_TLS _)              (Base_FunctionReturn _ _)    = True-- TODO add vc
 
 
@@ -799,11 +798,7 @@ separation_of_spointers fctxt msg v0 v1 = and
     case M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m of
       Just Separate -> True
       _             -> False
-  separate_bases (Base_StatePart sp0 _)    (Base_Immediate imm1)        =
-    case find (\(sp',_) -> sp0 == sp') sps of
-      Just (_,Just imm) -> error "Should not happen?" -- cseparate fctxt msg a0 si0 imm si1
-      _ -> True 
-  separate_bases (Base_StatePart sp0 _)    (Base_Section _)             =
+  separate_bases (Base_StatePart sp0 _)    (Base_Immediate imm1 _)      =
     case find (\(sp',_) -> sp0 == sp') sps of
       Just (_,Just imm) -> error "Should not happen?" -- cseparate fctxt msg a0 si0 imm si1
       _ -> True 
@@ -811,16 +806,13 @@ separation_of_spointers fctxt msg v0 v1 = and
 
 
 
-  separate_bases (Base_Immediate i0)       (Base_Immediate i1)
+  separate_bases (Base_Immediate i0 _)     (Base_Immediate i1 _)
     | pointers_from_different_global_section (f_ctxt fctxt) i0 i1      = True -- TODO ADD VC
     | i0 /= i1                                                         = False -- REMOVE TODO ADD VC error $ "Separation of " ++ show (a0, si0, a1, si1) ++ "\nFINIT ==\n" ++ show (f_init fctxt) ++ "\nmsg = " ++ msg
     | otherwise                                                        = False
-  separate_bases (Base_Immediate i0)       (Base_Section i1)           = pointers_from_different_global_section (f_ctxt fctxt) i0 i1
-  separate_bases (Base_Immediate i0)       (Base_FunctionReturn _ _)   = True-- TODO add vc
+  separate_bases (Base_Immediate i0 _)     (Base_FunctionReturn _ _)   = True-- TODO add vc
 
 
-  separate_bases (Base_Section i0)         (Base_Section i1)           = pointers_from_different_global_section (f_ctxt fctxt) i0 i1
-  separate_bases (Base_Section i0)         (Base_FunctionReturn _ _)   = True-- TODO add vc
 
   separate_bases (Base_FunctionReturn f0 _ ) (Base_FunctionReturn f1 _) = f0/=f1-- TODO add vc
 
@@ -878,13 +870,13 @@ csensitive fctxt a (Nat si) v =
 csensitive fctxt a UnknownSize v = False
 
 
-cread_from_ro_data fctxt (Base_Immediate a) (Nat si) = cimmediate fctxt <$> read_from_ro_datasection (f_ctxt fctxt) a (fromIntegral si)
+cread_from_ro_data fctxt (Base_Immediate a (PtrOffset 0)) (Nat si) = cimmediate fctxt <$> read_from_ro_datasection (f_ctxt fctxt) a (fromIntegral si)
 cread_from_ro_data fctxt _ _ = Nothing
 
-cread_from_data fctxt (Base_Immediate a) (Nat si) = cimmediate fctxt <$> read_from_datasection (f_ctxt fctxt) a (fromIntegral si)
+cread_from_data fctxt (Base_Immediate a (PtrOffset 0)) (Nat si) = cimmediate fctxt <$> read_from_datasection (f_ctxt fctxt) a (fromIntegral si)
 cread_from_data fctxt _ _ = Nothing
 
-ctry_relocation fctxt (Base_Immediate a) (Nat si) = try_reloc a <|> ((\_ -> mk_value a) <$> try_relocated_pointer fctxt a)
+ctry_relocation fctxt (Base_Immediate a (PtrOffset 0)) (Nat si) = try_reloc a <|> ((\_ -> mk_value a) <$> try_relocated_pointer fctxt a)
  where
   ctxt = f_ctxt fctxt
 
@@ -1062,8 +1054,7 @@ invariant_to_finit fctxt p =
 
   is_global_value (SConcrete es) = all is_global_ptr $ mapMaybeNES (try_promote_expr fctxt True) es
 
-  is_global_ptr (Base_Immediate _)   = True
-  --is_global_ptr (Base_Section _)     = True
+  is_global_ptr (Base_Immediate _ _)   = True
   is_global_ptr _                    = False
 
   mk_sp (SSP_Reg r)    = SP_Reg r
@@ -1365,8 +1356,7 @@ transpose_bw_offset fctxt UnknownOffset v   = set_unknown_offset fctxt "transpos
 
 transpose_bw_spointer :: FContext -> Sstate SValue SPointer -> Sstate SValue SPointer -> SPointer -> Maybe SPointer
 transpose_bw_spointer fctxt p q b@(Base_StackPointer f offset)   = error $ "TODO" ++ show (b)-- transpose_bw_offset fctxt offset $ evalSstate (read_sp fctxt (SSP_Reg RSP)) p
-transpose_bw_spointer fctxt p q b@(Base_Immediate a)             = Just b
-transpose_bw_spointer fctxt p q b@(Base_Section i)               = Just b
+transpose_bw_spointer fctxt p q b@(Base_Immediate a offset)      = Just b
 transpose_bw_spointer fctxt p q b@(Base_Malloc _ _ offset)       = Just b
 transpose_bw_spointer fctxt p q b@(Base_FunctionPtr _ _ offset)  = Just b
 transpose_bw_spointer fctxt p q b@(Base_ReturnAddr _)            = error $ "Transposition of return address"
@@ -1385,7 +1375,6 @@ transpose_bw_addend fctxt p q ptrs = cwiden fctxt "transpose_bw_addend" $ NES.fo
   transpose_bw_saddend :: SAddend -> SValue
   transpose_bw_saddend (SAddend_StackPointer f)    = evalSstate (read_sp fctxt (SSP_Reg RSP)) p
   transpose_bw_saddend (SAddend_Immediate a)       = cimmediate fctxt a
-  transpose_bw_saddend (SAddend_Section i)         = cimmediate fctxt i
   transpose_bw_saddend (SAddend_Malloc id hash)    = mk_concreteS fctxt $ SE_Malloc id hash
   transpose_bw_saddend (SAddend_FunctionPtr a _)   = mk_concreteS fctxt $ SE_Var $ SP_Mem (SE_Immediate a) 8
   transpose_bw_saddend (SAddend_ReturnAddr _)      = error $ "Transposition of return address"
@@ -1555,19 +1544,21 @@ ctry_jump_targets :: FContext -> SValue -> Maybe (S.Set ResolvedJumpTarget)
 ctry_jump_targets fctxt v@(SConcrete es) = 
   let tries = mapMaybeNES try es in
     if S.null tries then
-      traceTop ("Cannot resolve indirection: " ++ show v) Nothing      
+      Nothing -- trace ("Cannot resolve indirection: " ++ show v) Nothing      
     else
       Just tries
  where
   try e =
-    case try_promote_expr fctxt True e of
+    case try_promote_expr fctxt False e of
       Just ptr -> try_pointer ptr
       Nothing  -> Nothing
 
 
   try_pointer (Base_FunctionPtr a f (PtrOffset 0))  = Just $ External f
-  try_pointer (Base_Immediate imm)                  = try_immediate_address imm
+  try_pointer (Base_Immediate imm (PtrOffset 0))    = try_immediate_address imm
+  try_pointer b@(Base_StatePart (SP_Mem (SE_Immediate i) _) _) = Nothing -- TODO do not report as unresolved if known symbol
   try_pointer _ = Nothing
+
 
   try_immediate_address a
     | address_has_instruction (f_ctxt fctxt) a = Just $ ImmediateAddress a 

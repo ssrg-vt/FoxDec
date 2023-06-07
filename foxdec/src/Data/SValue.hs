@@ -32,8 +32,7 @@ data PtrOffset   = PtrOffset Word64 | UnknownOffset
 -- | A `pointer value` consists of a `pointer base` and a `pointer offset`
 data SPointer    =
     Base_StackPointer String PtrOffset                   -- ^ The stackpointer of the given function
-  | Base_Immediate Word64                                -- ^ An immediate pointer
-  | Base_Section Word64                                  -- ^ A pointer to anywhere in the given section
+  | Base_Immediate Word64 PtrOffset                      -- ^ An immediate pointer
   | Base_Malloc (Maybe Word64) (Maybe String) PtrOffset  -- ^ A malloc return value
   | Base_FunctionPtr Word64 String PtrOffset             -- ^ A function pointer (external)
   | Base_ReturnAddr String                               -- ^ The return address of the given function
@@ -47,7 +46,6 @@ data SPointer    =
 data SAddend =
     SAddend_StackPointer String
   | SAddend_Immediate Word64
-  | SAddend_Section Word64
   | SAddend_Malloc (Maybe Word64) (Maybe String)
   | SAddend_FunctionPtr Word64 String
   | SAddend_ReturnAddr String
@@ -86,8 +84,7 @@ instance Show PtrOffset where
 
 instance Show SPointer where
   show (Base_StackPointer f  offset)  = "RSP_" ++ f ++ show offset
-  show (Base_Immediate i)             = "0x" ++ showHex i
-  show (Base_Section i)               = "Section@0x" ++ showHex i
+  show (Base_Immediate i     offset)  = "0x" ++ showHex i ++ show offset
   show (Base_Malloc id h     offset)  = (show $ SE_Malloc id h) ++ show offset
   show (Base_FunctionPtr _ f offset)  = "&" ++ f
   show (Base_ReturnAddr f)            = "ReturnAddress_" ++ f
@@ -98,7 +95,6 @@ instance Show SPointer where
 instance Show SAddend where
   show (SAddend_StackPointer f)   = "RSP_" ++ f
   show (SAddend_Immediate i)      = "P0x" ++ showHex i
-  show (SAddend_Section i)        = "Section@0x" ++ showHex i
   show (SAddend_Malloc id h)      = "P"++(show $ SE_Malloc id h)
   show (SAddend_FunctionPtr _ f)  = "&" ++ f
   show (SAddend_ReturnAddr f)     = "ReturnAddress_" ++ f
@@ -132,8 +128,7 @@ isConcrete _ = False
 
 
 has_unknown_offset (Base_StackPointer f   UnknownOffset) = True
-has_unknown_offset (Base_Immediate i)                    = False
-has_unknown_offset (Base_Section i)                      = True
+has_unknown_offset (Base_Immediate i      UnknownOffset) = False
 has_unknown_offset (Base_Malloc id h      UnknownOffset) = True
 has_unknown_offset (Base_FunctionPtr _ _  UnknownOffset) = True
 has_unknown_offset (Base_ReturnAddr f)                   = False
@@ -146,7 +141,6 @@ liftOffsetMod m UnknownOffset = UnknownOffset
 liftOffsetMod m (PtrOffset i) = PtrOffset $ m i
 
 mod_offset m (Base_StackPointer f   offset) = Base_StackPointer f $ liftOffsetMod m $ offset 
-mod_offset m (Base_Section i)               = Base_Section i
 mod_offset m (Base_Malloc id h      offset) = Base_Malloc id h $ liftOffsetMod m $ offset 
 mod_offset m (Base_FunctionPtr a f  offset) = Base_FunctionPtr a f $ liftOffsetMod m $ offset
 mod_offset m (Base_TLS              offset) = Base_TLS $ liftOffsetMod m $ offset 
