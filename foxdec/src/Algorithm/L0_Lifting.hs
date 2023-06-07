@@ -748,8 +748,10 @@ ctxt_analyze_unresolved_indirections entry = do
     try' fctxt f g blockId trgt
 
   try' fctxt f g blockId trgt = do
-    let ctxt = f_ctxt fctxt
-    modify $ (sexec_block fctxt (init $ fetch_block g blockId) Nothing . fst)
+    let ctxt   = f_ctxt fctxt
+    let instrs = fetch_block g blockId
+    modify $ (sexec_block fctxt (init instrs) Nothing . fst)
+    sset_rip fctxt (last instrs)
     val <- sread_operand fctxt "indirection resolving" trgt
     return $ stry_jump_targets fctxt val
 
