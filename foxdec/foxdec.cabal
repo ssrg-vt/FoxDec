@@ -40,7 +40,6 @@ library
       Data.JumpTarget
       Data.SPointer
       Data.SValue
-      Data.SValue2
       Data.SymbolicExpression
       Data.Variable
       Generic.Address
@@ -53,7 +52,6 @@ library
       Instantiation.BinaryElf
       Instantiation.BinaryMacho
       Instantiation.SymbolicPropagation
-      Instantiation.SymbolicPropagation2
       NASM.L0ToNASM
       OutputGeneration.CallGraph
       OutputGeneration.JSON
