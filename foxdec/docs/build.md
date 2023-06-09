@@ -9,7 +9,7 @@
 7. Run ```stack build --haddock --haddock-arguments --odir=docs/haddock```.
 This builds the application and generates documentation using [Haddock](https://haskell-haddock.readthedocs.io/en/latest/index.html).
 8. Run ```stack install```. This copies executables to accessible locations.
-9. Run ```foxdec-exe ./config/config.dhall examples/du du```. This runs FoxDec on the `du` example.
+9. Run ```-c ./config/config.dhall -d examples/wc_small/ -n wc -v -i BINARY --Gmetrics```. This runs FoxDec on the `wc` example.
 
 We use some tools that are assumed to be standard available and accessible (i.e., added to the `PATH` environment variable). For Linux, these are `readelf` and `objdump` (latter is optional but convenient).
 For Mac, these are `otool` and `nm`.
@@ -17,11 +17,12 @@ For Mac, these are `otool` and `nm`.
 
 ### With profiling enabled:
     stack build --profile
-    time stack exec --profile -- foxdec-exe ./config/config.dhall examples/tar tar +RTS -p
+    time stack exec --profile -- foxdec-exe -c ./config/config.dhall -d examples/wc_small/ -n wc -v -i BINARY --Gmetrics +RTS -p
     less foxdec-exe.prof
 
 ## M1 ARM64 architectures
 
+**(DEPRECATED)**
 
 Regrettably, the Haskell environment is not yet up-to-date wrt. ARM64 architectures such as the M1 chip in new MacBooks. We cannot use our preferred build-tool `Stack`, but have a setup working using `cabal`. A drawback of this approach is that it may interfere with an existing installation of the Haskell environment. Also, the installation is *way* more involved. Specifically, it requires an edit in a `.h` file of MacOs' XCode Command Line Tools, which is unstable and comes with risk. As soon as `Stack` supports ARM64, we will revert to that approach. If there are any issues, do not hesitate to contact us.
 

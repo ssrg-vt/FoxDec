@@ -35,7 +35,7 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/7b72c66e903f6e6126b3a4f92ecf96576d2b9e65/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
+Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/ed94f171bff1fd018a43576c10c4fbb3328892f6/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
 
 ***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
 

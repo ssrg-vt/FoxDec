@@ -45,6 +45,7 @@ import Data.Int (Int64)
 import System.IO.Unsafe (unsafePerformIO)
 
 import GHC.Generics
+import Debug.Trace
 
 
 metrics = M.fromList [
@@ -54,6 +55,7 @@ metrics = M.fromList [
   ("%instructionCoverage",   "estimate of percentage of covered instructions"),
   ("#memWrites",             "total number of instructions writing to memory"),
   ("pointerDesignations",    "A, C, C+U, U"),
+  ("%resolvedMemWrites",     "percentage of pointers that are assigned a non-trivial domain"),
   ("specifityMetric",        "weighted mean of pointer designations"),
 
   ("#functions",             "total number of functions"),
@@ -84,6 +86,7 @@ mk_metrics ctxt =
       pointerDesignationsPercentages  = designations_to_percentages pointerDesignations
       memWrites                       = sum $ M.elems pointerDesignations
       specifityMetric                 = specifityMetricOf pointerDesignationsPercentages
+      resolvedMemWrites               = percentageResolvedMemWrites pointerDesignationsPercentages
 
       num_functions                   = IM.size $ ctxt_results ctxt
       num_verif_success               = num_of_verif_success ctxt
@@ -104,6 +107,7 @@ mk_metrics ctxt =
                  ("%instructionCoverage",     show instructionCoverage),
                  ("#memWrites",               show memWrites),
                  ("pointerDesignations",      show $ M.toList pointerDesignationsPercentages),
+                 ("%resolvedMemWrites",       show resolvedMemWrites),
                  ("specifityMetric",          show specifityMetric),
                  ("#functions",               show num_functions),
                  ("#functions_verified",      show num_verif_success),
@@ -202,7 +206,6 @@ mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap
        get_pointer_specifity_cpointer fctxt e
 
 
-
 -- "C"     = Concrete
 -- "C+U"   = Concrete plus unknown offset
 -- "U"     = Unknown
@@ -217,20 +220,9 @@ get_pointer_specifity_cpointer fctxt (SConcrete es)
   is_rock_bottom (FromCall "") = True
   is_rock_bottom _             = False
 
-{-- TODO (SPointer vs)
-  | any non_det vs = "PTR+UB" 
-  | otherwise      = "PTR+B"
- where
-  non_det (Base_Section _) = True
-  non_det ptr              = has_unknown_offset ptr
-get_pointer_specifity_cpointer fctxt (SConcrete es) = concrete es
- where
-  concrete es
-    | all (expr_is_highly_likely_local_pointer fctxt) es = "C+LGH"
-    | all (expr_is_global_immediate $ f_ctxt fctxt) es   = "C+LGH"
-    | all (expr_is_highly_likely_heap_pointer fctxt) es  = "C+LGH"
-    | otherwise                                          = "C+O"
-get_pointer_specifity_cpointer fctxt (SAddends adds) = "A"--}
+percentageResolvedMemWrites :: M.Map String Double -> Double
+percentageResolvedMemWrites m = 100 - m M.! "U"
+
 
 specifityMetricOf :: M.Map String Double -> Double
 specifityMetricOf m = m M.! "C" + 0.8*(m M.! "A") + 0.6*(m M.! "A")

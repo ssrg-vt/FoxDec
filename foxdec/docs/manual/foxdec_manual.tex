@@ -61,7 +61,7 @@
 \newcommand{\codeboxend}{\end{tcolorbox}\noindent}
 \newcommand{\foxdec}{\textsf{FoxDec}}
 \newcommand{\beginpar}[1]{\noindent\textsc{\textbf{#1.}}}
-
+\newcommand{\nocompile}[1]{}
 
 
 \newcounter{example}
@@ -138,7 +138,7 @@
 \vspace{10mm} % à régler éventuellement
 \color{BleuFonce}
 \fontfamily{cmss}\fontseries{m}\fontsize{22}{26}\selectfont
-  \textbf{FoxDec}
+  \textbf{FoxDec 0.4}
 
 \normalsize
 \color{black}
@@ -209,7 +209,7 @@ These properties include return address integrity (no function should overwrite 
 
 We have applied this approach to Linux Foundation and Intel’s Xen Hypervisor and to Ubuntu binaries that do file accesses, networking, databases, and a text editing with a UI.
 Moreover, we have applied FoxDec to MacOs libraries from Mozilla Firefox that include cryptographic and security-related libraries and AV codecs.
-Running times vary from minutes to at most about 4 hours for the vi editor, spanning over 426.258 instructions and 3139 functions.
+Running times vary from seconds to about 15 minutes for the vi editor, spanning over 426.258 instructions and 3139 functions.
 
 
 
@@ -225,64 +225,109 @@ Up-to-date information on where to download \foxdec, and instructions for buildi
 \url{https://ssrg-vt.github.io/FoxDec/#build}
 \end{center}
 
+We assume that the following is run on an x86-64 machine. On ARM MacBooks with Rosetta, one can use Docker with the \texttt{FROM --platform=linux/amd64 ubuntu:20.04} to emulate x86.
 
-\subsection{Running \foxdec~ to create \texttt{.report} file}
+\subsection{Running \foxdec~ to create Hoare Graph}
 
 \beginpar{Compile} As running example, we will consider the \texttt{wc} command.
 For sake of explanation, we consider a small and simple implementation instead of taking the binary as available in a standard Linux or Mac distribution\footnote{The source code of the \texttt{wc} example can be found here:\\\url{https://www.gnu.org/software/cflow/manual/html_node/Source-of-wc-command.html}}.
+We asuume the source ocde is in a file \texttt{wc.c}.
 First, we compile the example. 
-Go to the directory for the running example \texttt{wc\_small}.
+Go to the directory for the running example \texttt{./binary/}.
 There, we compile the file \texttt{wc.c} to an executable \texttt{wc}.
 
 \begincodebox{Compile the running example}
 \begin{minted}[escapeinside=||,mathescape=true]{text}
-cd ./FoxDec/foxdec/examples/wc_small
+cd ./binary
+rm wc wc.entry
 gcc wc.c -o wc
+cd ..
 \end{minted}
 \codeboxend
 \\
-
-\beginpar{Extract} Subsequently, we extract information from the generated binary.
-We use standard tools for this: for Linux these are \texttt{readelf} and \texttt{nm}, and for MacOs these are \texttt{otool} and \texttt{nm}.
-Two scripts are provided: \texttt{dump\_elf.sh} for Linux ELF files, and \texttt{dump\_macho.sh} MacOs MachO files.
-Their command-line usage is:
-\begin{center}
-\texttt{dump\_elf.sh \$BINARY \$NAME}
-\end{center}
-\begin{description}[style=unboxed,leftmargin=0cm,noitemsep]
-\item[\texttt{\$BINARY}]  The path to the binary, including its filename.
-\item[\texttt{\$NAME}]    Any name that clearly identifies the binary, without extensions or dots.
-\end{description}
-\begincodebox{Extract information from binary}
-\begin{minted}[escapeinside=||,mathescape=true]{text}
-../../scripts/dump_macho.sh ./wc wc
-|\makebox[1cm][r]{$\hookrightarrow$}| Created wc.dump
-|\hspace{1cm}| Created wc.data
-|\hspace{1cm} $\ldots$|
-\end{minted}
-\codeboxend
 
 
 
 \beginpar{Run FoxDec} 
 The command-line usage for FoxDec is:
 \begin{center}
-\texttt{foxdec-exe \$CONFIG \$DIRNAME \$NAME}
+\texttt{./foxdec.sh \$NAME}
 \end{center}
 \begin{description}[style=unboxed,leftmargin=0cm,noitemsep]
-\item[\texttt{\$CONFIG}] The name of the config file. A default config file is found in: \texttt{../../config/}.
-\item[\texttt{\$DIRNAME}] Name of directory where the files created above (e.g., \texttt{\$NAME.dump}) are located.
-\item[\texttt{\$NAME}]    Use the same name as previously used.
+\item[\texttt{\$NAME}] The filename of the binary without path
 \end{description}
 
 
 \begincodebox{Run FoxDec}
+\begin{minted}[escapeinside=!!,mathescape=true]{text}
+./foxdec.sh wc
+!\makebox[1cm][r]{$\hookrightarrow$}! Function pointer 16fc introduced at [11b8]
+\end{minted}
+\codeboxend
+
+The output indicates that FoxDec has finished, but the result may be incomplete.
+FoxDec needs as manual input some \emph{function entries}, i.e., instruction addresses of the instructions where functions start.
+After a run, it provides an overview of \emph{dangling function pointers}, i.e., addresses that it \emph{guesses} to be function entries and that have not been explored yet.
+Manual analysis shows that the reported dangling function pointer is indeed a valid function entry.
+We thus add it to \texttt{./binary/wc.entry} and rerun \foxdec.
+
+
+\begincodebox{Run FoxDec Again}
+\begin{minted}[escapeinside=!!,mathescape=true]{text}
+echo '0x16fc' >> ./binary/wc.entry
+./foxdec.sh wc
+\end{minted}
+\codeboxend
+
+We no longer see any message reporting dangling function pointers. As such, we can now observe the results.
+
+\subsection{Observing the generated Hoare Graph}
+
+
+\beginpar{Observe Metrics} 
+
+A series of metrics have been generated to provide quantative output on precision, coverage, running time, etc.
+
+\begincodebox{Observe Metrics}
 \begin{minted}{text}
-foxdec-exe ../../config/config.dhall ./ wc
+less ./artifacts/wc.metrics.txt
+less ./artifacts/wc.metrics.json
 \end{minted}
 \codeboxend
 \\
 
+\beginpar{Observe Hoare Graph} 
+
+At this point, \foxdec~ will have generated output concerning the \emph{control flow} of the program, the \emph{function boundaries}, it will have generated \emph{invariants} and \emph{disassembled instructions}, etc.
+All of this information is stored in a \texttt{.json} file.
+For sake of convenience, the information is also outputted in a humanly readable format.
+We also specifically provide an overview of all resolved indirections.
+
+\begincodebox{Observe Hoare Graph}
+\begin{minted}{text}
+less ./artifacts/wc.json.txt
+less ./artifacts/wc.json
+less ./artifacts/wc.indirections
+\end{minted}
+\codeboxend
+\\
+\\
+
+\beginpar{Observe Call Graph with Function Contexts} 
+
+The call graph has been generated in a \texttt{.dot} file, and needs to be visualized to a \texttt{.pdf} using Graphviz.
+
+\begincodebox{Observe Call Graph}
+\begin{minted}{text}
+dot -Tpdf -o ./artifacts/wc.calls.pdf ./artifacts/wc.calls.dot
+\end{minted}
+\codeboxend
+
+Opening the \texttt{.pdf} file, the call graph has been generated, as well as the \emph{function contexts}.
+These provide information on pointers initially provided to the functions, as well as there mutual relations (aliassing/separation).
+
+
+\nocompile{
 \beginpar{Observe Output} 
 At this point, \foxdec~ will have generated output concerning the \emph{control flow} of the program, the \emph{function boundaries}, it will have generated \emph{invariants} and \emph{disassembled instructions}, etc.
 All of this information is stored in a \texttt{.report} file, which can be accessed through a Haskell interface (see Section~\ref{sec:interface}).
@@ -475,7 +520,7 @@ states that when the instruction at address \texttt{100000925} is executed, the 
 The region pointed to by that resolved address is assumed to be separate from regions based in the global data section of address \texttt{100000f5d}.
 \end{example}
 
-
+}
 
 
 
