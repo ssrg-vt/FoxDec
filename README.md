@@ -66,7 +66,7 @@ The following files are generated:
 
 ## Documentation<a name="docs"></a>
 For instructions on how to apply to MachO binaries and how to generate Isabelle/HOL code, we ask that you contact us. 
-The user manual for FoxDec version 0.1 can be found [here](./foxdec/docs/manual/foxdec_manual.pdf).
+The user manual for FoxDec version 0.4 can be found [here](./foxdec/docs/manual/foxdec_manual.pdf).
 Source code documentation can be found [here](https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/index.html).
 
 
