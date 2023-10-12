@@ -4,6 +4,8 @@
 
 module Algorithm.SCC where
 
+import Base
+
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
@@ -11,6 +13,7 @@ import Control.Monad.State.Strict
 import Control.Monad
 import Data.List
 import Debug.Trace
+import Data.Ord (comparing)
 
 
 {--
@@ -28,11 +31,6 @@ import Debug.Trace
  -
  - I could get none of the Data.Graph functions to work properly, hence this reimplementation.
 --}
-
-
-class IntGraph g where
-  intgraph_post :: g -> Int -> IS.IntSet
-  intgraph_V    :: g -> IS.IntSet
 
 
 data SCC_state = SCC_State {
@@ -101,4 +99,30 @@ scc_of g v frontier = scc_return $ execState (strongconnect g v frontier) init_s
 -- SCC generation over all vertices.
 all_sccs :: IntGraph g => g -> IS.IntSet -> [IS.IntSet]
 all_sccs g frontier = scc_return $ execState (compute_all_sccs g frontier) init_scc_state
+
+
+
+-- | retrieve a non-trivial SCC, if any exists
+graph_nontrivial_scc g@(Edges es) =
+  let sccs             = all_sccs g IS.empty
+      nontrivial_sccs  = filter is_non_trivial sccs
+      nontrivial_scc   = maximumBy (comparing IS.size) sccs in
+    nontrivial_scc -- trace ("Found SCC of mutually recursive function entries: " ++ showHex_set nontrivial_scc) nontrivial_scc
+ where
+  is_non_trivial :: IS.IntSet -> Bool
+  is_non_trivial scc = IS.size scc > 1 || graph_is_edge g (head $ IS.toList scc) (head $ IS.toList scc)
+
+
+
+-- | find next vertex to consider: either a terminal vertex (if any) or the head of an SCC
+graph_find_next :: Graph -> Maybe Int
+graph_find_next g@(Edges es) =
+  if IM.null es then
+    Nothing
+  else case find (IS.disjoint (IM.keysSet es) . snd) $ IM.toList es of
+    Nothing    -> Just $ head $ IS.toList $ graph_nontrivial_scc g -- no terminal vertex
+    Just (v,_) -> Just v                               -- terminal vertex
+
+
+
 

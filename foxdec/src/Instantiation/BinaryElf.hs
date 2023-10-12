@@ -23,6 +23,8 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 
+import Debug.Trace
+
 deriving instance Generic ElfMachine
 deriving instance Generic ElfSegmentType
 deriving instance Generic ElfSegmentFlag
@@ -155,8 +157,20 @@ elf_get_symbol_table elf = SymbolTable $ IM.fromList $ filter ((/=) (Just "") . 
     | elfRelType reloc == 6 =
       -- R_X86_64_GLOB_DAT, objects
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
-      let typ = if get_symbol_type_of_reloc sec reloc `elem` [STTObject,STTCommon] then Relocated_Label else Relocated_Function in
-        [(fromIntegral $ elfRelOffset reloc, typ $ get_name_from_reloc sec reloc)]
+      let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+          name_of_reloc_trgt      = get_string_from_steName $ steName symbol_table_entry
+          symb_type_of_reloc_trgt = steType $ symbol_table_entry
+          reloc_address           = fromIntegral $ elfRelOffset reloc in
+        if symb_type_of_reloc_trgt `elem` [STTObject,STTCommon] then
+          let symbol_table_entry = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+              bind               = steBind symbol_table_entry
+              value              = steValue symbol_table_entry in
+            if any (\sec -> any (\reloc -> elfRelOffset reloc == value) $ elfRelSectRelocations sec) $ parseRelocations elf then
+              [(reloc_address, Relocated_ResolvedObject name_of_reloc_trgt value)]
+            else
+              [(reloc_address, Relocated_Label name_of_reloc_trgt)]
+        else 
+          [(reloc_address, Relocated_Function name_of_reloc_trgt)]
    | elfRelType reloc == 5 =
       -- R_X86_64_COPY
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
@@ -266,8 +280,8 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
 
 
   pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
-  pp_all_symbols = "Complete symbol table:" : map show_symbol_entry (concat $ parseSymbolTables elf)
-  show_symbol_entry sym_entry = intercalate "; " [ show (steName sym_entry), show (steType sym_entry) , showHex (steValue sym_entry), show $ steIndex sym_entry, show $ steBind sym_entry ]
+  pp_all_symbols = "Complete symbol table:" : map show_symbol_entry (zip [0..] $ concat $ parseSymbolTables elf)
+  show_symbol_entry (ind,sym_entry) = intercalate "; " [ show ind, show (steName sym_entry), show (steType sym_entry) , showHex (steValue sym_entry), show $ steIndex sym_entry, show $ steBind sym_entry ]
 
 
   pp_entry = ["Entry: " ++ (showHex $ elfEntry elf)]

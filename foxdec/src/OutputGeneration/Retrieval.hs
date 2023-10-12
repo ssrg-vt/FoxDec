@@ -181,5 +181,14 @@ ctxt_get_controlflow ctxt a = do
       Right nxts -> return $ IS.fromList $ map fst nxts
 
 
+-- | Return a set of all CFGs
+-- Returns a mapping from function entries to CFGs.
+ctxt_get_cfgs :: Context -> IM.IntMap String
+ctxt_get_cfgs ctxt = do
+  let entries = ctxt_get_function_entries ctxt 
+      cfgs    = ctxt_cfgs ctxt in
+    IM.mapWithKey cfg_with_instrs cfgs
+ where
+  cfg_with_instrs entry cfg = "ENTRY:" ++ showHex entry ++ "\n\n" ++ intercalate "\n" (map show_block $ IM.elems $ cfg_instrs cfg)
 
-
+  show_block instrs = intercalate "\n" $ map (pp_instruction ctxt) instrs

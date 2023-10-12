@@ -637,6 +637,7 @@ read_opcode "MOVQ" = MOVQ
 read_opcode "MOVS" = MOVS
 read_opcode "MOVSB" = MOVSB
 read_opcode "MOVSD" = MOVSD
+read_opcode "MOVSW" = MOVSW
 read_opcode "MOVSLDUP" = MOVSLDUP
 read_opcode "MOVSS" = MOVSS
 read_opcode "MOVSQ" = MOVSQ

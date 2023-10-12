@@ -376,8 +376,8 @@ mk_graph ctxt entry bag g new_calls =
             mk_graph ctxt entry bag' g' new_calls
     
 
-fromJust' as Nothing = error $ showHex_list as
-fromJust' _ (Just a) = a
+fromJust' instrs as Nothing = error $ showHex_list as ++ show instrs
+fromJust' _ _ (Just a) = a
 
 cfg_add_instrs ctxt g = do
   instrs <- mapM block_to_instrs $ IM.toList $ cfg_blocks g
@@ -385,7 +385,7 @@ cfg_add_instrs ctxt g = do
  where
     block_to_instrs (a,as) = do 
       instrs <- mapM (fetch_instruction ctxt . fromIntegral) as
-      return $ (a, map (fromJust' as) instrs)
+      return $ (a, map (fromJust' instrs as) instrs)
 
 -- | Produce a CFG
 --

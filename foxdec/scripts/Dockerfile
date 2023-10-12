@@ -3,6 +3,18 @@ FROM --platform=linux/amd64 ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y && apt-get install build-essential gdb nasm vim less binutils strace -y
 
+
+
+RUN apt-get install git autoconf bison autopoint gettext gperf texinfo rsync wget -y
+RUN mkdir /coreutils
+RUN mkdir /coreutils/local
+RUN cd /coreutils && git clone --depth 1 https://github.com/coreutils/coreutils.git
+RUN cd /coreutils/coreutils && ./bootstrap
+RUN cd /coreutils/coreutils && ./configure FORCE_UNSAFE_CONFIGURE=1
+RUN cd /coreutils/coreutils && make 
+
+RUN apt-get install libgss-dev libssl-dev libselinux-dev libz-dev openssh-client -y
+
 RUN echo '#!/bin/bash\necho "FoxDec NASM: compiling .asm to .o file"\necho "nasm -felf64 -o $BINARY.o $BINARY.asm"\nnasm -felf64 -g -F dwarf -o $BINARY.o $BINARY.asm' > /usr/bin/foxdec_nasm && \
     chmod +x /usr/bin/foxdec_nasm
 

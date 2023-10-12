@@ -91,7 +91,7 @@ canonicalize i@(Instruction label prefix mnemonic Nothing ops annot)
   | mnemonic `elem` [CWD, CDQ, CQO] = canonicalize_sextend2 i
   | mnemonic `elem` [MUL, IMUL] = canonicalize_mul i
   | mnemonic `elem` [DIV, IDIV] = canonicalize_div i
-  | mnemonic `elem` [MOVS,MOVSB,MOVSW,MOVSD,MOVSQ] && prefix /= Nothing && length ops == 2 = 
+  | mnemonic `elem` [MOVS,MOVSB,MOVSW,MOVSD,MOVSQ] && length ops == 2 = 
     [Instruction label prefix mnemonic (Just $ head ops) (tail ops) annot]
   | mnemonic_reads_from_all_operands mnemonic =
     [Instruction label prefix mnemonic (Just $ head ops) ops annot]
@@ -281,6 +281,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , DIVSS
          , MULSS
          , ROUNDSS
+         , SQRTSS
          , SUBSD
          , ADDSD
          , DIVSD

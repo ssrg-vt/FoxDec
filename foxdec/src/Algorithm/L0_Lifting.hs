@@ -15,6 +15,8 @@ import Analysis.Context
 import Analysis.FunctionNames
 import Analysis.ControlFlow
 
+import Algorithm.SCC
+
 import Generic.Binary
 import Generic.SymbolicPropagation
 import Generic.SymbolicConstituents
@@ -22,6 +24,7 @@ import Instantiation.SymbolicPropagation
 
 import Data.JumpTarget
 import Data.SymbolicExpression
+import Data.SValue
 
 import Parser.ParserIndirections
 
@@ -657,7 +660,7 @@ ctxt_analyze_unresolved_indirections entry = do
 
   (finit,invs,posts,_) <- ctxt_get_curr_posts entry
   let f        = function_name_of_entry ctxt entry
-  let g        =  ctxt_cfgs ctxt IM.! entry
+  let g        = ctxt_cfgs ctxt IM.! entry
 
   let bs = filter (\b -> node_info_of ctxt g b == UnresolvedIndirection) $ IM.keys $ cfg_blocks g
   if bs == [] then do
@@ -687,7 +690,7 @@ ctxt_analyze_unresolved_indirections entry = do
     case flagstatus_to_tries max_tries (sflags p) of
       Nothing -> try_to_resolve_from_invariant fname f g b p i trgt
       Just (op1,n) -> do
-        let values1 = map (\n -> evalSstate (try fctxt f (addressof i) g b op1 trgt n) p) [0..n]
+        let values1 = map (\n -> evalSstate (try fctxt f (addressof i) g b op1 trgt n) (clean_sstate fctxt p)) [0..n]
         if values1 == [] || any ((==) Nothing) values1 then
           try_to_resolve_from_invariant fname f g b p i trgt
         else if all is_jump_table_entry values1 then do
@@ -729,7 +732,7 @@ ctxt_analyze_unresolved_indirections entry = do
       modify $ set_ctxt_inds inds'
       return True
     else do
-      to_out $ "Unresolved block " ++ show b ++ "\n" ++ show i ++ "\n" ++ show p
+      to_out $ "Unresolved block " ++ show b ++ "\n" ++ show i ++ "\n" ++ show p ++ "\n" ++ show trgt
       return False
 
 
@@ -756,5 +759,10 @@ ctxt_analyze_unresolved_indirections entry = do
     sset_rip fctxt (last instrs)
     val <- sread_operand fctxt "indirection resolving" trgt
     return $ stry_jump_targets fctxt val
+
+
+
+  clean_sstate fctxt (Sstate sregs smem fs) = Sstate sregs (clean_smem fctxt smem) fs
+  clean_smem fctxt = M.filterWithKey (\(a,si) v -> stry_deterministic fctxt v /= Nothing && not (has_unknown_offset a))
 
 

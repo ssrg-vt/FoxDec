@@ -4,8 +4,6 @@
 {-|
 Module      : L0ToNASM
 Description : Lift the L0 representation of the binary to symbolized and recompilable NASM.
-
-
 -}
 
 
@@ -69,18 +67,25 @@ import Debug.Trace
 import GHC.Base hiding (Symbol)
 
 
+
+-- | An annotation consists of an address that is being symbolized to a label and an offset.
+-- The offset will often be 0.
+-- For example:
+--   0x1016 --> L1000_2
+--   0x4028 --> L_.bss_0x4020 + 0x8
+type Annot = [(Word64,String,Word64)]
+
 -- | Each NASM line is either an instruction, a label, or a comment
 data NASM_Line = 
-    NASM_Instruction String -- ^ An instruction
-  | NASM_Label String       -- ^ A label
-  | NASM_Comment Int String -- ^ A comment with an indentation level (number of spaces)
+    NASM_Instruction String Annot  -- ^ An instruction with an annotation
+  | NASM_Label String              -- ^ A label
+  | NASM_Comment Int String        -- ^ A comment with an indentation level (number of spaces)
   deriving Eq
 
 -- | A NASM text section contains a header (usually just some comments), and a graph of basic blocks
 data NASM_TextSection = NASM_TextSection  {
   nasm_section_header :: String,
-  nasm_blocks         :: IM.IntMap [NASM_Line], -- ^ A mapping of blockIDs to instructions
-  nasm_edges          :: IM.IntMap (IS.IntSet)  -- ^ A mapping of blockIDs to sets of blocKIDs
+  nasm_blocks         :: [(Int,[NASM_Line])] -- ^ A mapping of blockIDs to instructions
  }
 
 -- | A NASM section is either a NASM text section or NASM data section
@@ -99,39 +104,73 @@ data NASM = NASM {
 lift_L0_to_NASM ctxt = NASM mk_externals mk_sections $ mk_jump_tables ++ [mk_temp_storage]
  where
   mk_externals       = externals ctxt
-  mk_sections        = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section]
+  mk_sections        = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section, mk_resolved_relocs]
   mk_text_sections   = map (entry_to_NASM ctxt) $ S.toList $ ctxt_get_function_entries ctxt
 
   mk_ro_data_section = NASM_Section_Data $ ro_data_section ctxt
   mk_data_section    = NASM_Section_Data $ data_section ctxt
   mk_bss_section     = NASM_Section_Data $ bss_data_section ctxt
   
+
+  mk_resolved_relocs = NASM_Section_Data $ resolved_relocs_section ctxt
   mk_temp_storage    = "section .bss\nLtemp_storage_foxdec:\nresb 8"
   mk_jump_tables     = map (mk_jump_table ctxt) $ get_indirections_per_function ctxt
 
 
 
+resolved_relocs_section ctxt =
+  case filter is_relocation $ IM.assocs $ ctxt_symbol_table ctxt of
+    [] -> ""
+    relocs -> intercalate "\n" $ ["; Internally resolved relocations", "section .data"] ++ map mk_reloc relocs
+ where
+  is_relocation (_,Relocated_ResolvedObject _ _) = True
+  is_relocation _ = False
+
+  mk_reloc (a,Relocated_ResolvedObject str a1) = 
+    case symbolize_immediate ctxt Nothing False a1 of
+      Just (l,_) -> mk_safe_label str a ++ ":\ndq " ++ l
 
 
+
+-- | Render an annotation
+render_annot :: Annot -> String
+render_annot [] = ""
+render_annot m  = "    ; " ++ intercalate "," (map render_annot_elmt m)
+ where
+  render_annot_elmt (a,l,offset) = "0x" ++ showHex a ++ " --> " ++ l ++ (if offset == 0 then "" else " + 0x" ++ showHex offset)
 
 -- | Rendering NASM to a String
 render_NASM :: Context -> NASM -> String
-render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [render_block_mapping,render_externals] ++ ["global _start", "default rel", mk_macros ctxt] ++ render_sections ++ footer
+render_NASM ctxt (NASM exts sections footer) = intercalate "\n\n\n" $ [
+    render_externals,
+    "global _start",
+    "default rel",
+    mk_macros ctxt ]
+    ++ render_sections
+    ++ footer
+    ++ [ render_annots ]
  where
-  render_block_mapping = "" -- show_block_mapping $ mk_block_mapping ctxt
+  render_annots = intercalate "\n" $ [
+    "; Mapping from original addresses to internal labels",
+    "%ifdef COMMENT",
+    intercalate "\n" $ map show_external_object $ external_objects ctxt,
+    show_annots $ mk_annots ctxt sections,
+    "%endif" ]
 
 
   render_externals = intercalate "\n" $ map ((++) "extern ") $ S.toList exts
   render_sections  = map render_section sections
 
-  render_section (NASM_Section_Text (NASM_TextSection hdr blocks edges)) = hdr ++ intercalate "\n\n" (map render_block $ IM.assocs blocks) ++ "\n\n"
+  render_section (NASM_Section_Text (NASM_TextSection hdr blocks)) = hdr ++ intercalate "\n\n" (map render_block blocks) ++ "\n\n"
   render_section (NASM_Section_Data str) = str ++ "\n\n"
 
   render_block (blockID,lines) = intercalate "\n" $ map render_line lines
 
-  render_line (NASM_Instruction str) = "  " ++ str
+  render_line (NASM_Instruction str annot) = "  " ++ str ++ render_annot annot
   render_line (NASM_Label str) = str ++ ":"
   render_line (NASM_Comment indent str) = replicate indent ' ' ++ comment str
+
+  show_external_object str = "EXT_OBJECT " ++ str
   
 
 -- making comments
@@ -149,10 +188,16 @@ comment_block strs =
 
 
 
--- | get the external function symbols 
+-- | get the external functions and objects 
 externals ctxt = S.insert "exit" $ S.fromList $ map (strip_GLIBC . fromJust . symbol_to_name) $ filter is_relocation $ IM.elems $ ctxt_symbol_table ctxt
  where
   is_relocation (Relocated_Function str) = str /= ""
+  is_relocation (Relocated_Label str) = str /= ""
+  is_relocation _ = False
+
+-- | get the external objects
+external_objects ctxt = map (strip_GLIBC . fromJust . symbol_to_name) $ filter is_relocation $ IM.elems $ ctxt_symbol_table ctxt
+ where
   is_relocation (Relocated_Label str) = str /= ""
   is_relocation _ = False
 
@@ -196,9 +241,8 @@ section_label segment section addr =  "L" ++ segment ++ "_" ++ section ++ "_0x" 
 end_of_section_label (segment,section,a0,sz) = "L" ++ segment ++ "_" ++ section ++ "_END"  
 -- Make a macro name
 macro_name segment section a0 =  "RELA" ++ segment ++ "_" ++ section ++ "_0x" ++ showHex a0
-
-
-
+-- Make a "safe" label (no duplicates)
+mk_safe_label str a = strip_GLIBC str ++ "_0x" ++ showHex a
 
 
 -- | Information on sections
@@ -225,34 +269,59 @@ is_bss_data_section _ = False
 
 
 -- | convert a given function entry to a NASM text section
-entry_to_NASM ctxt entry = NASM_Section_Text $ NASM_TextSection mk_header mk_blocks mk_edges
+entry_to_NASM ctxt entry = NASM_Section_Text $ NASM_TextSection mk_header mk_blocks
  where
   mk_header     = comment_block ["Function: " ++ function_name_of_entry ctxt entry]
-  mk_blocks     = IM.fromList cfg_to_NASM
-  mk_edges      = cfg_edges cfg
   Just cfg      = IM.lookup entry (ctxt_cfgs ctxt)
-  cfg_to_NASM   = cfg_blocks_to_NASM ctxt entry cfg $ IM.keys $ cfg_blocks cfg
+  mk_blocks     = 
+    let (block0:blocks) = IM.keys $ cfg_blocks cfg in
+      cfg_blocks_to_NASM ctxt entry cfg $ block0 : (sortBy (start_address_le cfg) blocks)
+
+  start_address_le cfg blockID1 blockID2 = 
+    case (start_address_of_block cfg blockID1, start_address_of_block cfg blockID2) of
+      (Just a1, Just a2) -> compare a1 a2
+      (Just a1, _)       -> LT
+      (_, Just a2)       -> GT
+      _ -> EQ
 
 
-show_block_mapping :: IM.IntMap [(Word64, String)] -> String
-show_block_mapping = intercalate "\n\n" . map show_entry . IM.toList
+show_annots :: [(Word64, String, Word64)] -> String
+show_annots = intercalate "\n" . map show_entry
  where
-  show_entry (entry,blocks) = "Entry: 0x" ++ showHex entry ++ "\n" ++ (intercalate "\n" $ map show_block blocks)
-  show_block (a,label)      = "0x" ++ showHex a ++ ": " ++ label
+  show_entry (a,l,offset) = "0x" ++ showHex a ++ ": " ++ l ++ (if offset == 0 then "" else " + 0x" ++ showHex offset)
 
-mk_block_mapping :: Context -> IM.IntMap [(Word64, String)]
-mk_block_mapping ctxt = IM.fromList $ map (mk_block_mapping_for_entry) $ S.toList $ ctxt_get_function_entries ctxt
+mk_annots :: Context -> [NASM_Section] -> Annot
+mk_annots ctxt sections = map replace_macro_names $ nub $ block_mapping ++ annot_from_labels
  where
+  block_mapping = concatMap (mk_block_mapping_for_entry) $ S.toList $ ctxt_get_function_entries ctxt
+  annot_from_labels = concatMap get_annots_section sections
+
   mk_block_mapping_for_entry entry = 
     let cfg = ctxt_cfgs ctxt IM.! entry in
-      (entry,map (mk_block_mapping_for_block entry cfg) (IM.keys $ cfg_blocks cfg))
+      map (mk_block_mapping_for_block entry cfg) (IM.keys $ cfg_blocks cfg)
 
   mk_block_mapping_for_block entry cfg blockID = 
     let a = addressof $ head $ get_block_instrs cfg blockID in
-      (a, block_label ctxt entry a blockID)
+      (a, block_label ctxt entry a blockID, 0)
   get_block_instrs cfg blockID = cfg_instrs cfg IM.! blockID 
 
 
+  get_annots_section (NASM_Section_Text sec) = get_annots_textsection sec
+  get_annots_section (NASM_Section_Data sec) = [] -- TODO?
+
+  get_annots_textsection (NASM_TextSection _ blocks) = concatMap get_annots_line $ concat $ map snd blocks
+
+  get_annots_line (NASM_Instruction _ annot) = annot
+  get_annots_line _ = []
+
+
+
+  replace_macro_names (a,label,0) =
+    case find (\(sym,_,_,_,_) -> sym == label) $ IM.elems $ internal_labels_outside_of_sections ctxt of
+      Just (sym,segment,section,a0,offset) -> (a,section_label segment section a0, offset)
+      Nothing -> (a,label,0)
+  replace_macro_names x = x
+ 
 
 
 -- | convert a list of basic blocks to NASM instructions
@@ -262,6 +331,8 @@ cfg_blocks_to_NASM ctxt entry cfg [blockID0]                     = [(blockID0,cf
 cfg_blocks_to_NASM ctxt entry cfg (blockID0:blocks@(blockID1:_)) = (blockID0,cfg_block_to_NASM ctxt entry cfg blockID0 $ Just blockID1) : cfg_blocks_to_NASM ctxt entry cfg blocks
 
 
+mk_NASM_Instruction str = NASM_Instruction str []
+
 -- | convert a single basic block to NASM instructions
 -- A block is translated to a header and its instructions
 cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
@@ -269,7 +340,7 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
   -- header
   block_header          = NASM_Comment 0 $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (addressof $ head block_instrs)
   -- instructions: the label and the body
-  mk_block              = block_label' ++ block_body 
+  mk_block              = block_label' ++ insert_nop_if_empty block_body
 
   -- the label
   block_label'          = [NASM_Label $ block_label ctxt entry (addressof $ head block_instrs) blockID] 
@@ -290,6 +361,9 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
       Nothing                           -> mk_block_instrs block_instrs ++ block_end block_instrs
 
 
+  insert_nop_if_empty [] = [mk_NASM_Instruction "nop   ; NOP inserted"]
+  insert_nop_if_empty b  = b
+
   -- if the block ends in an indirection, retrieve that indirection
   try_indirect_block instrs
     | instrs == []  = Nothing
@@ -307,38 +381,41 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
   block_end instrs
     | instrs == [] = []
     | is_proper_block_end_instruction (Instr.opcode $ last instrs) = []
-    | blockID1 /= Nothing && IM.lookup blockID (cfg_edges cfg) == Just (IS.singleton $ fromJust blockID1) = []
+    --  | blockID1 /= Nothing && (IM.lookup blockID (cfg_edges cfg) == Just (IS.singleton $ fromJust blockID1) = []
     | otherwise = mk_extra_jmp
 
 
   -- A jump table is implemented (TODO more comments)
   jmp_table_init t@(JumpTable index bound trgt tbl) reg reg' i =
+    let (trgt_str,annot) = operand_to_NASM ctxt entry cfg empty_instr False index in
       [ NASM_Comment 2 $ "Resolved indirection:"
       , NASM_Comment 2 $ show t
-      , NASM_Instruction $ "MOV [" ++ label_jump_table_temp_storage entry (addressof i) ++ "], " ++ show (real reg)
-      , NASM_Instruction $ "MOV [" ++ label_jump_table_temp_storage entry (addressof i) ++ " + 8], " ++ show (real reg')
-      , NASM_Instruction $ "MOV " ++ show reg ++ ", " ++ operand_to_NASM ctxt entry cfg empty_instr False index ]
+      , mk_NASM_Instruction $ "MOV [" ++ label_jump_table_temp_storage entry (addressof i) ++ "], " ++ show (real reg)
+      , mk_NASM_Instruction $ "MOV [" ++ label_jump_table_temp_storage entry (addressof i) ++ " + 8], " ++ show (real reg')
+      , NASM_Instruction    ("MOV " ++ show reg ++ ", " ++ trgt_str) annot ]
       ++
-      (if sizeof reg < 4 then [NASM_Instruction $ "MOVZX " ++ show(reg_of_size (real reg) 4) ++ ", " ++ show reg] else [])
+      (if sizeof reg < 4 then [mk_NASM_Instruction $ "MOVZX " ++ show(reg_of_size (real reg) 4) ++ ", " ++ show reg] else [])
       ++
       [ NASM_Comment 2 $ "Start of block"  ]
 
+
   jmp_table_end t@(JumpTable index bound trgt tbl) reg reg' last_instr =
-    [ NASM_Comment 2 $ "End of block"
-    , NASM_Instruction $ "LEA " ++ show reg' ++ ", [" ++ label_jump_table_redirect_data entry (addressof last_instr) ++ "]"
-    , NASM_Instruction $ "LEA " ++ show reg' ++ ", [" ++ show reg' ++ " + 8*" ++ show(reg_of_size (real reg) 8) ++ "]"
-    , NASM_Instruction $ "MOV " ++ operand_to_NASM ctxt entry cfg empty_instr False trgt ++ ", qword [" ++ show reg' ++ "]"
-    , NASM_Instruction $ "MOV " ++ show (real reg)  ++ ", [" ++ label_jump_table_temp_storage entry (addressof last_instr) ++ "]"
-    , NASM_Instruction $ "MOV " ++ show (real reg') ++ ", [" ++ label_jump_table_temp_storage entry (addressof last_instr) ++ " + 8]"
-    , NASM_Comment 2 $ "Executing resolved indirect jump"
-    , mk_jmp_call_instr ctxt entry cfg last_instr ]
+    let (trgt_str,annot) = operand_to_NASM ctxt entry cfg empty_instr False trgt in
+      [ NASM_Comment 2 $ "End of block"
+      , mk_NASM_Instruction $ "LEA " ++ show reg' ++ ", [" ++ label_jump_table_redirect_data entry (addressof last_instr) ++ "]"
+      , mk_NASM_Instruction $ "LEA " ++ show reg' ++ ", [" ++ show reg' ++ " + 8*" ++ show(reg_of_size (real reg) 8) ++ "]"
+      , NASM_Instruction    ("MOV " ++ trgt_str ++ ", qword [" ++ show reg' ++ "]") annot
+      , mk_NASM_Instruction $ "MOV " ++ show (real reg)  ++ ", [" ++ label_jump_table_temp_storage entry (addressof last_instr) ++ "]"
+      , mk_NASM_Instruction $ "MOV " ++ show (real reg') ++ ", [" ++ label_jump_table_temp_storage entry (addressof last_instr) ++ " + 8]"
+      , NASM_Comment 2 $ "Executing resolved indirect jump"
+      , mk_jmp_call_instr ctxt entry cfg last_instr ]
 
 
 
   -- A resolved jump to a single known target
   resolved_jump [External f] (Instruction addr pre op Nothing ops annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
-    , NASM_Instruction $ concat [ prefix_to_NASM pre, opcode_to_NASM op, " ", f, " wrt ..plt" ]]
+    , mk_NASM_Instruction $ concat [ prefix_to_NASM pre, opcode_to_NASM op, " ", f, " wrt ..plt" ]]
   resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op Nothing ops annot) = 
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ showHex imm
     , mk_jmp_call_instr ctxt entry cfg i]
@@ -363,16 +440,42 @@ cfg_block_to_NASM ctxt entry cfg blockID blockID1 = block_header : mk_block
   empty_instr = Instruction (AddressWord64 0) Nothing NOP Nothing [] Nothing
 
   mk_extra_jmp =
-    case unsafePerformIO $ stepA ctxt entry (fromIntegral $ addressof $ last block_instrs) of -- TODO maybe unnecessary, also TODO assumes fall through is last/second
-      Right []        -> []
-      Right [(a,_)]   -> [NASM_Instruction $ "JMP " ++ (fromJust $ symbolize_immediate ctxt (Just (entry,cfg)) False $ fromIntegral a) ++ "     ; inserted"]
-      Right [_,(a,_)] -> [NASM_Instruction $ "JMP " ++ (fromJust $ symbolize_immediate ctxt (Just (entry,cfg)) False $ fromIntegral a) ++ "     ; inserted"]
-      x               -> [NASM_Instruction $ "JMP ERROR CANNOT DETERMINE NEXT BLOCK" ++ show x]
+    case unsafePerformIO $ stepA ctxt entry (fromIntegral $ addressof $ last block_instrs) of -- TODO assumes fall through is last/second
+      Right []        -> mk_extra_hlt $ last block_instrs
+      Right [(a,_)]   -> mk_extra_jump_maybe a
+      Right [_,(a,_)] -> mk_extra_jump_maybe a
+      x               -> [mk_NASM_Instruction $ "JMP ERROR CANNOT DETERMINE NEXT BLOCK" ++ show x]
 
+  mk_extra_hlt last_instr
+    | isCall (opcode last_instr) =
+      let a = addressof last_instr + (fromIntegral $ sizeof last_instr) in
+        if is_start_of_block_anywhere ctxt a then
+          []
+        else  
+          let label = block_label ctxt entry a blockID ++ "_HLT" in
+            [ 
+              NASM_Label label,
+              NASM_Instruction "HLT ; should never be reached" [(a,label,0)]
+            ]
+    | otherwise = []
+
+  mk_extra_jump_maybe a
+    | blockID1 /= Nothing && Just a == start_address_of_block cfg (fromJust blockID1) = []
+    | otherwise = [mk_NASM_Instruction $ "JMP " ++ (fst $ fromJust $ symbolize_immediate ctxt (Just (entry,cfg)) False $ fromIntegral a) ++  "   ; jump is inserted"]
+
+
+
+start_address_of_block cfg blockID = fromIntegral . addressof . head <$> (IM.lookup blockID $ cfg_instrs cfg)
 
 label_jump_table_temp_storage  entry a = "L_jmp_tbl_temp_storage_" ++ showHex entry ++ "_" ++ showHex a
 label_jump_table_redirect_data entry a = "L_jmp_tbl_" ++ showHex entry ++ "_" ++ showHex a
 
+
+is_start_of_block_anywhere ctxt a =
+  let cfgs   = IM.elems $ ctxt_cfgs ctxt
+      blocks = concatMap (IM.elems . cfg_instrs) cfgs in
+    any (\block -> addressof (head block) == a) blocks
+  
 
 
 -- | convert an instruction to a NASM instruction
@@ -385,15 +488,29 @@ instr_to_NASM ctxt entry cfg i@(Instruction addr pre op Nothing ops annot)
  | otherwise                                = [mk_normal_instr ctxt entry cfg i]
  where
   is_cf op      = isCall op || isJump op || isCondJump op
-  no_ops pre op = op `elem` [STOSQ, SCASB, CMPSB, STOSD] || (pre /= Nothing && op `elem` [MOVSB, MOVSW, MOVSD, MOVSQ])
+  no_ops pre op = op `elem` [STOSB,STOSD,STOSQ, SCASB,SCASD, CMPSB] || is_string_mov op
+
+
+  is_string_mov op
+    | op `elem` [MOVSB, MOVSW, MOVSD, MOVSQ] =
+      not (length ops == 2 && (operand_size (ops!!0) == 16 || operand_size (ops!!1) == 16))
+      -- TODO
+      --   REP MOVSQ QWORD PTR [RDI,8], QWORD PTR [RSI,8]
+      --   MOVSD QWORD PTR [RSP+0x8],xmm0
+    | otherwise = False
 
 
 -- Make a normal instruction
-mk_normal_instr ctxt entry cfg i@(Instruction addr pre op Nothing ops annot) = NASM_Instruction $ concat
-  [ prefix_to_NASM pre
-  , opcode_to_NASM op
-  , " "
-  ,  intercalate ", " $ map (operand_to_NASM ctxt entry cfg i False) ops ]
+mk_normal_instr ctxt entry cfg i@(Instruction addr pre op Nothing ops annot) =
+  NASM_Instruction mk_instr mk_annot
+ where
+  mk_instr = concat
+    [ prefix_to_NASM pre
+    , opcode_to_NASM op
+    , " "
+    ,  intercalate ", " $ map fst mk_ops ]
+  mk_ops = map (operand_to_NASM ctxt entry cfg i False) ops
+  mk_annot = concat $ filter ((/=) []) $ map snd mk_ops
 
 -- Make a JUMP/CALL instruction
 mk_jmp_call_instr ctxt entry cfg i@(Instruction addr pre op Nothing [op1] annot) = (mk_external <$> try_external op1) `orElse` mk_call_to_imm 
@@ -407,9 +524,8 @@ mk_jmp_call_instr ctxt entry cfg i@(Instruction addr pre op Nothing [op1] annot)
   try_external _ = Nothing
 
   mk_external (Relocated_Label _,f)           = mk_normal_instr ctxt entry cfg i
-  mk_external (Relocated_Function _, "error") = NASM_Instruction $ concat
-    [ "CALL error wrt ..plt\n  CALL exit wrt ..plt ; inserted, to ensure error always terminates"]
-  mk_external (Relocated_Function _,f)        = NASM_Instruction $ concat
+  mk_external (Relocated_Function _, "error") = mk_NASM_Instruction $ "CALL error wrt ..plt\n  CALL exit wrt ..plt ; inserted to ensure error always terminates"
+  mk_external (Relocated_Function _,f)        = mk_NASM_Instruction $ concat
     [ prefix_to_NASM pre
     , opcode_to_NASM op
     , " "
@@ -417,11 +533,13 @@ mk_jmp_call_instr ctxt entry cfg i@(Instruction addr pre op Nothing [op1] annot)
     , " wrt ..plt" ]
 
 
-  mk_call_to_imm =  NASM_Instruction $ concat
-    [ prefix_to_NASM pre
-    , opcode_to_NASM op
-    , " "
-    , operand_to_NASM ctxt entry cfg i True op1 ]
+  mk_call_to_imm = 
+    let (op1_str,annot) = operand_to_NASM ctxt entry cfg i True op1 in
+      NASM_Instruction (concat
+        [ prefix_to_NASM pre
+        , opcode_to_NASM op
+        , " "
+        , op1_str]) annot
 
 -- Make an instruction with an operand reading a GOT entry
 -- TODO MOV reg, [rip+imm] can be more efficient
@@ -433,22 +551,23 @@ mk_GOT_entry_instr ctxt entry cfg i@(Instruction addr pre op Nothing ops annot) 
     , the_actual_instr r
     , mov_temp_to_reg r ]
  where
-  mov_reg_to_temp r = NASM_Instruction $ concat
+  mov_reg_to_temp r = mk_NASM_Instruction $ concat
     [ "MOV qword [Ltemp_storage_foxdec], " 
-    , operand_to_NASM ctxt entry cfg i True $ Storage r
-    , " ; inserted" ]
+    , fst $ operand_to_NASM ctxt entry cfg i True $ Storage r
+    , "   ; inserted" ]
 
-  lea_external_function r f = NASM_Instruction $ concat
+  lea_external_function r f = mk_NASM_Instruction $ concat
     [ "LEA " 
-    , operand_to_NASM ctxt entry cfg i True $ Storage r
+    , fst $ operand_to_NASM ctxt entry cfg i True $ Storage r
     , ", [", f, " wrt ..plt]" ]
 
   the_actual_instr r = mk_normal_instr ctxt entry cfg (Instruction addr pre op Nothing (replace_mem_op r ops) annot)
 
-  mov_temp_to_reg r = NASM_Instruction $ concat
+  mov_temp_to_reg r = mk_NASM_Instruction $ concat
     [ "MOV " 
-    , operand_to_NASM ctxt entry cfg i True $ Storage r
-    , ", qword [Ltemp_storage_foxdec] ; inserted"]
+    , fst $ operand_to_NASM ctxt entry cfg i True $ Storage r
+    , ", qword [Ltemp_storage_foxdec]"
+    , "  ; inserted" ]
 
   replace_mem_op r (Memory a si:ops) = Storage r : ops
   replace_mem_op r (op:ops)          = op:replace_mem_op r ops
@@ -456,6 +575,8 @@ mk_GOT_entry_instr ctxt entry cfg i@(Instruction addr pre op Nothing ops annot) 
   name_of_external_function = mapMaybe (try_operand_reads_GOT_entry ctxt i) ops
 
 -- TODO: this is only relevant when doing non-RIP-relative binaries and translating instructions of the form:
+--    MOV dst, imm
+-- where imm is (maybe) an address
 --mk_instr ctxt entry cfg i@(Instruction addr pre op@MOV Nothing ops@[dst,Immediate imm] annot)
 --  | is_instruction_address ctxt imm = mk_fake_lea ctxt entry cfg i
 --  | otherwise = [NASM_Instruction $ concat
@@ -497,6 +618,7 @@ is_instruction_address ctxt a = and
 -- TODO: this is only relevant when doing non-RIP-relative binaries and translating instructions of the form:
 --   MOV dst, imm
 -- where imm is (maybe) an address
+{--
 mk_fake_lea ctxt entry cfg i@(Instruction addr pre op@MOV Nothing ops@[dst@(Storage r),Immediate imm] annot) =
     let l = fromJust $ symbolize_immediate ctxt (Just (entry,cfg)) True imm in
       [NASM_Instruction $ concat
@@ -528,17 +650,21 @@ mk_fake_lea ctxt entry cfg i@(Instruction addr pre op@MOV Nothing ops@[dst@(Memo
         , operand_to_NASM ctxt entry cfg i True $ Storage r
         , ", [Ltemp_storage_foxdec]"]
       , NASM_Comment 2 "done" ]
-
-
+--}
 
 
 -- | convert an operand to a NASM operand
-operand_to_NASM ctxt entry cfg i is_addr (Storage r)          = show r
-operand_to_NASM ctxt entry cfg i is_addr (EffectiveAddress a) = "[" ++ symbolize_address ctxt entry cfg i a ++ "]"
-operand_to_NASM ctxt entry cfg i is_addr (Memory a si)        = size_directive_to_NASM i si ++ " [" ++ symbolize_address ctxt entry cfg i a ++ "]"
+-- Return both the translation (a String) as well as an optional annotation
+operand_to_NASM ctxt entry cfg i is_addr (Storage r)          = (show r, [])
+operand_to_NASM ctxt entry cfg i is_addr (EffectiveAddress a) =
+  let (str,annot) = symbolize_address ctxt entry cfg i a in
+     ("[" ++ str ++ "]", annot)
+operand_to_NASM ctxt entry cfg i is_addr (Memory a si)        =
+  let (str,annot) = symbolize_address ctxt entry cfg i a in
+     (size_directive_to_NASM i si ++ " [" ++ str ++ "]", annot)
 operand_to_NASM ctxt entry cfg i is_addr (Immediate imm)
   | is_addr      = symbolize_address ctxt entry cfg i (AddressImm imm)
-  | otherwise    = "0x" ++ showHex imm
+  | otherwise    = ("0x" ++ showHex imm, [])
 
 
 -- | convert the address of an operand to a NASM address
@@ -603,14 +729,15 @@ prefix_to_NASM (Just pre) = show pre ++ " "
 
 ----- TEXT SECTIONS -----
 -- | Symbolization of an address of an operand
-symbolize_address :: Context -> Int -> CFG -> Instruction -> Address -> String
+-- Return an optional annotation as well.
+symbolize_address :: Context -> Int -> CFG -> Instruction -> Address -> (String, Annot)
 symbolize_address ctxt entry cfg i a =
   case symbolize_immediate ctxt (Just (entry,cfg)) (isCall $ Instr.opcode i) <$> fromIntegral <$> rip_relative_to_immediate i a of
-    Just (Just str) -> str
+    Just (Just sym) -> sym
     _               -> 
       case try_symbolize_base_of_address ctxt i a of
-        Just str -> str
-        _        -> address_to_NASM i a
+        Just str -> error "TODO" 
+        _        -> (address_to_NASM i a, [])
 
 
 try_symbolize_base_of_address ctxt i addr = find_base addr
@@ -623,9 +750,9 @@ try_symbolize_base_of_address ctxt i addr = find_base addr
   mk_add a' str = str ++ " + " ++ address_to_NASM' i a'
 
 -- | Symbolization of an immediate value that is used as an address
-symbolize_immediate :: Context -> Maybe (Int,CFG) -> Bool -> Word64 -> Maybe String
+symbolize_immediate :: Context -> Maybe (Int,CFG) -> Bool -> Word64 -> Maybe (String,Annot)
 symbolize_immediate ctxt entry_cfg is_call a =
-  first `orTry` second `orTry` relocatable_symbol ctxt a `orTry` try_symbolize_base ctxt True a
+  (add_annot <$> first) `orTry` (add_annot <$> second) `orTry` relocatable_symbol ctxt a `orTry` try_symbolize_base ctxt True a
  where
   (first,second) 
     | is_call   = (find_outside_cfg,find_inside_cfg entry_cfg)
@@ -639,15 +766,19 @@ symbolize_immediate ctxt entry_cfg is_call a =
 
   block_starts_at (blockId, instrs) = instrs /= [] && addressof (head instrs) == fromIntegral a
 
+  add_annot str = (str,[(a,str,0)])
+
 
 -- | Symbolize (try to) an immediate address falling into the range of a section
-try_symbolize_base ctxt not_part_of_larger_expression imm = within_section `orTry` try_internal imm `orTry` try_at_end_of_section imm
+try_symbolize_base ctxt not_part_of_larger_expression imm = within_section `orTry` (add_annot <$> try_internal imm) `orTry` (add_annot <$> try_at_end_of_section imm)
  where
   within_section    = show_section_relative imm <$> find_section_for_address ctxt imm
 
-  show_section_relative a sec@(segment,section,a0,_)
-    | not_part_of_larger_expression = macro_name segment section a0 ++ "(0x" ++ showHex (a - a0) ++ ")"
-    | otherwise                     = section_label segment section a0 ++ " + 0x" ++ showHex (a - a0)
+  show_section_relative a sec@(segment,section,a0,_) = (label,[(a, section_label segment section a0, a - a0)])
+   where
+    label
+      | not_part_of_larger_expression = macro_name segment section a0 ++ "(0x" ++ showHex (a - a0) ++ ")"
+      | otherwise                     = section_label segment section a0 ++ " + 0x" ++ showHex (a - a0)
 
   try_internal a = (\(Internal_Label str) -> str) <$> (IM.lookup (fromIntegral a) $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt)
 
@@ -655,6 +786,7 @@ try_symbolize_base ctxt not_part_of_larger_expression imm = within_section `orTr
 
   is_end_of_section a (_,_,a0,sz) = a0 + sz == a
 
+  add_annot str = (str,[(imm,str,0)])
 
 
 
@@ -662,11 +794,14 @@ try_symbolize_base ctxt not_part_of_larger_expression imm = within_section `orTr
 -- see if address matches an external symbol loaded at linking time
 relocatable_symbol ctxt a = (IM.lookup (fromIntegral a) (ctxt_symbol_table ctxt) >>= mk_symbol) `orTry` (find (reloc_for a) (ctxt_relocs ctxt) >>= mk_reloc)
  where
-  mk_symbol (Relocated_Function str) = error $ "Reading GOT entry of address " ++ showHex a
-  mk_symbol (Relocated_Label str)    = Just $ strip_GLIBC str
-  mk_symbol (Internal_Label a)       = Nothing
+  mk_symbol (Relocated_Function str)          = Nothing -- error $ "Reading GOT entry of address " ++ showHex a 
+  mk_symbol (Internal_Label a)                = Nothing
+  mk_symbol (Relocated_Label str)             = Just (strip_GLIBC str,[])
+  mk_symbol (Relocated_ResolvedObject str a1) = Just (mk_safe_label str a,[(a,mk_safe_label str a,0)])
 
-  mk_reloc (Relocation a0 a1) = Just $ block_label ctxt 0 a0 0
+  mk_reloc (Relocation a0 a1) = 
+    let label = block_label ctxt 0 a0 0 in
+      Just (label, [(a,label,0)])
 
 reloc_for a (Relocation a0 a1) = a == a0
 
@@ -693,15 +828,23 @@ mk_macros ctxt = intercalate "\n" $ macros ++ [""] ++ internals
   -- internal symbols that are defined outside of existing sections
   -- EXAMPLE:
   --    %define __TMC_END__ RELA_.data_0x17000(0x4)
-  internals = concatMap mk_internal $ filter is_outside_section $ IM.assocs $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt
+  internals = concatMap mk_internal $ IM.assocs $ internal_labels_outside_of_sections ctxt
 
-  is_outside_section (a,_) = find_section_for_address ctxt (fromIntegral a) == Nothing
+  mk_internal (a,(sym,segment,section,a0,offset)) = ["%define " ++ sym ++ " " ++ macro_name segment section a0 ++ "(0x" ++ showHex offset ++ ")"]
 
-  mk_internal :: (Int,Symbol) -> [String]
-  mk_internal (a,Internal_Label sym) = 
+  mk_macro (segment,section,a0,sz) = "%define " ++ macro_name segment section a0 ++ "(offset) (" ++ section_label segment section a0 ++ " + offset)"
+
+
+
+
+internal_labels_outside_of_sections ctxt = IM.mapWithKey mk $ IM.filterWithKey is_outside_section $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt
+ where
+  is_outside_section a _ = find_section_for_address ctxt (fromIntegral a) == Nothing
+
+  mk a (Internal_Label sym) = 
     case find_preceding_section a of
-      Nothing -> []
-      Just (segment,section,a0,si) -> ["%define " ++ sym ++ " " ++ macro_name segment section a0 ++ "(0x" ++ showHex (fromIntegral a - a0) ++ ")"]
+      -- Nothing -> []
+      Just (segment,section,a0,si) -> (sym,segment,section,a0,fromIntegral a - a0)
     
   find_preceding_section a =
     case sortBy (distance a) $ filter (is_after a) (si_sections $ ctxt_sections ctxt) of
@@ -713,7 +856,7 @@ mk_macros ctxt = intercalate "\n" $ macros ++ [""] ++ internals
 
 
 
-  mk_macro (segment,section,a0,sz) = "%define " ++ macro_name segment section a0 ++ "(offset) (" ++ section_label segment section a0 ++ " + offset)"
+
 
 -- TODO to Base
 (|||) :: (a -> Bool) -> (a -> Bool) -> a -> Bool
@@ -783,8 +926,8 @@ generic_data_section ctxt pick_section read_from =
 
   try_symbolize_imm a1 = 
     case symbolize_immediate ctxt Nothing False $ fromIntegral a1 of
-      Just str -> if "RELA_.text" `isPrefixOf` str then "ERROR: UNTRANSLATED ENTRY ADDRESS " ++ showHex a1 else str 
-      Nothing  -> "ERROR: could not symbolize relocated immediate value 0x" ++ showHex a1
+      Just (str,annot) -> if "RELA_.text" `isPrefixOf` str then "ERROR: UNTRANSLATED ENTRY ADDRESS " ++ showHex a1 else str ++ render_annot annot
+      Nothing          -> "ERROR: could not symbolize relocated immediate value 0x" ++ showHex a1
 
 bss_data_section ctxt = 
   concatMap mk_bss_data_section $ filter is_bss_data_section $ si_sections $ ctxt_sections ctxt
@@ -827,8 +970,8 @@ mk_jump_table ctxt (entry,cfg,(a,Indirection_JumpTable (JumpTable index bnd trgt
  where
   mk_entry (idx,trgt) = 
     case symbolize_immediate ctxt (Just (entry,cfg)) False trgt of
-      Just str -> "dq " ++ str ++ " ; index " ++ show idx
-      Nothing  -> "ERROR: cannot symbolize jump target:" ++ showHex trgt
+      Just (str,annot) -> "dq " ++ str ++ " ; index " ++ show idx ++ render_annot annot
+      Nothing          -> "ERROR: cannot symbolize jump target:" ++ showHex trgt
 mk_jump_table ctxt (entry,cfg,(a,_)) = []
 
 

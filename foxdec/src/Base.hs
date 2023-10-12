@@ -8,7 +8,6 @@ Description : Some base functions, imported by almost all other modules.
 
 module Base where
 
-import Algorithm.SCC
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -31,6 +30,14 @@ import Control.DeepSeq
 import Data.Serialize.Get (getSetOf)
 import Data.Serialize.Put (putSetOf)
 import qualified Data.Set.NonEmpty as NES
+
+class IntGraph g where
+  intgraph_post :: g -> Int -> IS.IntSet
+  intgraph_V    :: g -> IS.IntSet
+
+
+
+
 
 -- | Show the integer in hex.
 showHex i = if i < 0 then Numeric.showHex (fromIntegral i :: Word64) "" else Numeric.showHex i ""
@@ -179,27 +186,6 @@ instance IntGraph Graph where
     fromMaybe IS.empty (IM.lookup v es)
   intgraph_V (Edges es) = IS.unions $ IM.keysSet es : IM.elems es
 
-
--- | retrieve a non-trivial SCC, if any exists
-graph_nontrivial_scc g@(Edges es) =
-  let sccs             = all_sccs g IS.empty
-      nontrivial_sccs  = filter is_non_trivial sccs
-      nontrivial_scc   = maximumBy (comparing IS.size) sccs in
-    nontrivial_scc -- trace ("Found SCC of mutually recursive function entries: " ++ showHex_set nontrivial_scc) nontrivial_scc
- where
-  is_non_trivial :: IS.IntSet -> Bool
-  is_non_trivial scc = IS.size scc > 1 || graph_is_edge g (head $ IS.toList scc) (head $ IS.toList scc)
-
-
-
--- | find next vertex to consider: either a terminal vertex (if any) or the head of an SCC
-graph_find_next :: Graph -> Maybe Int
-graph_find_next g@(Edges es) =
-  if IM.null es then
-    Nothing
-  else case find (IS.disjoint (IM.keysSet es) . snd) $ IM.toList es of
-    Nothing    -> Just $ head $ IS.toList $ graph_nontrivial_scc g -- no terminal vertex
-    Just (v,_) -> Just v                               -- terminal vertex
 
 
 ------------------------------------------

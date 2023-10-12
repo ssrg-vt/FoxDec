@@ -3,6 +3,7 @@
 
 module Analysis.ACode_Gen where
 
+import Base
 import Analysis.Context
 import Algorithm.SCC 
 import Analysis.ControlFlow
