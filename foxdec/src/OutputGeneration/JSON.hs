@@ -17,6 +17,7 @@ import Analysis.Context as C
 import Analysis.Pointers 
 import Analysis.ControlFlow
 
+import Instantiation.SymbolicPropagation
 
 import OutputGeneration.Retrieval
 
@@ -70,7 +71,6 @@ generate_json ::
   -> IO ()
 generate_json ctxt fname_plain fname_json verbose = do
   let entries = ctxt_get_function_entries ctxt
-
   let instrs     = S.toList $ ctxt_get_instructions ctxt
   let addresses =  S.toList $ ctxt_get_instruction_addresses ctxt
   control_flow  <- mapM (ctxt_get_controlflow ctxt) addresses
@@ -81,14 +81,16 @@ generate_json ctxt fname_plain fname_json verbose = do
 
   let pp_text = toByteString $ mconcat $ map fromString $ pp_json ctxt verbose instrs control_flow boundaries summaries mem_ops invs
   BS.writeFile fname_plain pp_text
-
+{--
+  let mem_ops    = ctxt_resolve_mem_operands ctxt
+  BS.writeFile fname_plain $ toByteString $ mconcat $ map fromString $ map ((++) "\n") $ pp_mem_ops ctxt mem_ops
+--}
 
   let json_instructions = map mk_json_instruction instrs
   let json_summaries = map (\(a,(finit,post)) -> (a,FunctionSummary (show finit) $ mk_json_post post)) summaries
   let json_invs = if verbose then map (\(a,Just invs) -> (a,map (\(entry,inv) -> (entry,mk_json_predicate inv)) invs)) $ filter (((/=) Nothing) . snd) invs else []
   let json = JSON json_instructions control_flow boundaries json_summaries json_invs mem_ops
   Data.ByteString.Lazy.writeFile fname_json $ encode json
-
 
 
 
@@ -129,7 +131,6 @@ pp_json ctxt verbose instrs control_flow boundaries summaries mem_ops invs = map
 
       
 
-
 pp_invs = map pp
  where
   pp (a,Nothing)   = "Address " ++ showHex a ++ ": no invariant.\n"
@@ -159,13 +160,52 @@ pp_summaries = map pp
   pp_finit finit = if finit == init_finit then "No precondition" else "Precondition:\n" ++ show finit
 
 
-pp_mem_ops ctxt = map pp
+
+-- TODO, these classifiers should be more central
+is_global_spointer (Base_Immediate _ _)  = True
+is_global_spointer _                     = False
+
+is_heap_pointer (Base_Malloc _ _ _) = True
+is_heap_pointer _ = False
+
+svalue_to_domain ctxt Nothing  = "_"
+svalue_to_domain ctxt (Just v) =
+  domain_of $ smk_mem_addresses ctxt "domains" v
  where
-  pp (entry,a,es) = "Address " ++ showHex a ++ ", entry: " ++ showHex entry ++ ": [" ++ intercalate "," (map pp_dom es) ++ "]"
+  domain_of ptrs
+    | S.null ptrs = "T"
+    | all (\p -> is_heap_pointer p || is_local_spointer p || is_global_spointer p) ptrs = intersperse ',' $ nub $ map mk_lgh $ S.toList ptrs
+    | otherwise = "U" ++ show v
+
+  mk_lgh ptr
+    | is_local_spointer ptr = 'L'
+    | is_global_spointer ptr = 'G'
+    | is_heap_pointer ptr = 'H'
+
+
+pp_mem_ops ctxt mem_ops =
+  let doms = map get_domains $ filter (\(entry,a,es) -> not $ all ((==) Nothing) es) mem_ops in
+    map pp doms ++ ["\nOverview: " ++ overview doms]
+ where
+  get_domains (entry,a,es) = (entry,a,es,map (svalue_to_domain (mk_fcontext ctxt $ fromIntegral entry)) es)
+
+  pp (entry,a,es,doms) = "0x" ++ showHex a ++ "\t[" ++ intercalate "," doms ++ "]\t0x" ++ showHex entry ++ "\t" ++ show es
 
   pp_dom Nothing  = "_"
   pp_dom (Just e) = show e
 
+  overview doms =
+    let total   = length doms
+        local   = length $ filter (doms_satisfy ((==) "L")) doms 
+        global  = length $ filter (doms_satisfy ((==) "G")) doms
+        heap    = length $ filter (doms_satisfy ((==) "H")) doms
+        top     = length $ filter (doms_satisfy ((==) "T")) doms
+        unknown = length $ filter (doms_satisfy (startsWith 'U')) doms in
+      show (total, local,global,heap,unknown,top)
+
+  doms_satisfy p (entry,a,es,doms) = all p doms
+
+  startsWith c str = head str == c
 
 instance ToJSON Register  where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }

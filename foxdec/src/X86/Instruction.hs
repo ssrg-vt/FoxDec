@@ -219,6 +219,10 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , XORPS
          , SUBPS
          , ANDPD
+         , ANDPS
+         , ANDNPS
+         , ORPS
+         , XORPS
          , ANDNPD
          , ORPD
          , SUBPD
@@ -281,7 +285,8 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , DIVSS
          , MULSS
          , ROUNDSS
-         , SQRTSS
+         , MAXSS
+         , MINSS
          , SUBSD
          , ADDSD
          , DIVSD
@@ -412,6 +417,8 @@ mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
          , STOS,STOSB,STOSD,STOSQ
          , FST, FSTP, FIST, FISTP, FISTTP
          , FSTCW, FNSTCW
+         , SQRTSD
+         , SQRTSS
         ]
 
 -- Does the instruction not make state change?
@@ -462,11 +469,13 @@ do_not_modify mnemonic = isCall mnemonic
          , COMISS
          , UCOMISD
          , CMPLTSD
+         , CMPLTSS
          , CMPEQSD
          , CMPNEQSD
          , CMPEQSD
          , CMPLTSD
          , CMPNLESD
+         , CMPNLESS
          , CMPNEQSD
          , CMPNLESD
          ]

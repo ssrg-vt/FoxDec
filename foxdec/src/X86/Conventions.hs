@@ -18,7 +18,8 @@ is_exiting_function_call f =
   let f' = strip_GLIBC f in 
     f' `elem` [
       "exit", "_exit", "__exit", "___exit",
-      "error", "_error","__error", 
+      "error", 
+      "_error","__error", 
       "__stack_chk_fail", "___stack_chk_fail",
       -- "__overflow", 
       "abort", "_abort",
@@ -27,7 +28,8 @@ is_exiting_function_call f =
       "_assert_fail", "__assert_fail", "___assert_fail", "___assert_rtn",
       "err", "verr", "errc", "verrc", "errx", "verrx", 
       "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx",
-      "obstack_alloc_failed_handler"
+      "obstack_alloc_failed_handler", "isc_assertion_failed",
+      "PyExc_SystemExit"
     ]
 
 strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"

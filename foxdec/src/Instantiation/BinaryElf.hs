@@ -270,7 +270,7 @@ elf_max_address elf = maximum $ map get_max_address $ filter isRelevantElfSectio
 elf_read_file = parseElf
 
 
-pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section)] ++ "]" 
+pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section), showHex (elfSectionAddrAlign section)] ++ "]" 
 pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_entry
  where
   pp_sections = map pp_elf_section $ elfSections elf
@@ -289,7 +289,7 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
 
 elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevantElfSection $ elfSections elf) (elf_min_address elf) (elf_max_address elf)
  where
-  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section)
+  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section, elfSectionAddrAlign section)
 
 
 

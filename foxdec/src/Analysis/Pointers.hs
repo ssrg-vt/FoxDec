@@ -336,7 +336,7 @@ srcs_of_expr ctxt e@(SE_Immediate i)           =
   if address_has_external_symbol (f_ctxt ctxt) $ fromIntegral i then
     NES.singleton $ Src_ImmediateAddress i
   else case find_section_for_address (f_ctxt ctxt) $ fromIntegral i of
-    Just (_,_,a0,_) -> NES.singleton $ Src_ImmediateAddress a0
+    Just (_,_,a0,_,_) -> NES.singleton $ Src_ImmediateAddress a0
     Nothing  -> NES.singleton $ Src_ImmediateConstants
 
 -- | Returns the set of sources of the bottom type

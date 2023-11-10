@@ -30,7 +30,7 @@ import Debug.Trace
 import Numeric (readHex)
 import System.IO.Unsafe (unsafePerformIO)
 import X86.Register (Register(..))
-import X86.Opcode (Opcode(JMP), isCall, isJump)
+import X86.Opcode (Opcode(JMP,ENDBR64), isCall, isJump)
 import X86.Instruction
 import qualified X86.Operand as X86
 import Generic.HasSize (sizeof)
@@ -117,6 +117,13 @@ function_name_of_entry ctxt a =
         Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
           case operand_static_resolve ctxt i op1 of
             External sym -> sym
+            _ -> "0x" ++ showHex a
+        Just i@(Instruction _ _ ENDBR64 Nothing _ (Just si))  ->
+          case unsafePerformIO $ fetch_instruction ctxt (fromIntegral a + fromIntegral si) of -- TODO. However, should be safe as result is immutable.
+            Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
+              case operand_static_resolve ctxt i op1 of
+                External sym -> sym
+                _ -> "0x" ++ showHex a
             _ -> "0x" ++ showHex a
         _ -> "0x" ++ showHex a
 

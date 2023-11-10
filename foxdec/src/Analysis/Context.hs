@@ -381,24 +381,24 @@ is_roughly_an_address ctxt a =
 find_section_for_address ::
    Context                              -- ^ The context
    -> Word64                            -- ^ An address
-   -> Maybe (String, String, Word64, Word64)
+   -> Maybe (String, String, Word64, Word64,Word64)
 find_section_for_address ctxt a =
   if is_roughly_an_address ctxt a then
     find (address_in_section a) (si_sections $ ctxt_sections ctxt)
   else
     Nothing
  where
-  address_in_section a (_,_,a0,si) = a0 <= a && a < a0 + si
+  address_in_section a (_,_,a0,si,_) = a0 <= a && a < a0 + si
 
 
 -- | Find a section ending at address (see @`SectionsInfo`@)
 find_section_ending_at ::
    Context                              -- ^ The context
    -> Word64                            -- ^ An address
-   -> Maybe (String, String, Word64, Word64)
+   -> Maybe (String, String, Word64, Word64, Word64)
 find_section_ending_at ctxt a = find (address_ends_at_section a) (si_sections $ ctxt_sections ctxt)
  where
-  address_ends_at_section a (_,_,a0,si) = a == a0 + si
+  address_ends_at_section a (_,_,a0,si,_) = a == a0 + si
 
 
 
@@ -553,7 +553,7 @@ ctxt_read_L0 dirname name = do
 -- | Returns true iff an instruction can be fetched from the address.
 address_has_instruction ctxt a =
   case find_section_for_address ctxt $ fromIntegral a of
-    Nothing                    -> False
-    Just (segment,section,_,_) -> (segment,section) `elem` sections_with_instructions && unsafePerformIO (fetch_instruction ctxt $ fromIntegral a) /= Nothing
+    Nothing                      -> False
+    Just (segment,section,_,_,_) -> (segment,section) `elem` sections_with_instructions && unsafePerformIO (fetch_instruction ctxt $ fromIntegral a) /= Nothing
 
 

@@ -465,9 +465,9 @@ ctxt_read_and_set_entries = do
  where
   ctxt_read_init_fini_arrays = gets (si_sections . ctxt_sections) >>= mapM ctxt_read_init_fini_array 
 
-  ctxt_read_init_fini_array ("", ".init_array",a0,si) = read_pointers_from_ro_data_section a0 si
-  ctxt_read_init_fini_array ("", ".fini_array",a0,si) = read_pointers_from_ro_data_section a0 si
-  ctxt_read_init_fini_array _                         = return []
+  ctxt_read_init_fini_array ("", ".init_array",a0,si,_) = read_pointers_from_ro_data_section a0 si
+  ctxt_read_init_fini_array ("", ".fini_array",a0,si,_) = read_pointers_from_ro_data_section a0 si
+  ctxt_read_init_fini_array _                           = return []
 
   read_pointers_from_ro_data_section a0 si =
     if si < 8 then
@@ -710,8 +710,10 @@ ctxt_analyze_unresolved_indirections entry = do
           modify $ set_ctxt_inds inds'
 
           return True
-        else
-          error $ show ("resolving:",values1)
+        else do
+          to_out $ "Unresolved block " ++ show b ++ "\n" ++ show i ++ "\n" ++ show p ++ "\n" ++ show trgt
+          return False
+          -- error $ show ("resolving:",values1,p)
 
 
   try_to_resolve_from_invariant fname f g b p i trgt = do

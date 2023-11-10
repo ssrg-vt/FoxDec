@@ -18,7 +18,7 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 
 -- |  Information on the sections in the binary
 data SectionsInfo = SectionsInfo {
-  si_sections    :: [(String,String,Word64,Word64)], -- ^ Sections: segment names, section names, addresses and sizes.
+  si_sections    :: [(String,String,Word64,Word64,Word64)], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
   si_min_address :: Word64,
   si_max_address :: Word64
  }

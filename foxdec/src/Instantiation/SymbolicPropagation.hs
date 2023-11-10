@@ -9,7 +9,8 @@ module Instantiation.SymbolicPropagation (
  init_pred,
  invariant_to_finit,
  join_finit,
- gather_stateparts
+ gather_stateparts,
+ is_local_spointer
  ) where
 
 
@@ -890,7 +891,7 @@ csensitive fctxt a (Nat si) v =
   
   is_top_stackframe (Base_StackPointer _ (PtrOffset 0)) _ = True
   is_top_stackframe _ _ = False
-  is_pushed_reg a' si' v' = is_initial_reg v' && is_local_spointer fctxt a'
+  is_pushed_reg a' si' v' = is_initial_reg v' && is_local_spointer a'
 csensitive fctxt a UnknownSize v = False
 
 
@@ -1078,7 +1079,7 @@ invariant_to_finit fctxt p =
 
   is_global_value (SConcrete es) = all is_global_ptr $ mapMaybeNES (try_promote_expr fctxt True) es
 
-  is_global_ptr (Base_Immediate _ _)   = True
+  is_global_ptr (Base_Immediate _ _) = True
   is_global_ptr _                    = False
 
   mk_sp (SSP_Reg r)    = SP_Reg r
@@ -1145,6 +1146,12 @@ external_function_behavior _ "malloc" = pure_and_fresh
 external_function_behavior _ "_malloc_create_zone" = pure_and_fresh
 external_function_behavior _ "_malloc_default_zone" = pure_and_fresh
 external_function_behavior _ "_malloc_zone_malloc" = pure_and_fresh
+external_function_behavior _ "isc__mem_allocate" = pure_and_fresh
+external_function_behavior _ "isc_mem_allocate" = pure_and_fresh
+external_function_behavior _ "PyType_GenericAlloc" = pure_and_fresh
+external_function_behavior _ "PyType_GenericNew" = pure_and_fresh
+external_function_behavior _ "PySys_GetObject" = pure_and_fresh
+external_function_behavior _ "aligned_alloc" = pure_and_fresh
 external_function_behavior _ "_calloc" = pure_and_fresh
 external_function_behavior _ "calloc" = pure_and_fresh
 external_function_behavior _ "_malloc_zone_calloc" = pure_and_fresh
@@ -1273,6 +1280,7 @@ external_function_behavior _ "_ferror" = pure_and_unknown
 external_function_behavior _ "_strtol" = pure_and_unknown
 external_function_behavior _ "_strtoul" = pure_and_unknown
 external_function_behavior _ "_munmap" = pure_and_unknown
+external_function_behavior _ "fread_unlocked" = pure_and_unknown
 
 
 
@@ -1308,9 +1316,11 @@ external_function_behavior _ "_rindex"              = ExternalFunctionBehavior [
 
 -- A list of functions that return a pointer given to them by a parameter
 external_function_behavior _ "_realloc"             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "reallocarray"         = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_malloc_zone_realloc" = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_recallocarray"       = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "realloc"              = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "mremap"               = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strcpy"              = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "__strcpy_chk"         = ExternalFunctionBehavior [param 0] $ Input $ param 0
 external_function_behavior _ "_strncpy"             = ExternalFunctionBehavior [param 0] $ Input $ param 0
@@ -1335,6 +1345,7 @@ external_function_behavior _ "memchr"               = ExternalFunctionBehavior [
 external_function_behavior _ "strstr"               = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strstr"              = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strpbrk"             = ExternalFunctionBehavior [] $ Input $ param 0
+external_function_behavior _ "strpbrk"              = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strtok"              = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "strtok"               = ExternalFunctionBehavior [] $ Input $ param 0
 external_function_behavior _ "_strlen"              = ExternalFunctionBehavior [] $ Input $ param 0
@@ -1458,6 +1469,8 @@ write_sp fctxt (SSP_Mem a si) v = swrite_mem_to_ptr fctxt True a (Nat $ fromInte
 
 data FunctionType = AnalyzedInternalFunction (Sstate SValue SPointer) | ExternalFunction | AnalyzedInternalFunctionTerminates | AnalyzedInternalFunctionUnknown
 
+
+-- TODO add VerificationError as Functiontype. If so, overwrite at least RAX/XMM0 with top
 get_function_type fctxt i f_callee =
   ftype $ map postcondition_of_jump_target $ resolve_jump_target (f_ctxt fctxt) i
  where
@@ -1476,6 +1489,16 @@ get_function_type fctxt i f_callee =
 
 
 
+-- The function will return unless the status parameter has a non-zero value. 
+call_error :: FContext -> State (Sstate SValue SPointer,VCS) ()
+call_error fctxt = do
+  rdi <- sread_reg fctxt RDI
+  case ctry_immediate rdi of
+    Nothing -> return ()
+    Just 0  -> error $ show ("hallo")
+    Just v  -> error $ show ("hallo",v)
+
+
 -- | Executes semantics for external functions.
 call :: FContext -> Bool -> X86.Instruction -> State (Sstate SValue SPointer,VCS) ()
 call fctxt is_jump i = do
@@ -1485,8 +1508,11 @@ call fctxt is_jump i = do
     AnalyzedInternalFunction q         -> internal_function q
     ExternalFunction                   -> external_function 
  where
-  external_function = case external_function_behavior fctxt f_callee of
-    ExternalFunctionBehavior params output -> {--mapM_ write_param params >> --} write_output output >> incr_rsp-- writing to params really roughly overapproximates
+  external_function
+    --   | f_callee == "error" = call_error fctxt
+    | otherwise =
+      case external_function_behavior fctxt f_callee of
+        ExternalFunctionBehavior params output -> {--mapM_ write_param params >> --} write_output output >> incr_rsp-- writing to params really roughly overapproximates
 
   write_output :: ExternalFunctionOutput -> State (Sstate SValue SPointer,VCS) ()
   write_output FreshPointer       = swrite_reg fctxt RAX $ (mk_concreteS fctxt $ SE_Malloc (Just (addressof i)) (Just ""))
@@ -1526,7 +1552,7 @@ call fctxt is_jump i = do
     swrite_mem fctxt True a' UnknownSize bot
 
 
-  do_transfer ((a,si),v) = not (is_initial (a,si) v) && not (is_top_stackframe a si) && not (is_local_spointer fctxt a)
+  do_transfer ((a,si),v) = not (is_initial (a,si) v) && not (is_top_stackframe a si) && not (is_local_spointer a)
   
   is_initial :: (SPointer,RegionSize) -> SValue -> Bool
   is_initial (a,si) v = False {-- "TODO: " ++ show (a,si,v) 
@@ -1547,13 +1573,13 @@ call fctxt is_jump i = do
 
   unknown_internal_function fctxt i = incr_rsp -- TODO try as external
 
-is_local_spointer fctxt (Base_StackPointer _ _)  = True
-is_local_spointer fctxt b@(Base_StatePart sp _ ) = is_local_var fctxt $ SE_Var sp
-is_local_spointer fctxt _                        = False
+is_local_spointer (Base_StackPointer _ _)  = True
+is_local_spointer b@(Base_StatePart sp _ ) = is_local_var $ SE_Var sp
+is_local_spointer _                        = False
 
-is_local_var fctxt (SE_Var (SP_StackPointer _)) = True
-is_local_var fctxt (SE_Var (SP_Mem a si))       = is_local_expr a /= Nothing
-is_local_var fctxt _                            = False
+is_local_var (SE_Var (SP_StackPointer _)) = True
+is_local_var (SE_Var (SP_Mem a si))       = is_local_expr a /= Nothing
+is_local_var _                            = False
 
 
 jump :: FContext -> X86.Instruction -> State (Sstate SValue SPointer,VCS) ()

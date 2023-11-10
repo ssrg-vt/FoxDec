@@ -82,7 +82,9 @@ data Opcode =
   | CMPEQSD
   | CMPNEQSD
   | CMPNLESD
+  | CMPNLESS
   | CMPLTSD
+  | CMPLTSS
   | CMPS
   | CMPSB
   | CMPSD

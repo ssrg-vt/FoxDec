@@ -13,6 +13,7 @@ module Analysis.ControlFlow (
    stepA,
    post,
    fetch_block,
+   resolve_call,
    resolve_jump_target,
    get_internal_addresses,
    jump_is_actually_a_call,
