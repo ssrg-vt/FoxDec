@@ -817,10 +817,12 @@ separation_of_spointers fctxt msg v0 si0 v1 si1 = and
   separate_bases (Base_TLS _)              (Base_FunctionReturn _ _)    = True-- TODO add vc
 
 
-  separate_bases (Base_StatePart sp0 _)    (Base_StatePart sp1 _)       = 
-    case M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m of
-      Just Separate -> True
-      _             -> False
+  separate_bases (Base_StatePart sp0 _)    (Base_StatePart sp1 _)
+    | is_rock_bottom sp0 || is_rock_bottom sp1 = False
+    | otherwise =
+      case M.lookup (mk_sstatepart fctxt sp0,mk_sstatepart fctxt sp1) m of
+        Just Separate -> True
+        _             -> False
   separate_bases (Base_StatePart sp0 _)    (Base_Immediate imm1 _)      =
     case find (\(sp',_) -> sp0 == sp') sps of
       Just (_,Just imm) -> error "Should not happen?" -- cseparate fctxt msg a0 si0 imm si1
@@ -986,7 +988,7 @@ init_pred ::
 init_pred fctxt f curr_invs curr_posts curr_sps =
   let FInit finit _        = f_init fctxt -- M.filter (not . contains_bot) $ 
 
-      sps                  = S.unions [curr_sps, S.map (mk_sstatepart fctxt) $ S.map fst finit, (S.delete (SSP_Reg RIP) $ gather_stateparts curr_invs curr_posts)]
+      sps                  = S.unions [curr_sps, S.map (mk_sstatepart fctxt) $ S.filter (not . is_rock_bottom) $ S.map fst finit, (S.delete (SSP_Reg RIP) $ gather_stateparts curr_invs curr_posts)]
       (regs,regions)       = partitionWith reg_or_mem $ S.toList sps
 
       rsp0                 = SConcrete $ NES.singleton $ SE_Var $ SP_StackPointer f
@@ -1003,10 +1005,13 @@ init_pred fctxt f curr_invs curr_posts curr_sps =
 
   write_finit [] s                   = s
   write_finit ((sp,Nothing):finit) s = write_finit finit s
-  write_finit ((sp,Just v):finit)  s = write_finit finit $ execSstate (write_sp fctxt (mk_sstatepart fctxt sp) v) s
+  write_finit ((sp,Just v):finit)  s
+    | is_rock_bottom sp = s
+    | otherwise = write_finit finit $ execSstate (write_sp fctxt (mk_sstatepart fctxt sp) v) s
 
   
-
+is_rock_bottom (SP_Mem (Bottom (FromCall f)) _) = f == ""
+is_rock_bottom _ = False
 
 -- | Given the currently known invariants and postconditions, gather all stateparts occurring in the current function.
 gather_stateparts ::
@@ -1393,7 +1398,7 @@ transpose_bw_spointer fctxt p q b@(Base_Immediate a offset)      = Just b
 transpose_bw_spointer fctxt p q b@(Base_Malloc _ _ offset)       = Just b
 transpose_bw_spointer fctxt p q b@(Base_FunctionPtr _ _ offset)  = Just b
 transpose_bw_spointer fctxt p q b@(Base_ReturnAddr _)            = error $ "Transposition of return address"
-transpose_bw_spointer fctxt p q b@(Base_TLS offset)              = error $ "Transposition of TLS"
+transpose_bw_spointer fctxt p q b@(Base_TLS offset)              = Just b 
 transpose_bw_spointer fctxt p q b@(Base_FunctionReturn f offset) = Just b
 transpose_bw_spointer fctxt p q b@(Base_StatePart sp offset)     =
   let ptrs = cmk_mem_addresses fctxt ("transpose_bw_spointer\n" ++ show p ++ "\n\n" ++ show q ++ "\n\nb = " ++ show b ++ "\ne = " ++ show (transpose_bw_e fctxt p (SE_Var sp))) $ transpose_bw_e fctxt p (SE_Var sp) in

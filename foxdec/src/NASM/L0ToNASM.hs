@@ -864,14 +864,14 @@ mk_macros ctxt = intercalate "\n" $ macros ++ [""] ++ internals
 
 
 
-internal_labels_outside_of_sections ctxt = IM.mapWithKey mk $ IM.filterWithKey is_outside_section $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt
+internal_labels_outside_of_sections ctxt = IM.mapMaybeWithKey mk $ IM.filterWithKey is_outside_section $ IM.filter is_internal_symbol $ ctxt_symbol_table ctxt
  where
   is_outside_section a _ = find_section_for_address ctxt (fromIntegral a) == Nothing
 
   mk a (Internal_Label sym) = 
     case find_preceding_section a of
-      -- Nothing -> []
-      Just (segment,section,a0,si,_) -> (sym,segment,section,a0,fromIntegral a - a0)
+      Nothing -> Nothing
+      Just (segment,section,a0,si,_) -> Just (sym,segment,section,a0,fromIntegral a - a0)
     
   find_preceding_section a =
     case sortBy (distance a) $ filter (is_after a) (si_sections $ ctxt_sections ctxt) of
