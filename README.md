@@ -61,11 +61,12 @@ The following files are generated:
 **IMPORTANT:** typically, when running FoxDec for the first time, it will cover only few instructions. It will notify that "dangling function pointers" have been found. These dangling function pointers require manual analysis to see if they correspond to function entries. If so, they manually need to be added to `./binary/$NAME.entry`. After that, rerun FoxDec (step 2) above. In many cases, this manual intervention requires at most one or two iterations.
 
 
+<!---
 ## Documentation<a name="docs"></a>
 For instructions on how to apply to MachO binaries and how to generate Isabelle/HOL code, we ask that you contact us. 
 The user manual for FoxDec version 0.4 can be found [here](./foxdec/docs/manual/foxdec_manual.pdf).
 Source code documentation can be found [here](https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/index.html).
-
+-->
 
 
 
