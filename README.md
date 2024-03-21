@@ -7,7 +7,6 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 <span style="font-size: 150%; color:darkblue">NEWS</span>
 
 * Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
-* Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
 ## Table of Contents
 1. [Introduction](#intro)
@@ -35,7 +34,7 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/ed94f171bff1fd018a43576c10c4fbb3328892f6/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
+Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/raw/7de37a096731c9ae8a9fb168db2d8038a8f7a07f/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
 
 ***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
 
@@ -44,9 +43,6 @@ Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/ed94f171bff1fd018a
 
 ## How to use <a name="usage"></a>
 These are instructions for a quickstart on ELF files. For more detailed information, see [here](#docs).
-<p style="text-align: center;">
-  <img style="border: 3px solid #555;" src="./foxdec/docs/overview/overview.png" alt="FoxDec Overview" width="90%"/>
-</p>
 
 1. Move the binary of interest to `./binary/`. The binary `wc` has already been supplied as running example.
 2. Run FoxDec on the binary `./foxdec.sh wc`
@@ -57,6 +53,7 @@ The following files are generated:
 - **`$NAME.json`** and **`$NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
 - **`$NAME.metrics.json`** and **`$NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
 - **`$NAME.calls.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
+- **`$NAME.asm`**: recompilable NASM code.
 - **`$ENTRY/$NAME.dot`**: For each function entry **`$ENTRY`** a control flow graph (CFG).
 
 
