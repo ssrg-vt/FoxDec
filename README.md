@@ -12,7 +12,7 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 1. [Introduction](#intro)
 2. [How to build](#build)
 3. [How to use](#usage)
-4. [Documentation](#docs)
+3. [How to recompile](#recompile)
 5. [Papers](#papers)
 6. [Contact](#contact)
 
@@ -34,7 +34,7 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/raw/7de37a096731c9ae8a9fb168db2d8038a8f7a07f/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. The `README` file contains further instructions. The GitHub page is [here][git]. 
+Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/raw/7de37a096731c9ae8a9fb168db2d8038a8f7a07f/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. Section [How to use](#usage) contains further instructions. The GitHub page is [here][git]. 
 
 ***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
 
@@ -42,7 +42,7 @@ Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/raw/7de37a096731c9ae8a9
 
 
 ## How to use <a name="usage"></a>
-These are instructions for a quickstart on ELF files. For more detailed information, see [here](#docs).
+These are instructions for a quickstart on the already supplied binary `wc`.
 
 1. Move the binary of interest to `./binary/`. The binary `wc` has already been supplied as running example.
 2. Run FoxDec on the binary `./foxdec.sh wc`
@@ -68,6 +68,15 @@ The user manual for FoxDec version 0.4 can be found [here](./foxdec/docs/manual/
 Source code documentation can be found [here](https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/index.html).
 -->
 
+## How to recompile <a name="recompile"></a>
+
+The following instructions recompile the generated NASM code back into a binary.
+
+    nasm -felf64 -g -F dwarf -o $NAME.o $NAME.asm
+    gcc -c __gmon_start__.c -o __gmon_start__.o
+    gcc -g -m64 -nostartfiles -fgnu-tm -o a.out $NAME.o __gmon_start__.o
+
+For the last compilation step, one must manually supply additional libraries as needed.
 
 
 ## Papers<a name="papers"></a>
