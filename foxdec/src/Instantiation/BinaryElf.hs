@@ -138,7 +138,9 @@ elf_get_relocs elf = S.fromList $ mk_relocs
    | elfRelType reloc == 8 =
      -- R_X86_64_RELATIVE
      -- The SymAddend provides the relocation address
-      [Relocation (fromIntegral $ elfRelOffset reloc) (fromIntegral $ fromJust $ elfRelSymAddend reloc)]
+     case elfRelSymAddend reloc of
+       Nothing     -> [Relocation (fromIntegral $ elfRelOffset reloc) 0] -- TODO implicit addend?
+       Just addend -> [Relocation (fromIntegral $ elfRelOffset reloc) (fromIntegral $ addend)]
    | otherwise = []
 
 

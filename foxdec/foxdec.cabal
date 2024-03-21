@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -53,6 +53,8 @@ library
       Instantiation.BinaryMacho
       Instantiation.SymbolicPropagation
       NASM.L0ToNASM
+      NASM.NASM
+      NASM.NASMToC
       OutputGeneration.CallGraph
       OutputGeneration.JSON
       OutputGeneration.Metrics
@@ -75,98 +77,59 @@ library
       Paths_foxdec
   hs-source-dirs:
       src
+  ghc-options: -threaded
   build-depends:
-      aeson >=1.5.6.0
-    , base >=4.7 && <5
-    , blaze-builder >=0.4.2.2
-    , bytestring >=0.10.12
-    , cereal >=0.5.8.1
+      aeson
+    , base
+    , blaze-builder
+    , bytestring
+    , cereal
     , containers
-    , deepseq >=1.4.4.0
-    , dhall >=1.39
+    , deepseq
+    , dhall
     , directory
-    , dom-lt >=0.2.3
-    , elf >=0.31
-    , extra >=1.7.9
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , hourglass >=0.2.12
+    , dom-lt
+    , elf
+    , extra
+    , hapstone
+    , hourglass
     , mtl
-    , nonempty-containers >=0.3.4
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
+    , nonempty-containers
+    , parsec
+    , parsec-numbers
+    , process
+    , split
+    , text
   default-language: Haskell2010
 
 executable foxdec-exe
   main-is: Main.hs
   other-modules:
-      Pkcs11
       Paths_foxdec
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson >=1.5.6.0
-    , base >=4.7 && <5
-    , blaze-builder >=0.4.2.2
-    , bytestring >=0.10.12
-    , cereal >=0.5.8.1
+      aeson
+    , base
+    , blaze-builder
+    , bytestring
+    , cereal
     , containers
-    , deepseq >=1.4.4.0
-    , dhall >=1.39
+    , deepseq
+    , dhall
     , directory
-    , dom-lt >=0.2.3
-    , elf >=0.31
-    , extra >=1.7.9
+    , dom-lt
+    , elf
+    , extra
     , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , hourglass >=0.2.12
+    , hapstone
+    , hourglass
     , mtl
-    , nonempty-containers >=0.3.4
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
-  default-language: Haskell2010
-
-test-suite foxdec-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  other-modules:
-      Paths_foxdec
-  hs-source-dirs:
-      test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      aeson >=1.5.6.0
-    , base >=4.7 && <5
-    , blaze-builder >=0.4.2.2
-    , bytestring >=0.10.12
-    , cereal >=0.5.8.1
-    , containers
-    , deepseq >=1.4.4.0
-    , dhall >=1.39
-    , directory
-    , dom-lt >=0.2.3
-    , elf >=0.31
-    , extra >=1.7.9
-    , foxdec
-    , hapstone >=0.2.0.1 && <=0.2.0.1
-    , hourglass >=0.2.12
-    , mtl
-    , nonempty-containers >=0.3.4
-    , parsec >=3.1
-    , parsec-numbers >=0.1
-    , process >=1.6.9.0
-    , split >=0.2.3
-    , strict
-    , text >=1.2.4
-    , transformers >=0.5.6
+    , nonempty-containers
+    , parsec
+    , parsec-numbers
+    , process
+    , split
+    , text
   default-language: Haskell2010

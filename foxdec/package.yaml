@@ -18,33 +18,33 @@ category:            Disassembly, Decompilation
 description:         This package contains tools for decompilation based on formal methods.
 
 dependencies:
-- base >= 4.7 && < 5
+- base 
 - containers
-- parsec >= 3.1
-- parsec-numbers >= 0.1
+- deepseq
+- cereal
+- split
+- parsec
+- parsec-numbers
+- text
+- dhall
 - mtl
-- split >= 0.2.3
-- cereal >= 0.5.8.1
+- nonempty-containers
 - bytestring
-- process >= 1.6.9.0
+- elf
+- extra
+- dom-lt
+- hapstone
 - directory
-- extra >= 1.7.9
-- transformers >= 0.5.6
-- hapstone >= 0.2.0.1 && <= 0.2.0.1
-- strict
-- dhall >= 1.39
-- text >= 1.2.4
-- dom-lt >= 0.2.3
-- elf >= 0.31
-- aeson >= 1.5.6.0
-- bytestring >= 0.10.12
-- nonempty-containers >= 0.3.4
-- blaze-builder >= 0.4.2.2
-- hourglass >= 0.2.12
-- deepseq >= 1.4.4.0
+- aeson
+- blaze-builder
+- process
+- hourglass
 
 library:
   source-dirs: src
+  ghc-options:
+    - -threaded
+
 
 executables:
   foxdec-exe:
@@ -57,13 +57,13 @@ executables:
     dependencies:
     - foxdec
 
-tests:
-  foxdec-test:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - foxdec
+#tests:
+#  foxdec-test:
+#    main:                Spec.hs
+#    source-dirs:         test
+#    ghc-options:
+#    - -threaded
+#    - -rtsopts
+#    - -with-rtsopts=-N
+#    dependencies:
+#    - foxdec

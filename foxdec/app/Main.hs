@@ -20,6 +20,7 @@ import qualified OutputGeneration.JSON as JSON
 import Algorithm.L0_Lifting
 
 import NASM.L0ToNASM
+import qualified NASM.NASMToC as C
 
 
 import qualified Data.Map as M
@@ -274,9 +275,22 @@ generate_NASM ctxt = do
 
   createDirectoryIfMissing False dirname      
 
-  let asm  = render_NASM ctxt $ lift_L0_to_NASM ctxt
+  let nasm = lift_L0_to_NASM ctxt
   let gmon = __gmon_start_implementation
-  writeFile fname asm
+  writeFile fname $ render_NASM ctxt nasm
   writeFile fname1 gmon
   putStrLn $ "Generated NASM, exported to file: " ++ fname 
+{--
+  -- TODO MAKE C OPTION
+  let dirname  = ctxt_dirname ctxt ++ "C/"
+  let name     = ctxt_name ctxt
+  let fname1   = dirname ++ name ++ ".c" 
+  let fname2   = dirname ++ name ++ ".h" 
+  let (ts,ds)  = C.render_NASM ctxt nasm
 
+  createDirectoryIfMissing False dirname      
+
+  writeFile fname1 ts
+  writeFile fname2 ds
+  putStrLn $ "Generated NASM, exported to directory: " ++ dirname
+--}

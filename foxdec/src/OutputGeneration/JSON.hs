@@ -70,7 +70,6 @@ generate_json ::
   -> Bool   -- ^ Should we include invariants?
   -> IO ()
 generate_json ctxt fname_plain fname_json verbose = do
-{--
   let entries = ctxt_get_function_entries ctxt
   let instrs     = S.toList $ ctxt_get_instructions ctxt
   let addresses =  S.toList $ ctxt_get_instruction_addresses ctxt
@@ -82,16 +81,13 @@ generate_json ctxt fname_plain fname_json verbose = do
 
   let pp_text = toByteString $ mconcat $ map fromString $ pp_json ctxt verbose instrs control_flow boundaries summaries mem_ops invs
   BS.writeFile fname_plain pp_text
---}
-  let mem_ops    = ctxt_resolve_mem_operands ctxt
-  BS.writeFile fname_plain $ toByteString $ mconcat $ map fromString $ map ((++) "\n") $ pp_mem_ops ctxt mem_ops
-{--
+  --let mem_ops    = ctxt_resolve_mem_operands ctxt
+  --BS.writeFile fname_plain $ toByteString $ mconcat $ map fromString $ map ((++) "\n") $ pp_mem_ops ctxt mem_ops
   let json_instructions = map mk_json_instruction instrs
   let json_summaries = map (\(a,(finit,post)) -> (a,FunctionSummary (show finit) $ mk_json_post post)) summaries
   let json_invs = if verbose then map (\(a,Just invs) -> (a,map (\(entry,inv) -> (entry,mk_json_predicate inv)) invs)) $ filter (((/=) Nothing) . snd) invs else []
   let json = JSON json_instructions control_flow boundaries json_summaries json_invs mem_ops
   Data.ByteString.Lazy.writeFile fname_json $ encode json
---}
 
 
 pp_json ctxt verbose instrs control_flow boundaries summaries mem_ops invs = map ((++) "\n") $
@@ -130,7 +126,7 @@ pp_json ctxt verbose instrs control_flow boundaries summaries mem_ops invs = map
     else []
 
       
-pp_invs :: Show a0 => [(Integer, Maybe [(Integer, a0)])] -> [String]
+pp_invs :: (Integral a1, Show a1,Show a0) => [(a1, Maybe [(a1, a0)])] -> [String]
 pp_invs = map pp
  where
   pp (a,Nothing)   = "Address " ++ showHex a ++ ": no invariant.\n"

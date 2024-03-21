@@ -26,6 +26,8 @@ import Generic.Binary
 import Generic.SymbolicConstituents
 import Generic.Instruction
 
+import Instantiation.SymbolicPropagation (get_invariant)
+
 import X86.Opcode
 
 

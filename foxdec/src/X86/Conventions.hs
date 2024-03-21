@@ -18,7 +18,6 @@ is_exiting_function_call f =
   let f' = strip_GLIBC f in 
     f' `elem` [
       "exit", "_exit", "__exit", "___exit",
-      "error", 
       "_error","__error", 
       "__stack_chk_fail", "___stack_chk_fail",
       -- "__overflow", 

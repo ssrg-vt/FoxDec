@@ -175,7 +175,7 @@ ctxt_get_controlflow ctxt a = do
   return $ (fromIntegral a,map fromIntegral $ IS.toList $ IS.unions posts)
  where
   get_post_per_entry entry = do
-    post <- stepA ctxt entry $ fromIntegral a
+    post <- stepA ctxt get_invariant entry $ fromIntegral a
     case post of
       Left _     -> return $ IS.empty
       Right nxts -> return $ IS.fromList $ map fst nxts

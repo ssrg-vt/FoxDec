@@ -32,10 +32,12 @@ import Analysis.FunctionNames
 
 import Data.JumpTarget
 import Generic.Binary
+import Generic.SymbolicConstituents
 
 import X86.Conventions
 import X86.Instruction (addressof)
 import X86.Opcode (isRet, isCall, isCondJump, isJump, isHalt)
+import X86.Register
 import qualified X86.Instruction as X86
 import Generic.HasSize (sizeof)
 import qualified Generic.Instruction as Instr
@@ -283,7 +285,8 @@ instance IntGraph CFG where
 is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctxt) == Nothing || (IM.lookup trgt $ ctxt_finits ctxt) == Nothing
 
 
-resolve_call ctxt entry i =
+resolve_call :: Context -> (FContext -> Int -> Maybe Predicate) -> Int -> X86.Instruction -> _
+resolve_call ctxt get_invariant entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
     if any ((==) Unresolved) resolved_addresses then
       Right [(fromIntegral (addressof i) + sizeof i,True)] -- Right []
@@ -296,9 +299,14 @@ resolve_call ctxt entry i =
           Left $ S.fromList $ map (\a -> (i,a)) $ concat lefts
  where
   next (External sym) =
-    -- external function call 
+    -- external function call
     if is_exiting_function_call sym then
       Right []
+    else if take 5 sym == "error" then -- TODO or error_at_line
+      let fctxt = mk_fcontext ctxt entry in
+        case get_invariant fctxt (fromIntegral $ addressof i) >>= (M.lookup RDI . sregs) of
+          Nothing -> Right []
+          Just v ->  if show v == "0" then Right [(fromIntegral (addressof i) + sizeof i,True)] else Right []
     else
       Right [(fromIntegral (addressof i) + sizeof i,True)]
   next (ImmediateAddress a') =
@@ -331,10 +339,11 @@ resolve_call ctxt entry i =
 --   TODO the Lefts are ignored so need no to return them
 stepA :: 
      Context   -- ^ The context
+  -> (FContext -> Int -> Maybe Predicate)
   -> Int       -- ^ The entry address
   -> Int       -- ^ The instruction address
   -> IO (Either (S.Set (X86.Instruction,Int)) [(Int,Bool)])
-stepA ctxt entry a = do
+stepA ctxt get_invariant entry a = do
   instr <- fetch_instruction ctxt $ fromIntegral a
   case instr of
     Nothing -> return $ Right [] -- error $ "Cannot find instruction at addres: " ++ showHex a
@@ -346,7 +355,7 @@ stepA ctxt entry a = do
       else if isCondJump $ Instr.opcode i then
         return $ Right $ map (\a -> (a,False)) $ (concatMap get_internal_addresses $ resolve_jump_target ctxt i) ++ [a + sizeof i]
       else if isCall $ Instr.opcode i then
-        return $ resolve_call ctxt entry i
+        return $ resolve_call ctxt get_invariant entry i
       else if isRet (Instr.opcode i) then
         return $ Right []
       else
@@ -359,22 +368,22 @@ stepA ctxt entry a = do
     | otherwise = [fromIntegral a]
 
 
-mk_graph :: Context -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86.Instruction,Int) -> IO (S.Set (X86.Instruction,Int),CFG) 
-mk_graph ctxt entry bag g new_calls =
+mk_graph :: Context -> (FContext -> Int -> Maybe Predicate) -> Int -> S.Set ((Int,Bool), Int) -> CFG -> S.Set (X86.Instruction,Int) -> IO (S.Set (X86.Instruction,Int),CFG) 
+mk_graph ctxt get_invariant entry bag g new_calls =
   case S.minView bag of
     Nothing -> return $ (new_calls,g)
     Just (((a0,is_call_a0),a1),bag) -> do
       if is_edge g a0 a1 then 
-        mk_graph ctxt entry bag g new_calls
+        mk_graph ctxt get_invariant entry bag g new_calls
       else do
         let g' = add_edge (fromIntegral a0) (fromIntegral a1) is_call_a0 g
-        nxt <- stepA ctxt entry a1
+        nxt <- stepA ctxt get_invariant entry a1
         case nxt of
           Left new_calls' -> do
-            mk_graph ctxt entry bag g' (S.union new_calls' new_calls)
+            mk_graph ctxt get_invariant entry bag g' (S.union new_calls' new_calls)
           Right as -> do
             let bag' = S.union (S.fromList $ map (\(a2,is_call_a1) -> ((a1,is_call_a1),a2)) as) bag
-            mk_graph ctxt entry bag' g' new_calls
+            mk_graph ctxt get_invariant entry bag' g' new_calls
     
 
 fromJust' instrs as Nothing = error $ showHex_list as ++ show instrs
@@ -395,13 +404,14 @@ cfg_add_instrs ctxt g = do
 -- If a CFG is returned, then all function calls in that CFG have already been analyzed.
 cfg_gen ::
      Context -- ^ The context
+  -> _
   -> Int     -- ^ The entry point of the function
   -> IO (S.Set (X86.Instruction,Int),CFG)
-cfg_gen ctxt entry = do
+cfg_gen ctxt get_invariant  entry = do
  let g           = init_cfg entry
- nxt            <- stepA ctxt entry entry
+ nxt            <- stepA ctxt get_invariant  entry entry
  let bag         = S.fromList $ map (\(a,is_call_a) -> ((entry,False),a)) (fromRight [] nxt) -- assumes entry is not a call
- (new_calls,g') <- mk_graph ctxt entry bag g S.empty
+ (new_calls,g') <- mk_graph ctxt get_invariant entry bag g S.empty
  g''            <- cfg_add_instrs ctxt g'
  return (new_calls, g'')
 

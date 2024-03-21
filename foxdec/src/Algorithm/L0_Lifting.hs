@@ -44,7 +44,7 @@ import Generic.Operand (GenericOperand(..))
 
 import Numeric (readHex)
 import Control.Monad.State.Strict
-import Control.Monad (filterM)
+import Control.Monad (filterM, when, forM)
 import Control.Monad.Extra (whenM)
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -532,7 +532,7 @@ ctxt_generate_cfg entry = do
   let fname      = base ++ ".dot"
   let pdf        = base ++ ".pdf"
   let do_pdfs    = ctxt_generate_pdfs ctxt
-  (new_calls,g) <- liftIO $ cfg_gen ctxt entry
+  (new_calls,g) <- liftIO $ cfg_gen ctxt get_invariant entry
 
   cfgs <- gets ctxt_cfgs
   modify (set_ctxt_cfgs $ IM.insert entry g cfgs)

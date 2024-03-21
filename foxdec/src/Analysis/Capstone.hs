@@ -87,8 +87,8 @@ mk_instr cs_instr a =
       size          = length $ Capstone.bytes cs_instr
       i             = Instruction addr prefix m Nothing (catMaybes ops) (Just size) in
     if m == InvalidOpcode || prefix == Just InvalidPrefix then
-      --trace ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i) 
-      Nothing
+      trace ("Error during disassembling (translation of Capstone to datastructure) @0x" ++ showHex a ++ ": " ++ show cs_instr  ++ ": " ++ show i) 
+       Nothing
     else
        Just i
  where

@@ -116,13 +116,13 @@ function_name_of_entry ctxt a =
       case unsafePerformIO $ fetch_instruction ctxt (fromIntegral a) of -- TODO. However, should be safe as result is immutable.
         Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
           case operand_static_resolve ctxt i op1 of
-            External sym -> sym
+            External sym -> strip_GLIBC sym
             _ -> "0x" ++ showHex a
         Just i@(Instruction _ _ ENDBR64 Nothing _ (Just si))  ->
           case unsafePerformIO $ fetch_instruction ctxt (fromIntegral a + fromIntegral si) of -- TODO. However, should be safe as result is immutable.
             Just i@(Instruction _ _ JMP Nothing [op1] _)  ->
               case operand_static_resolve ctxt i op1 of
-                External sym -> sym
+                External sym -> strip_GLIBC sym
                 _ -> "0x" ++ showHex a
             _ -> "0x" ++ showHex a
         _ -> "0x" ++ showHex a
