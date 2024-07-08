@@ -93,9 +93,9 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 
 ---
 
-FoxDec is an open-source project from the Systems Software Research Group
-([SSRG][ssrg]) at [Virginia Tech][vt]. It is supported by the Defense Advanced Research Projects Agency (DARPA) under contract N6600121C4028, and by the Office of Naval
-Research ([ONR][onr]) under grant N00014-17-1-2297.
+
+FoxDec is an open-source project from the Systems Software Research Group ([SSRG][ssrg]) at [Virginia Tech][vt].
+It is supported by the Defense Advanced Research Projects Agency (DARPA) and Naval Information Warfare Center Pacific (NIWC Pacific) under Contract No. N66001-21-C-4028 and DARPA under Agreement No. HR.00112090028, by the US Office of Naval Research (ONR) under grant N00014-17-1-2297, and by the US Naval Surface Warfare Center Dahlgren Division/Naval Engineering Education Consortium (NEEC) under grants N00174-20-1-0009 and N00174-16-C-0018.
 
 
 
