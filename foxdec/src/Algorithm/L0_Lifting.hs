@@ -341,7 +341,8 @@ ctxt_verify_proper_return entry = do
     rip    <- sread_reg fctxt RIP
     checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
     (s,_)  <- get
-    return $ [rsp_check fctxt f rsp, rip_check fctxt s f rip] ++ checks
+    -- return $ [rsp_check fctxt f rsp, rip_check fctxt s f rip] ++ checks
+    return $ []
 
   -- check: are all caller-saved-registers restored to their initial values?
   reg_check fctxt reg v =

@@ -19,6 +19,7 @@ import Analysis.Capstone
 import Data.JumpTarget
 import Data.SymbolicExpression
 import Data.SValue
+import Data.Symbol
 
 import Generic.Binary
 import Generic.SymbolicConstituents
@@ -280,7 +281,6 @@ set_ctxt_runningtime time    (Context bin ioref ctxt_) = Context bin ioref (ctxt
 instance Cereal.Serialize VerificationResult
 instance Cereal.Serialize ResolvedJumpTarget
 instance Cereal.Serialize JumpTable
-instance Cereal.Serialize Symbol
 instance Cereal.Serialize SymbolTable
 instance Cereal.Serialize Indirection
 instance Cereal.Serialize Relocation
@@ -299,7 +299,6 @@ instance Cereal.Serialize Context_
 instance NFData VerificationResult
 instance NFData ResolvedJumpTarget
 instance NFData JumpTable
-instance NFData Symbol
 instance NFData SymbolTable
 instance NFData Indirection
 instance NFData Relocation
@@ -342,8 +341,12 @@ purge_context (Context binary _ (Context_ config verbose syms sections relocs di
 -- | Getting the symbol table
 ctxt_symbol_table ctxt =
   case ctxt_syms ctxt of
-    SymbolTable tbl -> tbl
+    SymbolTable tbl _ -> tbl
 
+-- | Getting the globals
+ctxt_get_globals ctxt =
+  case ctxt_syms ctxt of
+    SymbolTable tbl globs -> globs
 
 
 -- | Reading from a read-only data section.
@@ -426,8 +429,7 @@ pp_instruction ctxt i =
       case Instr.srcs i of
         [Immediate imm] ->
           case IM.lookup (fromIntegral imm) $ ctxt_symbol_table ctxt of
-            Just (Relocated_Function sym) -> " (" ++ show sym ++ ")"
-            Just (Internal_Label sym)     -> " (" ++ show sym ++ ")"
+            Just (AddressOfLabel sym _) -> " (" ++ show sym ++ ")"
             Nothing  -> " (0x" ++ showHex imm ++ ")"
         _ -> ""
   else

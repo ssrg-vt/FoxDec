@@ -45,10 +45,10 @@ pp_bot (Bottom (FromSources srcs))    = if NES.size srcs > 5 then "Bot" else int
 pp_bot (Bottom (FromPointerBases bs)) = if NES.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ neSetToList bs)
 pp_bot e                              = pp_expr e
 
-pp_base (StackPointer f)        = "StackPointer of " ++ f
-pp_base (Malloc id h)           = pp_expr $ SE_Malloc id h
-pp_base (GlobalAddress a)       = showHex a
-pp_base (PointerToSymbol a sym) = "&" ++ sym
+pp_base (StackPointer f)      = "StackPointer of " ++ f
+pp_base (Malloc id h)         = pp_expr $ SE_Malloc id h
+pp_base (GlobalAddress a)     = showHex a
+pp_base (BaseIsSymbol sym)    = show sym
 
 pp_source (Src_Var v)              = pp_expr $ SE_Var v
 pp_source (Src_StackPointer f)     = "StackPointer of " ++ f

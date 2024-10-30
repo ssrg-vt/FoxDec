@@ -879,4 +879,11 @@ packages:
       size: 8615
   original:
     hackage: happy-1.20.1.1@sha256:a381633c5e8f9e9e5a8e1900930ce13172397b4677fcfcc08cd38eb3f73b61b1,5811
+- completed:
+    hackage: tree-view-0.5.1@sha256:a32b16fdbe24ad21cb6679c2a925bcc7715ae5c5db0ae6b633e35e28e2fefd98,1184
+    pantry-tree:
+      sha256: 352f008d14d338bc1addd47a627315d907afcc1267a02e2fa92e00fb8a5190be
+      size: 215
+  original:
+    hackage: tree-view-0.5.1@sha256:a32b16fdbe24ad21cb6679c2a925bcc7715ae5c5db0ae6b633e35e28e2fefd98,1184
 snapshots: []

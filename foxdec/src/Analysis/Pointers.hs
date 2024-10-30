@@ -10,19 +10,20 @@ import Base
 import Config
 
 import Data.SymbolicExpression
+import Data.Symbol
 
 import Analysis.Context
 import Analysis.FunctionNames
 
 import X86.Register
 
-import Generic.Binary
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set.NonEmpty as NES
+import Data.Int (Int64)
 
 import Data.List
 import Data.Word 
@@ -156,8 +157,8 @@ necessarily_enclosed a0 si0 a1 si1 =
   not (contains_bot a0) && not (contains_bot a1) && enc a0 a1
  where
   -- v0 - i0 enc v0 - i1 <==> i1 >= i0  && si0 - i0 <= si1 - i1     (WHEN si0 >= i0 && si1 >= i1)
-  enc (SE_Op Minus _ [SE_Var v0, SE_Immediate i0])
-      (SE_Op Minus _ [SE_Var v1, SE_Immediate i1]) = 
+  enc (SE_Op Minus _ [v0, SE_Immediate i0])
+      (SE_Op Minus _ [v1, SE_Immediate i1]) = 
     v0 == v1 && 
       if si0 <= fromIntegral i0 && si1 <= fromIntegral i1 then
         fromIntegral i1 >= fromIntegral i0 && fromIntegral i0 - si0 >= fromIntegral i1 - si1
@@ -170,17 +171,20 @@ necessarily_enclosed a0 si0 a1 si1 =
       else
         False
   -- v0 + i0 enc v0 + i1 <==> i0 >= i1 && i0 + si0 <= i1 + si1
-  enc (SE_Op Plus _ [SE_Var v0, SE_Immediate i0])
-      (SE_Op Plus _ [SE_Var v1, SE_Immediate i1]) = 
+  enc (SE_Op Plus _ [v0, SE_Immediate i0])
+      (SE_Op Plus _ [v1, SE_Immediate i1]) = 
     v0 == v1 && i0 >= i1 && fromIntegral i0 + si0 <= fromIntegral i1 + si1
   -- v0 + i0 enc v0 <==> i0 + si0 <= si1
-  enc (SE_Op Plus _ [SE_Var v0, SE_Immediate i0])
-      (SE_Var v1) =
+  enc (SE_Op Plus _ [v0, SE_Immediate i0])
+      v1 =
     v0 == v1 && fromIntegral i0 + si0 <= si1
   -- immediates
   enc (SE_Immediate a0) (SE_Immediate a1) = 
-    a0 >= a1 && a0 + fromIntegral si0 <= a1 + fromIntegral si1
-  enc _ _ = False
+    (fromIntegral a0::Int64) >= fromIntegral a1 && (fromIntegral a0::Int64) + fromIntegral si0 <= fromIntegral a1 + fromIntegral si1
+  -- v0 enc v0 <==> si0 <= si1
+  enc v0 v1
+    | v0 == v1  = si0 <= si1
+    | otherwise = False
 
 
 
@@ -200,7 +204,7 @@ get_pointer_domain ::
   -> SimpleExpr          -- ^ A symbolic expression 
   -> Maybe PointerDomain -- ^ A pointer domain
 get_pointer_domain ctxt e =
-  let bs  = get_pointer_bases e in
+  let bs  = get_pointer_base_set ctxt e in
     if not (S.null bs) then --  && S.size bs <= get_max_num_of_bases then
       Just $ Domain_Bases $ NES.unsafeFromSet bs
     else let srcs = srcs_of_expr ctxt e in
@@ -214,15 +218,21 @@ get_pointer_domain ctxt e =
   --get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
 
 
-  get_pointer_bases :: SimpleExpr -> S.Set PointerBase
-  get_pointer_bases (Bottom (FromNonDeterminism es)) = S.unions $ S.map get_pointer_bases $ NES.toSet es -- TODO non-empty union?
-  get_pointer_bases (SE_Op Plus _ es)                = S.unions $ S.map get_pointer_bases $ S.fromList es
-  get_pointer_bases (SE_Op Minus _ (e:es))           = get_pointer_bases e
-  get_pointer_bases e                                = get_pointer_base e
+get_pointer_base_set :: FContext -> SimpleExpr -> S.Set PointerBase
+get_pointer_base_set ctxt (Bottom (FromNonDeterminism es)) = S.unions $ S.map (get_pointer_base_set ctxt) $ NES.toSet es -- TODO non-empty union?
+get_pointer_base_set ctxt (SE_Op Plus _ es)                = S.unions $ S.map (get_pointer_base_set ctxt) $ S.fromList es
+get_pointer_base_set ctxt (SE_Op Minus _ (e:es))           = get_pointer_base_set ctxt e
+get_pointer_base_set ctxt (SE_Op And _ [e,SE_Immediate _]) = get_pointer_base_set ctxt e
+get_pointer_base_set ctxt e                                = get_pointer_base e
 
-
+ where
   get_pointer_base :: SimpleExpr -> S.Set PointerBase
-  get_pointer_base (SE_Immediate a)                     = if expr_is_global_immediate (f_ctxt ctxt) e then S.singleton $ GlobalAddress a else S.empty
+  get_pointer_base (SE_Immediate a)
+    | expr_is_global_immediate (f_ctxt ctxt) e =
+    case IM.lookup (fromIntegral a) (ctxt_symbol_table $ f_ctxt ctxt) of
+      Just sym -> S.singleton $ BaseIsSymbol sym
+      Nothing  -> S.singleton $ GlobalAddress a 
+    | otherwise = S.empty
   get_pointer_base (SE_Var (SP_StackPointer f))         = S.singleton $ StackPointer f
   get_pointer_base (SE_Var sp)                          = (statepart_to_pointerbase sp)
   get_pointer_base (SE_Malloc id hash)                  = S.singleton $ Malloc id hash
@@ -232,10 +242,11 @@ get_pointer_domain ctxt e =
 
   statepart_to_pointerbase :: StatePart -> S.Set PointerBase
   statepart_to_pointerbase (SP_Mem (SE_Immediate a) 8)  = case IM.lookup (fromIntegral a) (ctxt_symbol_table $ f_ctxt ctxt) of
-                                                            Just (Relocated_Function sym) -> S.singleton $ PointerToSymbol a sym
-                                                            Just (Relocated_Label sym) -> S.singleton $ PointerToSymbol a sym
+                                                            Just (PointerToLabel  sym ex) -> S.singleton $ BaseIsSymbol $ AddressOfLabel sym  ex
+                                                            Just (PointerToObject sym ex) -> S.singleton $ BaseIsSymbol $ AddressOfObject sym ex
                                                             _ -> S.empty
   statepart_to_pointerbase (SP_Reg FS)                  = S.singleton ThreadLocalStorage
+  statepart_to_pointerbase (SP_Reg RSP)                 = S.singleton $ StackPointer $ "0x" ++ showHex (f_entry ctxt)
   statepart_to_pointerbase _                            = S.empty
 
 
@@ -273,28 +284,28 @@ separate_pointer_domains ctxt a0 a1 =
 -- Two different @malloc@'s point to different regions.
 pointer_bases_separate ctxt necc (StackPointer f)           (StackPointer f')         = if necc then False else f /= f'
 pointer_bases_separate ctxt necc (StackPointer f)           (GlobalAddress _)         = True
-pointer_bases_separate ctxt necc (StackPointer f)           (PointerToSymbol _ _)     = True
+pointer_bases_separate ctxt necc (StackPointer f)           (BaseIsSymbol _)          = True
 pointer_bases_separate ctxt necc (StackPointer f)           (Malloc _ _)              = True
 pointer_bases_separate ctxt necc (StackPointer f)           ThreadLocalStorage        = True
 
 pointer_bases_separate ctxt necc (GlobalAddress _)          (StackPointer f)          = True
-pointer_bases_separate ctxt necc (GlobalAddress _)          (PointerToSymbol _ _)     = True
+pointer_bases_separate ctxt necc (GlobalAddress _)          (BaseIsSymbol _)          = True
 pointer_bases_separate ctxt necc (GlobalAddress a0)         (GlobalAddress a1)        = if necc then False else pointers_from_different_global_section (f_ctxt ctxt) a0 a1
 pointer_bases_separate ctxt necc (GlobalAddress _)          (Malloc _ _)              = True
 pointer_bases_separate ctxt necc (GlobalAddress _)          ThreadLocalStorage        = True
 
-pointer_bases_separate ctxt necc (PointerToSymbol _ _)      (StackPointer f)          = True
-pointer_bases_separate ctxt necc (PointerToSymbol _ _)      (GlobalAddress _)         = True
-pointer_bases_separate ctxt necc (PointerToSymbol _ sym0)   (PointerToSymbol _ sym1)  = sym0 /= sym1
-pointer_bases_separate ctxt necc (PointerToSymbol _ sym0)   (Malloc _ _)              = True
-pointer_bases_separate ctxt necc (PointerToSymbol _ sym0)   ThreadLocalStorage        = True
+pointer_bases_separate ctxt necc (BaseIsSymbol _)           (StackPointer f)          = True
+pointer_bases_separate ctxt necc (BaseIsSymbol _)           (GlobalAddress _)         = True
+pointer_bases_separate ctxt necc (BaseIsSymbol sym0)        (BaseIsSymbol sym1)       = sym0 /= sym1
+pointer_bases_separate ctxt necc (BaseIsSymbol sym0)        (Malloc _ _)              = True
+pointer_bases_separate ctxt necc (BaseIsSymbol sym0)        ThreadLocalStorage        = True
 
 pointer_bases_separate ctxt necc (Malloc id0 hash0)         (Malloc id1 hash1)        = Nothing `notElem` [id0,id1] && Nothing `notElem` [hash0,hash1] && (id0,hash0) /= (id1,hash1)
 pointer_bases_separate ctxt necc (Malloc _ _)               _                         = True
 
 pointer_bases_separate ctxt necc ThreadLocalStorage         (StackPointer f')         = True
 pointer_bases_separate ctxt necc ThreadLocalStorage         (GlobalAddress _)         = True
-pointer_bases_separate ctxt necc ThreadLocalStorage         (PointerToSymbol _ _)     = True
+pointer_bases_separate ctxt necc ThreadLocalStorage         (BaseIsSymbol _)          = True
 pointer_bases_separate ctxt necc ThreadLocalStorage         (Malloc _ _)              = True
 pointer_bases_separate ctxt necc ThreadLocalStorage         ThreadLocalStorage        = False
 
@@ -308,17 +319,15 @@ pointers_from_different_global_section ctxt a0 a1 = find_section_for_address ctx
 
 
 
--- | returns the set of bases of a domain, if any
-bases_of_domain :: PointerDomain -> Maybe (NES.NESet PointerBase)
-bases_of_domain (Domain_Bases bs) = Just bs
-bases_of_domain _                 = Nothing
+
 
 -- | Returns the set of pointer bases, if any
 get_pointer_bases ctxt e =
-  case get_pointer_domain ctxt e of
-    Nothing -> Nothing
-    Just d  -> bases_of_domain d
-
+  let bs = get_pointer_base_set ctxt e in
+    if S.null bs then
+      Nothing
+    else
+      Just bs
 
 
 
@@ -354,7 +363,7 @@ srcs_of_bottyp ctxt (FromCall f)                   = NES.singleton $ Src_Functio
 srcs_of_base ctxt (StackPointer f)        = NES.singleton $ Src_StackPointer f
 srcs_of_base ctxt (Malloc id h)           = NES.singleton $ Src_Malloc id h
 srcs_of_base ctxt (GlobalAddress a)       = srcs_of_expr ctxt $ SE_Immediate a
-srcs_of_base ctxt (PointerToSymbol a sym) = NES.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+-- srcs_of_base ctxt (BaseIsSymbol a sym) = NES.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
 srcs_of_base ctxt ThreadLocalStorage      = NES.singleton $ Src_Var $ SP_Reg FS
 
 

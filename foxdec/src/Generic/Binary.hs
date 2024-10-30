@@ -3,7 +3,7 @@
 module Generic.Binary where
 
 import Base
-
+import Data.Symbol
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -25,60 +25,26 @@ data SectionsInfo = SectionsInfo {
  deriving (Show,Generic,Eq)
 
 
--- | An address a0 can have a symbol.
---
--- Relocated_Function:
--- E.g:
--- 		0xcfe0 --> malloc
--- Means that reading 8 bytes from address 0xcfe0 procudes a pointer to malloc.
--- Thus an instruction: "CALL qword ptr [0xcfe0]" can be seen as "CALL malloc".
---
--- Relocated_Label:
--- E.g.:
---    0xd0a8 --> stdout
--- Means that "mov rdi,QWORD PTR [0xd0a8]" can be seen as "mov rdi, QWORD PTR [stdout]"
---
--- Relocated_ResolvedObject
--- E.g.:
---    0xc0fc0 "environ" -> 0xc1340
--- Sometimes, a relocation has been resolved during linking. In that case, it is no longer an external object.
--- For example, there may be a relocation that maps address 0xc0fc0 to symbol "environ".
--- However, that symbol is an object with an address (e.g., 0xc1340) that itself has been relocated.
--- Symbol "environ" now no longer is an external symbol.
--- Instead, we have *environ = &object, where "object" is the object that 0xc1340 is relocated to.
-data Symbol = 
-    Relocated_Function       String -- ^ Address a0 is a pointer to memory storing the entry of an external function
-  | Relocated_Label          String -- ^ Address a0 can be replaced by the string, e.g., "stdout" or "optind"
-  | Relocated_ResolvedObject String Word64 -- ^ At linking time internally resolved relocation
-  | Internal_Label           String -- ^ Address a0 can be replaced by the string.
-  deriving (Generic,Eq,Show)
 
-data SymbolTable = SymbolTable (IM.IntMap Symbol)
+
+
+data SymbolTable = SymbolTable (IM.IntMap Symbol) (S.Set String)
   deriving (Generic,Eq)
 
 instance Show SymbolTable where
-  show (SymbolTable tbl) = intercalate "\n" $ map show_entry $ IM.assocs tbl
+  show (SymbolTable tbl globals) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_global $ S.toList globals)
    where
-    show_entry (a0,Relocated_Function f)         = showHex a0 ++ " --> " ++ f ++ " (external function)"
-    show_entry (a0,Relocated_Label l)            = showHex a0 ++ " --> " ++ l ++ " (external object)"
+    show_entry (a0,PointerToLabel f b)           = showHex a0 ++ " --> " ++ f ++ show_in_ex b "label"
+    show_entry (a0,PointerToObject l b)          = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfObject l b)          = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfLabel f b)           = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
     show_entry (a0,Relocated_ResolvedObject l a) = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
-    show_entry (a0,Internal_Label f)             = showHex a0 ++ " --> " ++ f ++ " (internal)"
 
+    show_global f = f ++ " (global)"
 
--- | Is the symbol an internal label?
-is_internal_symbol (Internal_Label _) = True
-is_internal_symbol _ = False
+    show_in_ex True  ty = " (external " ++ ty ++ ")" 
+    show_in_ex False ty = " (internal " ++ ty ++ ")" 
 
--- | Is the symbol an external label?
-is_external_symbol (Relocated_Function _) = True
-is_external_symbol (Relocated_Label _) = True
-is_external_symbol _ = False
-
--- | Returns the name from the symbol
-symbol_to_name (Relocated_Function str) = Just str
-symbol_to_name (Relocated_Label str) = Just str
-symbol_to_name (Internal_Label str) = Just str
-symbol_to_name (Relocated_ResolvedObject str a) = Just str
 
 
 data Relocation = 
@@ -118,3 +84,9 @@ instance BinaryClass Binary where
 
 
 
+
+symbol_to_name (PointerToLabel f b)           = f
+symbol_to_name (PointerToObject l b)          = l
+symbol_to_name (AddressOfObject l b)          = l
+symbol_to_name (AddressOfLabel f b)           = f
+symbol_to_name (Relocated_ResolvedObject l a) = l

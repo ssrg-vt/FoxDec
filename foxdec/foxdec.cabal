@@ -40,6 +40,7 @@ library
       Data.JumpTarget
       Data.SPointer
       Data.SValue
+      Data.Symbol
       Data.SymbolicExpression
       Data.Variable
       Generic.Address
@@ -65,6 +66,7 @@ library
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction
+      Reconstruction.Reconstruction
       X86.Address
       X86.Conventions
       X86.Flag
@@ -100,6 +102,7 @@ library
     , process
     , split
     , text
+    , tree-view
   default-language: Haskell2010
 
 executable foxdec-exe
@@ -132,4 +135,5 @@ executable foxdec-exe
     , process
     , split
     , text
+    , tree-view
   default-language: Haskell2010

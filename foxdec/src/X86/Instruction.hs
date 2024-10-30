@@ -37,7 +37,7 @@ canonicalize (Instruction label prefix PUSH Nothing [op1] annot) =
          MOV
          (Just $ Memory (AddressStorage RSP) si)
          [op1]
-         Nothing]
+         annot]
 -- POP
 canonicalize (Instruction label prefix POP Nothing [op1] annot) =
   let si = sizeof op1
@@ -54,7 +54,7 @@ canonicalize (Instruction label prefix POP Nothing [op1] annot) =
          ADD
          (Just $ Storage RSP)
          [Storage RSP, Immediate $ fromIntegral si]
-         Nothing]
+         annot]
 -- LEAVE 
 canonicalize (Instruction label prefix LEAVE Nothing [] annot) =
   Instruction label prefix MOV (Just $ Storage RSP) [Storage RBP] annot
@@ -155,7 +155,7 @@ canonicalize_mul (Instruction label prefix mnemonic Nothing [op1] annot) =
          (lowpart mnemonic)
          (Just $ Storage $ srcs !! 1)
          [Storage $ srcs !! 1, op1]
-         Nothing]
+         annot]
 -- MUL /IMUL (2)
 canonicalize_mul (Instruction label prefix mnemonic Nothing [op1, op2] annot) =
   [Instruction label prefix mnemonic (Just op1) [op1, op2] annot]
@@ -173,7 +173,8 @@ canonicalize_div (Instruction label prefix mnemonic Nothing [op1] annot) =
         2 -> [DX, AX]
         1 -> [AH, AL]
         _ -> error "Invalid operand size"
-  in [ Instruction
+  in [ Instruction label prefix MOV (Just $ Storage TEMP) [Storage $ head srcs] annot
+     , Instruction
          label
          prefix
          (hipart mnemonic)
@@ -185,11 +186,12 @@ canonicalize_div (Instruction label prefix mnemonic Nothing [op1] annot) =
          prefix
          (lowpart mnemonic)
          (Just $ Storage $ srcs !! 1)
-         [Storage $ head srcs, Storage $ srcs !! 1, op1]
-         Nothing]
+         [Storage $ TEMP, Storage $ srcs !! 1, op1]
+         annot
+     , Instruction label prefix MOV (Just $ Storage $ head srcs) [Storage TEMP] annot ]
 canonicalize_div _ = error "Invalid div instruction"
 
--- Does the instruction read from all operands, inlcuding the first one?
+-- Does the instruction read from all operands, including the first one?
 mnemonic_reads_from_all_operands mnemonic = mnemonic
   `elem` [ ADD
          , SUB
@@ -478,6 +480,7 @@ do_not_modify mnemonic = isCall mnemonic
          , CMPNLESS
          , CMPNEQSD
          , CMPNLESD
+         , OUT
          ]
 -- TODO:
 -- BLENDVP, BLENDVPS read from XMM0 sometimes as well?

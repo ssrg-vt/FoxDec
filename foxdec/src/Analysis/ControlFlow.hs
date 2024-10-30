@@ -204,15 +204,7 @@ resolve_jump_target ::
 resolve_jump_target ctxt i =
   case (IM.lookup (fromIntegral $ addressof i) $ ctxt_inds ctxt, Instr.srcs i) of
     (Just ind,_)    -> indirection_to_jump_target ind -- already resolved indirection
-    (Nothing,[op1]) ->
-      case operand_static_resolve ctxt i op1 of
-        Unresolved         -> [Unresolved] -- unresolved indirection
-        External sym       -> [External sym]
-        ImmediateAddress a ->
-          case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
-            Just (Relocated_Function sym) -> [External sym]
-            _ -> if not (address_has_instruction ctxt a) then [External $ showHex a] else [ImmediateAddress a]
-
+    (Nothing,[op1]) -> [jump_target_for_instruction ctxt i]
  where
   indirection_to_jump_target (Indirection_Resolved trgts) = S.toList trgts
   indirection_to_jump_target (Indirection_JumpTable (JumpTable _ _ _ tbl)) = map ImmediateAddress $ IM.elems tbl
@@ -273,11 +265,9 @@ show_invariants g invs = intercalate "\n\n" $ map show_entry $ IM.toList $ invs
 
 
 
-
 instance IntGraph CFG where
   intgraph_post = post
   intgraph_V    = IM.keysSet . cfg_blocks
-
 
 
 
@@ -300,7 +290,7 @@ resolve_call ctxt get_invariant entry i =
  where
   next (External sym) =
     -- external function call
-    if is_exiting_function_call sym then
+    if  is_exiting_function_call sym then
       Right []
     else if take 5 sym == "error" then -- TODO or error_at_line
       let fctxt = mk_fcontext ctxt entry in
@@ -468,8 +458,7 @@ cfg_to_dot ::
   -> String
 cfg_to_dot ctxt g =
  let name  = ctxt_name ctxt
-     frontier = IS.empty
-     sccs     = scc_of g 0 frontier in
+     sccs     = scc_of g 0 IS.empty in
   "diGraph " ++ name ++ "{\n"
   ++ intercalate "\n" (map (node_to_dot sccs) $ IM.keys $ cfg_blocks g)
   ++ "\n\n"

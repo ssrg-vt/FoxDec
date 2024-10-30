@@ -12,6 +12,7 @@ import Base
 import Data.SValue
 import Data.SymbolicExpression
 import Data.JSON_Taxonomy
+import Data.Symbol
 
 import Analysis.Context as C
 import Analysis.Pointers 
@@ -22,7 +23,6 @@ import Instantiation.SymbolicPropagation
 import OutputGeneration.Retrieval
 
 import Generic.HasSize 
-import Generic.Binary
 import Generic.SymbolicConstituents
 import Generic.Instruction
 import Generic.Operand
@@ -222,6 +222,8 @@ instance ToJSON Prefix where
 instance ToJSON Instruction where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON BotSrc where
+  toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+instance ToJSON Symbol where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
 instance ToJSON PointerBase where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }

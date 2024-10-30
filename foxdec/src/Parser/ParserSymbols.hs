@@ -22,7 +22,7 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
 import qualified Data.IntMap as IM
 import Generic.Binary
-
+import Data.Symbol
 
 isWhiteSpace '\t' = True
 isWhiteSpace '\f' = True
@@ -43,7 +43,7 @@ symb = do
   whitespaces
   s <- many (noneOf "\n")
   newline
-  return (a,Relocated_Function s)
+  return (a,AddressOfLabel s True)
  
 
 symbols = do

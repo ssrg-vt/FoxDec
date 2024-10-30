@@ -31,7 +31,7 @@ import Data.List.Split (chunksOf)
 import Data.ByteString.Internal (w2c)
 
 
-render_NASM ctxt (NASM externals sections footer) = 
+render_NASM ctxt (NASM externals globals sections footer) = ""{--
   let (ts,ds) = partition isTextSection sections
       h       = intercalate "\n\n" $ render_externals externals : map render_section ds
       c       = intercalate "\n\n" $ mk_includes : map render_section ts in
@@ -199,8 +199,8 @@ data C_Dest = Register Register | Flag String | Operand NASM_Operand
 nasm_operand_to_c_destination (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing)) = Register base
 nasm_operand_to_c_destination a = Operand a
 
-mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just fun)))   = ["CALL(" ++ fun ++ ")"]
-mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing)) = ["RSP.u -= 8", show label ++ "()"]
+mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Function fun)))) = ["CALL(" ++ fun ++ ")"]
+mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing))                      = ["RSP.u -= 8", show label ++ "()"]
 mk_call op0 = ["//TODO: call to " ++ render_operand op0 Unknown]
 
 mk_push op0 =
@@ -251,9 +251,10 @@ read_from_reg reg = "read" ++ show (8 * sizeof reg) ++ "(" ++ show (real reg) ++
 
 
 -- Produce a C expression that is of the type coorespodning to the type mode
-render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing))    tm = base `regWithTypeMode` tm
-render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing Nothing (Just fun)))    tm = fun `castToType` (tm,8)
-render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing (Just label) Nothing))  tm = show label
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing))                        tm = base `regWithTypeMode` tm
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing Nothing (Just (NASM_Symbol_Object   obj)))) tm = obj `castToType` (tm,8)
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing Nothing (Just (NASM_Symbol_Function fun)))) tm = fun `castToType` (tm,8)
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing (Just label) Nothing))                      tm = show label
 
 --render_operand (NASM_Operand_Memory _ (NASM_Address Nothing Nothing 1 Nothing  Nothing (Just label) Nothing)) tm = label
 render_operand (NASM_Operand_EffectiveAddress a) tm = render_address a
@@ -289,12 +290,13 @@ mk_sint_ty si = "int" ++ show (si*8) ++ "_t"
 castTo a ty = "(" ++ ty ++ ")(" ++ a ++ ")"
 
 
-render_address a@(NASM_Address Nothing Nothing 1 (Just base) displ Nothing Nothing)           = base `regWithTypeMode` Pointer ++ show_displacement displ
-render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing)        = render_label label
-render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just fun))          = fun
-render_address a@(NASM_Address (Just seg) indx scale base displ label fun)                    = seg `regWithTypeMode` Pointer ++ show_displacement displ
-render_address a@(NASM_Address Nothing (Just indx) scale Nothing Nothing Nothing Nothing)     = (indx `regWithTypeMode` SInt ++ "*" ++ show scale) `castToType` (Pointer,8)
-render_address a@(NASM_Address Nothing (Just indx) scale (Just base) Nothing Nothing Nothing) = base `regWithTypeMode` Pointer ++ " + " ++ ((indx `regWithTypeMode` SInt) ++ "*" ++ show scale) `castToType` (Pointer,8)
+render_address a@(NASM_Address Nothing Nothing 1 (Just base) displ Nothing Nothing)                         = base `regWithTypeMode` Pointer ++ show_displacement displ
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing)                      = render_label label
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Function fun))) = fun
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Object obj)))   = obj
+render_address a@(NASM_Address (Just seg) indx scale base displ label fun)                                  = seg `regWithTypeMode` Pointer ++ show_displacement displ
+render_address a@(NASM_Address Nothing (Just indx) scale Nothing Nothing Nothing Nothing)                   = (indx `regWithTypeMode` SInt ++ "*" ++ show scale) `castToType` (Pointer,8)
+render_address a@(NASM_Address Nothing (Just indx) scale (Just base) Nothing Nothing Nothing)               = base `regWithTypeMode` Pointer ++ " + " ++ ((indx `regWithTypeMode` SInt) ++ "*" ++ show scale) `castToType` (Pointer,8)
 
 render_address a@(NASM_Address seg indx scale base displ label fun) = error $ show a
 
@@ -311,4 +313,4 @@ render_label (Macro segment section a0 offset) = mk_section_name (segment,sectio
  where
   show_offset 0 = ""
   show_offset offset = " + " ++ show offset
-
+--}

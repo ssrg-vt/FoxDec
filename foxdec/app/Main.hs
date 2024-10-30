@@ -17,6 +17,7 @@ import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
 import qualified OutputGeneration.JSON as JSON
 
+
 import Algorithm.L0_Lifting
 
 import NASM.L0ToNASM
@@ -174,6 +175,9 @@ start args = do
   when (args_generate_json    args)   $ generate_json ctxt $ args_verbose_json args
   when (args_generate_L0 args)        $ serialize_context ctxt
 
+
+
+
 -- INPUT
 
 -- | Obtain a context ...
@@ -280,6 +284,11 @@ generate_NASM ctxt = do
   writeFile fname $ render_NASM ctxt nasm
   writeFile fname1 gmon
   putStrLn $ "Generated NASM, exported to file: " ++ fname 
+
+  BS.writeFile (fname++".serialized") $ Cereal.encode $ nasm
+  
+
+
 {--
   -- TODO MAKE C OPTION
   let dirname  = ctxt_dirname ctxt ++ "C/"
@@ -294,3 +303,10 @@ generate_NASM ctxt = do
   writeFile fname2 ds
   putStrLn $ "Generated NASM, exported to directory: " ++ dirname
 --}
+
+
+generate_reconstruction :: Context -> IO ()
+generate_reconstruction ctxt = do
+  let name     = ctxt_name ctxt
+
+  reconstruct ctxt 

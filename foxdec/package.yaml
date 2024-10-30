@@ -39,6 +39,7 @@ dependencies:
 - blaze-builder
 - process
 - hourglass
+- tree-view
 
 library:
   source-dirs: src

@@ -28,16 +28,23 @@ module Data.SymbolicExpression (
   expr_size,
   sextend_32_64,
   sextend_16_64,
-  sextend_8_64
+  sextend_8_64,
+  addends
  )
  where
 
 import Base
 import Config
+
+import Generic.Binary
+import Data.Symbol
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.Set.NonEmpty as NES
+
+import Generic.HasSize (sizeof)
 
 import Data.Int (Int32,Int64)
 import Data.Word (Word64,Word32)
@@ -46,7 +53,7 @@ import Data.List
 import Data.Maybe (mapMaybe,fromJust)
 import Debug.Trace
 import GHC.Generics
-import Data.Bits (testBit, (.|.), (.&.), xor)
+import Data.Bits (testBit, (.|.), (.&.), xor, shiftL,shiftR)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import X86.Register (Register)
 import qualified X86.Operand as X86
@@ -59,7 +66,7 @@ data PointerBase =
     StackPointer String                  -- ^ The stack frame of the given function
   | Malloc (Maybe Word64) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
   | GlobalAddress Word64                 -- ^ A /global/ address in the range of the sections of the binary.
-  | PointerToSymbol Word64 String        -- ^ An address with an associated symbol.
+  | BaseIsSymbol Symbol                  -- ^ An address with an associated symbol.
   | ThreadLocalStorage                   -- ^ A pointer to the thread-local-storage (e.g., FS register)
   deriving (Generic,Eq,Ord)
 
@@ -80,6 +87,7 @@ data BotTyp =
   | FromSemantics (NES.NESet BotSrc)            -- ^ An instruction with unknown semantics
   | FromBitMode (NES.NESet BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
   | FromUninitializedMemory (NES.NESet BotSrc)  -- ^ Reading from memory not written to yet
+  | RockBottom
  deriving (Eq, Ord, Generic)
 
 
@@ -99,12 +107,14 @@ data BotSrc =
 
 -- | An operator is a pure operation over bit-vectors, annotated with the bit-size of its operands.
 -- For example, @Plus 64@ denotes 64-bit addition.
--- @Udiv@ and @Times@ are operators op type @w -> w -> w@ with all words same length.
--- @Div@ and @Div_Rem@ are operators of type @w -> w -> w -> w@ performing concatenation of the first two words and then doing division/remainder.
 data Operator = 
     Minus | Plus | Times | And | Or | Xor | Not | Bsr 
-  | Div_Rem | Div | Shl | Shr | Sar | Udiv | Ror | Rol 
-  | Bswap | Pextr
+  | SExtHi Int -- ^ The high part after sign-extension from $n$ bits, thus producing $n$-bit value
+  | IMulLo | IMulHi
+  | UdivHi | UdivLo | Udiv
+  | SdivHi | SdivLo | Sdiv
+  | Shl | Shr | Sar | Ror | Rol 
+  | Bswap | Pextr | Sbb | Adc | Cmov | ZeroOne
  deriving (Eq, Ord, Generic)
 
 
@@ -117,16 +127,27 @@ instance Show Operator where
   show (Xor     ) = "xor"     
   show (Not     ) = "not"     
   show (Bsr     ) = "bsr"     
-  show (Div_Rem ) = "div_rem" 
-  show (Div     ) = "div"     
   show (Shl     ) = "shl"     
   show (Shr     ) = "shr"     
   show (Sar     ) = "sar"     
-  show (Udiv    ) = "udiv"    
   show (Ror     ) = "ror"     
   show (Rol     ) = "rol"
+  show (Sbb     ) = "sbb"
+  show (Adc     ) = "adc"
   show (Bswap   ) = "bswap"
   show (Pextr   ) = "pextr"
+  show (Cmov    ) = "cmov"
+
+  show (ZeroOne ) = "setxx"
+  show (SExtHi b) = "sext_h"
+  show (IMulLo  ) = "imul_l"    
+  show (IMulHi  ) = "imul_h" 
+  show (Udiv    ) = "udiv"    
+  show (UdivLo  ) = "udiv_l"    
+  show (UdivHi  ) = "udiv_h"    
+  show (Sdiv    ) = "sdiv"
+  show (SdivLo  ) = "sdiv_l" 
+  show (SdivHi  ) = "sdiv_h"    
 
 -- | A symbolic expression with as leafs either immediates, variables, live values of stateparts, or malloced addresses.
 -- A variable is a constant representing some initial value, e.g., RDI_0, or [RSP_0,8]_0.
@@ -134,7 +155,7 @@ instance Show Operator where
 data SimpleExpr =
     SE_Immediate Word64                        -- ^ An immediate word
   | SE_Var       StatePart                     -- ^ A variable representing the initial value stored in the statepart (e.g., RSP0)
-  | SE_StatePart StatePart                     -- ^ The value stored currently in the statepart
+  | SE_StatePart StatePart (Maybe String)      -- ^ The value stored currently in the statepart
   | SE_Malloc    (Maybe Word64) (Maybe String) -- ^ A malloc return value with possibly an ID
   | SE_Op        Operator Int [SimpleExpr]     -- ^ Application of an @`Operator`@ to the list of arguments
   | SE_Bit       Int SimpleExpr                -- ^ Taking the lower bits of a value
@@ -175,22 +196,25 @@ show_bottyp show_srcs (FromCall f)                   = "c|" ++ f ++ "|"
 instance Show BotTyp where
   show = show_bottyp show_srcs
 
-show_expr show_srcs (Bottom typ)              = "Bot[" ++ show_bottyp show_srcs typ ++ "]"
-show_expr show_srcs (SE_Malloc Nothing _)     = "malloc()" 
-show_expr show_srcs (SE_Malloc (Just id) _)   = "malloc@" ++ showHex id ++ "()" 
-show_expr show_srcs (SE_Var sp)               = show sp ++ "_0"
-show_expr show_srcs (SE_Immediate i)          = if i > 2000 then "0x" ++ showHex i else show i
-show_expr show_srcs (SE_StatePart sp)         = show sp
-show_expr show_srcs (SE_Op (Plus ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " + "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Minus) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " - "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Times) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " * "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (And  ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " & "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Or   ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " | "   ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op (Xor  ) _ [e0,e1]) = "(" ++ show_expr show_srcs e0 ++ " xor " ++ show_expr show_srcs e1 ++ ")"
-show_expr show_srcs (SE_Op op si es)          = show op ++ show si ++ "(" ++ intercalate "," (map (show_expr show_srcs) es) ++ ")"
-show_expr show_srcs (SE_Bit i a)              = "b" ++ show i ++ "(" ++ show_expr show_srcs a ++ ")"
-show_expr show_srcs (SE_SExtend l h a)        = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ show_expr show_srcs a ++ ")"
-show_expr show_srcs (SE_Overwrite i a b)      = "overwrite(" ++ show i ++ "," ++ show_expr show_srcs a ++ "," ++ show_expr show_srcs b ++ ")"
+show_expr show_srcs (Bottom RockBottom)             = "TOP"
+show_expr show_srcs (Bottom typ)                    = "Bot[" ++ show_bottyp show_srcs typ ++ "]"
+show_expr show_srcs (SE_Malloc Nothing _)           = "malloc()" 
+show_expr show_srcs (SE_Malloc (Just a) Nothing)    = "malloc@" ++ showHex a ++ "()" 
+show_expr show_srcs (SE_Malloc (Just a) (Just id))  = id ++ "@" ++ showHex a
+show_expr show_srcs (SE_Var sp)                     = show sp ++ "_0"
+show_expr show_srcs (SE_Immediate i)                = if i > 2000 then "0x" ++ showHex i else show i
+show_expr show_srcs (SE_StatePart sp Nothing)       = show sp
+show_expr show_srcs (SE_StatePart sp (Just id))     = (show sp ++ "@@") ++ id
+show_expr show_srcs (SE_Op (Plus ) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " + "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Minus) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " - "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Times) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " * "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (And  ) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " & "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Or   ) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " | "   ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op (Xor  ) _ [e0,e1])       = "(" ++ show_expr show_srcs e0 ++ " xor " ++ show_expr show_srcs e1 ++ ")"
+show_expr show_srcs (SE_Op op si es)                = show op ++ show si ++ "(" ++ intercalate "," (map (show_expr show_srcs) es) ++ ")"
+show_expr show_srcs (SE_Bit i a)                    = "b" ++ show i ++ "(" ++ show_expr show_srcs a ++ ")"
+show_expr show_srcs (SE_SExtend l h a)              = "signextend(" ++ show l ++ "," ++ show h ++ ", " ++ show_expr show_srcs a ++ ")"
+show_expr show_srcs (SE_Overwrite i a b)            = "overwrite(" ++ show i ++ "," ++ show_expr show_srcs a ++ "," ++ show_expr show_srcs b ++ ")"
 
 
 instance Show SimpleExpr where
@@ -221,7 +245,7 @@ contains_bot (Bottom typ)         = True
 contains_bot (SE_Malloc _ _)      = False
 contains_bot (SE_Var sp)          = contains_bot_sp sp
 contains_bot (SE_Immediate _)     = False
-contains_bot (SE_StatePart sp)    = contains_bot_sp sp
+contains_bot (SE_StatePart sp _ ) = contains_bot_sp sp
 contains_bot (SE_Op _ _ es)       = any contains_bot es
 contains_bot (SE_Bit i e)         = contains_bot e
 contains_bot (SE_SExtend _ _ e)   = contains_bot e
@@ -242,7 +266,7 @@ all_bot_satisfy p (Bottom typ)         = p typ
 all_bot_satisfy p (SE_Malloc _ _)      = True
 all_bot_satisfy p (SE_Var sp)          = all_bot_satisfy_sp p sp
 all_bot_satisfy p (SE_Immediate _)     = True
-all_bot_satisfy p (SE_StatePart sp)    = all_bot_satisfy_sp p sp
+all_bot_satisfy p (SE_StatePart sp _)  = all_bot_satisfy_sp p sp
 all_bot_satisfy p (SE_Op _ _ es)       = all (all_bot_satisfy p) es
 all_bot_satisfy p (SE_Bit i e)         = all_bot_satisfy p e
 all_bot_satisfy p (SE_SExtend _ _ e)   = all_bot_satisfy p e
@@ -261,7 +285,7 @@ expr_size (Bottom typ)         = 1 + expr_size_bottyp typ
 expr_size (SE_Malloc id _)     = 1
 expr_size (SE_Var sp)          = expr_size_sp sp
 expr_size (SE_Immediate _)     = 1
-expr_size (SE_StatePart sp)    = expr_size_sp sp
+expr_size (SE_StatePart sp _)  = expr_size_sp sp
 expr_size (SE_Op _ _ es)       = 1 + (sum $ map expr_size es)
 expr_size (SE_Bit i e)         = 1 + expr_size e
 expr_size (SE_SExtend l h e)   = 1 + expr_size e
@@ -284,11 +308,11 @@ expr_size_bottyp (FromCall _)                   = 1
 
 
 -- | Sign-extension from 32 to 64 bits
-sextend_32_64 w = if testBit w 31 then w .|. 0xFFFFFFFF00000000 else w
+sextend_32_64 w = if testBit w 31 then (w .&. 0x00000000FFFFFFFF) .|. 0xFFFFFFFF00000000 else (w .&. 0x00000000FFFFFFFF)
 -- | Sign-extension from 16 to 64 bits
-sextend_16_64 w = if testBit w 15 then w .|. 0xFFFFFFFFFFFF0000 else w
+sextend_16_64 w = if testBit w 15 then (w .&. 0x000000000000FFFF) .|. 0xFFFFFFFFFFFF0000 else (w .&. 0x000000000000FFFF)
 -- | Sign-extension from 8 to 64 bits
-sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
+sextend_8_64  w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0xFFFFFFFFFFFFFF00 else (w .&. 0x00000000000000FF)
 
 
 -- | Simplification of symbolic expressions. 
@@ -297,11 +321,14 @@ sextend_8_64  w = if testBit w 7  then w .|. 0xFFFFFFFFFFFFFF00 else w
 simp :: SimpleExpr -> SimpleExpr
 simp e = 
   let e' = simp' e in
-    if e == e' then e' else simp e'
+    if e == e' then reorder_addends e' else simp e'
 
 simp' (SE_Bit i (SE_Bit i' e))           = SE_Bit (min i i') $ simp' e
 simp' (SE_Bit i (SE_Overwrite i' e0 e1)) = if i <= i' then SE_Bit i (simp' e1) else SE_Bit i $ SE_Overwrite i' (simp' e0) (simp' e1)
-simp' (SE_Bit i (SE_SExtend l h e))      = if i == l then simp' e else SE_Bit i $ SE_SExtend l h $ simp' e
+simp' (SE_Bit i (SE_SExtend l h e))      
+  | i == l    = simp' e
+  | i == h    = SE_SExtend l h $ simp' e
+  | otherwise = SE_Bit i $ SE_SExtend l h $ simp' e
 
 simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
 
@@ -318,9 +345,14 @@ simp' (SE_Op Minus si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 - 0 = e0
 simp' (SE_Op Times si0 [e0, SE_Immediate 0]) = SE_Immediate 0
 simp' (SE_Op Times si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Udiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
-simp' (SE_Op Div   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Sdiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Shl   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Shr   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Sar   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Overwrite i (SE_Immediate 0) e)    = simp' $ SE_Bit i e
 
-simp' (SE_Overwrite i (SE_Immediate 0) e) = simp' e
+
+simp' (SE_Op Shl si0   [e,SE_Immediate i]) = simp' $ SE_Op Times si0 [e,SE_Immediate $ 2^i]
 
 simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 - i1)     -- Immediate: i0 - i1
 simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 + i1)     -- Immediate: i0 + i1
@@ -330,12 +362,28 @@ simp' (SE_Op And   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 .&
 simp' (SE_Op Xor   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `xor` i1) -- Immediate: i0 xor i1
 simp' (SE_Op Udiv  64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0  `div` i1) 
 simp' (SE_Op Udiv  32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Word32) `div` (fromIntegral i1::Word32)))
-simp' (SE_Op Div   64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int64)  `div` (fromIntegral i1::Int64))) 
-simp' (SE_Op Div   32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int32)  `div` (fromIntegral i1::Int32)))
+simp' (SE_Op Sdiv  64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int64)  `div` (fromIntegral i1::Int64))) 
+simp' (SE_Op Sdiv  32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral ((fromIntegral i0::Int32)  `div` (fromIntegral i1::Int32)))
+simp' (SE_Op Shl   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `shiftL` fromIntegral i1)
+simp' (SE_Op Shr   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `shiftR` fromIntegral i1)
+simp' (SE_Op Sar   64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral $ (fromIntegral i0::Int64) `shiftR` (fromIntegral i1))
+simp' (SE_Op Sar   32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral $ (fromIntegral i0::Int32) `shiftR` (fromIntegral i1))
 
+
+
+simp' e@(SE_Bit 64  e1@(SE_Malloc _ _))                = e1
+simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Reg r) _))    = if sizeof r * 8 == si0 then e1 else e
+simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Mem _ si) _)) = if si*8 == si0 then simp' e1 else SE_Bit si0 $ simp' e1
+simp' e@(SE_Bit si0 e1@(SE_Var (SP_Reg r)))            = if sizeof r * 8 == si0 then e1 else e
+simp' e@(SE_Bit si0 e1@(SE_Var (SP_Mem _ si)))         = if si*8 == si0 then simp' e1 else SE_Bit si0 $ simp' e1
+simp' e@(SE_Bit si0 e1@(SE_Op (SExtHi b) _ [_]))       = if b==si0 then simp' e1 else SE_Bit si0 $ simp' e1
+
+
+simp' (SE_Op SdivLo si0 es@[SE_Op (SExtHi b) _ [e0], e1,e2]) = if e0==e1 then simp' $ SE_Op Sdiv si0 [e0,e2] else SE_Op SdivLo si0 $ map simp' es
 
 
 simp' (SE_Bit 128 (SE_Immediate i)) = SE_Immediate i
+simp' (SE_Bit 64  (SE_Immediate i)) = SE_Immediate (i .&. 0xFFFFFFFFFFFFFFFF)
 simp' (SE_Bit 32  (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000FFFFFFFF)
 simp' (SE_Bit 16  (SE_Immediate i)) = SE_Immediate (i .&. 0x000000000000FFFF)
 simp' (SE_Bit 8   (SE_Immediate i)) = SE_Immediate (i .&. 0x00000000000000FF)
@@ -344,11 +392,11 @@ simp' (SE_SExtend 32 64 (SE_Immediate i)) = SE_Immediate (sextend_32_64 i)
 simp' (SE_SExtend 16 64 (SE_Immediate i)) = SE_Immediate (sextend_16_64 i)
 simp' (SE_SExtend 8  64 (SE_Immediate i)) = SE_Immediate (sextend_8_64 i)
 
-simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
-simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
-simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [SE_Immediate i1, e1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(i1+e1) ==> (i0-i1)-e1
-simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
-simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
+--simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0+i1), e1] -- i0-(e1-i1) ==> (i0+i1)-e1
+--simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(e1+i1) ==> (i0-i1)-e1
+--simp' (SE_Op Minus si0 [SE_Immediate i0, SE_Op Plus  _ [SE_Immediate i1, e1]]) = simp' $ SE_Op Minus si0 [SE_Immediate (i0-i1), e1] -- i0-(i1+e1) ==> (i0-i1)-e1
+--simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Minus _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0-i1)] -- i0+(e1-i1) ==> e1+(i0-i1)
+--simp' (SE_Op Plus  si0 [SE_Immediate i0, SE_Op Plus  _ [e1, SE_Immediate i1]]) = simp' $ SE_Op Plus  si0 [e1, SE_Immediate (i0+i1)] -- i0+(e1+i1) ==> e1+(i0+i1)
 
 simp' (SE_Op Minus si0 [e,SE_Immediate i]) = if testBit i 63 then SE_Op Plus si0 [simp' e,SE_Immediate (-i)] else SE_Op Minus si0 [simp' e,SE_Immediate i]
 simp' (SE_Op Plus  si0 [e,SE_Immediate i]) = if testBit i 63 && i /= 0x8000000000000000 then SE_Op Minus si0 [simp' e,SE_Immediate (-i)] else SE_Op Plus  si0 [simp' e,SE_Immediate i]
@@ -363,11 +411,31 @@ simp' (SE_Bit i (SE_Op Or    si0 [e0, e1])) = simp' $ SE_Op Or    si0 [SE_Bit i 
 simp' (SE_Bit i (SE_Op Xor   si0 [e0, e1])) = simp' $ SE_Op Xor   si0 [SE_Bit i e0, SE_Bit i e1] -- b(e0 xor e1) = b(e0) xor b(e1)
 simp' (SE_Bit i (SE_Op Not   si0 [e0]))     = simp' $ SE_Op Not   si0 [SE_Bit i e0]              -- b(not e0) = b(not e0)
 
-simp' (SE_Op Xor si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Xor si0 $ map simp' [e0,e1]
+simp' (SE_Op Times si0 [SE_Op Times si1 [e1, SE_Immediate i1],SE_Immediate i0]) = SE_Op Times si0 [e1,SE_Immediate (i0*i1)]    -- (e1*i1)*i0 = e1*(i0*i1)
+
+
+
+simp' (SE_Op Plus  si0 es@[SE_Op Times _ [e0, SE_Immediate i0], SE_Op Times _ [e1, SE_Immediate i1]])
+  | e0 == e1  = SE_Op Times si0 [simp' e0, SE_Immediate (i0+i1)]                                                                        -- a*i0+a*i1 = a*(i0+i1)
+  | otherwise = SE_Op Plus si0 $ map simp' es
+simp' (SE_Op Minus si0 es@[e0,SE_Op Minus _ [e1, e2]])
+  | e0 == e1  = simp' e2                                                                                                                -- a-(a-b) = b
+  | otherwise = SE_Op Minus si0 $ map simp' es
+simp' (SE_Op Minus si0 es@[e0,SE_Op Plus _ [e1, e2]])
+  | e0 == e1  = simp' $ SE_Op Minus si0 [SE_Immediate 0,e2]                                                                             -- a-(a+b) = -b
+  | otherwise = SE_Op Minus si0 $ map simp' es
+
+
+simp' (SE_Op Plus  si0 [e0,e1]) = if e0 == e1 then simp' $ SE_Op Times si0 [e0,SE_Immediate 2] else SE_Op Plus si0 $ map simp' [e0,e1]  -- a + a   = a*2
+simp' (SE_Op Xor   si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Xor si0 $ map simp' [e0,e1]                                -- a xor a = 0
+simp' (SE_Op Minus si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Minus si0 $ map simp' [e0,e1]                              -- a - a   = 0
+
+
+
 
 simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ NES.map simp' es
 simp' (SE_Op op si0 es)                = SE_Op op si0 $ map simp' es
-simp' (SE_StatePart sp)                = SE_StatePart $ simp'_sp sp
+simp' (SE_StatePart sp id)             = SE_StatePart (simp'_sp sp) id
 simp' (SE_Bit i e)                     = SE_Bit i $ simp' e
 simp' (SE_SExtend l h e)               = SE_SExtend l h $ simp' e
 simp' (SE_Overwrite i e0 e1)           = SE_Overwrite i (simp' e0) (simp' e1)
@@ -377,6 +445,57 @@ simp' e                                = e
 simp'_sp (SP_Mem e si) = SP_Mem (simp' e) si
 simp'_sp sp            = sp
 
+
+
+
+addends :: SimpleExpr -> M.Map SimpleExpr Word64
+addends = gather_immediates . addends'
+ where
+  addends' (SE_Op Plus  _ es)                   = M.unionsWith (+) $ map addends' es
+  addends' (SE_Op Minus _ (e0:es))              = M.unionsWith (+) [addends' e0,  M.map (\i -> 0-i) $ M.unionsWith (+) $ map addends' es]
+  addends' (SE_Op Times _ [e,SE_Immediate imm]) = M.singleton e imm
+  addends' (SE_Op Times _ [SE_Immediate imm,e]) = M.singleton e imm
+  addends' e                                    = M.singleton e 1
+
+  gather_immediates :: M.Map SimpleExpr Word64 -> M.Map SimpleExpr Word64
+  gather_immediates m =
+    let (imms,rem) = M.partitionWithKey entry_is_immediate m in
+      if M.null imms then rem else M.insert (SE_Immediate $ gather_imms imms) 1 rem
+
+  gather_imms :: M.Map SimpleExpr Word64 -> Word64
+  gather_imms = M.foldrWithKey (\(SE_Immediate i) q -> ((+) (i*q))) 0
+
+  entry_is_immediate (SE_Immediate _) _ = True
+  entry_is_immediate _ _ = False
+
+
+reorder_addends :: SimpleExpr -> SimpleExpr
+reorder_addends e
+  | contains_bot e = e
+  | otherwise      = 
+  let si        = get_size e
+      m         = M.filter    ((/=) 0) $ addends e
+      (pos,neg) = M.partition ((<) 0)  $ m in
+    if M.null pos && M.null neg then
+      SE_Immediate 0
+    else if not (M.null pos) && M.null neg then
+      simp' $ mk_expr si $ M.toList pos
+    else if M.null pos && not (M.null neg) then
+      simp' $ SE_Op Minus (fromJust si) [SE_Immediate 0, mk_expr si $ M.toList $ M.map ((\i -> 0-i)) neg]
+    else
+      simp' $ SE_Op Minus (fromJust si) [mk_expr si $ M.toList pos, mk_expr si $ M.toList $ M.map ((\i -> 0-i)) neg]
+ where
+  mk_expr si [(e,occ)]     = mk_addend si e occ
+  mk_expr si ((e,occ):rem) = SE_Op Plus (fromJust si) [mk_addend si e occ, mk_expr si rem] 
+
+  mk_addend si e occ
+    | occ == 1 = e
+    | occ  > 1 = SE_Op Times (fromJust si) [e,SE_Immediate occ]
+
+  get_size (SE_Op Plus si es)  = Just si
+  get_size (SE_Op Minus si es) = Just si
+  get_size (SE_Op Times si es) = Just si
+  get_size _                   = Nothing
 
 
 
@@ -404,7 +523,7 @@ instance Show PointerBase where
   show (Malloc Nothing  _)     = "malloc()"
   show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
   show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a
-  show (PointerToSymbol a sym) = "PointerToSymbol_" ++ sym
+  show (BaseIsSymbol sym)      = show sym
   show ThreadLocalStorage      = "ThreadLocalStorage"
 
 
@@ -424,6 +543,7 @@ instance Cereal.Serialize SimpleExpr
 instance Cereal.Serialize FlagStatus
 
 
+instance NFData Symbol
 instance NFData PointerBase
 instance NFData BotTyp
 instance NFData BotSrc

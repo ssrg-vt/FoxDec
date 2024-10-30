@@ -19,11 +19,11 @@ import Debug.Trace
 
 
 
-
+{--
 -- given a cfg, a node and the frontier, returns the SCC of the current node
 get_scc_without :: IntGraph g => g -> Int -> IS.IntSet -> IS.IntSet
 get_scc_without g v frontier =
- let sccs = scc_of g v frontier in
+ let sccs = scc_of g v $ intset_to_set frontier in
    case find (IS.member v) sccs of
      Nothing -> IS.empty
      Just scc -> scc
@@ -33,6 +33,7 @@ exits g scc =
   S.toList $ S.unions $ map exits_of $ IS.toList scc
  where
   exits_of v = S.fromList $ map (\n -> (v,n)) $ IS.toList (IS.difference (intgraph_post g v) scc)
+--}
 
 
 {--
@@ -73,7 +74,6 @@ is_reachable_from v v' = do
     modify $ IS.insert v'
     anyM (is_reachable_from v) (post g v')
     
-     --}
 
 
 
@@ -267,3 +267,4 @@ acode_lasts (ACode_While b rs) = concatMap last_while rs
 
 
 
+     --}

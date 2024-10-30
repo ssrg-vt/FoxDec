@@ -165,7 +165,7 @@ extra-deps:
 - language-c-0.9.3@sha256:3f3857a3fde8702cd1c268e9b754f889128b591b218dd23995dde96dfdad9e47,3787
 - alex-3.5.0.0@sha256:348778ae5f77f946e45b88c6c94b3a65c655954e5f07f6d7dfa6c99efde5248c,3886
 - happy-1.20.1.1@sha256:a381633c5e8f9e9e5a8e1900930ce13172397b4677fcfcc08cd38eb3f73b61b1,5811
-
+- tree-view-0.5.1@sha256:a32b16fdbe24ad21cb6679c2a925bcc7715ae5c5db0ae6b633e35e28e2fefd98,1184
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
