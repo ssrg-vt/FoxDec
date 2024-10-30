@@ -302,7 +302,6 @@ generate_NASM ctxt = do
   writeFile fname1 ts
   writeFile fname2 ds
   putStrLn $ "Generated NASM, exported to directory: " ++ dirname
---}
 
 
 generate_reconstruction :: Context -> IO ()
@@ -310,3 +309,4 @@ generate_reconstruction ctxt = do
   let name     = ctxt_name ctxt
 
   reconstruct ctxt 
+--}
