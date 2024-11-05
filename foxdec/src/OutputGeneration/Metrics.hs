@@ -56,7 +56,7 @@ metrics = M.fromList [
   ("#expectedInstructions",  "expected number of instructions"),
   ("%instructionCoverage",   "estimate of percentage of covered instructions"),
   ("#memWrites",             "total number of instructions writing to memory"),
-  ("pointerDesignations",    "A, C, C+U, U"),
+  ("pointerDesignations",    "B, C, S, U"),
   ("%resolvedMemWrites",     "percentage of pointers that are assigned a non-trivial domain"),
   ("specifityMetric",        "weighted mean of pointer designations"),
 
@@ -195,10 +195,10 @@ num_of_blocks g = IM.size $ cfg_blocks g
 num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
-mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SValue])] -> M.Map String Int
+mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SimpleExpr])] -> M.Map String Int
 mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction
  where
-  init_m = M.fromList [("U",0), ("C",0), ("C+U",0), ("A",0)]
+  init_m = M.fromList [("U",0), ("C",0), ("B",0), ("S",0)]
 
   get_specifity_per_instruction (entry,a,es) = map (get_domains entry) es
 
@@ -207,27 +207,24 @@ mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap
     let fctxt = mk_fcontext ctxt (fromIntegral entry) in
        get_pointer_specifity_cpointer fctxt e
 
-
 -- "C"     = Concrete
--- "C+U"   = Concrete plus unknown offset
+-- "B"     = Bases
+-- "S"     = Sources
 -- "U"     = Unknown
--- "A"     = Addends
-get_pointer_specifity_cpointer fctxt Top = "U"
-get_pointer_specifity_cpointer fctxt (SAddends es) = "A"
-get_pointer_specifity_cpointer fctxt (SConcrete es)
-  | any contains_rock_bottom es = "C+U"
-  | otherwise                   = "C"
- where
-  contains_rock_bottom e = contains_bot e && not (all_bot_satisfy (not . is_rock_bottom) e)
-  is_rock_bottom (FromCall "") = True
-  is_rock_bottom _             = False
+get_pointer_specifity_cpointer fctxt e
+  | not (contains_bot e) = "C"
+  | otherwise = 
+    case get_pointer_domain fctxt e of
+      Just (Domain_Bases _)   -> "B"
+      Just (Domain_Sources _) -> "S"
+      Nothing                 -> "U"
 
 percentageResolvedMemWrites :: M.Map String Double -> Double
-percentageResolvedMemWrites m = 100 - m M.! "U"
+percentageResolvedMemWrites m = 0 -- TODO 100 - m M.! "U"
 
 
 specifityMetricOf :: M.Map String Double -> Double
-specifityMetricOf m = m M.! "C" + 0.8*(m M.! "A") + 0.6*(m M.! "A")
+specifityMetricOf m = 0 -- TODO m M.! "C" + 0.8*(m M.! "A") + 0.6*(m M.! "A")
 
 
 

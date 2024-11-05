@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -35,9 +35,8 @@ library
       Analysis.Pointers
       Base
       Config
-      Data.JSON
-      Data.JSON_Taxonomy
       Data.JumpTarget
+      Data.Pred
       Data.SPointer
       Data.SValue
       Data.Symbol
@@ -52,12 +51,12 @@ library
       Generic.SymbolicPropagation
       Instantiation.BinaryElf
       Instantiation.BinaryMacho
+      Instantiation.MachineState
       Instantiation.SymbolicPropagation
       NASM.L0ToNASM
       NASM.NASM
       NASM.NASMToC
       OutputGeneration.CallGraph
-      OutputGeneration.JSON
       OutputGeneration.Metrics
       OutputGeneration.Retrieval
       Parser.ParserCalls
@@ -66,6 +65,7 @@ library
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction
+      Reconstruction.Reconstruction
       X86.Address
       X86.Conventions
       X86.Flag

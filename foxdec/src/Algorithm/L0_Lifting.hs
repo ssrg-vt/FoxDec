@@ -14,22 +14,23 @@ import Config
 import Analysis.Context
 import Analysis.FunctionNames
 import Analysis.ControlFlow
+import Analysis.Pointers
+
+import Data.Pred
 
 import Algorithm.SCC
 
 import Generic.Binary
 import Generic.SymbolicPropagation
-import Generic.SymbolicConstituents
 import Instantiation.SymbolicPropagation
+import Instantiation.MachineState
 
 import Data.JumpTarget
 import Data.SymbolicExpression
-import Data.SValue
 
 import Parser.ParserIndirections
 
 import OutputGeneration.Metrics
-import OutputGeneration.JSON
 import OutputGeneration.CallGraph
 
 -- import Pass.ACode_Gen
@@ -109,14 +110,8 @@ lift_to_L0 = do
           Just a  -> ctxt_run_entry a
 
   ctxt_finish_repeat = do
-    dangling_fptrs <- ctxt_find_dangling_function_pointers
     to_out $ "Done!"
-    when (dangling_fptrs /= []) $ do
-      to_out_r $ ""
-      to_out_r $ ""
-      to_out_r $ "Dangling function pointers found, which may point to function entries currently not analyzed."
-      to_out_r $ "These require manual analysis: if they correspond to real function entries, add them to the .entry file"
-      to_out_r $ show_dangling_function_pointers dangling_fptrs
+
 
 
 
@@ -184,28 +179,6 @@ lift_to_L0 = do
       repeat
 
 
-
-ctxt_find_dangling_function_pointers :: StateT Context IO [(Int,Int)]
-ctxt_find_dangling_function_pointers = do
-  ctxt <- get
-  let ptrs = concatMap mk_function_pointer (S.toList $ S.unions $ ctxt_vcs ctxt)
-  filterM is_dangling ptrs
- where
-  mk_function_pointer (FunctionPointers a ptrs) = map (pair (fromIntegral a)) $ IS.toList ptrs
-  mk_function_pointer _                         = []
-
-  is_dangling (a,ptr) = do
-    calls <- gets ctxt_calls
-    return $ IM.lookup ptr calls == Nothing
-    
-    
-show_dangling_function_pointers [] = ""
-show_dangling_function_pointers ((a,fptr):fptrs) = 
-  let (match,remaining) = partition does_match fptrs in
-    "Function pointer " ++ showHex fptr ++ " introduced at " ++ showHex_list (a : map fst  match) ++ "\n" ++ show_dangling_function_pointers remaining
- where
-  does_match (_,fptr') = fptr == fptr'
-  
 
 
 
@@ -292,7 +265,7 @@ ctxt_add_entry_edge a (trgt,finit) = do
   modify $ set_ctxt_posts   (IM.delete trgt $ ctxt_posts ctxt)
 
 
-ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Predicate),S.Set SStatePart)
+ctxt_get_curr_posts :: Int -> StateT Context IO (FInit,Invariants,S.Set (NodeInfo,Predicate),S.Set StatePart)
 ctxt_get_curr_posts entry = do
   finits <- gets ctxt_finits
   invs   <- gets ctxt_invs
@@ -312,7 +285,7 @@ ctxt_verify_proper_return entry = do
   fctxt           <- ctxt_mk_fcontext entry
   let vcs          = IM.lookup entry (ctxt_vcs ctxt) `orElse` S.empty
   (_,_,posts,_)   <- ctxt_get_curr_posts entry
-  all_checks      <- mapM (correct fctxt) $ filter (\(ni,q) -> ni /= Terminal) $ S.toList posts
+  all_checks      <- mapM (correct fctxt) $ filter (\(ni,q) -> ni == Normal) $ S.toList posts
 
   if S.null posts then
     return (VerificationError "time out reached")
@@ -329,31 +302,31 @@ ctxt_verify_proper_return entry = do
   -- A succesfull check returns Nothing, a verification error produces a "Just err" with an error-message
   correct :: FContext -> (NodeInfo,Predicate) -> StateT Context IO [Maybe String]
   correct fctxt (_,q) = do
-    return $ runIdentity $ evalStateT (do_post_check fctxt) (q,S.empty) 
+    return $ runIdentity $ evalStateT (do_post_check fctxt) q
 
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_post_check :: FContext -> State (Predicate,VCS) [Maybe String]
+  do_post_check :: FContext -> State Predicate [Maybe String]
   do_post_check fctxt = do
     let f   = function_name_of_entry (f_ctxt fctxt) (f_entry fctxt)
-    rsp    <- sread_reg fctxt RSP
-    rip    <- sread_reg fctxt RIP
-    checks <- return [] -- forM (delete RSP callee_saved_registers) (\r -> read_reg ctxt r >>= return . reg_check r) 
-    (s,_)  <- get
-    -- return $ [rsp_check fctxt f rsp, rip_check fctxt s f rip] ++ checks
-    return $ []
+    rsp    <- read_reg fctxt RSP
+    rip    <- read_reg fctxt RIP
+    checks <- return [] --forM (RSP callee_saved_registers) (\r -> read_reg fctxt r >>= return . reg_check fctxt r) 
+    s  <- get
+    return $ [rsp_check fctxt f rsp, rip_check fctxt s f rip] ++ checks
+    -- return $ []
 
   -- check: are all caller-saved-registers restored to their initial values?
   reg_check fctxt reg v =
-    case stry_deterministic fctxt v of
+    case try_deterministic fctxt v of
       -- REG == REG_0
       Just (SE_Var (SP_Reg reg)) -> Nothing
       _ -> Just $ "Verification error: " ++ show reg ++ " == " ++ show v
 
   -- check: is RSP restored to RSP_0 + 8 ?
-  rsp_check fctxt  f rsp = 
-    case stry_deterministic fctxt rsp of
+  rsp_check fctxt f rsp = 
+    case try_deterministic fctxt rsp of
       -- RSP == RSP_0 + 8
       Just (SE_Op Plus _ [SE_Var (SP_StackPointer f'), SE_Immediate 0x8]) -> if f == f' then Nothing else v_error rsp
       -- RSP == RSP_0 - 0xfffffffffffffff8
@@ -363,7 +336,7 @@ ctxt_verify_proper_return entry = do
 
   -- check: is RIP set to the value originally stored at the top of the stack frame?
   rip_check fctxt  s f rip = 
-    case stry_deterministic fctxt rip of
+    case try_deterministic fctxt rip of
       -- RIP == *[RSP_0,8]
       Just (SE_Var (SP_Mem (SE_Var (SP_StackPointer f)) 8)) -> Nothing
       e -> Just $ "Verification error: RIP == " ++ show rip ++ "\nState: " ++ show s 
@@ -573,7 +546,7 @@ ctxt_mk_fcontext entry = do
   ctxt <- get
   return $ mk_fcontext ctxt entry
 
-ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Predicate) -> S.Set SStatePart -> StateT Context IO ()
+ctxt_generate_invs :: Int -> Invariants -> S.Set (NodeInfo,Predicate) -> S.Set StatePart -> StateT Context IO ()
 ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
   -- Generate invariants
   ctxt  <- get
@@ -589,7 +562,7 @@ ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
 
   -- let a       = acode_simp $ cfg_to_acode g 0 IS.empty
   g          <- gets (fromJust . IM.lookup entry . ctxt_cfgs)
-  let p       = init_pred fctxt f curr_invs curr_posts curr_sps
+  let p       = init_pred fctxt curr_invs curr_posts 
 
   result  <- liftIO (timeout get_max_time $ return $! do_prop fctxt g 0 p) -- TODO always 0?
 
@@ -599,24 +572,24 @@ ctxt_generate_invs entry curr_invs curr_posts curr_sps = do
       ctxt_add_invariants entry finit IM.empty S.empty S.empty S.empty
     Just (invs,vcs) -> do
       let blocks  = IM.keys $ cfg_blocks g
-      postss     <- catMaybes <$> mapM (get_post fctxt g invs) blocks
-      let posts   = S.fromList $ map fst postss
-      let vcs'    = S.unions $ map snd postss 
-      ctxt_add_invariants entry finit invs posts (S.union vcs vcs') (S.union curr_sps $ gather_stateparts invs posts)
+      posts     <- S.fromList <$> catMaybes <$> mapM (get_post fctxt g invs) blocks
+      ctxt_add_invariants entry finit invs posts vcs (S.union curr_sps $ gather_stateparts invs posts)
  where
-  get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Predicate),VCS))
+  get_post :: FContext -> CFG -> Invariants -> Int -> StateT Context IO (Maybe ((NodeInfo,Predicate)))
   get_post fctxt g invs b = do
     let ctxt = f_ctxt fctxt
     if is_end_node g b then do
-      let (q,vcs') = runIdentity $ execStateT (do_tau fctxt g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b, S.empty)
-      return $ Just ((node_info_of ctxt g b,q),vcs')
+      let q = execState (do_tau fctxt g b) (im_lookup ("B.) Block " ++ show b ++ " in invs") invs b)
+      return $ Just (node_info_of ctxt g b,q)
     else
       return $ Nothing
 
   -- do one more tau-transformation on the node, as the stored invariant is a 
   -- precondition (not a postcondition) of the node.
-  do_tau :: FContext -> CFG -> Int -> State (Predicate,VCS) ()
-  do_tau fctxt g b = modify $ (tau fctxt (fetch_block g b) Nothing . fst)
+  do_tau :: FContext -> CFG -> Int -> State Predicate ()
+  do_tau fctxt g b = do
+    (s',_) <- gets (tau fctxt (fetch_block g b) Nothing)
+    put s'
 
 
 
@@ -685,13 +658,13 @@ ctxt_analyze_unresolved_indirections entry = do
 
     let i                 = last (fetch_block g b)
     let [trgt]            = Instr.srcs i
-    let p                 = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
+    let p@(Predicate _ flgs) = im_lookup ("A.) Block " ++ show b ++ " in invs") invs b
 
 
-    case flagstatus_to_tries max_tries (sflags p) of
+    case flagstatus_to_tries max_tries flgs of
       Nothing -> try_to_resolve_from_invariant fname f g b p i trgt
       Just (op1,n) -> do
-        let values1 = map (\n -> evalSstate (try fctxt f (addressof i) g b op1 trgt n) (clean_sstate fctxt p)) [0..n]
+        let values1 = map (\n -> evalState (try fctxt f (addressof i) g b op1 trgt n) (clean_sstate fctxt p)) [0..n]
         if values1 == [] || any ((==) Nothing) values1 then
           try_to_resolve_from_invariant fname f g b p i trgt
         else if all is_jump_table_entry values1 then do
@@ -699,7 +672,7 @@ ctxt_analyze_unresolved_indirections entry = do
           to_out $ "Resolved indirection at block " ++ show b
           to_out $ "Instruction = " ++ show i
           to_out $ "Operand " ++ show trgt ++ " evaluates to: " ++ showHex_list (nub trgts)
-          to_out $ "Because of bounded jump table access: " ++ show (sflags p)
+          to_out $ "Because of bounded jump table access: " ++ show flgs
           to_out $ "Updated file: " ++ fname
 
           inds <- gets ctxt_inds
@@ -720,7 +693,7 @@ ctxt_analyze_unresolved_indirections entry = do
   try_to_resolve_from_invariant fname f g b p i trgt = do
     ctxt <- get
     fctxt <- ctxt_mk_fcontext entry
-    let values0 = evalSstate (try' fctxt f g b trgt) p
+    let values0 = evalState (try' fctxt f g b trgt) p
     if values0 /= Nothing then do
       let value = fromJust values0
       to_out $ "Resolved indirection at block " ++ show b
@@ -752,20 +725,35 @@ ctxt_analyze_unresolved_indirections entry = do
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
   try fctxt f i_a g blockId op1 trgt n = do
-    swrite_operand fctxt False op1 (simmediate fctxt n)
+    write_operand fctxt op1 (SE_Immediate n)
     try' fctxt f g blockId trgt
 
   try' fctxt f g blockId trgt = do
     let ctxt   = f_ctxt fctxt
     let instrs = fetch_block g blockId
-    modify $ (sexec_block fctxt (init instrs) Nothing . fst)
-    sset_rip fctxt (last instrs)
-    val <- sread_operand fctxt "indirection resolving" trgt
-    return $ stry_jump_targets fctxt val
+    (s',_) <- gets (tau_block fctxt (init instrs) Nothing)
+    put s'
+    set_rip fctxt (last instrs)
+    val <- read_operand fctxt trgt
+    case val of
+      e@(SE_Immediate a)                 -> if expr_is_global_immediate ctxt e then return $ Just $ S.singleton $ ImmediateAddress a else return Nothing
+      Bottom (FromNonDeterminism es)     -> return $ if all (expr_highly_likely_pointer fctxt) es then Just $ S.map (mk_resolved_jump_target ctxt) es else Nothing
+      SE_Var (SP_Mem (SE_Immediate a) _) -> case find_external_symbol_for_address ctxt a of
+                                              Just sym -> return $ Just $ S.singleton $ External sym 
+                                              Nothing  -> return $ Nothing
+      e                                  -> return $ Nothing
+
+  mk_resolved_jump_target ctxt (SE_Immediate a)                     = ImmediateAddress a
+  mk_resolved_jump_target ctxt (SE_Var (SP_Mem (SE_Immediate a) _)) = case find_external_symbol_for_address ctxt a of
+                                                                        Just sym -> External sym 
+                                                                        Nothing  -> error $ show ("indirections", showHex a)
+  mk_resolved_jump_target ctxt a                                    = error $ show ("resolving", a)
 
 
 
-  clean_sstate fctxt (Sstate sregs smem fs) = Sstate sregs (clean_smem fctxt smem) fs
-  clean_smem fctxt = M.filterWithKey (\(a,si) v -> stry_deterministic fctxt v /= Nothing && not (has_unknown_offset a))
+
+  clean_sstate fctxt (Predicate p fs) = Predicate (M.filter (not . contains_bot) p) fs
+
+
 
 

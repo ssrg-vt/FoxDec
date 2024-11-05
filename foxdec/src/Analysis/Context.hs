@@ -20,6 +20,7 @@ import Data.JumpTarget
 import Data.SymbolicExpression
 import Data.SValue
 import Data.Symbol
+import Data.Pred
 
 import Generic.Binary
 import Generic.SymbolicConstituents
@@ -31,7 +32,6 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set.NonEmpty as NES
 
 
 import Data.List ( find, intercalate )
@@ -148,8 +148,6 @@ data VerificationResult =
   deriving (Eq, Generic)
 
 
--- | Predicates: symbolic states
-type Predicate = Sstate SValue SPointer
 
 
 -- | Invariants: a mapping of blockIDs to predicates
@@ -172,17 +170,14 @@ type Postconditions = S.Set (NodeInfo,Predicate)
 
 -- | An abstract domain for pointers
 data PointerDomain =
-    Domain_Bases    (NES.NESet PointerBase)  -- a non-empty set of bases
-  | Domain_Sources  (NES.NESet BotSrc)       -- a possibly empty set of sources
+    Domain_Bases    (S.Set PointerBase)  -- a non-empty set of bases
+  | Domain_Sources  (S.Set BotSrc)       -- a possibly empty set of sources
   deriving (Generic,Eq,Ord)
 
 
 
--- | A function initialisation consists of a mapping of registers to symbolic pointers TODO
-data MemRelation = Separate | Aliassing | Unknown
-  deriving (Generic,Eq,Ord,Show)
-data FInit = FInit (S.Set (StatePart,Maybe SValue)) (M.Map (SStatePart,SStatePart) MemRelation)
-  deriving (Generic,Eq,Ord)
+type FInit = M.Map StatePart SimpleExpr
+
 
 -- | A function call 
 data FReturnBehavior =
@@ -192,11 +187,7 @@ data FReturnBehavior =
  deriving (Show,Generic,Eq,Ord)
 
 
--- | A symbolic state part
-data SStatePart =
-    SSP_Reg Register -- ^ A register
-  | SSP_Mem SPointer Int
- deriving (Show,Generic,Eq,Ord)
+
 
 
 
@@ -223,7 +214,7 @@ data Context_ = Context_ {
    ctxt__calls         :: !(IM.IntMap FReturnBehavior),    -- ^ __D__: the currently known and verified entry addresses of functions mapped to return-information
    ctxt__invs          :: !(IM.IntMap Invariants),         -- ^ __D__: the currently known invariants
    ctxt__posts         :: !(IM.IntMap Postconditions),     -- ^ __D__: the currently known postconditions
-   ctxt__stateparts    :: !(IM.IntMap (S.Set SStatePart)), -- ^ __D__: the state parts read from/written to be the function
+   ctxt__stateparts    :: !(IM.IntMap (S.Set StatePart)),  -- ^ __D__: the state parts read from/written to be the function
    ctxt__inds          :: !Indirections,                   -- ^ __D__: the currently known indirections
    ctxt__finits        :: !(IM.IntMap FInit),              -- ^ __D__: the currently known function initialisations
    ctxt__vcs           :: !(IM.IntMap VCS),                -- ^ __D__: the verification conditions
@@ -284,16 +275,14 @@ instance Cereal.Serialize JumpTable
 instance Cereal.Serialize SymbolTable
 instance Cereal.Serialize Indirection
 instance Cereal.Serialize Relocation
-instance Cereal.Serialize MemRelation 
-instance Cereal.Serialize FInit
 instance Cereal.Serialize CFG
 instance Cereal.Serialize FReturnBehavior
 instance Cereal.Serialize VerificationCondition
 instance Cereal.Serialize PointerDomain
 instance Cereal.Serialize SectionsInfo
-instance Cereal.Serialize SStatePart
 instance Cereal.Serialize NodeInfo
 instance Cereal.Serialize Context_
+
 
 
 instance NFData VerificationResult
@@ -302,19 +291,17 @@ instance NFData JumpTable
 instance NFData SymbolTable
 instance NFData Indirection
 instance NFData Relocation
-instance NFData MemRelation 
-instance NFData FInit
+instance NFData Predicate
 instance NFData CFG
 instance NFData FReturnBehavior
 instance NFData VerificationCondition
 instance NFData PointerDomain
 instance NFData SectionsInfo
-instance NFData SStatePart
 instance NFData NodeInfo
 instance NFData Context_
 
 -- | intialize an empty context based on the command-line parameters
-init_finit = FInit S.empty M.empty
+init_finit = M.empty
 init_context binary ioref config verbose dirname name =
   let !sections = binary_get_sections_info binary
       !symbols  = binary_get_symbols binary
@@ -438,20 +425,14 @@ pp_instruction ctxt i =
 
 
 instance Show PointerDomain where
-  show (Domain_Bases bs)     = "[" ++ intercalate "," (map show $ neSetToList bs) ++ "]_B"
-  show (Domain_Sources srcs) = "[" ++ intercalate "," (map show $ neSetToList srcs) ++ "]_S"
+  show (Domain_Bases bs)     = "[" ++ intercalate "," (map show $ S.toList bs) ++ "]_B"
+  show (Domain_Sources srcs) = "[" ++ intercalate "," (map show $ S.toList srcs) ++ "]_S"
 
 
 -- | Show function initialisation
-instance Show FInit where
- show (FInit sps m) = intercalate "\n" $ filter ((/=) []) $ 
-  [ "Stateparts:" 
-  , intercalate ", " $ map (show . fst) $ S.toList $ S.filter (((==) Nothing) . snd) sps
-  , intercalate "\n" $ map show_sp $ S.toList $ S.filter (((/=) Nothing) . snd) sps
-  , intercalate "\n" $ map show_entry $ M.toList m ]
+show_finit m = intercalate "\n" $ map show_entry $ M.toList m
   where
-    show_sp (sp,Just v)    = show sp ++ " == " ++ show v
-    show_entry ((sp0,sp1),r) = show (sp0,sp1) ++ ": " ++ show r
+    show_entry (sp,e) = show sp ++ ": " ++ show e
 
 
 

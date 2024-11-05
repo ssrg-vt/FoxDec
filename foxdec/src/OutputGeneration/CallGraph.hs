@@ -26,7 +26,6 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set.NonEmpty as NES
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.List.Extra (groupSort)
@@ -41,8 +40,8 @@ mk_callgraph ctxt =
     callgraph_to_dot ctxt g fptrs
 
 
-pp_bot (Bottom (FromSources srcs))    = if NES.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ neSetToList srcs)
-pp_bot (Bottom (FromPointerBases bs)) = if NES.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ neSetToList bs)
+pp_bot (Bottom (FromSources srcs))    = if S.size srcs > 5 then "Bot" else intercalate "," (map pp_source $ S.toList srcs)
+pp_bot (Bottom (FromPointerBases bs)) = if S.size bs   > 5 then "Bot" else intercalate "," (map pp_base $ S.toList bs)
 pp_bot e                              = pp_expr e
 
 pp_base (StackPointer f)      = "StackPointer of " ++ f
@@ -61,8 +60,8 @@ pp_statepart (SP_Mem a si)       = "[" ++ pp_bot a ++ "," ++ show si ++ "]"
 pp_statepart (SP_StackPointer f) = "StackPointer of " ++ f
 pp_statepart (SP_Reg r)          = show r
 
-pp_dom (Domain_Bases bs)     = intercalate "," (map pp_base $ neSetToList bs)
-pp_dom (Domain_Sources srcs) = intercalate "," (map pp_source $ neSetToList srcs)
+pp_dom (Domain_Bases bs)     = intercalate "," (map pp_base $ S.toList bs)
+pp_dom (Domain_Sources srcs) = intercalate "," (map pp_source $ S.toList srcs)
 
 -- | Summarize preconditions
 summarize_preconditions get_info show_e vcs =

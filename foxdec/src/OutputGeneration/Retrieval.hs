@@ -7,12 +7,14 @@ import Base
 
 import Data.SValue
 import Data.SymbolicExpression
+import Data.Pred
 
 import Analysis.Context
 import Analysis.Pointers 
 import Analysis.ControlFlow
 
-import Instantiation.SymbolicPropagation (get_invariant)
+import Instantiation.SymbolicPropagation (get_invariant,set_rip)
+import Instantiation.MachineState
 
 import Generic.SymbolicConstituents
 import Generic.HasSize (HasSize(sizeof))
@@ -124,7 +126,7 @@ ctxt_get_inv ctxt a = do
 --   entry is the entry address of the function of the instruction,
 --   addr is the address of the instruction
 --   ptrs is a list of symbolic pointers for each operand (or Nothing if not a memory-operand)
-ctxt_resolve_mem_operands :: Context -> [(Word64,Word64, [Maybe SValue])]
+ctxt_resolve_mem_operands :: Context -> [(Word64,Word64, [Maybe SimpleExpr])]
 ctxt_resolve_mem_operands ctxt = 
   let entries = ctxt_get_function_entries ctxt
       cfgs    = map (\entry -> (entry,IM.lookup entry $ ctxt_cfgs ctxt)) $ S.toList entries
@@ -138,7 +140,7 @@ ctxt_resolve_mem_operands ctxt =
   resolve entry i (Memory a si) = 
     let fctxt   = mk_fcontext ctxt entry
         Just p  = get_invariant fctxt (fromIntegral $ addressof i)
-        ptr     = evalState (sset_rip fctxt i >> sresolve_address fctxt a) (p,S.empty) in
+        ptr     = evalState (set_rip fctxt i >> read_operand fctxt (EffectiveAddress a)) p in
       --(if ptr == Top then trace ("TOP(U): " ++ show i ++ "\n" ++ show p) else id) $ Just ptr
       Just ptr
   resolve entry i _ = Nothing

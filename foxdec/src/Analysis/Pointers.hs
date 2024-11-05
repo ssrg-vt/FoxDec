@@ -22,7 +22,6 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import qualified Data.Set.NonEmpty as NES
 import Data.Int (Int64)
 
 import Data.List
@@ -187,7 +186,16 @@ necessarily_enclosed a0 si0 a1 si1 =
     | otherwise = False
 
 
+-- | Returns true iff the given symbolic stateparts are necessarily equal.
+necessarily_equal_stateparts (SP_Reg r0) (SP_Reg r1) = r0 == r1
+necessarily_equal_stateparts (SP_Mem a0 si0) (SP_Mem a1 si1) = si0 == si1 && necessarily_equal a0 a1
+necessarily_equal_stateparts _ _ = False
 
+
+-- | Returns true iff the given symbolic stateparts are necessarily separate.
+necessarily_separate_stateparts ctxt (SP_Reg r0)     (SP_Reg r1)     = r0 /= r1
+necessarily_separate_stateparts ctxt (SP_Mem a0 si0) (SP_Mem a1 si1) = necessarily_separate_expressions a0 si0 a1 si1
+necessarily_separate_stateparts _    _               _               = True
 
 
 -- * Pointer Domains
@@ -206,7 +214,7 @@ get_pointer_domain ::
 get_pointer_domain ctxt e =
   let bs  = get_pointer_base_set ctxt e in
     if not (S.null bs) then --  && S.size bs <= get_max_num_of_bases then
-      Just $ Domain_Bases $ NES.unsafeFromSet bs
+      Just $ Domain_Bases bs
     else let srcs = srcs_of_expr ctxt e in
       --if NES.size srcs <= get_max_num_of_sources then
         Just $ Domain_Sources srcs
@@ -219,7 +227,7 @@ get_pointer_domain ctxt e =
 
 
 get_pointer_base_set :: FContext -> SimpleExpr -> S.Set PointerBase
-get_pointer_base_set ctxt (Bottom (FromNonDeterminism es)) = S.unions $ S.map (get_pointer_base_set ctxt) $ NES.toSet es -- TODO non-empty union?
+get_pointer_base_set ctxt (Bottom (FromNonDeterminism es)) = S.unions $ S.map (get_pointer_base_set ctxt) $ es -- TODO non-empty union?
 get_pointer_base_set ctxt (SE_Op Plus _ es)                = S.unions $ S.map (get_pointer_base_set ctxt) $ S.fromList es
 get_pointer_base_set ctxt (SE_Op Minus _ (e:es))           = get_pointer_base_set ctxt e
 get_pointer_base_set ctxt (SE_Op And _ [e,SE_Immediate _]) = get_pointer_base_set ctxt e
@@ -236,7 +244,7 @@ get_pointer_base_set ctxt e                                = get_pointer_base e
   get_pointer_base (SE_Var (SP_StackPointer f))         = S.singleton $ StackPointer f
   get_pointer_base (SE_Var sp)                          = (statepart_to_pointerbase sp)
   get_pointer_base (SE_Malloc id hash)                  = S.singleton $ Malloc id hash
-  get_pointer_base (Bottom (FromPointerBases bs))       = NES.toSet bs
+  get_pointer_base (Bottom (FromPointerBases bs))       = bs
   get_pointer_base e                                    = S.empty
 
 
@@ -259,15 +267,15 @@ separate_pointer_domains ctxt a0 a1 =
     (separate_domains True dom0 dom1, separate_domains False dom0 dom1)
  where
   separate_domains True (Just (Domain_Bases bs0)) (Just (Domain_Bases bs1)) = 
-    all (uncurry $ pointer_bases_separate ctxt True) [(b0,b1) | b0 <- neSetToList bs0, b1 <- neSetToList bs1]
+    all (uncurry $ pointer_bases_separate ctxt True) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
   separate_domains False (Just (Domain_Bases bs0)) (Just (Domain_Bases bs1)) = 
-    NES.disjoint bs0 bs1 && any (uncurry $ pointer_bases_separate ctxt False) [(b0,b1) | b0 <- neSetToList bs0, b1 <- neSetToList bs1]
+    S.disjoint bs0 bs1 && any (uncurry $ pointer_bases_separate ctxt False) [(b0,b1) | b0 <- S.toList bs0, b1 <- S.toList bs1]
 
   separate_domains necc dom0 dom1 =
     let srcs0 = sources_of_domain dom0 a0
         srcs1 = sources_of_domain dom1 a1 in
       if necc then
-        all (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- neSetToList srcs0, src1 <- neSetToList srcs1]
+        all (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0, src1 <- S.toList srcs1]
       else
         source_sets_separate ctxt necc srcs0 srcs1
 
@@ -333,56 +341,57 @@ get_pointer_bases ctxt e =
 
 -- * Pointer sources
 srcs_of_expr ctxt (Bottom typ)                 = srcs_of_bottyp ctxt typ
-srcs_of_expr ctxt (SE_Malloc id h)             = NES.singleton $ Src_Malloc id h
-srcs_of_expr ctxt (SE_Var (SP_StackPointer f)) = NES.singleton $ Src_StackPointer f
-srcs_of_expr ctxt (SE_Var sp)                  = NES.singleton $ Src_Var sp
+srcs_of_expr ctxt (SE_Malloc id h)             = S.singleton $ Src_Malloc id h
+srcs_of_expr ctxt (SE_Var (SP_StackPointer f)) = S.singleton $ Src_StackPointer f
+srcs_of_expr ctxt (SE_Var sp)                  = S.singleton $ Src_Var sp
 --srcs_of_expr ctxt (SE_StatePart sp)            = S.empty 
-srcs_of_expr ctxt (SE_Op _ _ es)               = NES.unions $ NES.map (srcs_of_expr ctxt) $ NES.unsafeFromSet $ S.fromList es
+srcs_of_expr ctxt (SE_Op _ _ es)               = S.unions $ S.map (srcs_of_expr ctxt) $ S.fromList es
 srcs_of_expr ctxt (SE_Bit i e)                 = srcs_of_expr ctxt e
 srcs_of_expr ctxt (SE_SExtend _ _ e)           = srcs_of_expr ctxt e
-srcs_of_expr ctxt (SE_Overwrite _ a b)         = NES.unions $ NES.map (srcs_of_expr ctxt) $ NES.unsafeFromSet $ S.fromList [a,b]
+srcs_of_expr ctxt (SE_Overwrite _ a b)         = S.unions $ S.map (srcs_of_expr ctxt) $ S.fromList [a,b]
 srcs_of_expr ctxt e@(SE_Immediate i)           = 
   if address_has_external_symbol (f_ctxt ctxt) $ fromIntegral i then
-    NES.singleton $ Src_ImmediateAddress i
+    S.singleton $ Src_ImmediateAddress i
   else case find_section_for_address (f_ctxt ctxt) $ fromIntegral i of
-    Just (_,_,a0,_,_) -> NES.singleton $ Src_ImmediateAddress a0
-    Nothing  -> NES.singleton $ Src_ImmediateConstants
+    Just (_,_,a0,_,_) -> S.singleton $ Src_ImmediateAddress a0
+    Nothing  -> S.empty
+
+-- | Returns the set of sources (state parts used to compute the expression) of two expressions.
+srcs_of_exprs ctxt es = S.unions $ map (srcs_of_expr ctxt) es 
+
 
 -- | Returns the set of sources of the bottom type
-srcs_of_bottyp ctxt (FromNonDeterminism es)        = NES.unions $ NES.map (srcs_of_expr ctxt) es
-srcs_of_bottyp ctxt (FromPointerBases bs)          = NES.unions $ NES.map (srcs_of_base ctxt) bs
+srcs_of_bottyp ctxt (FromNonDeterminism es)        = S.unions $ S.map (srcs_of_expr ctxt) es
+srcs_of_bottyp ctxt (FromPointerBases bs)          = S.unions $ S.map (srcs_of_base ctxt) bs
 srcs_of_bottyp ctxt (FromSources srcs)             = srcs
 srcs_of_bottyp ctxt (FromBitMode srcs)             = srcs
 srcs_of_bottyp ctxt (FromOverlap srcs)             = srcs
 srcs_of_bottyp ctxt (FromSemantics srcs)           = srcs
 srcs_of_bottyp ctxt (FromMemWrite srcs)            = srcs
 srcs_of_bottyp ctxt (FromUninitializedMemory srcs) = srcs
-srcs_of_bottyp ctxt (FromCall f)                   = NES.singleton $ Src_Function f
+srcs_of_bottyp ctxt (FromCall f)                   = S.singleton $ Src_Function f
 
 -- | Returns the set of sources of the pointerbase
-srcs_of_base ctxt (StackPointer f)        = NES.singleton $ Src_StackPointer f
-srcs_of_base ctxt (Malloc id h)           = NES.singleton $ Src_Malloc id h
+srcs_of_base ctxt (StackPointer f)        = S.singleton $ Src_StackPointer f
+srcs_of_base ctxt (Malloc id h)           = S.singleton $ Src_Malloc id h
 srcs_of_base ctxt (GlobalAddress a)       = srcs_of_expr ctxt $ SE_Immediate a
--- srcs_of_base ctxt (BaseIsSymbol a sym) = NES.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
-srcs_of_base ctxt ThreadLocalStorage      = NES.singleton $ Src_Var $ SP_Reg FS
+srcs_of_base ctxt (BaseIsSymbol sym)      = S.empty-- TODOS.singleton $ Src_Var $ SP_Mem (SE_Immediate a) 8
+srcs_of_base ctxt ThreadLocalStorage      = S.singleton $ Src_Var $ SP_Reg FS
 
 
 
 
-is_src_mem (Src_Mem srcs) = True
-is_src_mem _              = False
 
 source_sets_separate ctxt necc srcs0 srcs1 = 
- let srcs0' = S.delete Src_ImmediateConstants $ NES.toSet srcs0
-     srcs1' = S.delete Src_ImmediateConstants $ NES.toSet srcs1
-     (ms0,srcs0'') = S.partition is_src_mem srcs0'
-     (ms1,srcs1'') = S.partition is_src_mem srcs1' in
-   not (S.null srcs0')
+ let  --(ms0,srcs0'') = S.partition is_src_mem srcs0'
+     --(ms1,srcs1'') = S.partition is_src_mem srcs1' in
+     in
+   not (S.null srcs0)
    &&
-   not (S.null srcs1')
+   not (S.null srcs1)
    &&
    (
-     (S.disjoint srcs0'' srcs1'' && any (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0'', src1 <- S.toList srcs1''])
+     (S.disjoint srcs0 srcs1 && any (uncurry $ sources_separate ctxt necc) [(src0,src1) | src0 <- S.toList srcs0, src1 <- S.toList srcs1])
  --  ||
  --    (not (S.null ms0) && not (S.null ms1) && all (\src0 -> all (\src1 -> sources_separate ctxt necc src0 src1) ms1) ms0)
    )
@@ -390,12 +399,10 @@ source_sets_separate ctxt necc srcs0 srcs1 =
 
 -- | Two sources are inputs for separate pointers if, e.g., one of them is the stackpointer and the other a malloc-return-value.
 sources_separate :: FContext -> Bool -> BotSrc -> BotSrc -> Bool
-sources_separate ctxt necc (Src_Mem a0s) (Src_Mem a1s)         = source_sets_separate ctxt necc a0s a1s
 sources_separate ctxt necc (Src_Function f0) (Src_Function f1) = not necc && f0 /= f1
 sources_separate ctxt necc (Src_Function f0) _                 = not necc 
 sources_separate ctxt necc _                 (Src_Function f1) = not necc 
 sources_separate ctxt necc src0 src1
-  | src0 == Src_ImmediateConstants || src1 == Src_ImmediateConstants = True
   | otherwise =
       case (src_to_base src0, src_to_base src1) of
         (Just b0,Just b1)           -> pointer_bases_separate ctxt necc b0 b1
@@ -415,4 +422,109 @@ sources_separate ctxt necc src0 src1
 
 sources_separate_necessarily ctxt = sources_separate ctxt True
 sources_separate_possibly    ctxt = sources_separate ctxt False
+
+
+
+
+
+-- * Joining
+rock_bottom = Bottom $ FromSources S.empty
+
+-- | Given a set of expressions, produce an expression that resembles the join of the entire set.
+-- That is, the produced expression should be coarser than the disjunction of all input-expressions.
+--
+--   (1) First, just use non-determinism, i.e., @a join b@ becomes @{a,b}@. This is precise, but doesn't guarantee termination.
+--   (2) If step 1 produces too many cases, join based on known pointerbases. This requires all given expressions to have known pointerbases.
+--   (3) If step 2 produces too many bases, or the given expressions have no known pointerbases, join bsed on sources.
+--   (4) If step 3 produces too many sources, just produces 'rock_bottom'.
+--
+--
+-- TODO: joining immediates
+join_exprs' :: String -> FContext -> [SimpleExpr] -> SimpleExpr
+join_exprs' msg ctxt es = 
+  let es' = S.unions $ map (S.fromList . unfold_non_determinism ctxt) es in
+    if S.size es' == 0 then
+      rock_bottom
+    else if S.size es' == 1 then
+      head $ S.toList es'  
+    else if S.size es' <= get_max_num_of_cases && all (not . contains_bot) es' then
+      Bottom (FromNonDeterminism es')
+    else if rock_bottom `S.member` es' then
+      rock_bottom
+    else let bss = S.map (nothing_to_empty . get_pointer_bases ctxt) es'
+             bs  = S.unions bss in
+      if S.size bs <= get_max_num_of_bases && all (not . S.null) bss then
+        Bottom (FromPointerBases bs)
+      else
+        let srcs = S.unions $ S.map (srcs_of_expr ctxt) es' in
+          if S.null srcs then
+            rock_bottom
+          else if S.size srcs <= get_max_num_of_sources then
+            Bottom (FromSources srcs)
+          else
+            {--trace ("Hitting max num of sources: " ++ show get_max_num_of_sources)--} rock_bottom
+ where
+  get_max_num_of_cases   = ctxt_max_num_of_cases $ f_ctxt ctxt
+  get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
+  get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
+
+  nothing_to_empty Nothing   = S.empty
+  nothing_to_empty (Just bs) = bs
+
+join_exprs msg ctxt es = 
+  let e = join_exprs' msg ctxt es in
+    e
+--    if expr_is_possibly_local_pointer ctxt e && any (not . expr_is_possibly_local_pointer ctxt) es then traceShow ("joining: ",msg,es,e) e else e
+--    if S.size (srcs_of_expr e) == 0 && all (\e -> S.size (srcs_of_expr e) > 0) es && es /= [] then traceShow ("joining: ",es,e, S.size $ srcs_of_exprs es) e else e 
+--    if all (\e' -> S.size (srcs_of_expr ctxt e') < S.size (srcs_of_expr ctxt e)) es && es /= [] then traceShow ("joining: ",msg,es,e, S.size $ srcs_of_exprs ctxt es) e else e 
+
+
+-- | Abstraction for a single expression, even if the expression is concrete.
+join_single :: FContext -> SimpleExpr -> SimpleExpr
+join_single ctxt e =
+  case get_pointer_bases ctxt e of
+    Nothing -> join_sources
+    Just bs -> if not (S.null bs) && S.size bs <= get_max_num_of_bases then Bottom (FromPointerBases bs) else join_sources
+ where
+  get_max_num_of_bases   = ctxt_max_num_of_bases $ f_ctxt ctxt
+  get_max_num_of_sources = ctxt_max_num_of_sources $ f_ctxt ctxt
+
+  join_sources =
+    let srcs = srcs_of_expr ctxt e in 
+      if S.null srcs then
+        rock_bottom
+      else if S.size srcs <= get_max_num_of_sources then
+        Bottom (FromSources srcs)
+      else
+        {--trace ("Hitting max num of sources: " ++ show get_max_num_of_sources) --} rock_bottom
+
+
+
+
+-- | Unfold an expression with non-determinisism to a list of expressions.
+-- Keep an eye on the produced size, as this may cause blow-up.
+unfold_non_determinism :: FContext -> SimpleExpr -> [SimpleExpr]
+unfold_non_determinism ctxt (Bottom (FromNonDeterminism es)) = S.toList es
+unfold_non_determinism ctxt (SE_Op op si es)                 = 
+  let es' = map (unfold_non_determinism ctxt) es in
+    if crossProduct_size es' > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else map (SE_Op op si) $ crossProduct es'
+unfold_non_determinism ctxt (SE_Bit b e)                     = map (SE_Bit b) $ (unfold_non_determinism ctxt) e
+unfold_non_determinism ctxt (SE_SExtend l h e)               = map (SE_SExtend l h) $ (unfold_non_determinism ctxt) e
+unfold_non_determinism ctxt (SE_Overwrite l a b)             = 
+  let as = unfold_non_determinism ctxt a
+      bs = unfold_non_determinism ctxt b in
+    if crossProduct_size [as,bs] > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else [ SE_Overwrite l a' b' | a' <- as, b' <- bs ]
+unfold_non_determinism ctxt e                                = [e]
+
+
+
+-- | If the size of an expression becomes too large, we simply turn it into Bottom.
+trim_expr ctxt e =
+  if expr_size e > get_max_expr_size then 
+    {--trace ("Hitting expr_size limit of " ++ show get_max_expr_size ++ ".")--} rock_bottom -- Bottom (FromSources $ srcs_of_expr e)
+  else
+    e
+ where
+  get_max_expr_size = ctxt_max_expr_size $ f_ctxt ctxt
+
 

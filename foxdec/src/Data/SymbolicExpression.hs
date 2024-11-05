@@ -42,7 +42,6 @@ import Data.Symbol
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
-import qualified Data.Set.NonEmpty as NES
 
 import Generic.HasSize (sizeof)
 
@@ -78,16 +77,15 @@ data PointerBase =
 -- The latter  six are all equal, we just use them for debugging and information.
 -- They indicate that the  value is unknown, but was computed using the set of sources.
 data BotTyp = 
-    FromNonDeterminism (NES.NESet SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
-  | FromPointerBases (NES.NESet PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
+    FromNonDeterminism (S.Set SimpleExpr)   -- ^ The expression evaluates to one of the expressions in the set
+  | FromPointerBases (S.Set PointerBase)    -- ^ The expression is a pointer-computation with known base(s)
   | FromCall String                             -- ^ Return value of a function call
-  | FromSources (NES.NESet BotSrc)              -- ^ The expression is some computation based on sources.
-  | FromOverlap (NES.NESet BotSrc)              -- ^ A read from two possibly overlapping regions
-  | FromMemWrite (NES.NESet BotSrc)             -- ^ A write to two possibly overlapping regions 
-  | FromSemantics (NES.NESet BotSrc)            -- ^ An instruction with unknown semantics
-  | FromBitMode (NES.NESet BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
-  | FromUninitializedMemory (NES.NESet BotSrc)  -- ^ Reading from memory not written to yet
-  | RockBottom
+  | FromSources (S.Set BotSrc)              -- ^ The expression is some computation based on sources.
+  | FromOverlap (S.Set BotSrc)              -- ^ A read from two possibly overlapping regions
+  | FromMemWrite (S.Set BotSrc)             -- ^ A write to two possibly overlapping regions 
+  | FromSemantics (S.Set BotSrc)            -- ^ An instruction with unknown semantics
+  | FromBitMode (S.Set BotSrc)              -- ^ Should not happen, but if a register writes to a registeralias with unknown bit size
+  | FromUninitializedMemory (S.Set BotSrc)  -- ^ Reading from memory not written to yet
  deriving (Eq, Ord, Generic)
 
 
@@ -98,7 +96,6 @@ data BotSrc =
   | Src_Malloc (Maybe Word64) (Maybe String) -- ^ A malloced address
   | Src_ImmediateAddress Word64              -- ^ An immediate used in the computation of the pointer
   | Src_Function String                      -- ^ A return value from a function
-  | Src_Mem (NES.NESet BotSrc)               -- ^ reading from memory
   | Src_ImmediateConstants                   -- ^ Some immediate value
  deriving (Eq, Ord, Generic)
 
@@ -178,13 +175,12 @@ instance Show BotSrc where
   show (Src_Malloc id h)          = show $ SE_Malloc id h
   show (Src_ImmediateAddress a)   = showHex a
   show (Src_Function f)           = f
-  show (Src_Mem a)                = "*[" ++ intercalate "," (map show $ neSetToList a) ++ "]"
   show (Src_ImmediateConstants)   = "constant"
 
-show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList $ NES.toSet srcs) ++ "|"
+show_srcs srcs = "|" ++ intercalate "," (map show $ S.toList srcs) ++ "|"
 
-show_bottyp show_srcs (FromNonDeterminism es)        = "nd|" ++ intercalate "," (map show $ S.toList $ NES.toSet es) ++ "|"
-show_bottyp show_srcs (FromPointerBases bs)          = "pbs|" ++ intercalate "," (map show $ S.toList $ NES.toSet bs) ++ "|"
+show_bottyp show_srcs (FromNonDeterminism es)        = "nd|" ++ intercalate "," (map show $ S.toList es) ++ "|"
+show_bottyp show_srcs (FromPointerBases bs)          = "pbs|" ++ intercalate "," (map show $ S.toList bs) ++ "|"
 show_bottyp show_srcs (FromSources srcs)             = "src" ++ show_srcs srcs
 show_bottyp show_srcs (FromBitMode srcs)             = "b" ++ show_srcs srcs
 show_bottyp show_srcs (FromOverlap srcs)             = "o" ++ show_srcs srcs
@@ -196,7 +192,9 @@ show_bottyp show_srcs (FromCall f)                   = "c|" ++ f ++ "|"
 instance Show BotTyp where
   show = show_bottyp show_srcs
 
-show_expr show_srcs (Bottom RockBottom)             = "TOP"
+show_expr show_srcs (Bottom typ@(FromSources srcs))
+  | S.null srcs = "Bot"
+  | otherwise   = "Bot[" ++ show_bottyp show_srcs typ ++ "]"
 show_expr show_srcs (Bottom typ)                    = "Bot[" ++ show_bottyp show_srcs typ ++ "]"
 show_expr show_srcs (SE_Malloc Nothing _)           = "malloc()" 
 show_expr show_srcs (SE_Malloc (Just a) Nothing)    = "malloc@" ++ showHex a ++ "()" 
@@ -295,14 +293,14 @@ expr_size_sp (SP_StackPointer _) = 1
 expr_size_sp (SP_Reg r)          = 1
 expr_size_sp (SP_Mem a si)       = 1 + expr_size a 
 
-expr_size_bottyp (FromNonDeterminism es)        = sum $ NES.map expr_size es
-expr_size_bottyp (FromPointerBases bs)          = NES.size bs
-expr_size_bottyp (FromSources srcs)             = NES.size srcs
-expr_size_bottyp (FromBitMode srcs)             = NES.size srcs
-expr_size_bottyp (FromOverlap srcs)             = NES.size srcs
-expr_size_bottyp (FromSemantics srcs)           = NES.size srcs
-expr_size_bottyp (FromMemWrite srcs)            = NES.size srcs
-expr_size_bottyp (FromUninitializedMemory srcs) = NES.size srcs
+expr_size_bottyp (FromNonDeterminism es)        = sum $ S.map expr_size es
+expr_size_bottyp (FromPointerBases bs)          = S.size bs
+expr_size_bottyp (FromSources srcs)             = S.size srcs
+expr_size_bottyp (FromBitMode srcs)             = S.size srcs
+expr_size_bottyp (FromOverlap srcs)             = S.size srcs
+expr_size_bottyp (FromSemantics srcs)           = S.size srcs
+expr_size_bottyp (FromMemWrite srcs)            = S.size srcs
+expr_size_bottyp (FromUninitializedMemory srcs) = S.size srcs
 expr_size_bottyp (FromCall _)                   = 1
 
 
@@ -433,7 +431,7 @@ simp' (SE_Op Xor   si0 [e0,e1]) = if e0 == e1 && not (contains_bot e0) then SE_I
 
 
 
-simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ NES.map simp' es
+simp' (Bottom (FromNonDeterminism es)) = Bottom $ FromNonDeterminism $ S.map simp' es
 simp' (SE_Op op si0 es)                = SE_Op op si0 $ map simp' es
 simp' (SE_StatePart sp id)             = SE_StatePart (simp'_sp sp) id
 simp' (SE_Bit i e)                     = SE_Bit i $ simp' e

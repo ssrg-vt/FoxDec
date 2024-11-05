@@ -26,10 +26,11 @@ module Analysis.ControlFlow (
 import Base
 
 import Algorithm.SCC
-
+import Data.Pred
 import Analysis.Context
 import Analysis.FunctionNames
 
+import Data.SymbolicExpression
 import Data.JumpTarget
 import Generic.Binary
 import Generic.SymbolicConstituents
@@ -275,6 +276,8 @@ instance IntGraph CFG where
 is_new_function_call_to_be_analyzed ctxt trgt = (IM.lookup trgt $ ctxt_calls ctxt) == Nothing || (IM.lookup trgt $ ctxt_finits ctxt) == Nothing
 
 
+read_reg reg (Predicate m _) = M.lookup (SP_Reg reg) m
+
 resolve_call :: Context -> (FContext -> Int -> Maybe Predicate) -> Int -> X86.Instruction -> _
 resolve_call ctxt get_invariant entry i =
   let resolved_addresses = resolve_jump_target ctxt i in
@@ -294,7 +297,7 @@ resolve_call ctxt get_invariant entry i =
       Right []
     else if take 5 sym == "error" then -- TODO or error_at_line
       let fctxt = mk_fcontext ctxt entry in
-        case get_invariant fctxt (fromIntegral $ addressof i) >>= (M.lookup RDI . sregs) of
+        case get_invariant fctxt (fromIntegral $ addressof i) >>= (read_reg RDI) of
           Nothing -> Right []
           Just v ->  if show v == "0" then Right [(fromIntegral (addressof i) + sizeof i,True)] else Right []
     else

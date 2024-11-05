@@ -15,8 +15,9 @@ import Generic.Binary
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
-import qualified OutputGeneration.JSON as JSON
+-- import qualified OutputGeneration.JSON as JSON
 
+--import Reconstruction.Reconstruction
 
 import Algorithm.L0_Lifting
 
@@ -176,6 +177,7 @@ start args = do
   when (args_generate_L0 args)        $ serialize_context ctxt
 
 
+  --generate_reconstruction ctxt
 
 
 -- INPUT
@@ -247,9 +249,12 @@ generate_json ctxt verbose = do
   let name        = ctxt_name ctxt
   let fname_plain = dirname ++ name ++ ".json.txt" 
   let fname_json  = dirname ++ name ++ ".json" 
+  putStrLn $ "Unsupported in current version."
+  {--
   JSON.generate_json ctxt fname_plain fname_json verbose
   putStrLn $ "Generated JSON: " ++ fname_json
   putStrLn $ "Generated JSON in readable plain-text: " ++ fname_plain
+  --}
 
 -- | Generate the call graph
 generate_call_graph :: Context -> IO ()
@@ -302,8 +307,9 @@ generate_NASM ctxt = do
   writeFile fname1 ts
   writeFile fname2 ds
   putStrLn $ "Generated NASM, exported to directory: " ++ dirname
+--}
 
-
+{--
 generate_reconstruction :: Context -> IO ()
 generate_reconstruction ctxt = do
   let name     = ctxt_name ctxt

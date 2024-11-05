@@ -52,6 +52,15 @@ address_has_external_symbol ctxt a =
     Just (AddressOfLabel _ ex)  -> ex
     _ -> False
 
+-- | Returns true iff a symbol is associated with the address.
+find_external_symbol_for_address ctxt a =
+  case IM.lookup (fromIntegral a) $ ctxt_symbol_table ctxt of
+    Just (PointerToLabel str ex)  -> onlyWhen ex str 
+    Just (PointerToObject str ex) -> onlyWhen ex str
+    Just (AddressOfObject str ex) -> onlyWhen ex str
+    Just (AddressOfLabel str ex)  -> onlyWhen ex str
+    _ -> Nothing
+
 
 -- | many operands can statically be resolved, even though technically they are indirect (relative to RIP).
 -- Examples:

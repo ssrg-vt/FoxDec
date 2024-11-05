@@ -532,15 +532,6 @@ sjoin_states ctxt msg s0@(Sstate regs0 mem0 flg0) s1@(Sstate regs1 mem1 flg1) =
     | otherwise    = None
 
 
--- | The supremum of a list of predicates
-supremum :: SymbolicExecutable ctxt v p => ctxt -> [Sstate v p] -> Sstate v p
-supremum ctxt [] = error $ "Cannot compute supremum of []"
-supremum ctxt ss = foldr1 (sjoin_states ctxt "supremum") ss
-
-simplies ctxt s0 s1 = (set_rip $ sjoin_states ctxt "simplies" s0 s1) == (set_rip s0)
- where
-  set_rip = execSstate (swrite_rreg ctxt Reg.RIP (simmediate ctxt 0))
-
 
 
 

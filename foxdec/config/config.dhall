@@ -42,13 +42,13 @@
   -- Sane default: 5
 
 
-  max_num_of_bases = 10,
+  max_num_of_bases = 100,
   -- ^ The maximum number of pointer bases a bottom-expression may have, before more asbtraction is applied.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 25
   
 
-  max_num_of_sources = 30,
+  max_num_of_sources = 150,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 30
@@ -60,7 +60,7 @@
   -- Sane default: 20000
   
 
-  max_expr_size = 2000,
+  max_expr_size = 1000,
   -- ^ The maximum size of an expression (counting each operator and each leaf as 1), before a symbolic expression is abstracted to rock bottom.
   -- Does not affect soundness, but if the value is set too low, then the results becomes overly overapproximative.
   -- Sane default: 2000
