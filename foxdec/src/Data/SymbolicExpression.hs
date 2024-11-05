@@ -415,20 +415,20 @@ simp' (SE_Op Times si0 [SE_Op Times si1 [e1, SE_Immediate i1],SE_Immediate i0]) 
 
 
 
-simp' (SE_Op Plus  si0 es@[SE_Op Times _ [e0, SE_Immediate i0], SE_Op Times _ [e1, SE_Immediate i1]])
-  | e0 == e1  = SE_Op Times si0 [simp' e0, SE_Immediate (i0+i1)]                                                                        -- a*i0+a*i1 = a*(i0+i1)
-  | otherwise = SE_Op Plus si0 $ map simp' es
-simp' (SE_Op Minus si0 es@[e0,SE_Op Minus _ [e1, e2]])
-  | e0 == e1  = simp' e2                                                                                                                -- a-(a-b) = b
-  | otherwise = SE_Op Minus si0 $ map simp' es
-simp' (SE_Op Minus si0 es@[e0,SE_Op Plus _ [e1, e2]])
-  | e0 == e1  = simp' $ SE_Op Minus si0 [SE_Immediate 0,e2]                                                                             -- a-(a+b) = -b
-  | otherwise = SE_Op Minus si0 $ map simp' es
+--simp' (SE_Op Plus  si0 es@[SE_Op Times _ [e0, SE_Immediate i0], SE_Op Times _ [e1, SE_Immediate i1]])
+--  | e0 == e1  = SE_Op Times si0 [simp' e0, SE_Immediate (i0+i1)]                                                                        -- a*i0+a*i1 = a*(i0+i1)
+--  | otherwise = SE_Op Plus si0 $ map simp' es
+--simp' (SE_Op Minus si0 es@[e0,SE_Op Minus _ [e1, e2]])
+--  | e0 == e1  = simp' e2                                                                                                                -- a-(a-b) = b
+--  | otherwise = SE_Op Minus si0 $ map simp' es
+--simp' (SE_Op Minus si0 es@[e0,SE_Op Plus _ [e1, e2]])
+--  | e0 == e1  = simp' $ SE_Op Minus si0 [SE_Immediate 0,e2]                                                                             -- a-(a+b) = -b
+--  | otherwise = SE_Op Minus si0 $ map simp' es
 
 
-simp' (SE_Op Plus  si0 [e0,e1]) = if e0 == e1 then simp' $ SE_Op Times si0 [e0,SE_Immediate 2] else SE_Op Plus si0 $ map simp' [e0,e1]  -- a + a   = a*2
-simp' (SE_Op Xor   si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Xor si0 $ map simp' [e0,e1]                                -- a xor a = 0
-simp' (SE_Op Minus si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Minus si0 $ map simp' [e0,e1]                              -- a - a   = 0
+--simp' (SE_Op Plus  si0 [e0,e1]) = if e0 == e1 then simp' $ SE_Op Times si0 [e0,SE_Immediate 2] else SE_Op Plus si0 $ map simp' [e0,e1]  -- a + a   = a*2
+simp' (SE_Op Xor   si0 [e0,e1]) = if e0 == e1 && not (contains_bot e0) then SE_Immediate 0 else SE_Op Xor si0 $ map simp' [e0,e1]                                -- a xor a = 0
+--simp' (SE_Op Minus si0 [e0,e1]) = if e0 == e1 then SE_Immediate 0 else SE_Op Minus si0 $ map simp' [e0,e1]                              -- a - a   = 0
 
 
 

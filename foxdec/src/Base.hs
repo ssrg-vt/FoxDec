@@ -147,6 +147,12 @@ quotientBy eq s =
       let (group,remainder) = S.partition (eq a) s' in
         S.insert (S.insert a group) $ quotientBy eq remainder
 
+quotientByL :: Ord a => (a -> a -> Bool) -> [a] -> [[a]]
+quotientByL eq []     = []
+quotientByL eq (a:as) = 
+  let (group,remainder) = partition (eq a) as in
+    (a:group) : quotientByL eq remainder
+
 --------------------------------------------
 -- | Generic graph with ints as vertices.
 --------------------------------------------
