@@ -442,7 +442,7 @@ rock_bottom = Bottom $ FromSources S.empty
 -- TODO: joining immediates
 join_exprs' :: String -> FContext -> [SimpleExpr] -> SimpleExpr
 join_exprs' msg ctxt es = 
-  let es' = S.unions $ map (S.fromList . unfold_non_determinism ctxt) es in
+  let es' = S.unions $ map (S.fromList . unfold_non_determinism (f_ctxt ctxt)) es in
     if S.size es' == 0 then
       rock_bottom
     else if S.size es' == 1 then
@@ -456,11 +456,13 @@ join_exprs' msg ctxt es =
       if S.size bs <= get_max_num_of_bases && all (not . S.null) bss then
         Bottom (FromPointerBases bs)
       else
-        let srcs = S.unions $ S.map (srcs_of_expr ctxt) es' in
-          if S.null srcs then
+        let srcs = S.map (srcs_of_expr ctxt) es' in
+          if any S.null srcs then
             rock_bottom
-          else if S.size srcs <= get_max_num_of_sources then
-            Bottom (FromSources srcs)
+          else if S.null $ S.unions srcs then
+            rock_bottom
+          else if (S.size $ S.unions srcs) <= get_max_num_of_sources then
+            Bottom (FromSources $ S.unions srcs)
           else
             {--trace ("Hitting max num of sources: " ++ show get_max_num_of_sources)--} rock_bottom
  where
@@ -503,17 +505,17 @@ join_single ctxt e =
 
 -- | Unfold an expression with non-determinisism to a list of expressions.
 -- Keep an eye on the produced size, as this may cause blow-up.
-unfold_non_determinism :: FContext -> SimpleExpr -> [SimpleExpr]
+unfold_non_determinism :: Context -> SimpleExpr -> [SimpleExpr]
 unfold_non_determinism ctxt (Bottom (FromNonDeterminism es)) = S.toList es
 unfold_non_determinism ctxt (SE_Op op si es)                 = 
   let es' = map (unfold_non_determinism ctxt) es in
-    if crossProduct_size es' > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else map (SE_Op op si) $ crossProduct es'
+    if crossProduct_size es' > ctxt_max_expr_size ctxt then [rock_bottom] else map (SE_Op op si) $ crossProduct es'
 unfold_non_determinism ctxt (SE_Bit b e)                     = map (SE_Bit b) $ (unfold_non_determinism ctxt) e
 unfold_non_determinism ctxt (SE_SExtend l h e)               = map (SE_SExtend l h) $ (unfold_non_determinism ctxt) e
 unfold_non_determinism ctxt (SE_Overwrite l a b)             = 
   let as = unfold_non_determinism ctxt a
       bs = unfold_non_determinism ctxt b in
-    if crossProduct_size [as,bs] > ctxt_max_expr_size (f_ctxt ctxt) then [rock_bottom] else [ SE_Overwrite l a' b' | a' <- as, b' <- bs ]
+    if crossProduct_size [as,bs] > ctxt_max_expr_size ctxt then [rock_bottom] else [ SE_Overwrite l a' b' | a' <- as, b' <- bs ]
 unfold_non_determinism ctxt e                                = [e]
 
 

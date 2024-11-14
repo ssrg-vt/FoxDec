@@ -277,7 +277,7 @@ data SeparationStatus = Alias | Separated | Enclosed | Disclosed | Overlap
 
 read_from_address :: FContext -> Maybe X86.Operand -> SimpleExpr -> Int -> State Predicate SimpleExpr
 read_from_address ctxt operand a si0 = do
-  let as = map simp $ unfold_non_determinism ctxt a
+  let as = map simp $ unfold_non_determinism (f_ctxt ctxt) a
   vs <- mapM read_from_address' as
   return $ join_exprs ("Read") ctxt vs
  where
@@ -405,14 +405,15 @@ write_mem ::
   -> SimpleExpr          -- ^ The value to be written
   -> State Predicate ()
 write_mem ctxt a si0 v = do
-  let as = map simp $ unfold_non_determinism ctxt a
+  let as = map simp $ unfold_non_determinism (f_ctxt ctxt) a
   mapM_ (\a -> write_mem' a v) as -- TODO v should be bot?
  where
   write_mem' a0 v = do
     p@(Predicate eqs flg) <- get
 
     if address_is_unwritable (f_ctxt ctxt) a0 then do
-      trace ("Writing to unwritable section: " ++ show (a0,si0)) $ return ()
+      --trace ("Writing to unwritable section: " ++ show (a0,si0)) $
+      return ()
     else if invalid_bottom_pointer ctxt a0 && invalid_bottom_pointer ctxt a then do -- FORALL PATHS VS EXISTS PATH
       --error (show (a0,a,get_known_pointer_bases ctxt a0, srcs_of_expr ctxt a0, get_known_pointer_bases ctxt a, srcs_of_expr ctxt a))
       --modify $ add_unknown_mem_write mid

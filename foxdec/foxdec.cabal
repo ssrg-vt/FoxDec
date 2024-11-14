@@ -62,10 +62,10 @@ library
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
+      Parser.ParserPinLog
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserX86Instruction
-      Reconstruction.Reconstruction
       X86.Address
       X86.Conventions
       X86.Flag

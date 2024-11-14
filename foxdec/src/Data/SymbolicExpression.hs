@@ -365,9 +365,9 @@ simp' (SE_Op Sdiv  32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromI
 simp' (SE_Op Shl   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `shiftL` fromIntegral i1)
 simp' (SE_Op Shr   si0 [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (i0 `shiftR` fromIntegral i1)
 simp' (SE_Op Sar   64  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral $ (fromIntegral i0::Int64) `shiftR` (fromIntegral i1))
+{-- MAY CAUSE ARITHMETIC OVERFLOW
 simp' (SE_Op Sar   32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromIntegral $ (fromIntegral i0::Int32) `shiftR` (fromIntegral i1))
-
-
+--}
 
 simp' e@(SE_Bit 64  e1@(SE_Malloc _ _))                = e1
 simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Reg r) _))    = if sizeof r * 8 == si0 then e1 else e

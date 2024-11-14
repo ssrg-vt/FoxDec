@@ -1608,7 +1608,7 @@ tau_i ctxt (Instruction (AddressWord64 i_a) (Just pre)  MOVSQ   _ [op1,op2] _) =
 
 tau_i ctxt i
   | isJump (Instr.opcode i) || isCondJump (Instr.opcode i) = return ()
-  | ctxt_continue_on_unknown_instruction $ f_ctxt ctxt = trace ("Unsupported instruction: " ++ show i) $ return ()
+  | ctxt_continue_on_unknown_instruction $ f_ctxt ctxt = return () -- trace ("Unsupported instruction: " ++ show i) $ return ()
   | otherwise = error ("Unsupported instruction: " ++ show i)
 
 -- | Do predicate transformation over a block of instructions.
@@ -1719,7 +1719,7 @@ implies_preds ctxt p0@(Predicate eqs0 flg0) p1@(Predicate eqs1 flg1)
     if contains_bot v1 then
       True
     else case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
-      Nothing -> is_initial sp1 v1
+      Nothing -> le_expr (evalState (read_sp ctxt sp1) p0) (evalState (read_sp ctxt sp1) p1) -- is_initial sp1 v1
       Just (sp0,v0) -> necessarily_equal v0 v1  || le_expr v0 v1
 
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0

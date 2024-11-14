@@ -18,6 +18,7 @@ import Analysis.Context
 import Analysis.Pointers 
 import Analysis.ControlFlow
 
+import Parser.ParserPinLog
 
 import OutputGeneration.Retrieval
 
@@ -48,6 +49,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import GHC.Generics
 import Debug.Trace
+import Numeric
 
 
 metrics = M.fromList [
@@ -56,9 +58,9 @@ metrics = M.fromList [
   ("#expectedInstructions",  "expected number of instructions"),
   ("%instructionCoverage",   "estimate of percentage of covered instructions"),
   ("#memWrites",             "total number of instructions writing to memory"),
-  ("pointerDesignations",    "B, C, S, U"),
+  ("pointerDesignations",    intercalate "," $ M.keys init_pointerDesignations),
+  ("pointerDesignations2",   ""),
   ("%resolvedMemWrites",     "percentage of pointers that are assigned a non-trivial domain"),
-  ("specifityMetric",        "weighted mean of pointer designations"),
 
   ("#functions",             "total number of functions"),
   ("#functions_verified",    "total number of verified functions"),
@@ -87,7 +89,6 @@ mk_metrics ctxt =
       pointerDesignations             = mk_metric_pointerDesignations ctxt mem_ops 
       pointerDesignationsPercentages  = designations_to_percentages pointerDesignations
       memWrites                       = sum $ M.elems pointerDesignations
-      specifityMetric                 = specifityMetricOf pointerDesignationsPercentages
       resolvedMemWrites               = percentageResolvedMemWrites pointerDesignationsPercentages
 
       num_functions                   = IM.size $ ctxt_results ctxt
@@ -108,9 +109,9 @@ mk_metrics ctxt =
                  ("#expectedInstructions",    show num_expected_intrs),
                  ("%instructionCoverage",     show instructionCoverage),
                  ("#memWrites",               show memWrites),
-                 ("pointerDesignations",      show $ M.toList pointerDesignationsPercentages),
+                 ("pointerDesignations",      showPointerDesignationsPercentages $ M.toList pointerDesignationsPercentages),
+                 ("pointerDesignations2",     show $ M.toList pointerDesignationsPercentages),
                  ("%resolvedMemWrites",       show resolvedMemWrites),
-                 ("specifityMetric",          show specifityMetric),
                  ("#functions",               show num_functions),
                  ("#functions_verified",      show num_verif_success),
                  ("#functions_unresolved",    show num_verif_unresolved),
@@ -194,37 +195,104 @@ num_of_blocks g = IM.size $ cfg_blocks g
 -- | Number of edges in CFG
 num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
+{--
+mk_comparison_to_pinlog :: Context -> [(Word64,Word64, [Maybe SimpleExpr])] -> PinLog -> [String]
+mk_comparison_to_pinlog ctxt pointerDesignations (PinLog name base sections log) =
+  concatMap mk_comparison_per_instruction pointerDesignations
+ where
+  mk_comparison_per_instruction (entry,a,es) = concatMap (mk_comparison_per_mem_access a) es
+
+  mk_comparison_per_mem_access a Nothing  = []
+  mk_comparison_per_mem_access a (Just e) = 
+    case M.lookup a log of
+      Nothing -> ["No ground truth"]
+      Just observations -> compare a e observations
+
+   compare rip a observations
+     | expr_is_highly_likely_local_pointer ctxt a = must_be_local rip observations
+     | expr_is_global_immediate ctxt a            = must_be_global rip observations
+     | 
+
+--}
+powerList :: [a] -> [[a]]
+powerList [] = [[]]
+powerList (x:xs) = (powerList xs) ++ (map (x:) (powerList xs))
+
+showFullPrecision :: Double -> String
+showFullPrecision x = map substDot $ showFFloat Nothing x ""
+ where
+  substDot '.' = ','
+  substDot c   = c
+
+showPointerDesignationsPercentages :: [(String,Double)] -> String
+showPointerDesignationsPercentages = intercalate " " . map (showFullPrecision . snd)
+
+init_pointerDesignations = M.fromList $ zip keys $ repeat 0
+ where
+  lhg  = filter ((/=) "") $ powerList "LGH" 
+  keys = [x:y | x <- "CBS", y <- lhg] ++ ["U"] 
+
 
 mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SimpleExpr])] -> M.Map String Int
-mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction
+mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_pointerDesignations . concatMap get_specifity_per_instruction
  where
-  init_m = M.fromList [("U",0), ("C",0), ("B",0), ("S",0)]
+  get_specifity_per_instruction (entry,a,es) = map (get_domains entry) $ concatMap unfold es
 
-  get_specifity_per_instruction (entry,a,es) = map (get_domains entry) es
+  unfold Nothing  = [Nothing]
+  unfold (Just e) = map Just $ unfold_non_determinism ctxt e
 
   get_domains entry Nothing = "Nothing"
   get_domains entry (Just e) = 
     let fctxt = mk_fcontext ctxt (fromIntegral entry) in
-       get_pointer_specifity_cpointer fctxt e
+       get_pointer_specifity fctxt e
 
 -- "C"     = Concrete
 -- "B"     = Bases
 -- "S"     = Sources
 -- "U"     = Unknown
-get_pointer_specifity_cpointer fctxt e
-  | not (contains_bot e) = "C"
+get_pointer_specifity :: FContext -> SimpleExpr -> String
+get_pointer_specifity fctxt e
+  | not (contains_bot e) = "C" ++ get_pointer_domains e
   | otherwise = 
     case get_pointer_domain fctxt e of
-      Just (Domain_Bases _)   -> "B"
-      Just (Domain_Sources _) -> "S"
+      Just (Domain_Bases _)   -> "B" ++ get_pointer_domains e
+      Just (Domain_Sources _) -> "S" ++ get_pointer_domains e
       Nothing                 -> "U"
+ where
+  get_pointer_domains e = concat [get_local e, get_global e, get_heap e]
+
+  get_local e
+    | any is_local_base $ get_pointer_base_set fctxt e = "L"
+    | any is_local_source $ srcs_of_expr fctxt e = "L"
+    | otherwise = ""
+   
+  is_local_base (StackPointer _) = True
+  is_local_base _                = False
+
+  is_local_source (Src_StackPointer _) = True
+  is_local_source _                    = False 
+
+
+  get_global e
+    | any is_global_base $ get_pointer_base_set fctxt e = "G"
+    | any is_global_source $ srcs_of_expr fctxt e = "G"
+    | otherwise = ""
+
+  is_global_base (GlobalAddress _) = True
+  is_global_base _                = False
+
+  is_global_source (Src_ImmediateAddress a) = expr_is_global_immediate (f_ctxt fctxt) (SE_Immediate a)
+  is_global_source _                        = False 
+
+  get_heap e
+    | get_local e == "" && get_global e == "" = "H"
+    | otherwise = ""
+
 
 percentageResolvedMemWrites :: M.Map String Double -> Double
-percentageResolvedMemWrites m = 0 -- TODO 100 - m M.! "U"
+percentageResolvedMemWrites m = 100 - m M.! "U"
 
 
-specifityMetricOf :: M.Map String Double -> Double
-specifityMetricOf m = 0 -- TODO m M.! "C" + 0.8*(m M.! "A") + 0.6*(m M.! "A")
 
 
 

@@ -21,6 +21,8 @@ import OutputGeneration.CallGraph
 
 import Algorithm.L0_Lifting
 
+import Parser.ParserPinLog
+
 import NASM.L0ToNASM
 import qualified NASM.NASMToC as C
 
@@ -177,7 +179,8 @@ start args = do
   when (args_generate_L0 args)        $ serialize_context ctxt
 
 
-  --generate_reconstruction ctxt
+ -- pin_log <- parse_pin_log "./examples/wc_small/pinLog/wc_memory_write_log.txt"
+ -- putStrLn $ show pin_log
 
 
 -- INPUT

@@ -42,13 +42,13 @@
   -- Sane default: 5
 
 
-  max_num_of_bases = 100,
+  max_num_of_bases = 25,
   -- ^ The maximum number of pointer bases a bottom-expression may have, before more asbtraction is applied.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 25
   
 
-  max_num_of_sources = 150,
+  max_num_of_sources = 100,
   -- | The maximum number of sources a bottom-expression may have, before resorting to rock-bottom.
   -- Has no effect on soundness, but lower values cause more abstraction.
   -- Sane default: 30
