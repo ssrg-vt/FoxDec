@@ -285,8 +285,14 @@ get_pointer_specifity fctxt e
   is_global_source _                        = False 
 
   get_heap e
-    | get_local e == "" && get_global e == "" = "H"
-    | otherwise = ""
+    | all_and_not_empty is_local_base $ get_pointer_base_set fctxt e = ""
+    | all_and_not_empty is_local_source $ srcs_of_expr fctxt e = ""
+    | all_and_not_empty is_global_base $ get_pointer_base_set fctxt e = ""
+    | all_and_not_empty is_global_source $ srcs_of_expr fctxt e = ""
+    | otherwise = "H"
+
+  all_and_not_empty p s = not (S.null s) && all p s
+
 
 
 percentageResolvedMemWrites :: M.Map String Double -> Double

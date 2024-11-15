@@ -53,5 +53,9 @@ docs/manual/*.fdb_latexmk
 docs/manual/*.fls
 
 temp*
+functions
+*.indirections
+*.json
+*.metrics.*
 
 foxdec/release/FoxDec/
