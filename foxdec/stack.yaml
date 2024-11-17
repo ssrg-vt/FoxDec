@@ -41,7 +41,7 @@ packages:
 #
 extra-deps:
 - dom-lt-0.2.3
-- git: git@github.com:ssrg-vt/hapstone.git
+- git: https://github.com/ssrg-vt/hapstone.git
   commit: 472222a6ba4a79bd29df3aff373657c30a943381
 
 
