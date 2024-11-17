@@ -13,7 +13,7 @@ packages:
     hackage: dom-lt-0.2.3
 - completed:
     commit: 472222a6ba4a79bd29df3aff373657c30a943381
-    git: git@github.com:ssrg-vt/hapstone.git
+    git: https://github.com/ssrg-vt/hapstone.git
     name: hapstone
     pantry-tree:
       sha256: 238dbbc0db388ae9e39bce2d181578fd9cee32754a0959bbd493dd43f25c92f9
@@ -21,7 +21,7 @@ packages:
     version: 0.5.0.3
   original:
     commit: 472222a6ba4a79bd29df3aff373657c30a943381
-    git: git@github.com:ssrg-vt/hapstone.git
+    git: https://github.com/ssrg-vt/hapstone.git
 snapshots:
 - completed:
     sha256: 4a0e5e187fbef423f9c60072bfb1dd56f2a01a07a2667eb1469bd79073cfceaf
