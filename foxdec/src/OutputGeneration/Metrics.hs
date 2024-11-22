@@ -6,7 +6,8 @@ module OutputGeneration.Metrics (
   num_of_unres_inds_in_cfg,
   num_of_blocks,
   num_of_edges, 
-  mk_metrics
+  mk_metrics,
+  verify_soundness_using_pinlog
  ) where
 
 import Base
@@ -49,7 +50,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import GHC.Generics
 import Debug.Trace
-import Numeric
+import Numeric hiding (showHex)
 
 
 metrics = M.fromList [
@@ -195,25 +196,62 @@ num_of_blocks g = IM.size $ cfg_blocks g
 -- | Number of edges in CFG
 num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
-{--
-mk_comparison_to_pinlog :: Context -> [(Word64,Word64, [Maybe SimpleExpr])] -> PinLog -> [String]
-mk_comparison_to_pinlog ctxt pointerDesignations (PinLog name base sections log) =
-  concatMap mk_comparison_per_instruction pointerDesignations
+verify_soundness_using_pinlog :: Context -> [(Word64,Word64, [Maybe SimpleExpr])] -> PinLog -> [String]
+verify_soundness_using_pinlog ctxt pointerDesignations (PinLog name base sections log) = concatMap check_soundness $ M.toList log
  where
-  mk_comparison_per_instruction (entry,a,es) = concatMap (mk_comparison_per_mem_access a) es
+  check_soundness (rip,(addr,rsp)) =
+    do_check (rip,(addr,rsp)) $ concatMap (\(_,_,designations) -> designations) $ filter (\(_,rip',_) -> rip' == rip) pointerDesignations
 
-  mk_comparison_per_mem_access a Nothing  = []
-  mk_comparison_per_mem_access a (Just e) = 
-    case M.lookup a log of
-      Nothing -> ["No ground truth"]
-      Just observations -> compare a e observations
+  do_check (rip,(addr,rsp)) designations
+    | all ((==) Nothing) designations = []
+    | any (gt_observed_by_pa (addr,rsp)) designations = []
+    | otherwise = [showHex rip ++ "\nGT: 0x" ++ showHex addr  ++ ", 0x" ++ showHex rsp ++ " " ++ show (is_local_gt (addr,rsp), is_global_gt (addr,rsp))
+                   ++ "\nPA: " ++ show designations 
+                  ]
 
-   compare rip a observations
-     | expr_is_highly_likely_local_pointer ctxt a = must_be_local rip observations
-     | expr_is_global_immediate ctxt a            = must_be_global rip observations
-     | 
+  gt_observed_by_pa _          Nothing                 = False
+  gt_observed_by_pa (addr,rsp) (Just symbolic_pointer)
+    | is_local_gt (addr,rsp)  = is_local_pa symbolic_pointer  || is_from_initial_input symbolic_pointer
+    | is_global_gt (addr,rsp) = is_global_pa symbolic_pointer || is_from_initial_input symbolic_pointer
+    | otherwise               = is_from_initial_input symbolic_pointer
 
---}
+  is_local_gt (addr,rsp) = rsp - addr < 0x10000 || addr - rsp < 0x10000
+
+  is_local_pa e
+    | any is_local_base $ get_pointer_base_set fctxt e = True
+    | any is_local_source $ srcs_of_expr fctxt e = True
+    | otherwise = False
+   
+  is_local_base (StackPointer _) = True
+  is_local_base _                = False
+
+  is_local_source (Src_StackPointer _) = True
+  is_local_source _                    = False 
+
+  is_global_gt (addr,_) = any (section_contains_address addr) sections
+
+  is_from_initial_input ptr =
+    let srcs = srcs_of_expr fctxt ptr in
+      S.null srcs || any (\src -> not (is_local_source src) && not (is_global_source src)) srcs 
+
+  section_contains_address addr (_,offset,si) = offset <= addr && addr < offset+si
+
+  is_global_pa e
+    | any is_global_base $ get_pointer_base_set fctxt e = True
+    | any is_global_source $ srcs_of_expr fctxt e = True
+    | otherwise = False
+
+  is_global_base (GlobalAddress _) = True
+  is_global_base _                = False
+
+  is_global_source (Src_ImmediateAddress a) = expr_is_global_immediate ctxt (SE_Immediate a)
+  is_global_source _                        = False 
+
+
+  fctxt = mk_fcontext ctxt 0
+
+
+
 powerList :: [a] -> [[a]]
 powerList [] = [[]]
 powerList (x:xs) = (powerList xs) ++ (map (x:) (powerList xs))

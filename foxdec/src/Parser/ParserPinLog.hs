@@ -40,7 +40,7 @@ data PinLog = PinLog {
   name :: String,
   base :: Word64,
   sections :: [(String, Word64,Word64)],
-  log_lines :: M.Map Word64 (S.Set (Word64,Word64))
+  log_lines :: M.Map Word64 (Word64,Word64)
  }
 
 instance Show PinLog where
@@ -50,7 +50,7 @@ instance Show PinLog where
     show_section (name,address,size) = "Section: " ++ name ++ ", Address: " ++ showHex address "" ++ ", Size: " ++ show size
 
     show_log_lines log_lines = intercalate "\n" $ map show_log_line $ M.toList $ log_lines
-    show_log_line (rip,observations) = showHex rip "" ++ ": " ++ (intercalate ";" $ map (\(addr,rsp) -> showHex addr "" ++ ", " ++ showHex rsp "") $ S.toList observations)
+    show_log_line (rip,(addr,rsp)) = showHex rip "" ++ ": " ++ showHex addr "" ++ ", " ++ showHex rsp ""
 
 
 hex = do
@@ -101,7 +101,7 @@ log_line = do
   spaces
   rsp <- hex
   eol
-  return (rip,address,rsp)
+  return (rip,(address,rsp))
 
 
 pin_log = do
@@ -109,11 +109,8 @@ pin_log = do
   many eol
   sections <- many section_header
   comment
-  log_lines <- mk_log baseAddress <$> many log_line
+  log_lines <- M.fromList <$> many log_line
   return $ PinLog binaryName baseAddress sections log_lines
- where
-  mk_log baseAddress = M.unionsWith S.union . map (mk_log_entry baseAddress)
-  mk_log_entry baseAddress (rip,address,rsp) = M.singleton (rip - baseAddress) $ S.singleton (address,rsp)
 
 
 

@@ -15,9 +15,8 @@ import Generic.Binary
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
--- import qualified OutputGeneration.JSON as JSON
+import OutputGeneration.Retrieval
 
---import Reconstruction.Reconstruction
 
 import Algorithm.L0_Lifting
 
@@ -177,10 +176,8 @@ start args = do
   when (args_generate_NASM args)      $ generate_NASM ctxt
   when (args_generate_json    args)   $ generate_json ctxt $ args_verbose_json args
   when (args_generate_L0 args)        $ serialize_context ctxt
+  verify_soundness ctxt
 
-
- -- pin_log <- parse_pin_log "./examples/wc_small/pinLog/wc_memory_write_log.txt"
- -- putStrLn $ show pin_log
 
 
 -- INPUT
@@ -214,8 +211,6 @@ obtain_context "BINARY" configname verbose dirname name = do
 
     let runningTime = fromIntegral $ timeDiff endTime startTime
     return $ set_ctxt_runningtime runningTime ctxt
-
-
 
 
 
@@ -297,25 +292,30 @@ generate_NASM ctxt = do
   
 
 
-{--
-  -- TODO MAKE C OPTION
-  let dirname  = ctxt_dirname ctxt ++ "C/"
-  let name     = ctxt_name ctxt
-  let fname1   = dirname ++ name ++ ".c" 
-  let fname2   = dirname ++ name ++ ".h" 
-  let (ts,ds)  = C.render_NASM ctxt nasm
+verify_soundness :: Context -> IO ()
+verify_soundness ctxt = do
+  let dirname = ctxt_dirname ctxt
+  let name    = ctxt_name ctxt
+  let fname   = dirname ++ name ++ ".pin_log.txt"
 
-  createDirectoryIfMissing False dirname      
+  exists <- doesFileExist fname
+  if exists then do
+    parsed  <- parse_pin_log fname
+    pin_log <- case parsed of
+                 Left err -> die $ "Cannot read PIN log file: " ++ show err
+                 Right p  -> return p
+    let mem_ops = ctxt_resolve_mem_operands ctxt
+    let results = verify_soundness_using_pinlog ctxt mem_ops pin_log
 
-  writeFile fname1 ts
-  writeFile fname2 ds
-  putStrLn $ "Generated NASM, exported to directory: " ++ dirname
---}
 
-{--
-generate_reconstruction :: Context -> IO ()
-generate_reconstruction ctxt = do
-  let name     = ctxt_name ctxt
+    putStrLn $ "Verified soundness based on PIN logs:"
+    if results == [] then 
+      putStrLn $ "No issues found."
+    else do
+      putStrLn $ "Found issues:"
+      putStrLn $ intercalate "\n" results
+  else
+    return ()
 
-  reconstruct ctxt 
---}
+
+  
