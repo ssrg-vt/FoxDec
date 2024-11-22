@@ -1669,7 +1669,7 @@ join_expr' ctxt p q e0 e1 = join_exprs ("join") ctxt $ map simp [e0,e1] -- \n" +
 -- Assumes any statepart not currently in the state is unwritten to.
 
 
-temp_trace v v' sp = id -- if S.size (srcs_of_expr v'') == 0 && S.size (srcs_of_expr v) > 0 && S.size (srcs_of_expr v') > 0 then traceShow ("temp_trace",sp,v,v',v'') v'' else v''
+temp_trace msg v v' sp j = j -- if v/=j || v'/= j then traceShow (msg,v,v',sp,j) j else j
 
 
 supremum ctxt = foldr1 (join_preds ctxt "supremum")
@@ -1683,50 +1683,55 @@ join_preds ctxt msg p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
   mk_entry sp v =
     case find (\(sp',v') -> necessarily_equal_stateparts sp sp') $ M.toList eqs1 of
       Nothing ->
-        if is_initial sp v then
-          v
-        else
+        --if is_initial sp v then
+        --  v
+        --else
           let v' = evalState (read_sp ctxt sp) p' in
-            temp_trace v v' sp $ join_expr' ctxt p p' v v'
+            temp_trace "0" v v' sp $ join_expr' ctxt p p' v v'
       Just (sp',v') ->
         if necessarily_equal v v' || v == v' then
           v
         else
-          temp_trace v v' sp $ join_expr' ctxt p p' v v'
+          temp_trace "1" v v' sp $ join_expr' ctxt p p' v v'
 
   mk_entry' (sp',v' ) q =
     case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
       Nothing ->
-        if is_initial sp' v' then
-          execState (write_sp ctxt (sp', v')) q
-        else
+        --if is_initial sp' v' then
+        --  execState (write_sp ctxt (sp', v')) q
+        --else
           let v = evalState (read_sp ctxt sp') p in
-            execState (write_sp ctxt (sp', temp_trace v v' sp' $ join_expr' ctxt p p' v v')) q
+            execState (write_sp ctxt (sp', temp_trace "2" v v' sp' $ join_expr' ctxt p p' v v')) q
       Just _  -> q
 
 
 
 -- TODO in case of bot, check whether sources of P1 are larger than P0
 
-
 implies_preds ctxt p0@(Predicate eqs0 flg0) p1@(Predicate eqs1 flg1)
   | (flg0 == None || flg1 `elem` [None,flg0]) && (all implied_by_eqs0 $ M.toList eqs1) = True -- && (all_sps_in_eqs1 $ M.keys eqs0)
-  | otherwise = False
+  | otherwise = False --trace("implies_preds: " ++ show (M.lookup (SP_Reg RIP) eqs0) ++"\n" ++show p0 ++ "\n" ++ show p1 ++ "\n" ++ show (join_preds ctxt "" p0 p1) ++ "\n\n")  False
  where
   implied_by_eqs0 (SP_Reg RIP, _) = True -- technicality 
-  implied_by_eqs0 (sp1,Bottom _)  = True
+  --implied_by_eqs0 (sp1,Bottom _)  = True
   implied_by_eqs0 (sp1,v1) =
-    if contains_bot v1 then
-      True
-    else case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
+    --if contains_bot v1 then
+    --  True
+    --else
+    case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
       Nothing -> le_expr (evalState (read_sp ctxt sp1) p0) (evalState (read_sp ctxt sp1) p1) -- is_initial sp1 v1
       Just (sp0,v0) -> necessarily_equal v0 v1  || le_expr v0 v1
 
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
 
+
+  -- e0 models more sources than e1
   le_expr e0 e1 =
     let j = join_expr ctxt e0 e1 in
-      j == e1 || (contains_bot j && srcs_of_expr ctxt e1 `S.isSubsetOf` srcs_of_expr ctxt j)
+      if e0==e1 || j == e0 || S.null (srcs_of_expr ctxt e0) ||  (contains_bot j && srcs_of_expr ctxt e1 `S.isSubsetOf` srcs_of_expr ctxt j) then
+        True
+      else
+        False
 
 
 -- | The initial predicate.
