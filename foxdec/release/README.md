@@ -15,4 +15,6 @@ This will populate the subdirectory `./artifacts/`. Specifically, it will genera
 For example, the file `./artifacts/wc/wc.metrics.txt` will contain the metrics for the `wc` binary.
 
 
-**More information:** All binaries on which pointer analysis is run, are included within file `ballpark.zip` in the subdirectory `./examples/`. This package is intended for push-button reproduction of the results. To apply the pointer analysis to other binaries, please contact the first author of the paper. Basically, one needs to add the binary and a `.entry` file into the `examples` directory of `ballpark.zip` and then modify `Dockerfile` (see line 28 of that file). A non-anonymized version will be made publicly available as well, that allows more convenience.
+**More usage information:** All binaries on which pointer analysis is run, are included within file `ballpark.zip` in the subdirectory `./examples/`. This package is intended for push-button reproduction of the results. To apply the pointer analysis to other binaries, please contact the first author of the paper. Basically, one needs to add the binary and a `.entry` file into the `examples` directory of `ballpark.zip` and then modify `Dockerfile` (see line 28 of that file). A non-anonymized version will be made publicly available as well, that allows more convenience.
+
+**Isabelle/HOL:** IN directory `isabelle` all proofs can be found. The files can be loaded in Isabelle version 2021-1.
