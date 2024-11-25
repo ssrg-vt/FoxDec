@@ -143,7 +143,7 @@ lift_to_L0 = do
 
         g <- gets (IM.lookup a . ctxt_cfgs)
         (finit,invs,posts,sps) <- ctxt_get_curr_posts a
-        let do_repeat = curr_g /= g || curr_sps /= sps -- TODO why sps, not posts?
+        let do_repeat = curr_g /= g || curr_finit /= finit
 
         new_calls <- ctxt_get_new_calls a
         if new_calls == [] then do

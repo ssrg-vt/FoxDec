@@ -1617,6 +1617,7 @@ tau_b :: FContext -> [X86.Instruction] -> State Predicate ()
 tau_b ctxt []  = return ()
 tau_b ctxt (i:is) = do
   write_reg ctxt RIP (SE_Immediate $ X86.addressof i + (fromIntegral $ sizeof i))
+
   tau_i ctxt i
   tau_b ctxt is
 
@@ -1669,7 +1670,7 @@ join_expr' ctxt p q e0 e1 = join_exprs ("join") ctxt $ map simp [e0,e1] -- \n" +
 -- Assumes any statepart not currently in the state is unwritten to.
 
 
-temp_trace msg v v' sp j = j -- if v/=j || v'/= j then traceShow (msg,v,v',sp,j) j else j
+temp_trace ctxt msg v v' sp j = j -- if le_expr ctxt "" j v && le_expr ctxt "" j v' then j else traceShow (v,v',j) j 
 
 
 supremum ctxt = foldr1 (join_preds ctxt "supremum")
@@ -1677,31 +1678,33 @@ supremum ctxt = foldr1 (join_preds ctxt "supremum")
 join_preds ctxt msg p@(Predicate eqs0 flg0) p'@(Predicate eqs1 flg1) =
   let m    = M.mapWithKey mk_entry eqs0
       flg' = if flg0 == flg1 then flg0 else None
-      q    = Predicate m flg' in
-    foldr mk_entry' q $ M.toList eqs1
+      q    = Predicate m flg' 
+      j    = foldr mk_entry' q $ M.toList eqs1 in
+    j
+    -- if implies_preds ctxt j p && implies_preds ctxt j p' then j else traceShow ("JOIN",implies_preds ctxt j p,p,implies_preds ctxt j p',p',j) j
  where
   mk_entry sp v =
-    case find (\(sp',v') -> necessarily_equal_stateparts sp sp') $ M.toList eqs1 of
+    case find (\(sp',v') -> sp==sp' ||necessarily_equal_stateparts sp sp') $ M.toList eqs1 of
       Nothing ->
         --if is_initial sp v then
         --  v
         --else
           let v' = evalState (read_sp ctxt sp) p' in
-            temp_trace "0" v v' sp $ join_expr' ctxt p p' v v'
+            temp_trace ctxt "0" v v' sp $ join_expr' ctxt p p' v v'
       Just (sp',v') ->
         if necessarily_equal v v' || v == v' then
           v
         else
-          temp_trace "1" v v' sp $ join_expr' ctxt p p' v v'
+          temp_trace ctxt "1" v v' sp $ join_expr' ctxt p p' v v'
 
   mk_entry' (sp',v' ) q =
-    case find (\(sp,v) -> necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
+    case find (\(sp,v) -> sp==sp' || necessarily_equal_stateparts sp sp') $ M.toList eqs0 of
       Nothing ->
         --if is_initial sp' v' then
         --  execState (write_sp ctxt (sp', v')) q
         --else
           let v = evalState (read_sp ctxt sp') p in
-            execState (write_sp ctxt (sp', temp_trace "2" v v' sp' $ join_expr' ctxt p p' v v')) q
+            execState (write_sp ctxt (sp', temp_trace ctxt "2" v v' sp' $ join_expr' ctxt p p' v v')) q
       Just _  -> q
 
 
@@ -1718,20 +1721,31 @@ implies_preds ctxt p0@(Predicate eqs0 flg0) p1@(Predicate eqs1 flg1)
     --if contains_bot v1 then
     --  True
     --else
-    case find (\(sp0,v0) -> necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
-      Nothing -> le_expr (evalState (read_sp ctxt sp1) p0) (evalState (read_sp ctxt sp1) p1) -- is_initial sp1 v1
-      Just (sp0,v0) -> necessarily_equal v0 v1  || le_expr v0 v1
+    case find (\(sp0,v0) -> sp0==sp1||necessarily_equal_stateparts sp0 sp1) $ M.toList eqs0 of
+      Nothing -> le_expr ctxt (show ("no sp0",sp1)) (evalState (read_sp ctxt sp1) p0) v1 -- is_initial sp1 v1
+      Just (sp0,v0) -> necessarily_equal v0 v1  || le_expr ctxt (show (sp0,sp1)) v0 v1
 
   all_sps_in_eqs1 sps0 = all (\sp0 -> contains_bot_sp sp0 || (find (\sp1 -> necessarily_equal_stateparts sp0 sp1) $ M.keys eqs1) /= Nothing) sps0
 
 
-  -- e0 models more sources than e1
-  le_expr e0 e1 =
-    let j = join_expr ctxt e0 e1 in
-      if e0==e1 || j == e0 || S.null (srcs_of_expr ctxt e0) ||  (contains_bot j && srcs_of_expr ctxt e1 `S.isSubsetOf` srcs_of_expr ctxt j) then
-        True
-      else
-        False
+-- e0 models more sources than e1
+le_expr ctxt msg e0 e1 =
+   if e1 `subs` e0  || S.null (srcs_of_expr ctxt e0) || join_expr ctxt e0 e1 == e0 ||  (contains_bot e0 && domain_subset e1 (fromJust $ get_pointer_domain ctxt e1) e0 (fromJust $ get_pointer_domain ctxt e1)) then
+     True
+   else
+     False -- traceShow ("LE_EXPR:", msg, e0,e1,j) False
+ where
+  (Bottom (FromNonDeterminism es0)) `subs` (Bottom (FromNonDeterminism es1)) =  es0 `S.isSubsetOf` es1
+  e0 `subs` e1@(Bottom (FromNonDeterminism es1)) =  e0 `S.member` es1
+  e0 `subs` e1 = e0 == e1
+
+
+  domain_subset e0 (Domain_Bases bs0)     e1 (Domain_Bases bs1)     = bs0 `S.isSubsetOf` bs1
+  domain_subset e0 (Domain_Sources srcs0) e1 (Domain_Sources srcs1) = srcs0 `S.isSubsetOf` srcs1
+  domain_subset e0 (Domain_Sources srcs0) e1 _                      = srcs0 `S.isSubsetOf` srcs_of_expr ctxt e1
+  domain_subset e0 _                      e1 (Domain_Sources srcs1) = srcs_of_expr ctxt e0 `S.isSubsetOf` srcs1
+
+
 
 
 -- | The initial predicate.

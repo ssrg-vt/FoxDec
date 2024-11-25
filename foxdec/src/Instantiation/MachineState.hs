@@ -223,7 +223,7 @@ is_assertable ctxt a0 si0 a1 si1 =
 -- according to Conventions (see 'section_is_unwritable')
 address_is_unwritable ctxt (SE_Immediate a) =
   case find_section_for_address ctxt $ fromIntegral a of
-    Nothing -> False
+    Nothing -> True 
     Just (segname,sectname,_,_,_) -> section_is_unwritable (segname,sectname)
 address_is_unwritable ctxt _ = False
 
@@ -378,7 +378,7 @@ read_from_address ctxt operand a si0 = do
         Enclosed  -> return $ Bottom (FromOverlap $ srcs_of_expr ctxt e1)
         _         -> do
           e0 <- do_read a0 mem
-          let bot  = join_exprs ("read merge overlapping values2" ++ show (a0,si0,a1,si1)) ctxt $ filter ((/=) rock_bottom) [e0,e1]
+          let bot  = join_exprs ("read merge overlapping values2" ++ show (a0,si0,a1,si1)) ctxt $ [e0,e1]
           return $ bot 
 
 
