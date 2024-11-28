@@ -44,7 +44,7 @@ import X86.Instruction (addressof)
 import Generic.HasSize (sizeof)
 import qualified X86.Instruction as X86
 import Generic.Instruction (GenericInstruction(Instruction))
-import Generic.Address (AddressWord64(..))
+import Generic.Address
 import Generic.Operand
 
 
@@ -632,17 +632,34 @@ mnemonic_to_semantics CMOVP   si si' = ApplyCMov
 mnemonic_to_semantics CMOVPE  si si' = ApplyCMov
 mnemonic_to_semantics CMOVNP  si si' = ApplyCMov
 mnemonic_to_semantics CMOVPO  si si' = ApplyCMov
-
-
 --TODO TEST
 --TODO other sign extension thingies
-
 mnemonic_to_semantics _      _ _  = NoSemantics
 
 
+
+
+replace_rip_in_operand rip (Memory addr si)        = Memory (replace_rip_in_address rip addr) si
+replace_rip_in_operand rip (EffectiveAddress addr) = EffectiveAddress $ replace_rip_in_address rip addr
+replace_rip_in_operand rip (Immediate imm)         = Immediate imm
+replace_rip_in_operand rip (Storage r)
+  | r == RIP  = Immediate rip
+  | otherwise = Storage r
+
+replace_rip_in_address rip (AddressStorage r)
+  | r == RIP  = AddressImm rip
+  | otherwise = AddressStorage r
+replace_rip_in_address rip (AddressImm imm)     = AddressImm imm
+replace_rip_in_address rip (AddressPlus a0 a1)  = AddressPlus (replace_rip_in_address rip a0) (replace_rip_in_address rip a1)
+replace_rip_in_address rip (AddressMinus a0 a1) = AddressPlus (replace_rip_in_address rip a0) (replace_rip_in_address rip a1)
+replace_rip_in_address rip (AddressTimes a0 a1) = AddressPlus (replace_rip_in_address rip a0) (replace_rip_in_address rip a1)
+
+
+
+cflg_semantics :: FContext -> a -> X86.Instruction -> FlagStatus -> FlagStatus
 cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs = flg mnemonic
  where
-  flg CMP      = FS_CMP Nothing (srcs!!0) (srcs!!1)
+  flg CMP      = FS_CMP Nothing (replace_rip_in_operand (addressof i + (fromIntegral $ sizeof i)) $ srcs!!0) (replace_rip_in_operand (addressof i + (fromIntegral $ sizeof i)) $ srcs!!1)
 
   flg PUSH     = flgs
   flg POP      = flgs

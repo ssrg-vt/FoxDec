@@ -443,7 +443,7 @@ remove_destination mnemonic =
          , FMUL, FMULP, FIMUL
          , FDIV, FDIVP, FIDIV
          , FDIVR, FDIVRP, FIDIVR
-         , FCOMI, FCOMIP, FUCOMI, FUCOMIP
+         , FCOMI, FCOMIP, FUCOMI, FUCOMIP, FCOMPI
          , FLDCW, FCHS, FLDZ, FLD1, FLDPI
          , FCMOVB, FCMOVE, FCMOVBE, FCMOVU, FCMOVNB, FCMOVNE, FCMOVNBE, FCMOVNU
          , SCAS, SCASB, SCASD

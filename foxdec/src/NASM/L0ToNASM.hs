@@ -691,6 +691,7 @@ address_to_NASM' i a =
   address_to_NASM'' (AddressPlus (AddressStorage r) (AddressMinus (AddressTimes (AddressStorage r1) (AddressImm i)) (AddressImm i1))) = empty_address  { nasm_base = Just r, nasm_index = Just r1, nasm_scale = i, nasm_displace = Just (0-i1) }
   address_to_NASM'' (AddressTimes (AddressStorage r) (AddressImm i))  = empty_address  { nasm_index = Just r, nasm_scale = i }
   address_to_NASM'' (AddressMinus (AddressTimes (AddressStorage r) (AddressImm i)) (AddressImm i1)) = empty_address  { nasm_index = Just r, nasm_scale = i, nasm_displace = Just (0-i1) }
+  address_to_NASM'' (AddressPlus (AddressImm i0) (AddressImm i1)) = empty_address{ nasm_displace = Just (i0+i1) }
   address_to_NASM'' a           = error $ "TODO: " ++ show a
 
 
@@ -802,6 +803,8 @@ relocatable_symbol ctxt a = (IM.lookup (fromIntegral a) (ctxt_symbol_table ctxt)
 reloc_for a (Relocation a0 a1) = a == a0
 
 rip_relative_to_immediate i (AddressImm imm)                                     = Just $ imm
+rip_relative_to_immediate i (AddressPlus  (AddressImm i0)  (AddressImm i1))      = Just $ i0 + i1
+rip_relative_to_immediate i (AddressMinus (AddressImm i0)  (AddressImm i1))      = Just $ i0 - i1
 rip_relative_to_immediate i (AddressPlus  (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (addressof i) + fromIntegral (sizeof i) + fromIntegral imm
 rip_relative_to_immediate i (AddressMinus (AddressStorage RIP) (AddressImm imm)) = Just $ fromIntegral (addressof i) + fromIntegral (sizeof i) - fromIntegral imm
 rip_relative_to_immediate i (AddressPlus  (AddressImm imm) (AddressStorage RIP)) = Just $ fromIntegral (addressof i) + fromIntegral (sizeof i) + fromIntegral imm
@@ -1051,6 +1054,18 @@ reg_of_size R12  4 = R12D
 reg_of_size R13  4 = R13D
 reg_of_size R14  4 = R14D
 reg_of_size R15  4 = R15D
+reg_of_size RAX  2 = AX
+reg_of_size RBX  2 = BX
+reg_of_size RCX  2 = CX
+reg_of_size RDX  2 = DX
+reg_of_size R8   2 = R8W
+reg_of_size R9   2 = R9W
+reg_of_size R10  2 = R10W
+reg_of_size R11  2 = R11W
+reg_of_size R12  2 = R12W
+reg_of_size R13  2 = R13W
+reg_of_size R14  2 = R14W
+reg_of_size R15  2 = R15W
 reg_of_size RAX  1 = AL
 reg_of_size RBX  1 = BL
 reg_of_size RCX  1 = CL

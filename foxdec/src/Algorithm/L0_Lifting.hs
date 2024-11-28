@@ -691,7 +691,7 @@ ctxt_analyze_unresolved_indirections entry = do
     case flagstatus_to_tries max_tries (sflags p) of
       Nothing -> try_to_resolve_from_invariant fname f g b p i trgt
       Just (op1,n) -> do
-        let values1 = map (\n -> evalSstate (try fctxt f (addressof i) g b op1 trgt n) (clean_sstate fctxt p)) [0..n]
+        let values1 = map (\n -> evalSstate (try fctxt f i g b op1 trgt n) (clean_sstate fctxt p)) [0..n]
         if values1 == [] || any ((==) Nothing) values1 then
           try_to_resolve_from_invariant fname f g b p i trgt
         else if all is_jump_table_entry values1 then do
@@ -751,7 +751,8 @@ ctxt_analyze_unresolved_indirections entry = do
 
   -- write an immediate value to operand op1, then run symbolic exection to see if
   -- after executing a block the target-operand is an immediate value as well.
-  try fctxt f i_a g blockId op1 trgt n = do
+  try fctxt f i g blockId op1 trgt n = do
+    sset_rip fctxt i
     swrite_operand fctxt False op1 (simmediate fctxt n)
     try' fctxt f g blockId trgt
 
