@@ -16,16 +16,17 @@ import qualified Data.IntSet as IS
 import Data.Word ( Word64, Word8 )
 import Data.Traversable (for)
 import Data.List
+import Data.Foldable
 import Data.Maybe (mapMaybe, fromMaybe,fromJust)
+import Control.Monad.Extra (firstJustM)
 import qualified Numeric (showHex,readHex)
 import Debug.Trace
 import GHC.Generics
 import qualified Data.Serialize as Cereal 
 import Control.Monad.State.Strict
 import Data.Ord (comparing)
-import Data.Bits (shift,testBit,clearBit)
+import Data.Bits (shift,testBit,clearBit,(.|.), (.&.), xor, shiftL,shiftR)
 import Control.DeepSeq
-
 
 import Data.Serialize.Get (getSetOf)
 import Data.Serialize.Put (putSetOf)
@@ -52,6 +53,10 @@ showHex_option (Just v) = showHex v
 readHex' :: (Eq a, Num a) => String -> a
 readHex' = fst . head . Numeric.readHex
 
+show_set :: (Foldable t,Show a) => t a -> String
+show_set as = "{" ++ intercalate ", " (fmap show $ toList as) ++ "}" 
+
+
 -- | Lookup and produce error message if key does not exists in map.
 im_lookup s m k =
   case IM.lookup k m of
@@ -70,6 +75,23 @@ orTry a b
   | a == Nothing = b
   | otherwise    = a
 
+orElseM :: Monad m => m (Maybe a) -> m a -> m a
+orElseM m0 m1 = do
+  a <- m0
+  case a of
+    Nothing -> m1
+    Just a  -> return a
+
+
+orTryM :: Monad m => m (Maybe a) -> m (Maybe a) -> m (Maybe a)
+orTryM m0 m1 = do
+  a <- m0
+  case a of
+    Nothing -> m1
+    Just a  -> return $ Just a
+    
+
+
 -- | return only if Bool holds
 onlyWhen b a = if b then Just a else Nothing
 
@@ -77,6 +99,14 @@ onlyWhen b a = if b then Just a else Nothing
 existsAndSatisfies Nothing  p = False
 existsAndSatisfies (Just a) p = p a  
 
+-- | Takes computations returnings @Maybes@; tries each one in order.
+-- The first one to return a @Just@ wins. Returns @Nothing@ if all computations
+-- return @Nothing@.
+firstJustsM :: (Monad m, Foldable f) => f (m (Maybe a)) -> m (Maybe a)
+firstJustsM = foldlM go Nothing where
+  go :: Monad m => Maybe a -> m (Maybe a) -> m (Maybe a)
+  go Nothing         action  = action
+  go result@(Just _) _action = return result
 
 -- | create a tuple
 pair a b = (a,b)
@@ -153,6 +183,29 @@ quotientByL eq (a:as) =
   let (group,remainder) = partition (eq a) as in
     (a:group) : quotientByL eq remainder
 
+
+-- | Sign-extension from 32 to 64 bits
+sextend_32_64 w = if testBit w 31 then (w .&. 0x00000000FFFFFFFF) .|. 0xFFFFFFFF00000000 else (w .&. 0x00000000FFFFFFFF)
+-- | Sign-extension from 16 to 64 bits
+sextend_16_64 w = if testBit w 15 then (w .&. 0x000000000000FFFF) .|. 0xFFFFFFFFFFFF0000 else (w .&. 0x000000000000FFFF)
+-- | Sign-extension from 8 to 64 bits
+sextend_8_64  w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0xFFFFFFFFFFFFFF00 else (w .&. 0x00000000000000FF)
+
+-- | Sign-extension from 16 to 32 bits
+sextend_16_32  w = if testBit w 15  then (w .&. 0x000000000000FFFF) .|. 0x00000000FFFF0000 else (w .&. 0x000000000000FFFF)
+-- | Sign-extension from 8 to 32 bits
+sextend_8_32  w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0x00000000FFFFFF00 else (w .&. 0x00000000000000FF)
+
+-- | Sign-extension from 8 to 16 bits
+sextend_8_16 w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0x000000000000FF00 else (w .&. 0x00000000000000FF)
+
+
+
+
+round2dp :: Double -> Double
+round2dp x = fromIntegral (round $ x * 1e2) / 1e2
+
+
 --------------------------------------------
 -- | Generic graph with ints as vertices.
 --------------------------------------------
@@ -186,6 +239,23 @@ graph_is_edge (Edges es) v0 v1  =
     Nothing -> False
     Just vs -> IS.member v1 vs
 
+
+-- | Find an end (terminal node) reachable from the given node v0
+try_find_end_node_from_node (Edges es) v0 = evalState (go v0) IS.empty
+ where
+  go :: Int -> State IS.IntSet (Maybe Int)
+  go v = do
+    visited <- get
+    if v `IS.member` visited then
+      return $ Nothing
+    else case IM.lookup v es of
+      Nothing -> return Nothing
+      Just vs -> 
+        if IS.null vs then
+          return $ Just v
+        else do
+          modify $ IS.insert v
+          firstJustM go $ IS.toList vs
 
 instance IntGraph Graph where
   intgraph_post (Edges es) v =

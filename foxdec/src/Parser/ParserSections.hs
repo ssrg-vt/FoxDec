@@ -17,7 +17,7 @@
 
 module Parser.ParserSections where
 
-import Generic.Binary
+import Binary.Generic
 
 import Text.Parsec.Token
 import Text.ParserCombinators.Parsec

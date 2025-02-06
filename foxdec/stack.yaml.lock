@@ -845,27 +845,6 @@ packages:
   original:
     hackage: dom-lt-0.2.3@sha256:89f17bbeb0d23f5a46fe7099b81cc9b4b5df32aadb5080fc171c874aafc802c0,1850
 - completed:
-    hackage: hapstone-0.2.0.1@sha256:56408898dece7c6360d6bd0ca943c428d811f1cbe7d1070ce69cd4382df5cc54,2824
-    pantry-tree:
-      sha256: 187856d72181d64e9b48f44eeea19dafc627f71d7f279bcb2ab99dfa4f422170
-      size: 2503
-  original:
-    hackage: hapstone-0.2.0.1@sha256:56408898dece7c6360d6bd0ca943c428d811f1cbe7d1070ce69cd4382df5cc54,2824
-- completed:
-    hackage: c2hs-0.28.8@sha256:c399132e2273e70770be403fba4795d7d8c60d7bd147f0ef174342bebbd44392,9397
-    pantry-tree:
-      sha256: 2b5516b9d88bd3118ae234f7248d3f448093b516635f1d71f75cf760487b4f80
-      size: 17398
-  original:
-    hackage: c2hs-0.28.8@sha256:c399132e2273e70770be403fba4795d7d8c60d7bd147f0ef174342bebbd44392,9397
-- completed:
-    hackage: language-c-0.9.3@sha256:3f3857a3fde8702cd1c268e9b754f889128b591b218dd23995dde96dfdad9e47,3787
-    pantry-tree:
-      sha256: 4ce683526453355d589faa4a2b7f85e00d7279ca18c598487001959b1dea94a5
-      size: 3342
-  original:
-    hackage: language-c-0.9.3@sha256:3f3857a3fde8702cd1c268e9b754f889128b591b218dd23995dde96dfdad9e47,3787
-- completed:
     hackage: alex-3.5.0.0@sha256:348778ae5f77f946e45b88c6c94b3a65c655954e5f07f6d7dfa6c99efde5248c,3886
     pantry-tree:
       sha256: 6250b0f326cde2fd5f8bb06f9c55140fe9fe4d0f8be8800342c6c9de1f5aa96d

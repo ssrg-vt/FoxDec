@@ -9,6 +9,8 @@ module Data.SPointer where
 
 import Data.SymbolicExpression
 
+import Base
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -23,28 +25,19 @@ import qualified Data.Foldable as F
 import Control.DeepSeq
 
 data SPointer = 
-    Concrete (NES.NESet SimpleExpr)
-  | Bases (NES.NESet PointerBase)
-  | Sources (NES.NESet BotSrc)
-  | Top
+    Ptr_Concrete SimpleExpr
+  | Ptr_Base SimpleExpr
+  | Ptr_Top
   deriving (Eq,Ord,Generic)
 
---TODO move to Base
-show_set :: (Foldable t,Show a) => t a -> String
-show_set as = "{" ++ intercalate ", " (fmap show $ F.toList as) ++ "}" 
 
 instance Show SPointer where
-  show (Concrete es)
-    | NES.size es == 1  = show $ NES.findMin es
-    | otherwise         = show_set es ++ "C"
-  show (Bases bs)       = show_set bs ++ "B"
-  show (Sources srcs)   = show_set srcs ++ "S"
-  show Top              = "top"
+  show (Ptr_Concrete a) = show a
+  show (Ptr_Base b)     = show b ++ "+..."
+  show Ptr_Top          = "top"
 
 
 
-isConcrete (Concrete _) = True
-isConcrete _            = False
 
 
 

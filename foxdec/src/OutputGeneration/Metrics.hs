@@ -1,35 +1,21 @@
 {-# LANGUAGE PartialTypeSignatures , FlexibleContexts, DeriveGeneric, StandaloneDeriving, StrictData #-}
 
 
-module OutputGeneration.Metrics (
-  num_of_instructions,
-  num_of_unres_inds_in_cfg,
-  num_of_blocks,
-  num_of_edges, 
-  mk_metrics
- ) where
+module OutputGeneration.Metrics where 
 
 import Base
 
 import Data.SValue
+import Data.L0
+import Data.CFG
+import Data.Indirection
+import Data.VerificationCondition
 import Data.SymbolicExpression
-
-import Analysis.Context
-import Analysis.Pointers 
-import Analysis.ControlFlow
+import Data.X86.Instruction
 
 
-import OutputGeneration.Retrieval
-
-import Generic.HasSize 
-import Generic.Binary
-import Generic.SymbolicConstituents
-import Generic.Instruction
-
-import Instantiation.SymbolicPropagation (get_invariant)
-
-import X86.Opcode
-
+import Binary.Generic
+import WithNoAbstraction.Pointers
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -49,6 +35,115 @@ import System.IO.Unsafe (unsafePerformIO)
 import GHC.Generics
 import Debug.Trace
 
+
+
+
+
+
+
+mk_metrics bin l0 =
+  let (rest,unresolved) = IM.partition ((/=) (S.singleton Indirection_Unresolved)) $ l0_indirections l0
+      (partially_resolved,resolved) = IM.partition (S.member Indirection_Unresolved) $ rest
+      instrs = l0_get_all_instructions l0
+      num_intrs = length instrs
+      avg_size = average $ map inSize instrs
+      num_expected_intrs = floor (fromIntegral (binary_text_section_size bin) / avg_size)
+      pars = IM.unions $ l0_get_pars l0
+      pointerDesignations = mk_metric_pointerDesignations bin pars in
+   intercalate "\n" [
+       "-------------"
+     , "INDIRECTIONS:"
+     , "-------------"
+     , "#indirections:                   " ++ show (IM.size $ l0_indirections l0) 
+     , "  (of which resolved):           " ++ show (IM.size resolved) 
+     , "  (of which partially resolved): " ++ show (IM.size partially_resolved)
+     , "  (of which unresolved):         " ++ show (IM.size unresolved)
+     ,show_indirections $ IM.filter ((/=) (S.singleton Indirection_Unresolved)) $ l0_indirections l0 
+
+     , "\n"
+     , "-------------"
+     , "INSTRUCTIONS:"
+     , "-------------"
+     , "#instructions:                      " ++ show num_intrs
+     , "average instruction size:           " ++ show avg_size
+     , "estimate of expected #instructions: " ++ show num_expected_intrs
+     , "coverage:                           " ++ show (round2dp (fromIntegral num_intrs / fromIntegral num_expected_intrs * 100))
+     , "#instructions with memory access:   " ++ show (IM.size pars)
+     , "  designations:                     " ++ show (M.assocs $ designations_to_percentages pointerDesignations)
+
+     , "\n"
+     , "----------"
+     , "FUNCTIONS:"
+     , "----------"
+     , "#lifted functions:                              " ++ show (IM.size $ l0_functions l0)
+     , "  (of which ending in unresolved indirections): " ++ show (IM.size $ IM.filter (is_unresolved . get_post) $ l0_functions l0)
+     , "  (of which verification error):                " ++ show (IM.size $ IM.filter (is_error . get_post) $ l0_functions l0)
+
+     , "\n"
+     , "----------"
+     , "OTHER:"
+     , "----------"     
+     , "verificaton time: " ++ l0_time l0
+     , "\n"
+   ]
+  --putStrLn $ show $ IM.filter is_error $ IM.map get_post $ l0_functions l0
+  --putStrLn $ show $ IM.map get_cfg $ IM.filter (is_error . get_post) $ l0_functions l0
+ where
+  get_post (finit,Just (FResult _ post _ _ _)) = post
+  get_cfg (finit,Just (FResult cfg post _ _ _)) = cfg
+
+
+  is_error (VerificationError _) = True
+  is_error _ = False
+
+  is_unresolved (HasUnresolvedIndirections _) = True
+  is_unresolved _ = False
+
+  l0_get_all_instructions = S.toList . S.fromList . concat . concatMap (IM.elems . cfg_instrs) . IM.elems . l0_get_cfgs
+
+  
+
+mk_metric_pointerDesignations bin = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction . IM.assocs
+ where
+  init_m = M.fromList [("U",0), ("CL",0),("CG",0),("CH",0),("CLG",0),("CLH",0),("CGH",0),("CLHG",0), ("AL",0),("AG",0),("AH",0),("ALG",0),("ALH",0),("AGH",0),("ALHG",0)]
+
+  get_specifity_per_instruction (entry,PointerAnalysisResult w rs) = map (get_domains entry) [w] -- (w:rs) IF ALSO PRODUCING DATA OVER READS
+
+  get_domains entry Nothing  = "Nothing"
+  get_domains entry (Just e) = get_pointer_specifity_cpointer bin e
+
+
+-- "C"     = Concrete
+-- "C+U"   = Concrete plus unknown offset
+-- "U"     = Unknown
+-- "A"     = Addends
+get_pointer_specifity_cpointer bin Top = "U"
+get_pointer_specifity_cpointer bin (SAddends es)  = "A" ++ get_types bin es
+get_pointer_specifity_cpointer bin (SConcrete es) = "C" ++ get_types bin es
+
+get_types bin es = local ++ global ++ heap
+ where
+  local
+    | any (expr_is_maybe_local_pointer bin) es = "L"
+    | otherwise = ""
+  global
+    | any (expr_is_maybe_global_pointer bin) es = "G"
+    | otherwise = ""
+  heap 
+    | any (\e -> not (expr_is_maybe_global_pointer bin e) && not (expr_is_maybe_local_pointer bin e)) es = "H"
+    | otherwise = ""
+
+
+designations_to_percentages :: M.Map String Int -> M.Map String Double
+designations_to_percentages m = M.map (\v -> mk_percentage v $ sum $ M.elems m) m
+ where
+  mk_percentage x y = round2dp (x `intDiv` y * 100)
+
+intDiv :: (Integral a,Integral b) => a -> b -> Double
+x `intDiv` y = fromIntegral x / fromIntegral y
+
+
+{--
 
 metrics = M.fromList [
   ("#instructions",          "number of covered instructions"),
@@ -174,13 +269,13 @@ num_of_unres_inds_in_cfg ctxt chkKind g =
 num_of_resolved_indirection_calls ctxt = IM.size $ IM.filterWithKey (indirectionIsCall ctxt) $ ctxt_inds ctxt
  where
   indirectionIsCall ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
+    case unsafePerformIO $ Analysis.Context.fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
       Nothing -> False
       Just i  -> isCall $ opcode i
 num_of_resolved_indirection_jumps ctxt = IM.size $ IM.filterWithKey (indirectionIsJump ctxt) $ ctxt_inds ctxt
  where
   indirectionIsJump ctxt a _ =
-    case unsafePerformIO $ fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
+    case unsafePerformIO $ Analysis.Context.fetch_instruction ctxt $ fromIntegral a of -- Should be safe as result is immutable.
       Nothing -> False
       Just i  -> not $ isCall $ opcode i
 
@@ -195,32 +290,6 @@ num_of_blocks g = IM.size $ cfg_blocks g
 num_of_edges g = sum (map IS.size $ IM.elems $ cfg_edges g)
 
 
-mk_metric_pointerDesignations :: Context -> [(Word64,Word64, [Maybe SValue])] -> M.Map String Int
-mk_metric_pointerDesignations ctxt = foldr (M.adjust ((+) 1)) init_m . concatMap get_specifity_per_instruction
- where
-  init_m = M.fromList [("U",0), ("C",0), ("C+U",0), ("A",0)]
-
-  get_specifity_per_instruction (entry,a,es) = map (get_domains entry) es
-
-  get_domains entry Nothing = "Nothing"
-  get_domains entry (Just e) = 
-    let fctxt = mk_fcontext ctxt (fromIntegral entry) in
-       get_pointer_specifity_cpointer fctxt e
-
-
--- "C"     = Concrete
--- "C+U"   = Concrete plus unknown offset
--- "U"     = Unknown
--- "A"     = Addends
-get_pointer_specifity_cpointer fctxt Top = "U"
-get_pointer_specifity_cpointer fctxt (SAddends es) = "A"
-get_pointer_specifity_cpointer fctxt (SConcrete es)
-  | any contains_rock_bottom es = "C+U"
-  | otherwise                   = "C"
- where
-  contains_rock_bottom e = contains_bot e && not (all_bot_satisfy (not . is_rock_bottom) e)
-  is_rock_bottom (FromCall "") = True
-  is_rock_bottom _             = False
 
 percentageResolvedMemWrites :: M.Map String Double -> Double
 percentageResolvedMemWrites m = 100 - m M.! "U"
@@ -252,3 +321,5 @@ data Metric = Metric {
 
 instance ToJSON Metric where
   toJSON = genericToJSON defaultOptions { sumEncoding = ObjectWithSingleField }
+
+--}

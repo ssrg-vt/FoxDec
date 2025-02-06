@@ -21,7 +21,7 @@ import Text.Parsec.Token
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Number
 import qualified Data.IntMap as IM
-import Generic.Binary
+import Binary.Generic
 import Data.Symbol
 
 isWhiteSpace '\t' = True

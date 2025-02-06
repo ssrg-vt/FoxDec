@@ -25,56 +25,54 @@ source-repository head
 library
   exposed-modules:
       Algorithm.Dominance
-      Algorithm.L0_Lifting
       Algorithm.SCC
-      Analysis.ACode_Gen
-      Analysis.Capstone
-      Analysis.Context
-      Analysis.ControlFlow
-      Analysis.FunctionNames
-      Analysis.Pointers
       Base
+      Binary.Elf
+      Binary.FunctionNames
+      Binary.Generic
+      Binary.Macho
+      Binary.Read
       Config
-      Data.JSON
-      Data.JSON_Taxonomy
+      Conventions
+      Data.CFG
+      Data.Indirection
       Data.JumpTarget
+      Data.L0
+      Data.Size
       Data.SPointer
       Data.SValue
       Data.Symbol
       Data.SymbolicExpression
-      Data.Variable
-      Generic.Address
-      Generic.Binary
-      Generic.HasSize
-      Generic.Instruction
-      Generic.Operand
-      Generic.SymbolicConstituents
-      Generic.SymbolicPropagation
-      Instantiation.BinaryElf
-      Instantiation.BinaryMacho
-      Instantiation.SymbolicPropagation
-      NASM.L0ToNASM
-      NASM.NASM
-      NASM.NASMToC
+      Data.VerificationCondition
+      Data.X86.Instruction
+      Data.X86.Opcode
+      Data.X86.Register
+      Disassembler.Disassembler
       OutputGeneration.CallGraph
-      OutputGeneration.JSON
       OutputGeneration.Metrics
-      OutputGeneration.Retrieval
+      OutputGeneration.NASM.L0ToNASM
+      OutputGeneration.NASM.NASM
+      OutputGeneration.NASM.NASMToC
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
       Parser.ParserSections
       Parser.ParserSymbols
-      Parser.ParserX86Instruction
       Reconstruction.Reconstruction
-      X86.Address
-      X86.Conventions
-      X86.Flag
-      X86.Instruction
-      X86.Opcode
-      X86.Operand
-      X86.Prefix
-      X86.Register
+      WithAbstractPredicates.Class
+      WithAbstractPredicates.ContextSensitiveAnalysis
+      WithAbstractPredicates.ControlFlow
+      WithAbstractPredicates.GenerateACode
+      WithAbstractPredicates.GenerateCFG
+      WithAbstractPredicates.GenerateInvariants
+      WithAbstractSymbolicValues.Class
+      WithAbstractSymbolicValues.FInit
+      WithAbstractSymbolicValues.InstanceOfAbstractPredicates
+      WithAbstractSymbolicValues.ResolveIndirections
+      WithAbstractSymbolicValues.Sstate
+      WithAbstractSymbolicValues.SymbolicExecution
+      WithNoAbstraction.Pointers
+      WithNoAbstraction.SymbolicExecution
   other-modules:
       Paths_foxdec
   hs-source-dirs:
@@ -82,7 +80,9 @@ library
   ghc-options: -threaded
   build-depends:
       aeson
+    , attoparsec >=0.14.4
     , base
+    , binary >=0.8.9.1
     , blaze-builder
     , bytestring
     , cereal
@@ -93,7 +93,6 @@ library
     , dom-lt
     , elf
     , extra
-    , hapstone
     , hourglass
     , mtl
     , nonempty-containers
@@ -102,6 +101,7 @@ library
     , process
     , split
     , text
+    , transformers
     , tree-view
   default-language: Haskell2010
 
@@ -114,7 +114,9 @@ executable foxdec-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , attoparsec >=0.14.4
     , base
+    , binary >=0.8.9.1
     , blaze-builder
     , bytestring
     , cereal
@@ -126,7 +128,6 @@ executable foxdec-exe
     , elf
     , extra
     , foxdec
-    , hapstone
     , hourglass
     , mtl
     , nonempty-containers
@@ -135,5 +136,6 @@ executable foxdec-exe
     , process
     , split
     , text
+    , transformers
     , tree-view
   default-language: Haskell2010

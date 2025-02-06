@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 
 {-|
 Module      : SimplePred
@@ -36,15 +37,16 @@ module Data.SymbolicExpression (
 import Base
 import Config
 
-import Generic.Binary
+import Binary.Generic
 import Data.Symbol
+import Data.Size
+import Data.X86.Register
+import Data.X86.Instruction
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.Set.NonEmpty as NES
-
-import Generic.HasSize (sizeof)
 
 import Data.Int (Int32,Int64)
 import Data.Word (Word64,Word32)
@@ -55,19 +57,18 @@ import Debug.Trace
 import GHC.Generics
 import Data.Bits (testBit, (.|.), (.&.), xor, shiftL,shiftR)
 import qualified Data.Serialize as Cereal hiding (get,put)
-import X86.Register (Register)
-import qualified X86.Operand as X86
+
 
 import Control.DeepSeq
 
 
 -- | A pointerbase is a positive addend of a symbolic expression that may represent a pointer.
 data PointerBase = 
-    StackPointer String                  -- ^ The stack frame of the given function
+    StackPointer                         -- ^ The stack frame of the given function
   | Malloc (Maybe Word64) (Maybe String) -- ^ A malloc (at the /heap/) at a given address (hash is unused for now)
   | GlobalAddress Word64                 -- ^ A /global/ address in the range of the sections of the binary.
-  | BaseIsSymbol Symbol                  -- ^ An address with an associated symbol.
   | ThreadLocalStorage                   -- ^ A pointer to the thread-local-storage (e.g., FS register)
+  | BaseIsStatePart StatePart            -- ^ A statepart that is known to contain a pointer
   deriving (Generic,Eq,Ord)
 
 
@@ -94,7 +95,7 @@ data BotTyp =
 -- | Sources that may be used to compute an expression. That is, the inputs to an expression.
 data BotSrc = 
     Src_Var StatePart                        -- ^ An initial variable, i.e., a constant
-  | Src_StackPointer String                  -- ^ The stack pointer of the given function
+  | Src_StackPointer                         -- ^ The stack pointer of the given function
   | Src_Malloc (Maybe Word64) (Maybe String) -- ^ A malloced address
   | Src_ImmediateAddress Word64              -- ^ An immediate used in the computation of the pointer
   | Src_Function String                      -- ^ A return value from a function
@@ -166,15 +167,14 @@ data SimpleExpr =
 
 -- | A statepart is either a register or a region in memory
 data StatePart =
-    SP_StackPointer String   -- ^ The stack pointer of the given function
-  | SP_Reg Register          -- ^ A register
+    SP_Reg Register          -- ^ A register
   | SP_Mem SimpleExpr Int    -- ^ A region with a symbolic address and an immediate size.
  deriving (Eq, Ord, Generic)
 
 
 instance Show BotSrc where
   show (Src_Var sp)               = show $ SE_Var sp
-  show (Src_StackPointer f)       = "RSP_" ++ f
+  show (Src_StackPointer)         = "RSP"
   show (Src_Malloc id h)          = show $ SE_Malloc id h
   show (Src_ImmediateAddress a)   = showHex a
   show (Src_Function f)           = f
@@ -230,14 +230,12 @@ is_immediate _                = False
 
 
 -- | Is the statepart memory?
-is_mem_sp (SP_StackPointer _) = False
-is_mem_sp (SP_Reg _)          = False
-is_mem_sp (SP_Mem a si)       = True
+is_mem_sp (SP_Reg _)        = False
+is_mem_sp (SP_Mem a si)     = True
 
 -- | Is the statepart a register?
-is_reg_sp (SP_StackPointer _) = True
-is_reg_sp (SP_Reg _)          = True
-is_reg_sp (SP_Mem a si)       = False
+is_reg_sp (SP_Reg _)        = True
+is_reg_sp (SP_Mem a si)     = False
 
 
 -- | Returns true iff the expression contains Bot
@@ -252,9 +250,8 @@ contains_bot (SE_SExtend _ _ e)   = contains_bot e
 contains_bot (SE_Overwrite _ a b) = contains_bot a || contains_bot b
 
 -- | Returns true iff the statepart contains Bot
-contains_bot_sp (SP_StackPointer _) = False
-contains_bot_sp (SP_Reg r)          = False
-contains_bot_sp (SP_Mem a si)       = contains_bot a
+contains_bot_sp (SP_Reg r)        = False
+contains_bot_sp (SP_Mem a si)     = contains_bot a
 
 
 
@@ -272,9 +269,8 @@ all_bot_satisfy p (SE_Bit i e)         = all_bot_satisfy p e
 all_bot_satisfy p (SE_SExtend _ _ e)   = all_bot_satisfy p e
 all_bot_satisfy p (SE_Overwrite _ a b) = and [all_bot_satisfy p a, all_bot_satisfy p b]
 
-all_bot_satisfy_sp p (SP_StackPointer r) = True
-all_bot_satisfy_sp p (SP_Reg r)          = True
-all_bot_satisfy_sp p (SP_Mem a si)       = all_bot_satisfy p a
+all_bot_satisfy_sp p (SP_Reg r)        = True
+all_bot_satisfy_sp p (SP_Mem a si)     = all_bot_satisfy p a
 
 
 
@@ -291,9 +287,8 @@ expr_size (SE_Bit i e)         = 1 + expr_size e
 expr_size (SE_SExtend l h e)   = 1 + expr_size e
 expr_size (SE_Overwrite _ _ e) = 1 + expr_size e
 
-expr_size_sp (SP_StackPointer _) = 1
-expr_size_sp (SP_Reg r)          = 1
-expr_size_sp (SP_Mem a si)       = 1 + expr_size a 
+expr_size_sp (SP_Reg r)        = 1
+expr_size_sp (SP_Mem a si)     = 1 + expr_size a 
 
 expr_size_bottyp (FromNonDeterminism es)        = sum $ NES.map expr_size es
 expr_size_bottyp (FromPointerBases bs)          = NES.size bs
@@ -306,13 +301,6 @@ expr_size_bottyp (FromUninitializedMemory srcs) = NES.size srcs
 expr_size_bottyp (FromCall _)                   = 1
 
 
-
--- | Sign-extension from 32 to 64 bits
-sextend_32_64 w = if testBit w 31 then (w .&. 0x00000000FFFFFFFF) .|. 0xFFFFFFFF00000000 else (w .&. 0x00000000FFFFFFFF)
--- | Sign-extension from 16 to 64 bits
-sextend_16_64 w = if testBit w 15 then (w .&. 0x000000000000FFFF) .|. 0xFFFFFFFFFFFF0000 else (w .&. 0x000000000000FFFF)
--- | Sign-extension from 8 to 64 bits
-sextend_8_64  w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0xFFFFFFFFFFFFFF00 else (w .&. 0x00000000000000FF)
 
 
 -- | Simplification of symbolic expressions. 
@@ -344,6 +332,8 @@ simp' (SE_Op Plus  si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 + 0 = e0
 simp' (SE_Op Minus si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 - 0 = e0
 simp' (SE_Op Times si0 [e0, SE_Immediate 0]) = SE_Immediate 0
 simp' (SE_Op Times si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op Times si0 [SE_Immediate 1, e1]) = e1
+simp' (SE_Op Times si0 [e0, SE_Immediate 1]) = e0
 simp' (SE_Op Udiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Sdiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Shl   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
@@ -372,9 +362,9 @@ simp' (SE_Op Sar   32  [SE_Immediate i0, SE_Immediate i1]) = SE_Immediate (fromI
 
 
 simp' e@(SE_Bit 64  e1@(SE_Malloc _ _))                = e1
-simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Reg r) _))    = if sizeof r * 8 == si0 then e1 else e
+simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Reg r) _))    = if byteSize (regSize r) * 8 == si0 then e1 else e
 simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Mem _ si) _)) = if si*8 == si0 then simp' e1 else SE_Bit si0 $ simp' e1
-simp' e@(SE_Bit si0 e1@(SE_Var (SP_Reg r)))            = if sizeof r * 8 == si0 then e1 else e
+simp' e@(SE_Bit si0 e1@(SE_Var (SP_Reg r)))            = if byteSize (regSize r) * 8 == si0 then e1 else e
 simp' e@(SE_Bit si0 e1@(SE_Var (SP_Mem _ si)))         = if si*8 == si0 then simp' e1 else SE_Bit si0 $ simp' e1
 simp' e@(SE_Bit si0 e1@(SE_Op (SExtHi b) _ [_]))       = if b==si0 then simp' e1 else SE_Bit si0 $ simp' e1
 
@@ -500,14 +490,13 @@ reorder_addends e
 
 
 instance Show StatePart where
-  show (SP_StackPointer f) = "RSP_" ++ f
-  show (SP_Reg r)          = show r
-  show (SP_Mem a si)       = "[" ++ show a ++ ", " ++ show si ++ "]"
+  show (SP_Reg r)        = show r
+  show (SP_Mem a si)     = "[" ++ show a ++ ", " ++ show si ++ "]"
 
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus = 
     None                                         -- ^ No information known, flags could have any value
-  | FS_CMP (Maybe Bool) X86.Operand X86.Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
+  | FS_CMP (Maybe Bool) Operand Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
   deriving (Generic,Eq,Ord)
 
 
@@ -519,12 +508,12 @@ instance Show FlagStatus where
 
 
 instance Show PointerBase where
-  show (StackPointer f)        = "StackPointer_" ++ f
-  show (Malloc Nothing  _)     = "malloc()"
-  show (Malloc (Just a) _)     = "malloc@" ++ showHex a ++ "()"
-  show (GlobalAddress a)       = "GlobalAddress@" ++ showHex a
-  show (BaseIsSymbol sym)      = show sym
-  show ThreadLocalStorage      = "ThreadLocalStorage"
+  show (StackPointer)        = "StackPointer"
+  show (Malloc Nothing  _)   = "malloc()"
+  show (Malloc (Just a) _)   = "malloc@" ++ showHex a ++ "()"
+  show (GlobalAddress a)     = "GlobalAddress@" ++ showHex a
+  show ThreadLocalStorage    = "ThreadLocalStorage"
+  show (BaseIsStatePart sp)  = show sp
 
 
 

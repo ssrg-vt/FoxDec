@@ -1,0 +1,221 @@
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StandaloneDeriving, DeriveGeneric, BangPatterns, Strict, ExistentialQuantification #-}
+
+module Binary.Generic where
+
+import Base
+import Data.Symbol
+import Data.X86.Instruction
+
+import Conventions
+
+import Disassembler.Disassembler
+
+import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
+import qualified Data.ByteString.Lazy as BS
+
+import Data.Word 
+import Data.List (intercalate, find)
+import qualified Data.Serialize as Cereal hiding (get,put)
+import Debug.Trace
+
+import GHC.Generics
+
+
+-- |  Information on the sections in the binary
+data SectionsInfo = SectionsInfo {
+  si_sections    :: ![(String,String,Word64,Word64,Word64)], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
+  si_min_address :: !Word64,
+  si_max_address :: !Word64
+ }
+ deriving (Show,Generic,Eq)
+
+instance Cereal.Serialize SectionsInfo
+
+
+
+data SymbolTable = SymbolTable {
+  symboltable_symbols :: !(IM.IntMap Symbol),
+  symboltable_exterbals :: !(S.Set String)
+  }
+  deriving (Generic,Eq)
+
+instance Show SymbolTable where
+  show (SymbolTable tbl globals) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_global $ S.toList globals)
+   where
+    show_entry (a0,PointerToLabel f b)           = showHex a0 ++ " --> " ++ f ++ show_in_ex b "label"
+    show_entry (a0,PointerToObject l b)          = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfObject l b)          = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfLabel f b)           = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
+    show_entry (a0,Relocated_ResolvedObject l a) = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
+
+    show_global f = f ++ " (global)"
+
+    show_in_ex True  ty = " (external " ++ ty ++ ")" 
+    show_in_ex False ty = " (internal " ++ ty ++ ")" 
+
+instance Cereal.Serialize SymbolTable
+
+
+data Relocation = 
+  Relocation Word64 Word64 -- ^ 8: At address a0, address a1 has been written, i.e., qword ptr[a0] == a1
+  deriving (Generic,Eq,Ord)
+
+instance Show Relocation where
+  show (Relocation a0 a1)  = showHex a0 ++ " --> " ++ showHex a1
+
+instance Cereal.Serialize Relocation
+
+
+class BinaryClass a where
+  binary_read_bytestring :: a -> Word64 -> Int -> Maybe BS.ByteString
+  binary_read_ro_data :: a -> Word64 -> Int -> Maybe [Word8]
+  binary_read_data :: a -> Word64 -> Int -> Maybe [Word8]
+  binary_get_sections_info :: a -> SectionsInfo
+  binary_get_symbols :: a -> SymbolTable
+  binary_get_relocations :: a -> S.Set Relocation
+  binary_pp :: a -> String
+  binary_entry :: a -> Word64
+  binary_text_section_size :: a -> Int
+  binary_dir_name :: a -> String
+  binary_file_name :: a -> String
+
+
+data Binary = forall b . BinaryClass b => Binary b
+
+
+instance BinaryClass Binary where
+  binary_read_bytestring (Binary b) = binary_read_bytestring b
+  binary_read_ro_data (Binary b) = binary_read_ro_data b
+  binary_read_data (Binary b) = binary_read_data b
+  binary_get_sections_info (Binary b) = binary_get_sections_info b
+  binary_get_symbols (Binary b) = binary_get_symbols b
+  binary_get_relocations (Binary b) = binary_get_relocations b
+  binary_pp (Binary b) = binary_pp b
+  binary_entry (Binary b) = binary_entry b
+  binary_text_section_size (Binary b) = binary_text_section_size b
+  binary_dir_name (Binary b) = binary_dir_name b
+  binary_file_name (Binary b) = binary_file_name b
+
+binary_get_symbol_table bin =
+  case binary_get_symbols bin of
+    (SymbolTable tbl globals) -> tbl
+
+
+binary_get_global_symbols bin =
+  case binary_get_symbols bin of
+    (SymbolTable tbl globals) -> globals
+
+symbol_to_name (PointerToLabel f b)           = f
+symbol_to_name (PointerToObject l b)          = l
+symbol_to_name (AddressOfObject l b)          = l
+symbol_to_name (AddressOfLabel f b)           = f
+symbol_to_name (Relocated_ResolvedObject l a) = l
+
+
+
+-- | Is the immediate roughly in range to be an address?
+is_roughly_an_address ::
+  BinaryClass bin => 
+     bin     -- ^ The binary
+  -> Word64  -- ^ An address
+  -> Bool
+is_roughly_an_address bin a = 
+  let !si = binary_get_sections_info bin in
+    a >= si_min_address si && a <= si_max_address si
+
+-- | Find a section for an address (see @`SectionsInfo`@)
+find_section_for_address ::
+  BinaryClass bin => 
+     bin     -- ^ The binary
+  -> Word64 -- ^ An address
+  -> Maybe (String, String, Word64, Word64,Word64)
+find_section_for_address bin a =
+  if is_roughly_an_address bin a then
+    find (address_in_section a) (si_sections $ binary_get_sections_info bin)
+  else
+    Nothing
+ where
+  address_in_section a (_,_,a0,si,_) = a0 <= a && a < a0 + si
+
+
+
+-- | Reading from a read-only data section.
+--
+-- Reads maximally up to 8 bytes. Returns @Nothing@ if the given address is out-of-range.
+read_from_ro_datasection ::
+  BinaryClass bin => 
+     bin           -- ^ The binary
+  -> Word64        -- ^ An address
+  -> Int           -- ^ Size, i.e., the number of bytes to read
+  -> Maybe Word64
+read_from_ro_datasection bin a si = bytes_to_word <$> binary_read_ro_data bin a si
+
+
+
+
+
+-- | Find a section ending at address (see @`SectionsInfo`@)
+find_section_ending_at ::
+  BinaryClass bin => 
+     bin           -- ^ The binary
+   -> Word64       -- ^ An address
+   -> Maybe (String, String, Word64, Word64, Word64)
+find_section_ending_at bin a = find (address_ends_at_section a) (si_sections $ binary_get_sections_info bin)
+ where
+  address_ends_at_section a (_,_,a0,si,_) = a == a0 + si
+
+
+
+
+
+
+
+-- TODO
+-- | Fetching an instruction
+-- Returns @Nothing@ if the given address is out-of-range.
+fetch_instruction ::
+  BinaryClass bin => 
+     bin
+  -> Word64  -- ^ An address
+  -> Maybe Instruction
+fetch_instruction bin a =
+  case binary_read_bytestring bin a 20 of
+     Nothing -> Nothing
+     Just bytes -> disassemble0 a bytes {--
+  --case IM.lookup (fromIntegral a) instructions of
+  --  Just i -> return $ Just i -- memoized
+  --  Nothing -> case binary_read_bytestring bin a 20 of -- maximum instruction length == 15
+ --                Nothing -> Nothing
+   --              Just bytes -> (disassemble0 a bytes) -- >>= memoize_instr 
+ where
+  memoize_instr Nothing = return Nothing
+  memoize_instr (Just instr) = do
+    modifyIORef' ioref (IM.insert (fromIntegral a) instr)
+    return $ Just instr--}
+
+
+
+
+
+-- | Returns true iff an instruction can be fetched from the address.
+address_has_instruction ::
+  BinaryClass bin => 
+     bin
+  -> Word64  -- ^ An address
+  -> Bool
+address_has_instruction bin a = do
+  case find_section_for_address bin a of
+    Nothing                      -> False
+    Just (segment,section,_,_,_) -> 
+      if (segment,section) `elem` sections_with_instructions then do
+        case fetch_instruction bin a of
+          Nothing -> False
+          _       -> True
+      else
+        False
+
+
+

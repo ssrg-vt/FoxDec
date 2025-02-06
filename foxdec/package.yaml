@@ -33,13 +33,15 @@ dependencies:
 - elf
 - extra
 - dom-lt
-- hapstone
 - directory
 - aeson
 - blaze-builder
 - process
 - hourglass
 - tree-view
+- transformers
+- attoparsec >= 0.14.4
+- binary >= 0.8.9.1
 
 library:
   source-dirs: src
