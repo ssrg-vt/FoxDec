@@ -405,7 +405,7 @@ fpu = choice [ fail "dunsel"
             , do opcode 0xd8; r <- (lift $ satisfy (>=0xc0)); adv 1; instr (fpuD8 (bits 3 3 r)) [pure (Op_Reg (RegFPU ST0)), freg (r .&. 7)]
             , do opcode 0xd8; modrm; opmodnot3; i <- modopcode; instr (fpuD8 i) [modrm_rm]
 
-            , do opcode 0xd9; r <- mask 0xf8 0xc0; instr "fld" [pure (Op_Reg (RegFPU ST0)), freg (r .&. 7)]
+            , do opcode 0xd9; r <- mask 0xf8 0xc0; instr "fld" [freg (r .&. 7)]
             , do opcode 0xd9; r <- mask 0xf8 0xc8; instr "fxch" [pure (Op_Reg (RegFPU ST0)), freg (r .&. 7)]
             , opcode 0xd9 >> opcode 0xd0 >> instr "fnop" []
             , opcode 0xd9 >> opcode 0xe0 >> instr "fchs" []
@@ -441,7 +441,7 @@ fpu = choice [ fail "dunsel"
             , opcode 0xd9 >> modrm >> opmodnot3 >> opcodeMatch 4 >> opWidthF 32 >> instr "fldenv" [modrm_rm]
             , opcode 0xd9 >> modrm >> opmodnot3 >> opcodeMatch 5 >> opWidthF 16 >> instr "fldcw" [modrm_rm]
             , opcode 0xd9 >> modrm >> opmodnot3 >> opcodeMatch 6 >> opWidthF 32 >> instr "fnstenv" [modrm_rm]
-            , opcode 0xd9 >> modrm >> opmodnot3 >> opcodeMatch 7 >> opWidthF 32 >> instr "fnstcw" [modrm_rm]
+            , opcode 0xd9 >> modrm >> opmodnot3 >> opcodeMatch 7 >> opWidthF 16 >> instr "fnstcw" [modrm_rm]
 
             , do opcode 0xda; r <- mask 0xf8 0xc0; instr "fcmovb" [pure (Op_Reg (RegFPU ST0)), freg (r .&. 7)]
             , do opcode 0xda; r <- mask 0xf8 0xc8; instr "fcmove" [pure (Op_Reg (RegFPU ST0)), freg (r .&. 7)]

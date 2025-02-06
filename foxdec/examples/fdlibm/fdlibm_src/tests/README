@@ -1,0 +1,7 @@
+gcc -D__LITTLE_ENDIAN ../src/*.c test.c -o fdlibm
+
+ld --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o fdlibm_ fdlibm.o _fdlib_version.o /usr/lib/gcc/x86_64-linux-gnu/11/libitm.so  /usr/lib/x86_64-linux-gnu/libc.so.6
+
+
+objdump -M intel --no-show-raw-insn --disassembler-options=hex -d fdlibm > /media/sf_Public/fdlibm.objdump
+

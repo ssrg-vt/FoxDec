@@ -53,12 +53,12 @@ library
       OutputGeneration.NASM.L0ToNASM
       OutputGeneration.NASM.NASM
       OutputGeneration.NASM.NASMToC
+      OutputGeneration.Reconstruction
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
       Parser.ParserSections
       Parser.ParserSymbols
-      Reconstruction.Reconstruction
       WithAbstractPredicates.Class
       WithAbstractPredicates.ContextSensitiveAnalysis
       WithAbstractPredicates.ControlFlow

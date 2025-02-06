@@ -8,7 +8,7 @@ Description : Reconstruct source-level constructs from the binary
 
 
 
-module Reconstruction.Reconstruction (reconstruct) where
+module OutputGeneration.Reconstruction (reconstruct) where
 
 
 
