@@ -1,0 +1,270 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK hide #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">WithAbstractPredicates.GenerateACode</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algorithm.SCC.html"><span class="hs-identifier">Algorithm.SCC</span></a></span><span> </span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractPredicates.ControlFlow.html"><span class="hs-identifier">WithAbstractPredicates.ControlFlow</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{--
+-- given a cfg, a node and the frontier, returns the SCC of the current node
+get_scc_without :: IntGraph g =&gt; g -&gt; Int -&gt; IS.IntSet -&gt; IS.IntSet
+get_scc_without g v frontier =
+ let sccs = scc_of g v $ intset_to_set frontier in
+   case find (IS.member v) sccs of
+     Nothing -&gt; IS.empty
+     Just scc -&gt; scc
+
+-- return the set of exits, i.e., edges (v0,v1) such that v0 is in the SCC and v1 is not.
+exits g scc =
+  S.toList $ S.unions $ map exits_of $ IS.toList scc
+ where
+  exits_of v = S.fromList $ map (\n -&gt; (v,n)) $ IS.toList (IS.difference (intgraph_post g v) scc)
+--}</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">{--
+convergence_points :: CFG -&gt; Int -&gt; IS.IntSet -&gt; Forest Int
+concergence_points g v frontier =
+  let paths = evalState (all_ayclic_paths v frontier) frontier
+
+  -- partition according to endings, assuming shortest paths come first
+  partition [] = []
+  partition (p:ps) = 
+    
+
+  
+
+  -- a spanning tree from vertex f upto (including) the frontier
+  all_acyclic_paths :: Int -&gt; IS.IntSet -&gt; S.Set [Int]
+  all_acyclic_paths v frontier =
+    if v `IS.member` frontier || IS.null (post g v) || is_cyclic v frontier then
+      S.singleton [v]
+    else do
+      paths &lt;- forM (post g v) all_ayclic_paths
+      return $ map (\p -&gt; v:p) paths
+
+
+-- is v cyclic (a path from v to v) wrt to the frontier?
+is_cyclic :: Int -&gt; IS.IntSet -&gt; Bool
+is_cyclic v frontier = evalState (anyM (is_reachable_from v) (post g v)) frontier
+
+-- is v' reachable from v wrt to the frontier?
+is_reachable_from :: Int -&gt; Int -&gt; State IS.IntSet Bool
+is_reachable_from v v' = do
+  visited &lt;- gets $ IS.member v'
+  if v == v' then
+    True
+  else if visited then
+    False
+  else do
+    modify $ IS.insert v'
+    anyM (is_reachable_from v) (post g v')
+    
+
+
+
+{-- ACode (Abstract Code)
+ -
+ - ACode consists of blocks (identified by an ID of type Int), sequential execution,
+ - case splits (i.e., if statements) and while loops. Also, it can be a &quot;Break ID&quot;
+ - which is a normal loop break annotated with the ID of the block that is executed next.
+--}
+data ACode =
+    ACode_Skip
+  | ACode_Block Int
+  | ACode_Break Int
+  | ACode_Seq ACode ACode
+  | ACode_Cases (Int, [ACode])
+  | ACode_While ACode [(Int,Int,ACode)]
+ deriving Eq
+
+show_acode indent ACode_Skip      = indent ++ &quot;skip&quot;
+show_acode indent (ACode_Block v) = indent ++ show v
+show_acode indent (ACode_Break v) = indent ++ &quot;Break &quot; ++ show v
+show_acode indent (ACode_Seq a0 a1) = show_acode indent a0 ++ &quot;;\n&quot; ++ show_acode indent a1
+show_acode indent (ACode_Cases (v,[ACode_Skip,case1])) =
+  show_acode indent (ACode_Block v) ++ &quot;;\n&quot;
+  ++ indent ++ &quot;If ___ Then\n&quot;
+  ++ show_acode (indent ++ &quot;  &quot;) case1
+  ++ &quot;\n&quot; ++ indent ++ &quot;EndIf&quot;
+show_acode indent (ACode_Cases (v,[case0,ACode_Skip])) = show_acode indent (ACode_Cases (v,[ACode_Skip,case0]))
+show_acode indent (ACode_Cases (v,[case0,case1])) =
+  show_acode indent (ACode_Block v) ++ &quot;;\n&quot;
+  ++ indent ++ &quot;If ___ Then\n&quot;
+  ++ show_acode (indent ++ &quot;  &quot;) case0
+  ++ &quot;\n&quot; ++ indent ++ &quot;Else\n&quot;
+  ++ show_acode (indent ++ &quot;  &quot;) case1
+  ++ &quot;\n&quot; ++ indent ++ &quot;EndIf&quot;
+show_acode indent (ACode_Cases (v,cases)) =
+   show_acode indent (ACode_Block v) ++ &quot;;\n&quot;
+   ++ indent ++ &quot;Cases {\n&quot;
+   ++ (intercalate &quot;\n&quot; $ map (\(i,acode) -&gt; indent ++ show i ++ &quot;:\n&quot; ++ show_acode (indent ++ &quot;  &quot;) acode) (zip [0..] cases))
+   ++ &quot;\n&quot; ++ indent ++ &quot;}&quot;
+show_acode indent (ACode_While body resumes) =
+  indent ++ &quot;Loop\n&quot;
+  ++ show_acode (indent ++ &quot;  &quot;) body
+  ++ &quot;\n&quot; ++ indent ++ &quot;EndLoop&quot;
+  ++ &quot;\n&quot; ++ indent ++ &quot;Resumes&quot;
+  ++ &quot;\n&quot; ++ (intercalate &quot;\n&quot; $ map (\(v0,v1,acode) -&gt; indent ++ show v0 ++ &quot;-&gt;&quot; ++ show v1  ++ &quot;:\n&quot; ++ show_acode (indent ++ &quot;  &quot;) acode) resumes)
+  ++ &quot;\n&quot; ++ indent ++ &quot;EndResumes&quot;
+
+instance Show ACode where
+  show = show_acode &quot;&quot;
+  
+
+
+cfg_to_acode g v frontier =
+  let scc_v = get_scc_without g v frontier
+      next  = IS.toList $ post g v in
+    if v `IS.member` frontier then
+      ACode_Break v
+    else if next == [] then
+      ACode_Block v
+    else if (IS.size scc_v &gt;= 2 || (IS.size scc_v == 1 &amp;&amp; v `elem` next))
+            &amp;&amp; v `IS.member` scc_v then
+      let exs     = exits g scc_v
+          ns      = map (\v' -&gt; cfg_to_acode g v' (IS.insert v frontier `IS.union` (IS.fromList $ map snd exs))) next
+          rs      = map (\(v0,v1) -&gt; (v0, v1, cfg_to_acode g v1 frontier)) exs
+          body    = if length ns == 1 then ACode_Seq (ACode_Block v) (head ns) else ACode_Cases (v, ns) in
+        ACode_While body rs
+    else if length next &gt; 1 then
+      let ns = map (\v' -&gt; cfg_to_acode g v' frontier) next in
+        ACode_Cases (v,ns)
+    else
+      ACode_Seq (ACode_Block v) (cfg_to_acode g (head next) frontier)
+
+    
+
+
+
+
+-- is a0 included in a1?
+acode_in a0 a1 = a0 == a1 || acode_strict_in a0 a1
+
+acode_strict_in a0 (ACode_Block b)    = False
+acode_strict_in a0 (ACode_Break b)    = False
+acode_strict_in a0 (ACode_Seq a1 a1') = a0 `acode_in` a1 || a0 `acode_in` a1'
+acode_strict_in a0 (ACode_Cases cs)   = any (acode_in a0) (snd cs)
+acode_strict_in a0 (ACode_While b rs) = a0 `acode_in` b || any (\(_,_,a1) -&gt; a0 `acode_in` a1) rs
+
+
+-- is a0 at the end of a1?
+at_end_of a0 a1 = a0 == a1 || acode_strict_at_end_of a0 a1
+
+acode_strict_at_end_of a0 (ACode_Block b)    = False
+acode_strict_at_end_of a0 (ACode_Break b)    = False
+acode_strict_at_end_of a0 (ACode_Seq _ a1)   = a0 `at_end_of` a1
+acode_strict_at_end_of a0 (ACode_Cases cs)   = all (\a1 -&gt; a0 `at_end_of` a1) (snd cs)
+acode_strict_at_end_of a0 (ACode_While b rs) = all (\(_,_,a1) -&gt; a0 /= a1 &amp;&amp; a0 `at_end_of` a1) rs
+
+
+-- assuming a0 is at the end of a1, remove a0 from a1
+remove_from_end a0 a1 =
+  if a0 == a1 then
+    ACode_Skip 
+  else
+    remove_from_end_strict a0 a1
+ where
+  remove_from_end_strict a0 (ACode_Seq a1 a1')   = if a0 == a1' then a1 else ACode_Seq a1 $ remove_from_end a0 a1'
+  remove_from_end_strict a0 (ACode_Cases (v,cs)) = if all ((==) a0) cs then ACode_Block v else ACode_Cases (v,map (remove_from_end a0) cs)
+  remove_from_end_strict a0 (ACode_While b rs)   = if all (\(_,_,a) -&gt; a == a0) rs then error &quot;Should not happen&quot; else ACode_While b (map (\(v0,v1,a) -&gt; (v0,v1,remove_from_end a0 a)) rs)
+  remove_from_end_strict a0 a1 = error $ &quot;Cannot remove &quot; ++ show a0 ++ &quot; from &quot; ++ show a1
+
+-- do a0 and a1 have shared endings
+acode_shared_ending a0 a1 =
+  if a0 `at_end_of` a1 then
+    Just a0
+  else
+    case acode_tail a0 of
+      Nothing -&gt; Nothing
+      Just a  -&gt; acode_shared_ending a a1
+ where
+  acode_tail (ACode_Skip)       = Nothing
+  acode_tail (ACode_Block b)    = Nothing
+  acode_tail (ACode_Break b)    = Nothing
+  acode_tail (ACode_Seq _ a1)   = Just a1
+  acode_tail (ACode_Cases cs)   = Nothing 
+  acode_tail (ACode_While b rs) = Nothing 
+
+acode_shared_endings [a] = Just a
+acode_shared_endings (a0:a1:as) =
+  case acode_shared_ending a0 a1 of
+    Nothing -&gt; Nothing
+    Just a  -&gt; acode_shared_endings (a:as)
+
+
+-- a simplification step
+-- whenever we find code that have shared endings, remove the duplication and introduce a sequence
+acode_simp (ACode_Cases (v,cs)) =
+  let cs'     = map acode_simp cs in
+    case acode_shared_endings cs' of
+      Nothing -&gt; ACode_Cases (v,cs')
+      Just ending -&gt;
+        let beginnings = map (remove_from_end ending) cs'
+            new_code  = ACode_Seq (ACode_Cases (v,beginnings)) ending in
+          new_code
+acode_simp (ACode_Seq a0 a1) = ACode_Seq (acode_simp a0) (acode_simp a1)
+acode_simp (ACode_While b rs) =
+  let rs'  = map (\(v0,v1,a) -&gt; (v0,v1,acode_simp a)) rs
+      as   = map (\(v0,v1,a) -&gt; a) rs' in
+    case acode_shared_endings as of
+      Nothing -&gt; ACode_While (acode_simp b) rs'
+      Just ending -&gt;
+        if ending `elem` as then
+          ACode_While (acode_simp b) rs'
+        else 
+          let beginnings = map (\((v0,v1,_),a) -&gt; (v0,v1,remove_from_end ending a)) $ zip rs' as in
+            ACode_Seq (ACode_While (acode_simp b) beginnings) ending
+acode_simp a = a
+
+
+
+
+
+-- the first block executed by the acode
+acode_first (ACode_Block blockId)      = blockId
+acode_first (ACode_Break blockId)      = blockId
+acode_first (ACode_Seq a0 a1)          = acode_first a0
+acode_first (ACode_Cases (blockId,cs)) = blockId
+acode_first (ACode_While body rs)      = acode_first body
+
+-- the last blocks executed by the acode
+acode_lasts (ACode_Skip)          = []
+acode_lasts (ACode_Block blockId) = [blockId]
+acode_lasts (ACode_Break blockId) = []
+acode_lasts (ACode_Seq a0 a1)     =
+  case acode_lasts a1 of
+    [] -&gt; acode_lasts a0
+    bs -&gt; bs
+acode_lasts (ACode_Cases (v,cs))  = concatMap last_cases cs
+ where
+  last_cases a = 
+    case acode_lasts a of
+      [] -&gt; [v] 
+      bs -&gt; bs
+acode_lasts (ACode_While b rs) = concatMap last_while rs
+ where
+  last_while (v0,v1,a) = 
+    case acode_lasts a of
+      [] -&gt; error $ &quot;Should not happen: resume without a last block.&quot;
+      bs -&gt; bs
+ 
+
+
+
+
+     --}</span><span>
+</span><span id="line-270"></span></pre></body></html>

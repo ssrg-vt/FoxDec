@@ -1,9 +1,9 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_6Bv3NhpbpLK7o6lmBluc7U"><span id="%24con2tag_HrVLAZe44jHA4Q3vXX0qTA"><span id="%24con2tag_CX0GRfnJj3kENbrjMOtbgK"><span id="%24con2tag_35x3ZWHjpkbCWoeUt17eka"></span></span></span></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData, StandaloneDeriving, BangPatterns #-}</span><span>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData, StandaloneDeriving, BangPatterns #-}</span><span>
 </span><span id="line-2"></span><span>
-</span><span id="line-3"></span><span class="hs-comment">{-|
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">{-|
 Module      : SValue
 Description : 
--}</span><span>
+-}</span></span><span>
 </span><span id="line-7"></span><span>
 </span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.SValue</span><span> </span><span class="hs-keyword">where</span><span>
 </span><span id="line-9"></span><span>
@@ -25,218 +25,30 @@ Description :
 </span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
 </span><span id="line-26"></span><span>
 </span><span id="line-27"></span><span>
-</span><span id="line-28"></span><span class="hs-comment">-- | A `pointer value` may have a `pointer offset` that is either a known fixed immediate or unknown</span><span>
-</span><span id="line-29"></span><span id="local-6989586621679352901"><span id="local-6989586621679352902"></span></span><span class="hs-keyword">data</span><span> </span><span id="PtrOffset"><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-var">PtrOffset</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="PtrOffset"><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-var">PtrOffset</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="UnknownOffset"><span class="annot"><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span></span><span>
-</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679352895"><span id="local-6989586621679352897"><span class="annot"><span class="annottext">PtrOffset -&gt; PtrOffset -&gt; Bool
-(PtrOffset -&gt; PtrOffset -&gt; Bool)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Bool) -&gt; Eq PtrOffset
-forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
-/= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c/= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-== :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c== :: PtrOffset -&gt; PtrOffset -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679352879"><span id="local-6989586621679352881"><span id="local-6989586621679352883"><span id="local-6989586621679352885"><span id="local-6989586621679352887"><span id="local-6989586621679352889"><span id="local-6989586621679352891"><span class="annot"><span class="annottext">Eq PtrOffset
-Eq PtrOffset
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Ordering)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Bool)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Bool)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Bool)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; Bool)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; PtrOffset)
--&gt; (PtrOffset -&gt; PtrOffset -&gt; PtrOffset)
--&gt; Ord PtrOffset
-PtrOffset -&gt; PtrOffset -&gt; Bool
-PtrOffset -&gt; PtrOffset -&gt; Ordering
-PtrOffset -&gt; PtrOffset -&gt; PtrOffset
-forall a.
-Eq a
--&gt; (a -&gt; a -&gt; Ordering)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; a)
--&gt; (a -&gt; a -&gt; a)
--&gt; Ord a
-min :: PtrOffset -&gt; PtrOffset -&gt; PtrOffset
-$cmin :: PtrOffset -&gt; PtrOffset -&gt; PtrOffset
-max :: PtrOffset -&gt; PtrOffset -&gt; PtrOffset
-$cmax :: PtrOffset -&gt; PtrOffset -&gt; PtrOffset
-&gt;= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c&gt;= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-&gt; :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c&gt; :: PtrOffset -&gt; PtrOffset -&gt; Bool
-&lt;= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c&lt;= :: PtrOffset -&gt; PtrOffset -&gt; Bool
-&lt; :: PtrOffset -&gt; PtrOffset -&gt; Bool
-$c&lt; :: PtrOffset -&gt; PtrOffset -&gt; Bool
-compare :: PtrOffset -&gt; PtrOffset -&gt; Ordering
-$ccompare :: PtrOffset -&gt; PtrOffset -&gt; Ordering
-$cp1Ord :: Eq PtrOffset
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. PtrOffset -&gt; Rep PtrOffset x)
--&gt; (forall x. Rep PtrOffset x -&gt; PtrOffset) -&gt; Generic PtrOffset
-forall x. Rep PtrOffset x -&gt; PtrOffset
-forall x. PtrOffset -&gt; Rep PtrOffset x
-forall a.
-(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
-$cto :: forall x. Rep PtrOffset x -&gt; PtrOffset
-$cfrom :: forall x. PtrOffset -&gt; Rep PtrOffset x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
-</span><span id="line-31"></span><span>
-</span><span id="line-32"></span><span class="hs-comment">-- | A `pointer value` consists of a `pointer base` and a `pointer offset`</span><span>
-</span><span id="line-33"></span><span id="local-6989586621679352873"><span id="local-6989586621679352874"></span></span><span class="hs-keyword">data</span><span> </span><span id="SPointer"><span class="annot"><a href="Data.SValue.html#SPointer"><span class="hs-identifier hs-var">SPointer</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span>
-</span><span id="line-34"></span><span>    </span><span id="Base_StackPointer"><span class="annot"><a href="Data.SValue.html#Base_StackPointer"><span class="hs-identifier hs-var">Base_StackPointer</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>                   </span><span class="hs-comment">-- ^ The stackpointer of the given function</span><span>
-</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_Immediate"><span class="annot"><a href="Data.SValue.html#Base_Immediate"><span class="hs-identifier hs-var">Base_Immediate</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>                      </span><span class="hs-comment">-- ^ An immediate pointer</span><span>
-</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_Malloc"><span class="annot"><a href="Data.SValue.html#Base_Malloc"><span class="hs-identifier hs-var">Base_Malloc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>  </span><span class="hs-comment">-- ^ A malloc return value</span><span>
-</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_FunctionPtr"><span class="annot"><a href="Data.SValue.html#Base_FunctionPtr"><span class="hs-identifier hs-var">Base_FunctionPtr</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>             </span><span class="hs-comment">-- ^ A function pointer (external)</span><span>
-</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_ReturnAddr"><span class="annot"><a href="Data.SValue.html#Base_ReturnAddr"><span class="hs-identifier hs-var">Base_ReturnAddr</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>                               </span><span class="hs-comment">-- ^ The return address of the given function</span><span>
-</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_TLS"><span class="annot"><a href="Data.SValue.html#Base_TLS"><span class="hs-identifier hs-var">Base_TLS</span></a></span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>                                   </span><span class="hs-comment">-- ^ The Thread Local Storage</span><span>
-</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_StatePart"><span class="annot"><a href="Data.SValue.html#Base_StatePart"><span class="hs-identifier hs-var">Base_StatePart</span></a></span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#StatePart"><span class="hs-identifier hs-type">StatePart</span></a></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>                   </span><span class="hs-comment">-- ^ The value initially stored in some statepart</span><span>
-</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Base_FunctionReturn"><span class="annot"><a href="Data.SValue.html#Base_FunctionReturn"><span class="hs-identifier hs-var">Base_FunctionReturn</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span>                 </span><span class="hs-comment">-- ^ The return value of a function</span><span>
-</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679352861"><span id="local-6989586621679352863"><span class="annot"><span class="annottext">SPointer -&gt; SPointer -&gt; Bool
-(SPointer -&gt; SPointer -&gt; Bool)
--&gt; (SPointer -&gt; SPointer -&gt; Bool) -&gt; Eq SPointer
-forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
-/= :: SPointer -&gt; SPointer -&gt; Bool
-$c/= :: SPointer -&gt; SPointer -&gt; Bool
-== :: SPointer -&gt; SPointer -&gt; Bool
-$c== :: SPointer -&gt; SPointer -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679352846"><span id="local-6989586621679352848"><span id="local-6989586621679352850"><span id="local-6989586621679352852"><span id="local-6989586621679352854"><span id="local-6989586621679352856"><span id="local-6989586621679352858"><span class="annot"><span class="annottext">Eq SPointer
-Eq SPointer
--&gt; (SPointer -&gt; SPointer -&gt; Ordering)
--&gt; (SPointer -&gt; SPointer -&gt; Bool)
--&gt; (SPointer -&gt; SPointer -&gt; Bool)
--&gt; (SPointer -&gt; SPointer -&gt; Bool)
--&gt; (SPointer -&gt; SPointer -&gt; Bool)
--&gt; (SPointer -&gt; SPointer -&gt; SPointer)
--&gt; (SPointer -&gt; SPointer -&gt; SPointer)
--&gt; Ord SPointer
-SPointer -&gt; SPointer -&gt; Bool
-SPointer -&gt; SPointer -&gt; Ordering
-SPointer -&gt; SPointer -&gt; SPointer
-forall a.
-Eq a
--&gt; (a -&gt; a -&gt; Ordering)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; a)
--&gt; (a -&gt; a -&gt; a)
--&gt; Ord a
-min :: SPointer -&gt; SPointer -&gt; SPointer
-$cmin :: SPointer -&gt; SPointer -&gt; SPointer
-max :: SPointer -&gt; SPointer -&gt; SPointer
-$cmax :: SPointer -&gt; SPointer -&gt; SPointer
-&gt;= :: SPointer -&gt; SPointer -&gt; Bool
-$c&gt;= :: SPointer -&gt; SPointer -&gt; Bool
-&gt; :: SPointer -&gt; SPointer -&gt; Bool
-$c&gt; :: SPointer -&gt; SPointer -&gt; Bool
-&lt;= :: SPointer -&gt; SPointer -&gt; Bool
-$c&lt;= :: SPointer -&gt; SPointer -&gt; Bool
-&lt; :: SPointer -&gt; SPointer -&gt; Bool
-$c&lt; :: SPointer -&gt; SPointer -&gt; Bool
-compare :: SPointer -&gt; SPointer -&gt; Ordering
-$ccompare :: SPointer -&gt; SPointer -&gt; Ordering
-$cp1Ord :: Eq SPointer
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. SPointer -&gt; Rep SPointer x)
--&gt; (forall x. Rep SPointer x -&gt; SPointer) -&gt; Generic SPointer
-forall x. Rep SPointer x -&gt; SPointer
-forall x. SPointer -&gt; Rep SPointer x
-forall a.
-(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
-$cto :: forall x. Rep SPointer x -&gt; SPointer
-$cfrom :: forall x. SPointer -&gt; Rep SPointer x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
-</span><span id="line-43"></span><span>
-</span><span id="line-44"></span><span class="hs-comment">-- | A `pointer addend` consists of a `pointer base`, some constant relativ to the initial state, or the return value</span><span>
-</span><span id="line-45"></span><span class="hs-comment">-- of some function.</span><span>
-</span><span id="line-46"></span><span id="local-6989586621679352842"><span id="local-6989586621679352843"></span></span><span class="hs-keyword">data</span><span> </span><span id="SAddend"><span class="annot"><a href="Data.SValue.html#SAddend"><span class="hs-identifier hs-var">SAddend</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
-</span><span id="line-47"></span><span>    </span><span id="SAddend_StackPointer"><span class="annot"><a href="Data.SValue.html#SAddend_StackPointer"><span class="hs-identifier hs-var">SAddend_StackPointer</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
-</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_Immediate"><span class="annot"><a href="Data.SValue.html#SAddend_Immediate"><span class="hs-identifier hs-var">SAddend_Immediate</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
-</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_Malloc"><span class="annot"><a href="Data.SValue.html#SAddend_Malloc"><span class="hs-identifier hs-var">SAddend_Malloc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
-</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_FunctionPtr"><span class="annot"><a href="Data.SValue.html#SAddend_FunctionPtr"><span class="hs-identifier hs-var">SAddend_FunctionPtr</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
-</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_ReturnAddr"><span class="annot"><a href="Data.SValue.html#SAddend_ReturnAddr"><span class="hs-identifier hs-var">SAddend_ReturnAddr</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
-</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_TLS"><span class="annot"><a href="Data.SValue.html#SAddend_TLS"><span class="hs-identifier hs-var">SAddend_TLS</span></a></span></span><span> </span><span>
-</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_StatePart"><span class="annot"><a href="Data.SValue.html#SAddend_StatePart"><span class="hs-identifier hs-var">SAddend_StatePart</span></a></span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#StatePart"><span class="hs-identifier hs-type">StatePart</span></a></span><span> </span><span>
-</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SAddend_FunctionReturn"><span class="annot"><a href="Data.SValue.html#SAddend_FunctionReturn"><span class="hs-identifier hs-var">SAddend_FunctionReturn</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
-</span><span id="line-55"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall x. SAddend -&gt; Rep SAddend x)
--&gt; (forall x. Rep SAddend x -&gt; SAddend) -&gt; Generic SAddend
-forall x. Rep SAddend x -&gt; SAddend
-forall x. SAddend -&gt; Rep SAddend x
-forall a.
-(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
-$cto :: forall x. Rep SAddend x -&gt; SAddend
-$cfrom :: forall x. SAddend -&gt; Rep SAddend x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679352828"><span id="local-6989586621679352830"><span class="annot"><span class="annottext">SAddend -&gt; SAddend -&gt; Bool
-(SAddend -&gt; SAddend -&gt; Bool)
--&gt; (SAddend -&gt; SAddend -&gt; Bool) -&gt; Eq SAddend
-forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
-/= :: SAddend -&gt; SAddend -&gt; Bool
-$c/= :: SAddend -&gt; SAddend -&gt; Bool
-== :: SAddend -&gt; SAddend -&gt; Bool
-$c== :: SAddend -&gt; SAddend -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679352813"><span id="local-6989586621679352815"><span id="local-6989586621679352817"><span id="local-6989586621679352819"><span id="local-6989586621679352821"><span id="local-6989586621679352823"><span id="local-6989586621679352825"><span class="annot"><span class="annottext">Eq SAddend
-Eq SAddend
--&gt; (SAddend -&gt; SAddend -&gt; Ordering)
--&gt; (SAddend -&gt; SAddend -&gt; Bool)
--&gt; (SAddend -&gt; SAddend -&gt; Bool)
--&gt; (SAddend -&gt; SAddend -&gt; Bool)
--&gt; (SAddend -&gt; SAddend -&gt; Bool)
--&gt; (SAddend -&gt; SAddend -&gt; SAddend)
--&gt; (SAddend -&gt; SAddend -&gt; SAddend)
--&gt; Ord SAddend
-SAddend -&gt; SAddend -&gt; Bool
-SAddend -&gt; SAddend -&gt; Ordering
-SAddend -&gt; SAddend -&gt; SAddend
-forall a.
-Eq a
--&gt; (a -&gt; a -&gt; Ordering)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; Bool)
--&gt; (a -&gt; a -&gt; a)
--&gt; (a -&gt; a -&gt; a)
--&gt; Ord a
-min :: SAddend -&gt; SAddend -&gt; SAddend
-$cmin :: SAddend -&gt; SAddend -&gt; SAddend
-max :: SAddend -&gt; SAddend -&gt; SAddend
-$cmax :: SAddend -&gt; SAddend -&gt; SAddend
-&gt;= :: SAddend -&gt; SAddend -&gt; Bool
-$c&gt;= :: SAddend -&gt; SAddend -&gt; Bool
-&gt; :: SAddend -&gt; SAddend -&gt; Bool
-$c&gt; :: SAddend -&gt; SAddend -&gt; Bool
-&lt;= :: SAddend -&gt; SAddend -&gt; Bool
-$c&lt;= :: SAddend -&gt; SAddend -&gt; Bool
-&lt; :: SAddend -&gt; SAddend -&gt; Bool
-$c&lt; :: SAddend -&gt; SAddend -&gt; Bool
-compare :: SAddend -&gt; SAddend -&gt; Ordering
-$ccompare :: SAddend -&gt; SAddend -&gt; Ordering
-$cp1Ord :: Eq SAddend
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
-</span><span id="line-56"></span><span>
-</span><span id="line-57"></span><span>
-</span><span id="line-58"></span><span id="local-6989586621679352811"><span id="local-6989586621679352812"></span></span><span class="hs-keyword">data</span><span> </span><span id="SValue"><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-var">SValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SConcrete"><span class="annot"><a href="Data.SValue.html#SConcrete"><span class="hs-identifier hs-var">SConcrete</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SAddends"><span class="annot"><a href="Data.SValue.html#SAddends"><span class="hs-identifier hs-var">SAddends</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SAddend"><span class="hs-identifier hs-type">SAddend</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Top"><span class="annot"><a href="Data.SValue.html#Top"><span class="hs-identifier hs-var">Top</span></a></span></span><span>
-</span><span id="line-59"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall x. SValue -&gt; Rep SValue x)
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="SValue"><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-var">SValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SConcrete"><span class="annot"><a href="Data.SValue.html#SConcrete"><span class="hs-identifier hs-var">SConcrete</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SAddends"><span class="annot"><a href="Data.SValue.html#SAddends"><span class="hs-identifier hs-var">SAddends</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Top"><span class="annot"><a href="Data.SValue.html#Top"><span class="hs-identifier hs-var">Top</span></a></span></span><span>
+</span><span id="line-31"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679387295"><span id="local-6989586621679387297"><span class="annot"><span class="annottext">(forall x. SValue -&gt; Rep SValue x)
 -&gt; (forall x. Rep SValue x -&gt; SValue) -&gt; Generic SValue
 forall x. Rep SValue x -&gt; SValue
 forall x. SValue -&gt; Rep SValue x
 forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
-$cto :: forall x. Rep SValue x -&gt; SValue
 $cfrom :: forall x. SValue -&gt; Rep SValue x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679352802"><span id="local-6989586621679352804"><span class="annot"><span class="annottext">SValue -&gt; SValue -&gt; Bool
+from :: forall x. SValue -&gt; Rep SValue x
+$cto :: forall x. Rep SValue x -&gt; SValue
+to :: forall x. Rep SValue x -&gt; SValue
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679387301"><span id="local-6989586621679387307"><span class="annot"><span class="annottext">SValue -&gt; SValue -&gt; Bool
 (SValue -&gt; SValue -&gt; Bool)
 -&gt; (SValue -&gt; SValue -&gt; Bool) -&gt; Eq SValue
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
-/= :: SValue -&gt; SValue -&gt; Bool
-$c/= :: SValue -&gt; SValue -&gt; Bool
-== :: SValue -&gt; SValue -&gt; Bool
 $c== :: SValue -&gt; SValue -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679352787"><span id="local-6989586621679352789"><span id="local-6989586621679352791"><span id="local-6989586621679352793"><span id="local-6989586621679352795"><span id="local-6989586621679352797"><span id="local-6989586621679352799"><span class="annot"><span class="annottext">Eq SValue
-Eq SValue
--&gt; (SValue -&gt; SValue -&gt; Ordering)
+== :: SValue -&gt; SValue -&gt; Bool
+$c/= :: SValue -&gt; SValue -&gt; Bool
+/= :: SValue -&gt; SValue -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679387315"><span id="local-6989586621679387321"><span id="local-6989586621679387326"><span id="local-6989586621679387330"><span id="local-6989586621679387333"><span id="local-6989586621679387336"><span id="local-6989586621679387339"><span class="annot"><span class="annottext">Eq SValue
+Eq SValue =&gt;
+(SValue -&gt; SValue -&gt; Ordering)
 -&gt; (SValue -&gt; SValue -&gt; Bool)
 -&gt; (SValue -&gt; SValue -&gt; Bool)
 -&gt; (SValue -&gt; SValue -&gt; Bool)
@@ -248,8 +60,8 @@ SValue -&gt; SValue -&gt; Bool
 SValue -&gt; SValue -&gt; Ordering
 SValue -&gt; SValue -&gt; SValue
 forall a.
-Eq a
--&gt; (a -&gt; a -&gt; Ordering)
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
 -&gt; (a -&gt; a -&gt; Bool)
 -&gt; (a -&gt; a -&gt; Bool)
 -&gt; (a -&gt; a -&gt; Bool)
@@ -257,475 +69,102 @@ Eq a
 -&gt; (a -&gt; a -&gt; a)
 -&gt; (a -&gt; a -&gt; a)
 -&gt; Ord a
-min :: SValue -&gt; SValue -&gt; SValue
-$cmin :: SValue -&gt; SValue -&gt; SValue
-max :: SValue -&gt; SValue -&gt; SValue
-$cmax :: SValue -&gt; SValue -&gt; SValue
-&gt;= :: SValue -&gt; SValue -&gt; Bool
-$c&gt;= :: SValue -&gt; SValue -&gt; Bool
-&gt; :: SValue -&gt; SValue -&gt; Bool
-$c&gt; :: SValue -&gt; SValue -&gt; Bool
-&lt;= :: SValue -&gt; SValue -&gt; Bool
-$c&lt;= :: SValue -&gt; SValue -&gt; Bool
-&lt; :: SValue -&gt; SValue -&gt; Bool
-$c&lt; :: SValue -&gt; SValue -&gt; Bool
-compare :: SValue -&gt; SValue -&gt; Ordering
 $ccompare :: SValue -&gt; SValue -&gt; Ordering
-$cp1Ord :: Eq SValue
+compare :: SValue -&gt; SValue -&gt; Ordering
+$c&lt; :: SValue -&gt; SValue -&gt; Bool
+&lt; :: SValue -&gt; SValue -&gt; Bool
+$c&lt;= :: SValue -&gt; SValue -&gt; Bool
+&lt;= :: SValue -&gt; SValue -&gt; Bool
+$c&gt; :: SValue -&gt; SValue -&gt; Bool
+&gt; :: SValue -&gt; SValue -&gt; Bool
+$c&gt;= :: SValue -&gt; SValue -&gt; Bool
+&gt;= :: SValue -&gt; SValue -&gt; Bool
+$cmax :: SValue -&gt; SValue -&gt; SValue
+max :: SValue -&gt; SValue -&gt; SValue
+$cmin :: SValue -&gt; SValue -&gt; SValue
+min :: SValue -&gt; SValue -&gt; SValue
 </span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
-</span><span id="line-60"></span><span>
-</span><span id="line-61"></span><span>
-</span><span id="line-62"></span><span>
-</span><span id="line-63"></span><span class="hs-comment">-- | A `symbolic value` is either a `pointer value` (high certainty that it is actually a pointer),</span><span>
-</span><span id="line-64"></span><span class="hs-comment">-- or a non-deterministic set of concrete expressions, or computed from a set of possible addends.</span><span>
-</span><span id="line-65"></span><span class="hs-comment">--data SValue      = SPointer (NES.NESet PtrValue) | SConcrete (NES.NESet SimpleExpr) | SAddends (NES.NESet SAddend) | Top</span><span>
-</span><span id="line-66"></span><span class="hs-comment">--  deriving (Eq,Ord,Generic)</span><span>
-</span><span id="line-67"></span><span>
-</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352783"><span id="local-6989586621679352785"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span></span></span><span>
-</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352780"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span></span><span>
-</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352775"><span id="local-6989586621679352777"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span>
-</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352773"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span><span>
-</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352769"><span id="local-6989586621679352771"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SAddend"><span class="hs-identifier hs-type">SAddend</span></a></span></span></span><span>
-</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352767"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SAddend"><span class="hs-identifier hs-type">SAddend</span></a></span></span><span>
-</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352763"><span id="local-6989586621679352765"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span></span><span>
-</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352761"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span><span>
-</span><span id="line-76"></span><span>  </span><span>
-</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352756"><span id="local-6989586621679352759"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-78"></span><span> </span><span id="local-6989586621679352754"><span class="annot"><span class="annottext">show :: PtrOffset -&gt; String
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span> </span><span id="local-6989586621679352752"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352752"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
-</span><span id="line-79"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352752"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | A `symbolic value` is either a `pointer value` (high certainty that it is actually a pointer),</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- or a non-deterministic set of concrete expressions, or computed from a set of possible addends.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--data SValue      = SPointer (NES.NESet PtrValue) | SConcrete (NES.NESet SimpleExpr) | SAddends (NES.NESet SAddend) | Top</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--  deriving (Eq,Ord,Generic)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387344"><span id="local-6989586621679387351"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387404"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387428"><span id="local-6989586621679387433"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679387446"><span class="annot"><span class="annottext">show :: SValue -&gt; String
+</span><a href="#local-6989586621679387446"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">SValue
+</span><a href="Data.SValue.html#Top"><span class="hs-identifier hs-var">Top</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;top&quot;</span></span><span> </span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SConcrete"><span class="hs-identifier hs-type">SConcrete</span></a></span><span> </span><span id="local-6989586621679387448"><span class="annot"><span class="annottext">NESet SimpleExpr
+</span><a href="#local-6989586621679387448"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; Int
+forall a. NESet a -&gt; Int
+</span><span class="hs-identifier hs-var">NES.size</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
+</span><a href="#local-6989586621679387448"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
 forall a. Eq a =&gt; a -&gt; a -&gt; Bool
-</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-number">0</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;&quot;</span></span><span>
-</span><span id="line-80"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Bool
-forall a. Bits a =&gt; a -&gt; Int -&gt; Bool
-</span><span class="hs-identifier hs-var">testBit</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352752"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int
-</span><span class="hs-number">63</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot; - 0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
-forall a. (Integral a, Show a) =&gt; a -&gt; String
-</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
-forall a. Num a =&gt; a -&gt; a -&gt; a
-</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352752"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-81"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">otherwise</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot; + 0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
-forall a. (Integral a, Show a) =&gt; a -&gt; String
-</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352752"><span class="hs-identifier hs-var">i</span></a></span><span>
-</span><span id="line-82"></span><span> </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot; + Top&quot;</span></span><span>
-</span><span id="line-83"></span><span>
-</span><span id="line-84"></span><span>
-</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352746"><span id="local-6989586621679352749"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-86"></span><span>  </span><span id="local-6989586621679352745"><span class="annot"><span class="annottext">show :: SPointer -&gt; String
-</span><a href="#local-6989586621679352745"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StackPointer"><span class="hs-identifier hs-type">Base_StackPointer</span></a></span><span> </span><span id="local-6989586621679352744"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352744"><span class="hs-identifier hs-var">f</span></a></span></span><span>  </span><span id="local-6989586621679352743"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352743"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;RSP_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352744"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352743"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-87"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_Immediate"><span class="hs-identifier hs-type">Base_Immediate</span></a></span><span> </span><span id="local-6989586621679352742"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352742"><span class="hs-identifier hs-var">i</span></a></span></span><span>     </span><span id="local-6989586621679352741"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352741"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
-forall a. (Integral a, Show a) =&gt; a -&gt; String
-</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352742"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352741"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-88"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_Malloc"><span class="hs-identifier hs-type">Base_Malloc</span></a></span><span> </span><span id="local-6989586621679352740"><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352740"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621679352739"><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352739"><span class="hs-identifier hs-var">h</span></a></span></span><span>     </span><span id="local-6989586621679352738"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352738"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
 forall a. Show a =&gt; a -&gt; String
 </span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; String) -&gt; SimpleExpr -&gt; String
 forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word64 -&gt; Maybe String -&gt; SimpleExpr
-</span><a href="Data.SymbolicExpression.html#SE_Malloc"><span class="hs-identifier hs-var">SE_Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352740"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352739"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352738"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-89"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionPtr"><span class="hs-identifier hs-type">Base_FunctionPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679352736"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352736"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679352735"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352735"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352736"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-90"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_ReturnAddr"><span class="hs-identifier hs-type">Base_ReturnAddr</span></a></span><span> </span><span id="local-6989586621679352734"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352734"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;ReturnAddress_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352734"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-91"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StatePart"><span class="hs-identifier hs-type">Base_StatePart</span></a></span><span> </span><span id="local-6989586621679352733"><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352733"><span class="hs-identifier hs-var">sp</span></a></span></span><span>    </span><span id="local-6989586621679352732"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352732"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StatePart -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352733"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;_0&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352732"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-92"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_TLS"><span class="hs-identifier hs-type">Base_TLS</span></a></span><span>             </span><span id="local-6989586621679352731"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352731"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;&amp;TLS&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352731"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-93"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionReturn"><span class="hs-identifier hs-type">Base_FunctionReturn</span></a></span><span> </span><span id="local-6989586621679352730"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352730"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679352729"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352729"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352730"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;()&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352729"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-94"></span><span>
-</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352724"><span id="local-6989586621679352727"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SAddend"><span class="hs-identifier hs-type">SAddend</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-96"></span><span>  </span><span id="local-6989586621679352723"><span class="annot"><span class="annottext">show :: SAddend -&gt; String
-</span><a href="#local-6989586621679352723"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_StackPointer"><span class="hs-identifier hs-type">SAddend_StackPointer</span></a></span><span> </span><span id="local-6989586621679352722"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352722"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;RSP_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352722"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-97"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_Immediate"><span class="hs-identifier hs-type">SAddend_Immediate</span></a></span><span> </span><span id="local-6989586621679352721"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352721"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;P0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
-forall a. (Integral a, Show a) =&gt; a -&gt; String
-</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352721"><span class="hs-identifier hs-var">i</span></a></span><span>
-</span><span id="line-98"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_Malloc"><span class="hs-identifier hs-type">SAddend_Malloc</span></a></span><span> </span><span id="local-6989586621679352720"><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352720"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621679352719"><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352719"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;P&quot;</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; String) -&gt; SimpleExpr -&gt; String
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; SimpleExpr
+forall a. NESet a -&gt; a
+</span><span class="hs-identifier hs-var">NES.findMin</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
+</span><a href="#local-6989586621679387448"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SimpleExpr] -&gt; String
+forall (t :: * -&gt; *) a. (Foldable t, Show a) =&gt; t a -&gt; String
+</span><a href="Base.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="annot"><span class="annottext">([SimpleExpr] -&gt; String) -&gt; [SimpleExpr] -&gt; String
 forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word64 -&gt; Maybe String -&gt; SimpleExpr
-</span><a href="Data.SymbolicExpression.html#SE_Malloc"><span class="hs-identifier hs-var">SE_Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352720"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352719"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-99"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_FunctionPtr"><span class="hs-identifier hs-type">SAddend_FunctionPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679352718"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352718"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; [SimpleExpr]
+forall {a}. NESet a -&gt; [a]
+</span><a href="Base.html#neSetToList"><span class="hs-identifier hs-var">neSetToList</span></a></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
+</span><a href="#local-6989586621679387448"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddends"><span class="hs-identifier hs-type">SAddends</span></a></span><span> </span><span id="local-6989586621679387453"><span class="annot"><span class="annottext">NESet SimpleExpr
+</span><a href="#local-6989586621679387453"><span class="hs-identifier hs-var">adds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;{&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352718"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-100"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_ReturnAddr"><span class="hs-identifier hs-type">SAddend_ReturnAddr</span></a></span><span> </span><span id="local-6989586621679352717"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352717"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;ReturnAddress_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352717"><span class="hs-identifier hs-var">f</span></a></span><span>
-</span><span id="line-101"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_StatePart"><span class="hs-identifier hs-type">SAddend_StatePart</span></a></span><span> </span><span id="local-6989586621679352716"><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352716"><span class="hs-identifier hs-var">sp</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StatePart -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352716"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;_0&quot;</span></span><span>
-</span><span id="line-102"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SAddend
-</span><a href="Data.SValue.html#SAddend_TLS"><span class="hs-identifier hs-var">SAddend_TLS</span></a></span><span class="hs-special">)</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;&amp;TLS&quot;</span></span><span>
-</span><span id="line-103"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_FunctionReturn"><span class="hs-identifier hs-type">SAddend_FunctionReturn</span></a></span><span> </span><span id="local-6989586621679352715"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352715"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352715"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;()&quot;</span></span><span>
-</span><span id="line-104"></span><span>
-</span><span id="line-105"></span><span>
-</span><span id="line-106"></span><span>
-</span><span id="line-107"></span><span>
-</span><span id="line-108"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352710"><span id="local-6989586621679352713"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SValue.html#SValue"><span class="hs-identifier hs-type">SValue</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-109"></span><span>  </span><span id="local-6989586621679352709"><span class="annot"><span class="annottext">show :: SValue -&gt; String
-</span><a href="#local-6989586621679352709"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SConcrete"><span class="hs-identifier hs-type">SConcrete</span></a></span><span> </span><span id="local-6989586621679352708"><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352708"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
-</span><a href="Data.SValue.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(SimpleExpr -&gt; String) -&gt; [SimpleExpr] -&gt; [String]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String) -&gt; [String] -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; String) -&gt; [SimpleExpr] -&gt; [String]
 forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
 </span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
 forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">([SimpleExpr] -&gt; [String]) -&gt; [SimpleExpr] -&gt; [String]
+</span><a href="#local-6989586621679387455"><span class="hs-identifier hs-var">show_adds</span></a></span><span> </span><span class="annot"><span class="annottext">([SimpleExpr] -&gt; [String]) -&gt; [SimpleExpr] -&gt; [String]
 forall a b. (a -&gt; b) -&gt; a -&gt; b
 </span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; [SimpleExpr]
-forall a. NESet a -&gt; [a]
+forall {a}. NESet a -&gt; [a]
 </span><a href="Base.html#neSetToList"><span class="hs-identifier hs-var">neSetToList</span></a></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352708"><span class="hs-identifier hs-var">es</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-110"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddends"><span class="hs-identifier hs-type">SAddends</span></a></span><span> </span><span id="local-6989586621679352705"><span class="annot"><span class="annottext">NESet (NESet SAddend)
-</span><a href="#local-6989586621679352705"><span class="hs-identifier hs-var">adds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
-</span><a href="Data.SValue.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(NESet SAddend -&gt; String) -&gt; [NESet SAddend] -&gt; [String]
-forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
-</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">NESet SAddend -&gt; String
-forall a. Show a =&gt; NESet a -&gt; String
-</span><a href="#local-6989586621679352704"><span class="hs-identifier hs-var">show_addend</span></a></span><span> </span><span class="annot"><span class="annottext">([NESet SAddend] -&gt; [String]) -&gt; [NESet SAddend] -&gt; [String]
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet (NESet SAddend) -&gt; [NESet SAddend]
-forall a. NESet a -&gt; [a]
-</span><a href="Base.html#neSetToList"><span class="hs-identifier hs-var">neSetToList</span></a></span><span> </span><span class="annot"><span class="annottext">NESet (NESet SAddend)
-</span><a href="#local-6989586621679352705"><span class="hs-identifier hs-var">adds</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-111"></span><span>   </span><span class="hs-keyword">where</span><span>
-</span><span id="line-112"></span><span>    </span><span id="local-6989586621679352704"><span class="annot"><span class="annottext">show_addend :: NESet a -&gt; String
-</span><a href="#local-6989586621679352704"><span class="hs-identifier hs-var hs-var">show_addend</span></a></span></span><span> </span><span id="local-6989586621679352703"><span class="annot"><span class="annottext">NESet a
-</span><a href="#local-6989586621679352703"><span class="hs-identifier hs-var">adds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
-forall a. [a] -&gt; [[a]] -&gt; [a]
-</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;+&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; String) -&gt; [a] -&gt; [String]
-forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
-</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [String]) -&gt; [a] -&gt; [String]
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet a -&gt; [a]
-forall a. NESet a -&gt; [a]
-</span><a href="Base.html#neSetToList"><span class="hs-identifier hs-var">neSetToList</span></a></span><span> </span><span class="annot"><span class="annottext">NESet a
-</span><a href="#local-6989586621679352703"><span class="hs-identifier hs-var">adds</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="#local-6989586621679387453"><span class="hs-identifier hs-var">adds</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;+...&quot;</span></span><span>
-</span><span id="line-113"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SValue
-</span><a href="Data.SValue.html#Top"><span class="hs-identifier hs-var">Top</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;top&quot;</span></span><span>
-</span><span id="line-114"></span><span>
-</span><span id="line-115"></span><span id="show_set"><span class="annot"><span class="annottext">show_set :: [String] -&gt; String
-</span><a href="Data.SValue.html#show_set"><span class="hs-identifier hs-var hs-var">show_set</span></a></span></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679352701"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352701"><span class="hs-identifier hs-var">str</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352701"><span class="hs-identifier hs-var">str</span></a></span><span>
-</span><span id="line-116"></span><span class="annot"><a href="Data.SValue.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span id="local-6989586621679352700"><span class="annot"><span class="annottext">[String]
-</span><a href="#local-6989586621679352700"><span class="hs-identifier hs-var">strs</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;{&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
-forall a. [a] -&gt; [[a]] -&gt; [a]
-</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">[String]
-</span><a href="#local-6989586621679352700"><span class="hs-identifier hs-var">strs</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-operator hs-var">++</span></span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;}&quot;</span></span><span>
-</span><span id="line-117"></span><span>
-</span><span id="line-118"></span><span id="isImmediateBase"><span class="annot"><span class="annottext">isImmediateBase :: SAddend -&gt; Bool
-</span><a href="Data.SValue.html#isImmediateBase"><span class="hs-identifier hs-var hs-var">isImmediateBase</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SAddend_Immediate"><span class="hs-identifier hs-type">SAddend_Immediate</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-119"></span><span class="annot"><a href="Data.SValue.html#isImmediateBase"><span class="hs-identifier hs-var">isImmediateBase</span></a></span><span> </span><span class="annot"><span class="annottext">SAddend
-</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-120"></span><span>
-</span><span id="line-121"></span><span>
-</span><span id="line-122"></span><span id="isConcrete"><span class="annot"><span class="annottext">isConcrete :: SValue -&gt; Bool
-</span><a href="Data.SValue.html#isConcrete"><span class="hs-identifier hs-var hs-var">isConcrete</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#SConcrete"><span class="hs-identifier hs-type">SConcrete</span></a></span><span> </span><span id="local-6989586621679352697"><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352697"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-123"></span><span class="annot"><a href="Data.SValue.html#isConcrete"><span class="hs-identifier hs-var">isConcrete</span></a></span><span> </span><span class="annot"><span class="annottext">SValue
-</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-124"></span><span>
-</span><span id="line-125"></span><span>
-</span><span id="line-126"></span><span>
-</span><span id="line-127"></span><span>
-</span><span id="line-128"></span><span>
-</span><span id="line-129"></span><span>
-</span><span id="line-130"></span><span id="has_unknown_offset"><span class="annot"><span class="annottext">has_unknown_offset :: SPointer -&gt; Bool
-</span><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var hs-var">has_unknown_offset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StackPointer"><span class="hs-identifier hs-type">Base_StackPointer</span></a></span><span> </span><span id="local-6989586621679352695"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352695"><span class="hs-identifier hs-var">f</span></a></span></span><span>   </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-131"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_Immediate"><span class="hs-identifier hs-type">Base_Immediate</span></a></span><span> </span><span id="local-6989586621679352694"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352694"><span class="hs-identifier hs-var">i</span></a></span></span><span>      </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-132"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_Malloc"><span class="hs-identifier hs-type">Base_Malloc</span></a></span><span> </span><span id="local-6989586621679352693"><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352693"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621679352692"><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352692"><span class="hs-identifier hs-var">h</span></a></span></span><span>      </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-133"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionPtr"><span class="hs-identifier hs-type">Base_FunctionPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-identifier">_</span></span><span>  </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-134"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_ReturnAddr"><span class="hs-identifier hs-type">Base_ReturnAddr</span></a></span><span> </span><span id="local-6989586621679352691"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352691"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-135"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_TLS"><span class="hs-identifier hs-type">Base_TLS</span></a></span><span>              </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-136"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StatePart"><span class="hs-identifier hs-type">Base_StatePart</span></a></span><span> </span><span id="local-6989586621679352690"><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352690"><span class="hs-identifier hs-var">sp</span></a></span></span><span>     </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-137"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionReturn"><span class="hs-identifier hs-type">Base_FunctionReturn</span></a></span><span> </span><span id="local-6989586621679352689"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352689"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-138"></span><span class="annot"><a href="Data.SValue.html#has_unknown_offset"><span class="hs-identifier hs-var">has_unknown_offset</span></a></span><span> </span><span class="annot"><span class="annottext">SPointer
-</span><span class="hs-identifier">_</span></span><span>                                     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-139"></span><span>
-</span><span id="line-140"></span><span id="liftOffsetMod"><span class="annot"><span class="annottext">liftOffsetMod :: (Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var hs-var">liftOffsetMod</span></a></span></span><span> </span><span id="local-6989586621679352687"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352687"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="Data.SValue.html#UnknownOffset"><span class="hs-identifier hs-var">UnknownOffset</span></a></span><span>
-</span><span id="line-141"></span><span class="annot"><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span id="local-6989586621679352686"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352686"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-type">PtrOffset</span></a></span><span> </span><span id="local-6989586621679352685"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352685"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; PtrOffset
-</span><a href="Data.SValue.html#PtrOffset"><span class="hs-identifier hs-var">PtrOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; PtrOffset) -&gt; Word64 -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352686"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352685"><span class="hs-identifier hs-var">i</span></a></span><span>
-</span><span id="line-142"></span><span>
-</span><span id="line-143"></span><span id="mod_offset"><span class="annot"><span class="annottext">mod_offset :: (Word64 -&gt; Word64) -&gt; SPointer -&gt; SPointer
-</span><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var hs-var">mod_offset</span></a></span></span><span> </span><span id="local-6989586621679352683"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352683"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StackPointer"><span class="hs-identifier hs-type">Base_StackPointer</span></a></span><span> </span><span id="local-6989586621679352682"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352682"><span class="hs-identifier hs-var">f</span></a></span></span><span>   </span><span id="local-6989586621679352681"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352681"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_StackPointer"><span class="hs-identifier hs-var">Base_StackPointer</span></a></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352682"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352683"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352681"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span>
-</span><span id="line-144"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352680"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352680"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_Malloc"><span class="hs-identifier hs-type">Base_Malloc</span></a></span><span> </span><span id="local-6989586621679352679"><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352679"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621679352678"><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352678"><span class="hs-identifier hs-var">h</span></a></span></span><span>      </span><span id="local-6989586621679352677"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352677"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Word64 -&gt; Maybe String -&gt; PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_Malloc"><span class="hs-identifier hs-var">Base_Malloc</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
-</span><a href="#local-6989586621679352679"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
-</span><a href="#local-6989586621679352678"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352680"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352677"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span>
-</span><span id="line-145"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352676"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352676"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionPtr"><span class="hs-identifier hs-type">Base_FunctionPtr</span></a></span><span> </span><span id="local-6989586621679352675"><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352675"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679352674"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352674"><span class="hs-identifier hs-var">f</span></a></span></span><span>  </span><span id="local-6989586621679352673"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352673"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String -&gt; PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_FunctionPtr"><span class="hs-identifier hs-var">Base_FunctionPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><a href="#local-6989586621679352675"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352674"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352676"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352673"><span class="hs-identifier hs-var">offset</span></a></span><span>
-</span><span id="line-146"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352672"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352672"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_TLS"><span class="hs-identifier hs-type">Base_TLS</span></a></span><span>              </span><span id="local-6989586621679352671"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352671"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_TLS"><span class="hs-identifier hs-var">Base_TLS</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352672"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352671"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span>
-</span><span id="line-147"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352670"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352670"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_StatePart"><span class="hs-identifier hs-type">Base_StatePart</span></a></span><span> </span><span id="local-6989586621679352669"><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352669"><span class="hs-identifier hs-var">sp</span></a></span></span><span>     </span><span id="local-6989586621679352668"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352668"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StatePart -&gt; PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_StatePart"><span class="hs-identifier hs-var">Base_StatePart</span></a></span><span> </span><span class="annot"><span class="annottext">StatePart
-</span><a href="#local-6989586621679352669"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352670"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352668"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span>
-</span><span id="line-148"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352667"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352667"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SValue.html#Base_FunctionReturn"><span class="hs-identifier hs-type">Base_FunctionReturn</span></a></span><span> </span><span id="local-6989586621679352666"><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352666"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679352665"><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352665"><span class="hs-identifier hs-var">offset</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; PtrOffset -&gt; SPointer
-</span><a href="Data.SValue.html#Base_FunctionReturn"><span class="hs-identifier hs-var">Base_FunctionReturn</span></a></span><span> </span><span class="annot"><span class="annottext">String
-</span><a href="#local-6989586621679352666"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; SPointer) -&gt; PtrOffset -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64) -&gt; PtrOffset -&gt; PtrOffset
-</span><a href="Data.SValue.html#liftOffsetMod"><span class="hs-identifier hs-var">liftOffsetMod</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352667"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(PtrOffset -&gt; PtrOffset) -&gt; PtrOffset -&gt; PtrOffset
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PtrOffset
-</span><a href="#local-6989586621679352665"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span>
-</span><span id="line-149"></span><span class="annot"><a href="Data.SValue.html#mod_offset"><span class="hs-identifier hs-var">mod_offset</span></a></span><span> </span><span id="local-6989586621679352664"><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352664"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679352663"><span class="annot"><span class="annottext">SPointer
-</span><a href="#local-6989586621679352663"><span class="hs-identifier hs-var">b</span></a></span></span><span>                              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SPointer
-forall a. HasCallStack =&gt; String -&gt; a
-</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; SPointer) -&gt; String -&gt; SPointer
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;Modding offset of: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span id="line-50"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679387455"><span class="annot"><span class="annottext">show_adds :: a -&gt; String
+</span><a href="#local-6989586621679387455"><span class="hs-identifier hs-var hs-var">show_adds</span></a></span></span><span> </span><span id="local-6989586621679387458"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679387458"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;(&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">SPointer -&gt; String
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
 forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SPointer
-</span><a href="#local-6989586621679352663"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679387458"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;   &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
-forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word64
-</span><a href="#local-6989586621679352664"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
-</span><span class="hs-number">42</span></span><span class="hs-special">)</span><span>
-</span><span id="line-150"></span><span>
-</span><span id="line-151"></span><span>
-</span><span id="line-152"></span><span>
-</span><span id="line-153"></span></pre></body></html>
+</span><span class="hs-string">&quot;+..)&quot;</span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span></pre></body></html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- {-# LANGUAGE  #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Binary.Read</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.Generic.html"><span class="hs-identifier">Binary.Generic</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.Elf.html"><span class="hs-identifier">Binary.Elf</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.Macho.html"><span class="hs-identifier">Binary.Macho</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">doesFileExist</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="annot"><span class="hs-comment">-- | Reading a binary given a filename (ELF or MachO)</span></span><span>
+</span><span id="line-14"></span><span class="annot"><a href="Binary.Read.html#read_binary"><span class="hs-identifier hs-type">read_binary</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Binary.Generic.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span id="read_binary"><span class="annot"><span class="annottext">read_binary :: String -&gt; String -&gt; IO (Maybe Binary)
+</span><a href="Binary.Read.html#read_binary"><span class="hs-identifier hs-var hs-var">read_binary</span></a></span></span><span> </span><span id="local-6989586621679394496"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394496"><span class="hs-identifier hs-var">dirname</span></a></span></span><span> </span><span id="local-6989586621679394497"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394497"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679394498"><span class="annot"><span class="annottext">filename :: String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var hs-var">filename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394496"><span class="hs-identifier hs-var">dirname</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394497"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span id="local-6989586621679394499"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394499"><span class="hs-identifier hs-var">exists</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394499"><span class="hs-identifier hs-var">exists</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-comment">-- if the original binary is given, we now assume it its an ELF</span><span>
+</span><span id="line-20"></span><span>    </span><span id="local-6989586621679394500"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679394500"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>  </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">BS.readFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; [Word8]
+</span><span class="hs-identifier hs-var">BS.unpack</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; [Word8]) -&gt; ByteString -&gt; [Word8]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679394500"><span class="hs-identifier hs-var">content</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; [Word8] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x7f</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x45</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x4C</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x46</span></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-22"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679394504"><span class="annot"><span class="annottext">elf :: Elf
+</span><a href="#local-6989586621679394504"><span class="hs-identifier hs-var hs-var">elf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Elf
+</span><a href="Binary.Elf.html#elf_read_file"><span class="hs-identifier hs-var">elf_read_file</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679394500"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-23"></span><span>      </span><span class="annot"><span class="annottext">Maybe Binary -&gt; IO (Maybe Binary)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Binary -&gt; IO (Maybe Binary))
+-&gt; Maybe Binary -&gt; IO (Maybe Binary)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Binary -&gt; Maybe Binary
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Binary -&gt; Maybe Binary) -&gt; Binary -&gt; Maybe Binary
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NamedElf -&gt; Binary
+forall b. BinaryClass b =&gt; b -&gt; Binary
+</span><a href="Binary.Generic.html#Binary"><span class="hs-identifier hs-var">Binary</span></a></span><span> </span><span class="annot"><span class="annottext">(NamedElf -&gt; Binary) -&gt; NamedElf -&gt; Binary
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Elf
+-&gt; String
+-&gt; String
+-&gt; SectionsInfo
+-&gt; SymbolTable
+-&gt; Set Relocation
+-&gt; NamedElf
+</span><a href="Binary.Elf.html#NamedElf"><span class="hs-identifier hs-var">NamedElf</span></a></span><span> </span><span class="annot"><span class="annottext">Elf
+</span><a href="#local-6989586621679394504"><span class="hs-identifier hs-var">elf</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394496"><span class="hs-identifier hs-var">dirname</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394497"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Elf -&gt; SectionsInfo
+</span><a href="Binary.Elf.html#elf_get_sections_info"><span class="hs-identifier hs-var">elf_get_sections_info</span></a></span><span> </span><span class="annot"><span class="annottext">Elf
+</span><a href="#local-6989586621679394504"><span class="hs-identifier hs-var">elf</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Elf -&gt; SymbolTable
+</span><a href="Binary.Elf.html#elf_get_symbol_table"><span class="hs-identifier hs-var">elf_get_symbol_table</span></a></span><span> </span><span class="annot"><span class="annottext">Elf
+</span><a href="#local-6989586621679394504"><span class="hs-identifier hs-var">elf</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Elf -&gt; Set Relocation
+</span><a href="Binary.Elf.html#elf_get_relocs"><span class="hs-identifier hs-var">elf_get_relocs</span></a></span><span> </span><span class="annot"><span class="annottext">Elf
+</span><a href="#local-6989586621679394504"><span class="hs-identifier hs-var">elf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-25"></span><span>      </span><span class="annot"><span class="annottext">Maybe Binary -&gt; IO (Maybe Binary)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe Binary
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">-- otherwise, see if the binary is contained in the following files (MachO)</span><span>
+</span><span id="line-28"></span><span>    </span><span id="local-6989586621679394511"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394511"><span class="hs-identifier hs-var">exists1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.dump&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>    </span><span id="local-6989586621679394512"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394512"><span class="hs-identifier hs-var">exists2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.data&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679394513"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394513"><span class="hs-identifier hs-var">exists3</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.sections&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679394514"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394514"><span class="hs-identifier hs-var">exists4</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.symbols&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679394515"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394515"><span class="hs-identifier hs-var">exists5</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394498"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.entry&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
+forall (t :: * -&gt; *). Foldable t =&gt; t Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">and</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394511"><span class="hs-identifier hs-var">exists1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394512"><span class="hs-identifier hs-var">exists2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394513"><span class="hs-identifier hs-var">exists3</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394514"><span class="hs-identifier hs-var">exists4</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679394515"><span class="hs-identifier hs-var">exists5</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-34"></span><span>      </span><span id="local-6989586621679394517"><span class="annot"><span class="annottext">Macho
+</span><a href="#local-6989586621679394517"><span class="hs-identifier hs-var">macho</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; IO Macho
+</span><a href="Binary.Macho.html#macho_read_file"><span class="hs-identifier hs-var">macho_read_file</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394496"><span class="hs-identifier hs-var">dirname</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679394497"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="annottext">Maybe Binary -&gt; IO (Maybe Binary)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Binary -&gt; IO (Maybe Binary))
+-&gt; Maybe Binary -&gt; IO (Maybe Binary)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Binary -&gt; Maybe Binary
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Binary -&gt; Maybe Binary) -&gt; Binary -&gt; Maybe Binary
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Macho -&gt; Binary
+forall b. BinaryClass b =&gt; b -&gt; Binary
+</span><a href="Binary.Generic.html#Binary"><span class="hs-identifier hs-var">Binary</span></a></span><span> </span><span class="annot"><span class="annottext">(Macho -&gt; Binary) -&gt; Macho -&gt; Binary
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Macho
+</span><a href="#local-6989586621679394517"><span class="hs-identifier hs-var">macho</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="annottext">Maybe Binary -&gt; IO (Maybe Binary)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe Binary
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-38"></span></pre></body></html>

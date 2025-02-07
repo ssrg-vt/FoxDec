@@ -1,3 +1,10 @@
+{-|
+Module      : Algorithm.Dominance
+Description : Dominance 
+
+Computes the dominance frontier: see <https://www.ed.tus.ac.jp/j-mune/keio/m/ssa2.pdf>.
+-}
+
 module Algorithm.Dominance
     (domFrontier) where
 
@@ -8,8 +15,6 @@ import qualified Data.IntSet                   as IS
 import qualified Data.IntMap as IM
 import Base (orElse)
 
--- Computes the dominance frontier
--- see https://www.ed.tus.ac.jp/j-mune/keio/m/ssa2.pdf
 domFrontier :: G.Graph -> G.Graph -> Int -> IS.IntSet
 domFrontier g tree n = IS.union df_local df_up
  where

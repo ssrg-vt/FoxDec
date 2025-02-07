@@ -1,0 +1,791 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.X86.Register</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Size.html"><span class="hs-identifier">Data.Size</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="Register"><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-var">Register</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-12"></span><span>        </span><span id="RegNone"><span class="annot"><a href="Data.X86.Register.html#RegNone"><span class="hs-identifier hs-var">RegNone</span></a></span></span><span>
+</span><span id="line-13"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Reg8"><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-var">Reg8</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span><span> </span><span class="annot"><a href="Data.X86.Register.html#RegHalf"><span class="hs-identifier hs-type">RegHalf</span></a></span><span>
+</span><span id="line-14"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Reg16"><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-var">Reg16</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span><span>
+</span><span id="line-15"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Reg32"><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-var">Reg32</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span><span>
+</span><span id="line-16"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Reg64"><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-var">Reg64</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span><span>
+</span><span id="line-17"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Reg128"><span class="annot"><a href="Data.X86.Register.html#Reg128"><span class="hs-identifier hs-var">Reg128</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SSEReg"><span class="hs-identifier hs-type">SSEReg</span></a></span><span>
+</span><span id="line-18"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="RegSeg"><span class="annot"><a href="Data.X86.Register.html#RegSeg"><span class="hs-identifier hs-var">RegSeg</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SReg"><span class="hs-identifier hs-type">SReg</span></a></span><span>
+</span><span id="line-19"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="RegFPU"><span class="annot"><a href="Data.X86.Register.html#RegFPU"><span class="hs-identifier hs-var">RegFPU</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#FPUReg"><span class="hs-identifier hs-type">FPUReg</span></a></span><span>
+</span><span id="line-20"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="RegTemp"><span class="annot"><a href="Data.X86.Register.html#RegTemp"><span class="hs-identifier hs-var">RegTemp</span></a></span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679376838"><span id="local-6989586621679376853"><span class="annot"><span class="annottext">Register -&gt; Register -&gt; Bool
+(Register -&gt; Register -&gt; Bool)
+-&gt; (Register -&gt; Register -&gt; Bool) -&gt; Eq Register
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Register -&gt; Register -&gt; Bool
+== :: Register -&gt; Register -&gt; Bool
+$c/= :: Register -&gt; Register -&gt; Bool
+/= :: Register -&gt; Register -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376860"><span id="local-6989586621679376875"><span id="local-6989586621679376879"><span id="local-6989586621679376882"><span id="local-6989586621679376885"><span id="local-6989586621679376888"><span id="local-6989586621679376891"><span class="annot"><span class="annottext">Eq Register
+Eq Register =&gt;
+(Register -&gt; Register -&gt; Ordering)
+-&gt; (Register -&gt; Register -&gt; Bool)
+-&gt; (Register -&gt; Register -&gt; Bool)
+-&gt; (Register -&gt; Register -&gt; Bool)
+-&gt; (Register -&gt; Register -&gt; Bool)
+-&gt; (Register -&gt; Register -&gt; Register)
+-&gt; (Register -&gt; Register -&gt; Register)
+-&gt; Ord Register
+Register -&gt; Register -&gt; Bool
+Register -&gt; Register -&gt; Ordering
+Register -&gt; Register -&gt; Register
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Register -&gt; Register -&gt; Ordering
+compare :: Register -&gt; Register -&gt; Ordering
+$c&lt; :: Register -&gt; Register -&gt; Bool
+&lt; :: Register -&gt; Register -&gt; Bool
+$c&lt;= :: Register -&gt; Register -&gt; Bool
+&lt;= :: Register -&gt; Register -&gt; Bool
+$c&gt; :: Register -&gt; Register -&gt; Bool
+&gt; :: Register -&gt; Register -&gt; Bool
+$c&gt;= :: Register -&gt; Register -&gt; Bool
+&gt;= :: Register -&gt; Register -&gt; Bool
+$cmax :: Register -&gt; Register -&gt; Register
+max :: Register -&gt; Register -&gt; Register
+$cmin :: Register -&gt; Register -&gt; Register
+min :: Register -&gt; Register -&gt; Register
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376895"><span id="local-6989586621679376897"><span class="annot"><span class="annottext">(forall x. Register -&gt; Rep Register x)
+-&gt; (forall x. Rep Register x -&gt; Register) -&gt; Generic Register
+forall x. Rep Register x -&gt; Register
+forall x. Register -&gt; Rep Register x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Register -&gt; Rep Register x
+from :: forall x. Register -&gt; Rep Register x
+$cto :: forall x. Rep Register x -&gt; Register
+to :: forall x. Rep Register x -&gt; Register
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679376901"><span id="local-6989586621679376906"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679376915"><span class="annot"><span class="annottext">show :: Register -&gt; String
+</span><a href="#local-6989586621679376915"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="Data.X86.Register.html#RegNone"><span class="hs-identifier hs-var">RegNone</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NONE&quot;</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IPL&quot;</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IP&quot;</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EIP&quot;</span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RIP&quot;</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;AL&quot;</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfH"><span class="hs-identifier hs-var">HalfH</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;AH&quot;</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;AX&quot;</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EAX&quot;</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RAX&quot;</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BL&quot;</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfH"><span class="hs-identifier hs-var">HalfH</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BH&quot;</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BX&quot;</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EBX&quot;</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RBX&quot;</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CL&quot;</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfH"><span class="hs-identifier hs-var">HalfH</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CH&quot;</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CX&quot;</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ECX&quot;</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RCX&quot;</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DL&quot;</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfH"><span class="hs-identifier hs-var">HalfH</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DH&quot;</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DX&quot;</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EDX&quot;</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RDX&quot;</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SPL&quot;</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SP&quot;</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ESP&quot;</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RSP&quot;</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BPL&quot;</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BP&quot;</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EBP&quot;</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RBP&quot;</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DIL&quot;</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DI&quot;</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EDI&quot;</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RDI&quot;</span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SIL&quot;</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SI&quot;</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ESI&quot;</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RSI&quot;</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R8"><span class="hs-identifier hs-var">R8</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R8B&quot;</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R8"><span class="hs-identifier hs-var">R8</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R8W&quot;</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R8"><span class="hs-identifier hs-var">R8</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R8D&quot;</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R8"><span class="hs-identifier hs-var">R8</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R8&quot;</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R9"><span class="hs-identifier hs-var">R9</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R9B&quot;</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R9"><span class="hs-identifier hs-var">R9</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R9W&quot;</span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R9"><span class="hs-identifier hs-var">R9</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R9D&quot;</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R9"><span class="hs-identifier hs-var">R9</span></a></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R9&quot;</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R10"><span class="hs-identifier hs-var">R10</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R10B&quot;</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R10"><span class="hs-identifier hs-var">R10</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R10W&quot;</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R10"><span class="hs-identifier hs-var">R10</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R10D&quot;</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R10"><span class="hs-identifier hs-var">R10</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R10&quot;</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R11"><span class="hs-identifier hs-var">R11</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R11B&quot;</span></span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R11"><span class="hs-identifier hs-var">R11</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R11W&quot;</span></span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R11"><span class="hs-identifier hs-var">R11</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R11D&quot;</span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R11"><span class="hs-identifier hs-var">R11</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R11&quot;</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R12"><span class="hs-identifier hs-var">R12</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R12B&quot;</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R12"><span class="hs-identifier hs-var">R12</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R12W&quot;</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R12"><span class="hs-identifier hs-var">R12</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R12D&quot;</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R12"><span class="hs-identifier hs-var">R12</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R12&quot;</span></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R13"><span class="hs-identifier hs-var">R13</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R13B&quot;</span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R13"><span class="hs-identifier hs-var">R13</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R13W&quot;</span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R13"><span class="hs-identifier hs-var">R13</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R13D&quot;</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R13"><span class="hs-identifier hs-var">R13</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R13&quot;</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R14"><span class="hs-identifier hs-var">R14</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R14B&quot;</span></span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R14"><span class="hs-identifier hs-var">R14</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R14W&quot;</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R14"><span class="hs-identifier hs-var">R14</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R14D&quot;</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R14"><span class="hs-identifier hs-var">R14</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R14&quot;</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R15"><span class="hs-identifier hs-var">R15</span></a></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R15B&quot;</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R15"><span class="hs-identifier hs-var">R15</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R15W&quot;</span></span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R15"><span class="hs-identifier hs-var">R15</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R15D&quot;</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#R15"><span class="hs-identifier hs-var">R15</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R15&quot;</span></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#RegSeg"><span class="hs-identifier hs-type">RegSeg</span></a></span><span> </span><span id="local-6989586621679376936"><span class="annot"><span class="annottext">SReg
+</span><a href="#local-6989586621679376936"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SReg -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SReg
+</span><a href="#local-6989586621679376936"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#RegFPU"><span class="hs-identifier hs-type">RegFPU</span></a></span><span> </span><span id="local-6989586621679376937"><span class="annot"><span class="annottext">FPUReg
+</span><a href="#local-6989586621679376937"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FPUReg -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">FPUReg
+</span><a href="#local-6989586621679376937"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg128"><span class="hs-identifier hs-type">Reg128</span></a></span><span> </span><span id="local-6989586621679376938"><span class="annot"><span class="annottext">SSEReg
+</span><a href="#local-6989586621679376938"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SSEReg -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SSEReg
+</span><a href="#local-6989586621679376938"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register
+</span><a href="Data.X86.Register.html#RegTemp"><span class="hs-identifier hs-var">RegTemp</span></a></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TEMP&quot;</span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">data</span><span> </span><span id="GPR"><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-var">GPR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RAX"><span class="annot"><a href="Data.X86.Register.html#RAX"><span class="hs-identifier hs-var">RAX</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RCX"><span class="annot"><a href="Data.X86.Register.html#RCX"><span class="hs-identifier hs-var">RCX</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RDX"><span class="annot"><a href="Data.X86.Register.html#RDX"><span class="hs-identifier hs-var">RDX</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RBX"><span class="annot"><a href="Data.X86.Register.html#RBX"><span class="hs-identifier hs-var">RBX</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RSP"><span class="annot"><a href="Data.X86.Register.html#RSP"><span class="hs-identifier hs-var">RSP</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RBP"><span class="annot"><a href="Data.X86.Register.html#RBP"><span class="hs-identifier hs-var">RBP</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RSI"><span class="annot"><a href="Data.X86.Register.html#RSI"><span class="hs-identifier hs-var">RSI</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RDI"><span class="annot"><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R8"><span class="annot"><a href="Data.X86.Register.html#R8"><span class="hs-identifier hs-var">R8</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R9"><span class="annot"><a href="Data.X86.Register.html#R9"><span class="hs-identifier hs-var">R9</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R10"><span class="annot"><a href="Data.X86.Register.html#R10"><span class="hs-identifier hs-var">R10</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R11"><span class="annot"><a href="Data.X86.Register.html#R11"><span class="hs-identifier hs-var">R11</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R12"><span class="annot"><a href="Data.X86.Register.html#R12"><span class="hs-identifier hs-var">R12</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R13"><span class="annot"><a href="Data.X86.Register.html#R13"><span class="hs-identifier hs-var">R13</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R14"><span class="annot"><a href="Data.X86.Register.html#R14"><span class="hs-identifier hs-var">R14</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R15"><span class="annot"><a href="Data.X86.Register.html#R15"><span class="hs-identifier hs-var">R15</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RIP"><span class="annot"><a href="Data.X86.Register.html#RIP"><span class="hs-identifier hs-var">RIP</span></a></span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679376940"><span id="local-6989586621679376942"><span id="local-6989586621679376946"><span class="annot"><span class="annottext">Int -&gt; GPR -&gt; ShowS
+[GPR] -&gt; ShowS
+GPR -&gt; String
+(Int -&gt; GPR -&gt; ShowS)
+-&gt; (GPR -&gt; String) -&gt; ([GPR] -&gt; ShowS) -&gt; Show GPR
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GPR -&gt; ShowS
+showsPrec :: Int -&gt; GPR -&gt; ShowS
+$cshow :: GPR -&gt; String
+show :: GPR -&gt; String
+$cshowList :: [GPR] -&gt; ShowS
+showList :: [GPR] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376949"><span id="local-6989586621679376951"><span class="annot"><span class="annottext">GPR -&gt; GPR -&gt; Bool
+(GPR -&gt; GPR -&gt; Bool) -&gt; (GPR -&gt; GPR -&gt; Bool) -&gt; Eq GPR
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: GPR -&gt; GPR -&gt; Bool
+== :: GPR -&gt; GPR -&gt; Bool
+$c/= :: GPR -&gt; GPR -&gt; Bool
+/= :: GPR -&gt; GPR -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376956"><span id="local-6989586621679376958"><span id="local-6989586621679376960"><span id="local-6989586621679376963"><span id="local-6989586621679376966"><span id="local-6989586621679376969"><span id="local-6989586621679376972"><span class="annot"><span class="annottext">Eq GPR
+Eq GPR =&gt;
+(GPR -&gt; GPR -&gt; Ordering)
+-&gt; (GPR -&gt; GPR -&gt; Bool)
+-&gt; (GPR -&gt; GPR -&gt; Bool)
+-&gt; (GPR -&gt; GPR -&gt; Bool)
+-&gt; (GPR -&gt; GPR -&gt; Bool)
+-&gt; (GPR -&gt; GPR -&gt; GPR)
+-&gt; (GPR -&gt; GPR -&gt; GPR)
+-&gt; Ord GPR
+GPR -&gt; GPR -&gt; Bool
+GPR -&gt; GPR -&gt; Ordering
+GPR -&gt; GPR -&gt; GPR
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: GPR -&gt; GPR -&gt; Ordering
+compare :: GPR -&gt; GPR -&gt; Ordering
+$c&lt; :: GPR -&gt; GPR -&gt; Bool
+&lt; :: GPR -&gt; GPR -&gt; Bool
+$c&lt;= :: GPR -&gt; GPR -&gt; Bool
+&lt;= :: GPR -&gt; GPR -&gt; Bool
+$c&gt; :: GPR -&gt; GPR -&gt; Bool
+&gt; :: GPR -&gt; GPR -&gt; Bool
+$c&gt;= :: GPR -&gt; GPR -&gt; Bool
+&gt;= :: GPR -&gt; GPR -&gt; Bool
+$cmax :: GPR -&gt; GPR -&gt; GPR
+max :: GPR -&gt; GPR -&gt; GPR
+$cmin :: GPR -&gt; GPR -&gt; GPR
+min :: GPR -&gt; GPR -&gt; GPR
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376975"><span id="local-6989586621679376977"><span class="annot"><span class="annottext">(forall x. GPR -&gt; Rep GPR x)
+-&gt; (forall x. Rep GPR x -&gt; GPR) -&gt; Generic GPR
+forall x. Rep GPR x -&gt; GPR
+forall x. GPR -&gt; Rep GPR x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. GPR -&gt; Rep GPR x
+from :: forall x. GPR -&gt; Rep GPR x
+$cto :: forall x. Rep GPR x -&gt; GPR
+to :: forall x. Rep GPR x -&gt; GPR
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">data</span><span> </span><span id="SReg"><span class="annot"><a href="Data.X86.Register.html#SReg"><span class="hs-identifier hs-var">SReg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ES"><span class="annot"><a href="Data.X86.Register.html#ES"><span class="hs-identifier hs-var">ES</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="CS"><span class="annot"><a href="Data.X86.Register.html#CS"><span class="hs-identifier hs-var">CS</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SS"><span class="annot"><a href="Data.X86.Register.html#SS"><span class="hs-identifier hs-var">SS</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="DS"><span class="annot"><a href="Data.X86.Register.html#DS"><span class="hs-identifier hs-var">DS</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="FS"><span class="annot"><a href="Data.X86.Register.html#FS"><span class="hs-identifier hs-var">FS</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="GS"><span class="annot"><a href="Data.X86.Register.html#GS"><span class="hs-identifier hs-var">GS</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SR6"><span class="annot"><a href="Data.X86.Register.html#SR6"><span class="hs-identifier hs-var">SR6</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SR7"><span class="annot"><a href="Data.X86.Register.html#SR7"><span class="hs-identifier hs-var">SR7</span></a></span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679376988"><span id="local-6989586621679376990"><span id="local-6989586621679376993"><span class="annot"><span class="annottext">Int -&gt; SReg -&gt; ShowS
+[SReg] -&gt; ShowS
+SReg -&gt; String
+(Int -&gt; SReg -&gt; ShowS)
+-&gt; (SReg -&gt; String) -&gt; ([SReg] -&gt; ShowS) -&gt; Show SReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SReg -&gt; ShowS
+showsPrec :: Int -&gt; SReg -&gt; ShowS
+$cshow :: SReg -&gt; String
+show :: SReg -&gt; String
+$cshowList :: [SReg] -&gt; ShowS
+showList :: [SReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679376996"><span id="local-6989586621679376998"><span class="annot"><span class="annottext">SReg -&gt; SReg -&gt; Bool
+(SReg -&gt; SReg -&gt; Bool) -&gt; (SReg -&gt; SReg -&gt; Bool) -&gt; Eq SReg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SReg -&gt; SReg -&gt; Bool
+== :: SReg -&gt; SReg -&gt; Bool
+$c/= :: SReg -&gt; SReg -&gt; Bool
+/= :: SReg -&gt; SReg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377003"><span id="local-6989586621679377005"><span id="local-6989586621679377007"><span id="local-6989586621679377010"><span id="local-6989586621679377013"><span id="local-6989586621679377016"><span id="local-6989586621679377019"><span class="annot"><span class="annottext">Eq SReg
+Eq SReg =&gt;
+(SReg -&gt; SReg -&gt; Ordering)
+-&gt; (SReg -&gt; SReg -&gt; Bool)
+-&gt; (SReg -&gt; SReg -&gt; Bool)
+-&gt; (SReg -&gt; SReg -&gt; Bool)
+-&gt; (SReg -&gt; SReg -&gt; Bool)
+-&gt; (SReg -&gt; SReg -&gt; SReg)
+-&gt; (SReg -&gt; SReg -&gt; SReg)
+-&gt; Ord SReg
+SReg -&gt; SReg -&gt; Bool
+SReg -&gt; SReg -&gt; Ordering
+SReg -&gt; SReg -&gt; SReg
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: SReg -&gt; SReg -&gt; Ordering
+compare :: SReg -&gt; SReg -&gt; Ordering
+$c&lt; :: SReg -&gt; SReg -&gt; Bool
+&lt; :: SReg -&gt; SReg -&gt; Bool
+$c&lt;= :: SReg -&gt; SReg -&gt; Bool
+&lt;= :: SReg -&gt; SReg -&gt; Bool
+$c&gt; :: SReg -&gt; SReg -&gt; Bool
+&gt; :: SReg -&gt; SReg -&gt; Bool
+$c&gt;= :: SReg -&gt; SReg -&gt; Bool
+&gt;= :: SReg -&gt; SReg -&gt; Bool
+$cmax :: SReg -&gt; SReg -&gt; SReg
+max :: SReg -&gt; SReg -&gt; SReg
+$cmin :: SReg -&gt; SReg -&gt; SReg
+min :: SReg -&gt; SReg -&gt; SReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377022"><span id="local-6989586621679377024"><span class="annot"><span class="annottext">(forall x. SReg -&gt; Rep SReg x)
+-&gt; (forall x. Rep SReg x -&gt; SReg) -&gt; Generic SReg
+forall x. Rep SReg x -&gt; SReg
+forall x. SReg -&gt; Rep SReg x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. SReg -&gt; Rep SReg x
+from :: forall x. SReg -&gt; Rep SReg x
+$cto :: forall x. Rep SReg x -&gt; SReg
+to :: forall x. Rep SReg x -&gt; SReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">data</span><span> </span><span id="FPUReg"><span class="annot"><a href="Data.X86.Register.html#FPUReg"><span class="hs-identifier hs-var">FPUReg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ST0"><span class="annot"><a href="Data.X86.Register.html#ST0"><span class="hs-identifier hs-var">ST0</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST1"><span class="annot"><a href="Data.X86.Register.html#ST1"><span class="hs-identifier hs-var">ST1</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST2"><span class="annot"><a href="Data.X86.Register.html#ST2"><span class="hs-identifier hs-var">ST2</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST3"><span class="annot"><a href="Data.X86.Register.html#ST3"><span class="hs-identifier hs-var">ST3</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST4"><span class="annot"><a href="Data.X86.Register.html#ST4"><span class="hs-identifier hs-var">ST4</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST5"><span class="annot"><a href="Data.X86.Register.html#ST5"><span class="hs-identifier hs-var">ST5</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST6"><span class="annot"><a href="Data.X86.Register.html#ST6"><span class="hs-identifier hs-var">ST6</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ST7"><span class="annot"><a href="Data.X86.Register.html#ST7"><span class="hs-identifier hs-var">ST7</span></a></span></span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679377035"><span id="local-6989586621679377037"><span id="local-6989586621679377040"><span class="annot"><span class="annottext">Int -&gt; FPUReg -&gt; ShowS
+[FPUReg] -&gt; ShowS
+FPUReg -&gt; String
+(Int -&gt; FPUReg -&gt; ShowS)
+-&gt; (FPUReg -&gt; String) -&gt; ([FPUReg] -&gt; ShowS) -&gt; Show FPUReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FPUReg -&gt; ShowS
+showsPrec :: Int -&gt; FPUReg -&gt; ShowS
+$cshow :: FPUReg -&gt; String
+show :: FPUReg -&gt; String
+$cshowList :: [FPUReg] -&gt; ShowS
+showList :: [FPUReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377043"><span id="local-6989586621679377045"><span class="annot"><span class="annottext">FPUReg -&gt; FPUReg -&gt; Bool
+(FPUReg -&gt; FPUReg -&gt; Bool)
+-&gt; (FPUReg -&gt; FPUReg -&gt; Bool) -&gt; Eq FPUReg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FPUReg -&gt; FPUReg -&gt; Bool
+== :: FPUReg -&gt; FPUReg -&gt; Bool
+$c/= :: FPUReg -&gt; FPUReg -&gt; Bool
+/= :: FPUReg -&gt; FPUReg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377050"><span id="local-6989586621679377052"><span id="local-6989586621679377054"><span id="local-6989586621679377057"><span id="local-6989586621679377060"><span id="local-6989586621679377063"><span id="local-6989586621679377066"><span class="annot"><span class="annottext">Eq FPUReg
+Eq FPUReg =&gt;
+(FPUReg -&gt; FPUReg -&gt; Ordering)
+-&gt; (FPUReg -&gt; FPUReg -&gt; Bool)
+-&gt; (FPUReg -&gt; FPUReg -&gt; Bool)
+-&gt; (FPUReg -&gt; FPUReg -&gt; Bool)
+-&gt; (FPUReg -&gt; FPUReg -&gt; Bool)
+-&gt; (FPUReg -&gt; FPUReg -&gt; FPUReg)
+-&gt; (FPUReg -&gt; FPUReg -&gt; FPUReg)
+-&gt; Ord FPUReg
+FPUReg -&gt; FPUReg -&gt; Bool
+FPUReg -&gt; FPUReg -&gt; Ordering
+FPUReg -&gt; FPUReg -&gt; FPUReg
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: FPUReg -&gt; FPUReg -&gt; Ordering
+compare :: FPUReg -&gt; FPUReg -&gt; Ordering
+$c&lt; :: FPUReg -&gt; FPUReg -&gt; Bool
+&lt; :: FPUReg -&gt; FPUReg -&gt; Bool
+$c&lt;= :: FPUReg -&gt; FPUReg -&gt; Bool
+&lt;= :: FPUReg -&gt; FPUReg -&gt; Bool
+$c&gt; :: FPUReg -&gt; FPUReg -&gt; Bool
+&gt; :: FPUReg -&gt; FPUReg -&gt; Bool
+$c&gt;= :: FPUReg -&gt; FPUReg -&gt; Bool
+&gt;= :: FPUReg -&gt; FPUReg -&gt; Bool
+$cmax :: FPUReg -&gt; FPUReg -&gt; FPUReg
+max :: FPUReg -&gt; FPUReg -&gt; FPUReg
+$cmin :: FPUReg -&gt; FPUReg -&gt; FPUReg
+min :: FPUReg -&gt; FPUReg -&gt; FPUReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377069"><span id="local-6989586621679377071"><span class="annot"><span class="annottext">(forall x. FPUReg -&gt; Rep FPUReg x)
+-&gt; (forall x. Rep FPUReg x -&gt; FPUReg) -&gt; Generic FPUReg
+forall x. Rep FPUReg x -&gt; FPUReg
+forall x. FPUReg -&gt; Rep FPUReg x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. FPUReg -&gt; Rep FPUReg x
+from :: forall x. FPUReg -&gt; Rep FPUReg x
+$cto :: forall x. Rep FPUReg x -&gt; FPUReg
+to :: forall x. Rep FPUReg x -&gt; FPUReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">data</span><span> </span><span id="SSEReg"><span class="annot"><a href="Data.X86.Register.html#SSEReg"><span class="hs-identifier hs-var">SSEReg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="XMM0"><span class="annot"><a href="Data.X86.Register.html#XMM0"><span class="hs-identifier hs-var">XMM0</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM1"><span class="annot"><a href="Data.X86.Register.html#XMM1"><span class="hs-identifier hs-var">XMM1</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM2"><span class="annot"><a href="Data.X86.Register.html#XMM2"><span class="hs-identifier hs-var">XMM2</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM3"><span class="annot"><a href="Data.X86.Register.html#XMM3"><span class="hs-identifier hs-var">XMM3</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM4"><span class="annot"><a href="Data.X86.Register.html#XMM4"><span class="hs-identifier hs-var">XMM4</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM5"><span class="annot"><a href="Data.X86.Register.html#XMM5"><span class="hs-identifier hs-var">XMM5</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM6"><span class="annot"><a href="Data.X86.Register.html#XMM6"><span class="hs-identifier hs-var">XMM6</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM7"><span class="annot"><a href="Data.X86.Register.html#XMM7"><span class="hs-identifier hs-var">XMM7</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM8"><span class="annot"><a href="Data.X86.Register.html#XMM8"><span class="hs-identifier hs-var">XMM8</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM9"><span class="annot"><a href="Data.X86.Register.html#XMM9"><span class="hs-identifier hs-var">XMM9</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM10"><span class="annot"><a href="Data.X86.Register.html#XMM10"><span class="hs-identifier hs-var">XMM10</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM11"><span class="annot"><a href="Data.X86.Register.html#XMM11"><span class="hs-identifier hs-var">XMM11</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM12"><span class="annot"><a href="Data.X86.Register.html#XMM12"><span class="hs-identifier hs-var">XMM12</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM13"><span class="annot"><a href="Data.X86.Register.html#XMM13"><span class="hs-identifier hs-var">XMM13</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM14"><span class="annot"><a href="Data.X86.Register.html#XMM14"><span class="hs-identifier hs-var">XMM14</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="XMM15"><span class="annot"><a href="Data.X86.Register.html#XMM15"><span class="hs-identifier hs-var">XMM15</span></a></span></span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679377090"><span id="local-6989586621679377092"><span id="local-6989586621679377095"><span class="annot"><span class="annottext">Int -&gt; SSEReg -&gt; ShowS
+[SSEReg] -&gt; ShowS
+SSEReg -&gt; String
+(Int -&gt; SSEReg -&gt; ShowS)
+-&gt; (SSEReg -&gt; String) -&gt; ([SSEReg] -&gt; ShowS) -&gt; Show SSEReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SSEReg -&gt; ShowS
+showsPrec :: Int -&gt; SSEReg -&gt; ShowS
+$cshow :: SSEReg -&gt; String
+show :: SSEReg -&gt; String
+$cshowList :: [SSEReg] -&gt; ShowS
+showList :: [SSEReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377098"><span id="local-6989586621679377100"><span class="annot"><span class="annottext">SSEReg -&gt; SSEReg -&gt; Bool
+(SSEReg -&gt; SSEReg -&gt; Bool)
+-&gt; (SSEReg -&gt; SSEReg -&gt; Bool) -&gt; Eq SSEReg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SSEReg -&gt; SSEReg -&gt; Bool
+== :: SSEReg -&gt; SSEReg -&gt; Bool
+$c/= :: SSEReg -&gt; SSEReg -&gt; Bool
+/= :: SSEReg -&gt; SSEReg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377105"><span id="local-6989586621679377107"><span id="local-6989586621679377109"><span id="local-6989586621679377112"><span id="local-6989586621679377115"><span id="local-6989586621679377118"><span id="local-6989586621679377121"><span class="annot"><span class="annottext">Eq SSEReg
+Eq SSEReg =&gt;
+(SSEReg -&gt; SSEReg -&gt; Ordering)
+-&gt; (SSEReg -&gt; SSEReg -&gt; Bool)
+-&gt; (SSEReg -&gt; SSEReg -&gt; Bool)
+-&gt; (SSEReg -&gt; SSEReg -&gt; Bool)
+-&gt; (SSEReg -&gt; SSEReg -&gt; Bool)
+-&gt; (SSEReg -&gt; SSEReg -&gt; SSEReg)
+-&gt; (SSEReg -&gt; SSEReg -&gt; SSEReg)
+-&gt; Ord SSEReg
+SSEReg -&gt; SSEReg -&gt; Bool
+SSEReg -&gt; SSEReg -&gt; Ordering
+SSEReg -&gt; SSEReg -&gt; SSEReg
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: SSEReg -&gt; SSEReg -&gt; Ordering
+compare :: SSEReg -&gt; SSEReg -&gt; Ordering
+$c&lt; :: SSEReg -&gt; SSEReg -&gt; Bool
+&lt; :: SSEReg -&gt; SSEReg -&gt; Bool
+$c&lt;= :: SSEReg -&gt; SSEReg -&gt; Bool
+&lt;= :: SSEReg -&gt; SSEReg -&gt; Bool
+$c&gt; :: SSEReg -&gt; SSEReg -&gt; Bool
+&gt; :: SSEReg -&gt; SSEReg -&gt; Bool
+$c&gt;= :: SSEReg -&gt; SSEReg -&gt; Bool
+&gt;= :: SSEReg -&gt; SSEReg -&gt; Bool
+$cmax :: SSEReg -&gt; SSEReg -&gt; SSEReg
+max :: SSEReg -&gt; SSEReg -&gt; SSEReg
+$cmin :: SSEReg -&gt; SSEReg -&gt; SSEReg
+min :: SSEReg -&gt; SSEReg -&gt; SSEReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377124"><span id="local-6989586621679377126"><span class="annot"><span class="annottext">(forall x. SSEReg -&gt; Rep SSEReg x)
+-&gt; (forall x. Rep SSEReg x -&gt; SSEReg) -&gt; Generic SSEReg
+forall x. Rep SSEReg x -&gt; SSEReg
+forall x. SSEReg -&gt; Rep SSEReg x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. SSEReg -&gt; Rep SSEReg x
+from :: forall x. SSEReg -&gt; Rep SSEReg x
+$cto :: forall x. Rep SSEReg x -&gt; SSEReg
+to :: forall x. Rep SSEReg x -&gt; SSEReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-keyword">data</span><span> </span><span id="RegHalf"><span class="annot"><a href="Data.X86.Register.html#RegHalf"><span class="hs-identifier hs-var">RegHalf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HalfL"><span class="annot"><a href="Data.X86.Register.html#HalfL"><span class="hs-identifier hs-var">HalfL</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="HalfH"><span class="annot"><a href="Data.X86.Register.html#HalfH"><span class="hs-identifier hs-var">HalfH</span></a></span></span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679377129"><span id="local-6989586621679377131"><span id="local-6989586621679377135"><span class="annot"><span class="annottext">Int -&gt; RegHalf -&gt; ShowS
+[RegHalf] -&gt; ShowS
+RegHalf -&gt; String
+(Int -&gt; RegHalf -&gt; ShowS)
+-&gt; (RegHalf -&gt; String) -&gt; ([RegHalf] -&gt; ShowS) -&gt; Show RegHalf
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RegHalf -&gt; ShowS
+showsPrec :: Int -&gt; RegHalf -&gt; ShowS
+$cshow :: RegHalf -&gt; String
+show :: RegHalf -&gt; String
+$cshowList :: [RegHalf] -&gt; ShowS
+showList :: [RegHalf] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377138"><span id="local-6989586621679377140"><span class="annot"><span class="annottext">RegHalf -&gt; RegHalf -&gt; Bool
+(RegHalf -&gt; RegHalf -&gt; Bool)
+-&gt; (RegHalf -&gt; RegHalf -&gt; Bool) -&gt; Eq RegHalf
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RegHalf -&gt; RegHalf -&gt; Bool
+== :: RegHalf -&gt; RegHalf -&gt; Bool
+$c/= :: RegHalf -&gt; RegHalf -&gt; Bool
+/= :: RegHalf -&gt; RegHalf -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377145"><span id="local-6989586621679377147"><span id="local-6989586621679377149"><span id="local-6989586621679377152"><span id="local-6989586621679377155"><span id="local-6989586621679377158"><span id="local-6989586621679377161"><span class="annot"><span class="annottext">Eq RegHalf
+Eq RegHalf =&gt;
+(RegHalf -&gt; RegHalf -&gt; Ordering)
+-&gt; (RegHalf -&gt; RegHalf -&gt; Bool)
+-&gt; (RegHalf -&gt; RegHalf -&gt; Bool)
+-&gt; (RegHalf -&gt; RegHalf -&gt; Bool)
+-&gt; (RegHalf -&gt; RegHalf -&gt; Bool)
+-&gt; (RegHalf -&gt; RegHalf -&gt; RegHalf)
+-&gt; (RegHalf -&gt; RegHalf -&gt; RegHalf)
+-&gt; Ord RegHalf
+RegHalf -&gt; RegHalf -&gt; Bool
+RegHalf -&gt; RegHalf -&gt; Ordering
+RegHalf -&gt; RegHalf -&gt; RegHalf
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RegHalf -&gt; RegHalf -&gt; Ordering
+compare :: RegHalf -&gt; RegHalf -&gt; Ordering
+$c&lt; :: RegHalf -&gt; RegHalf -&gt; Bool
+&lt; :: RegHalf -&gt; RegHalf -&gt; Bool
+$c&lt;= :: RegHalf -&gt; RegHalf -&gt; Bool
+&lt;= :: RegHalf -&gt; RegHalf -&gt; Bool
+$c&gt; :: RegHalf -&gt; RegHalf -&gt; Bool
+&gt; :: RegHalf -&gt; RegHalf -&gt; Bool
+$c&gt;= :: RegHalf -&gt; RegHalf -&gt; Bool
+&gt;= :: RegHalf -&gt; RegHalf -&gt; Bool
+$cmax :: RegHalf -&gt; RegHalf -&gt; RegHalf
+max :: RegHalf -&gt; RegHalf -&gt; RegHalf
+$cmin :: RegHalf -&gt; RegHalf -&gt; RegHalf
+min :: RegHalf -&gt; RegHalf -&gt; RegHalf
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679377164"><span id="local-6989586621679377166"><span class="annot"><span class="annottext">(forall x. RegHalf -&gt; Rep RegHalf x)
+-&gt; (forall x. Rep RegHalf x -&gt; RegHalf) -&gt; Generic RegHalf
+forall x. Rep RegHalf x -&gt; RegHalf
+forall x. RegHalf -&gt; Rep RegHalf x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. RegHalf -&gt; Rep RegHalf x
+from :: forall x. RegHalf -&gt; Rep RegHalf x
+$cto :: forall x. Rep RegHalf x -&gt; RegHalf
+to :: forall x. Rep RegHalf x -&gt; RegHalf
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span id="real_reg"><span class="annot"><span class="annottext">real_reg :: Register -&gt; Register
+</span><a href="Data.X86.Register.html#real_reg"><span class="hs-identifier hs-var hs-var">real_reg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span id="local-6989586621679377169"><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377169"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GPR -&gt; Register
+</span><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-var">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377169"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Data.X86.Register.html#real_reg"><span class="hs-identifier hs-var">real_reg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span id="local-6989586621679377170"><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377170"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GPR -&gt; Register
+</span><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-var">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377170"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Data.X86.Register.html#real_reg"><span class="hs-identifier hs-var">real_reg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span id="local-6989586621679377171"><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377171"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GPR -&gt; Register
+</span><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-var">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="#local-6989586621679377171"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Data.X86.Register.html#real_reg"><span class="hs-identifier hs-var">real_reg</span></a></span><span> </span><span id="local-6989586621679377172"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679377172"><span class="hs-identifier hs-var">r</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679377172"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span id="regSize"><span class="annot"><span class="annottext">regSize :: Register -&gt; ByteSize
+</span><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var hs-var">regSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg8"><span class="hs-identifier hs-type">Reg8</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">RegHalf
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg16"><span class="hs-identifier hs-type">Reg16</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-146"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg32"><span class="hs-identifier hs-type">Reg32</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-147"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-type">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#Reg128"><span class="hs-identifier hs-type">Reg128</span></a></span><span> </span><span class="annot"><span class="annottext">SSEReg
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#RegSeg"><span class="hs-identifier hs-type">RegSeg</span></a></span><span> </span><span class="annot"><span class="annottext">SReg
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Register
+</span><a href="Data.X86.Register.html#RegTemp"><span class="hs-identifier hs-var">RegTemp</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Register.html#RegFPU"><span class="hs-identifier hs-type">RegFPU</span></a></span><span> </span><span class="annot"><span class="annottext">FPUReg
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteSize
+</span><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-var">ByteSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Data.X86.Register.html#regSize"><span class="hs-identifier hs-var">regSize</span></a></span><span> </span><span id="local-6989586621679377178"><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679377178"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ByteSize
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; ByteSize) -&gt; String -&gt; ByteSize
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Register -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Register
+</span><a href="#local-6989586621679377178"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377181"><span id="local-6989586621679377188"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SReg"><span class="hs-identifier hs-type">SReg</span></a></span></span></span><span>
+</span><span id="line-157"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377267"><span id="local-6989586621679377274"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#FPUReg"><span class="hs-identifier hs-type">FPUReg</span></a></span></span></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377340"><span id="local-6989586621679377347"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SSEReg"><span class="hs-identifier hs-type">SSEReg</span></a></span></span></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377477"><span id="local-6989586621679377484"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span></span></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377622"><span id="local-6989586621679377629"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#RegHalf"><span class="hs-identifier hs-type">RegHalf</span></a></span></span></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377647"><span id="local-6989586621679377654"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span></span></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377764"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SReg"><span class="hs-identifier hs-type">SReg</span></a></span></span><span>
+</span><span id="line-164"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377791"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#FPUReg"><span class="hs-identifier hs-type">FPUReg</span></a></span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377814"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#SSEReg"><span class="hs-identifier hs-type">SSEReg</span></a></span></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377853"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#GPR"><span class="hs-identifier hs-type">GPR</span></a></span></span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377894"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#RegHalf"><span class="hs-identifier hs-type">RegHalf</span></a></span></span><span>
+</span><span id="line-168"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679377905"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span></span><span>
+</span><span id="line-169"></span></pre></body></html>

@@ -1,0 +1,1369 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StrictData #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK prune  #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">{-|
+Module      : Reconstruction
+Description : Reconstruct source-level constructs from the binary
+-}</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">OutputGeneration.Reconstruction</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="OutputGeneration.Reconstruction.html#reconstruct"><span class="hs-identifier">reconstruct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- TODO: introduce LEA with globalimmediate as imm + Top if not used yet</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- TODO: CMPSB and the likes with REP prefix</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- TODO in merged global overview, R*_0 makes no sense</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- TODO: (RSI_0 + 0x1a140), RSI_0 should not be considered a domain</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- gzip 0xb7e0</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--  {0x50014,0x50028,0x5003c,0x50050} is accessed by same instruction, so group</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">{--
+{0x1cb42,0x1cb46,0x1cb4a,0x1cb4e,0x1cb52}
+&lt;&lt;0x1cb42&gt;&gt;
+|
++-  [(TOP + 0x1cb42), 1] := Top
+|
+`- &#182;[0x1cb42, 2] := 8
+&#182;[0x1cb46, 2] := 8
+--}</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Config.html"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractPredicates.ControlFlow.html"><span class="hs-identifier">WithAbstractPredicates.ControlFlow</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.FunctionNames.html"><span class="hs-identifier">Binary.FunctionNames</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithNoAbstraction.Pointers.html"><span class="hs-identifier">WithNoAbstraction.Pointers</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithNoAbstraction.Pointers.html#PointerDomain"><span class="hs-identifier">PointerDomain</span></a></span><span class="hs-special">,</span><span class="annot"><a href="WithNoAbstraction.Pointers.html#get_pointer_domain"><span class="hs-identifier">get_pointer_domain</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html"><span class="hs-identifier">Data.SymbolicExpression</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html"><span class="hs-identifier">Data.X86.Instruction</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Opcode.html"><span class="hs-identifier">Data.X86.Opcode</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree.View</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TV</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">chr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&amp;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldr'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Extra</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">concatMapM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Base</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">compareInt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- Function 0x8860, 0x4670, 0xb2b0 of gzip</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- Function 0x1309 of clientserver</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- 0x8290 of sha512sum has domains</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--  &#9500;&#9588;&lt;&lt;RDI_0&gt;&gt;</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--  &#9492;&#9588;&lt;&lt;(RDI_0 + RSI_0)&gt;&gt;</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="reconstruct"><span class="annot"><span class="annottext">reconstruct :: p -&gt; m ()
+</span><a href="OutputGeneration.Reconstruction.html#reconstruct"><span class="hs-identifier hs-var hs-var">reconstruct</span></a></span></span><span> </span><span id="local-6989586621679406460"><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679406460"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-84"></span><span>   </span><span class="annot"><span class="annottext">() -&gt; m ()
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">{--
+  let entries    = ctxt_get_function_entries ctxt
+  mems &lt;- mapM (reconstruct_entry ctxt) $ S.toList entries
+
+  return ()
+  let fctxt      = mk_fcontext ctxt 0
+  putStrLn $ &quot;Overall joined result:&quot;
+  putStrLn $ show_smemory_html fctxt $ join_mems mems
+
+
+
+reconstruct_entry ctxt entry = do
+  let fctxt      = mk_fcontext ctxt entry
+  let Just cfg   = IM.lookup entry (ctxt_cfgs ctxt)
+
+  let tree       = evalState (dfs_spanning_tree ctxt cfg 0) IS.empty
+  putStrLn $ &quot;Entry: 0x&quot; ++ showHex entry
+  TV.drawTree $ fmap show tree
+
+  let paths      = spanning_tree_to_cycles tree
+  let paths'     = map (finish_path cfg) paths
+
+  results       &lt;- mapM (reconstruct_path fctxt cfg) paths'
+
+  let mems = map (\(_,_,_,Invariant mem _) -&gt; mem) results
+  let mem' = join_mems mems
+  putStrLn $ &quot;Joined result:&quot;
+  putStrLn $ show_smemory_html fctxt mem'
+  return $ prune_mem_to_only_globals mem'
+ where
+  reconstruct_path fctxt cfg path = do
+    let asemantics = path_to_asemantics ctxt cfg path             -- [ASemantics]
+    let (ras,inv)  = tau_path fctxt asemantics                    -- ([ResolvedAddresses], Invariant)
+    let inv'       = widen_repeated_accesses fctxt asemantics ras inv   -- Invariant
+
+    putStrLn $ show_result fctxt path asemantics ras inv'
+    putStrLn $ &quot;\n\n&quot;
+    return (path,asemantics,ras,inv')
+
+  show_result fctxt path sems ras inv = intercalate &quot;\n&quot;
+    [ show path
+    , show_results [] $ zip sems ras
+    , show_invariant fctxt inv ]
+
+
+
+
+prune_mem_to_only_globals :: SMemory -&gt; SMemory
+prune_mem_to_only_globals (SMemory mem) = SMemory $ M.map dom_vars_to_top $ M.filterWithKey is_global mem
+ where
+  is_global (Bases bs) _ = any is_global_base bs
+  is_global _          _ = False
+
+  is_global_base (GlobalAddress _) = True
+  is_global_base (BaseIsSymbol _)  = True
+  is_global_base _                 = False
+
+  dom_vars_to_top (SDomain accs) = SDomain $ nub $ map access_vars_to_top accs
+
+  access_vars_to_top (SStorage a si val latest) = SStorage (vars_to_top a) si Top False
+
+  vars_to_top (SE_Var _ )             = Bottom RockBottom
+  vars_to_top (SE_StatePart _ _)      = Bottom RockBottom
+  vars_to_top (SE_Op op si es)        = SE_Op op si $ map vars_to_top es
+  vars_to_top (SE_Bit si e)           = SE_Bit si $ vars_to_top e
+  vars_to_top (SE_SExtend l h e)      = SE_SExtend l h $ vars_to_top e
+  vars_to_top (SE_Overwrite si e0 e1) = SE_Overwrite si (vars_to_top e0) (vars_to_top e1)
+  vars_to_top e                       = e
+
+
+
+
+
+show_results :: [ASemantics] -&gt; [(ASemantics,ResolvedAddresses)] -&gt; String
+show_results _      [] = &quot;&quot;
+show_results visited p@((sem,ras):path)
+  | sem `elem` visited = &quot;...\n&quot; ++ show_results visited (dropWhile (\(sem,_) -&gt; sem `elem` visited) path)
+  | otherwise =
+    let visited' = sem : visited
+        ras'     = M.map nub $ M.unionsWith (++) $ map snd $ filter ((==) sem . fst) p in
+      show_sem_ras (sem,ras') ++ &quot;\n&quot; ++ show_results visited' path
+
+
+
+
+
+show_sem_ras (sem,ras) = pad_to 85 (show sem) ++ show_ras ras
+
+show_ras :: ResolvedAddresses -&gt; String
+show_ras ras
+  | M.null ras = &quot;&quot;
+  | otherwise  = &quot;// &quot; ++ (intercalate &quot; ;; &quot; $ map show_entry $ M.toList ras)
+ where
+  show_entry (a,[a']) = show a ++ &quot;==&quot; ++ show a'
+  show_entry (a,as')  = show a ++ &quot;== {&quot; ++ intercalate &quot;,&quot; (map show as') ++ &quot;}&quot;
+
+
+show_set l r s
+  | S.null s       = l++r
+  | S.size s  == 1 = S.findMin s
+  | otherwise      = l ++ intercalate &quot;,&quot; (S.toList s) ++ r
+
+
+
+
+
+data NodeData = Unfinished Int | BlockIDs [Int]
+  deriving Eq
+
+instance Show NodeData where
+  show (Unfinished b)    = show b ++ &quot; ...&quot;
+  show (BlockIDs bs)     = show bs
+
+
+
+
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+-- Some graph related functions
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+-- Generate a spanning tree for the given CFG
+dfs_spanning_tree :: Context -&gt; CFG -&gt; Int -&gt; State IS.IntSet (T.Tree NodeData)
+dfs_spanning_tree ctxt cfg blockID = do
+  let nexts        = IM.lookup blockID (cfg_edges cfg)
+  visited         &lt;- get
+  let is_visited   = blockID `IS.member` visited
+  put $ IS.insert blockID visited
+  
+  if is_visited then
+    return $ T.Node (Unfinished blockID) []
+  else case IS.toList &lt;$&gt; nexts of
+    Nothing  -&gt; return $ T.Node (BlockIDs [blockID]) []
+    Just []  -&gt; return $ T.Node (BlockIDs [blockID]) []
+    Just [b] -&gt; add_to_root blockID &lt;$&gt; dfs_spanning_tree ctxt cfg b
+    Just bs  -&gt; T.Node (BlockIDs [blockID]) &lt;$&gt; (mapM (dfs_spanning_tree ctxt cfg) bs)
+
+ where
+  add_to_root blockID (T.Node (BlockIDs bs) t)        = T.Node (BlockIDs $ blockID:bs) t
+  add_to_root blockID n@(T.Node (Unfinished _) [])    = T.Node (BlockIDs [blockID]) [n]
+
+-- Given a spanning tree, generate paths that repeat cycles a certain number of times
+spanning_tree_to_cycles :: T.Tree NodeData -&gt; [[Int]]
+spanning_tree_to_cycles = mk_paths []
+ where
+  mk_paths path (T.Node (Unfinished b) [])
+    | b `elem` path = [path ++ (concat $ replicate 4 $ skipUntil b path)]
+    | otherwise     = [path]
+
+  mk_paths path (T.Node (BlockIDs bs) [])   = [path ++ bs]
+  mk_paths path (T.Node (BlockIDs bs) nxts) = concatMap (mk_paths (path ++ bs)) nxts
+
+-- Given a path, extend the path so that it reaches an end node
+finish_path :: CFG -&gt; [Int] -&gt; [Int]
+finish_path cfg p = 
+  let finish = evalState (path_from_node_to_finish cfg $ last p) IS.empty in
+    case finish of
+      Nothing -&gt; error $ &quot;Cannot find path to finish.&quot;
+      Just p' -&gt; p ++ tail p'
+ where
+  path_from_node_to_finish :: CFG -&gt; Int -&gt; State IS.IntSet (Maybe [Int])
+  path_from_node_to_finish cfg blockID = do
+    let nexts        = IM.lookup blockID (cfg_edges cfg)
+    visited         &lt;- get
+    let is_visited   = blockID `IS.member` visited
+    put $ IS.insert blockID visited
+
+    if is_visited then
+      return Nothing
+    else case IS.toList &lt;$&gt; nexts of
+      Nothing -&gt; return $ Just [blockID]
+      Just [] -&gt; return $ Just [blockID]
+      Just bs -&gt; do
+        path &lt;- find_path_from_blocks bs 
+        return $ ((:) blockID) &lt;$&gt; path
+
+  find_path_from_blocks []     = return Nothing
+  find_path_from_blocks (b:bs) = do
+    path &lt;- path_from_node_to_finish cfg b
+    case path of
+      Nothing -&gt; find_path_from_blocks bs
+      Just p  -&gt; return $ Just p
+      
+                  
+
+
+
+-- TODO: move to base
+skipUntil a [] = []
+skipUntil a l@(b:bs)
+  | a == b    = l
+  | otherwise = skipUntil a bs
+
+
+
+
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+-- Abstract Semantics
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+-- For operations with a destination and one or more sources, the destination is the first SimpleExpr, the source(s) follow second.
+-- The last to words for each are the instruction address and the size of the instruction.
+data ASemantics =
+    Call String Word64 Word64  -- ^ A call to a function
+  | Ret Word64 Word64 -- ^ Return
+  | Jump Word64 Word64 -- ^ A jump
+  | Lea SimpleExpr SimpleExpr Word64 Word64 -- ^ Load Effective Addresss
+  | Mov SimpleExpr SimpleExpr Word64 Word64 -- ^ MOV
+  | MovZX SimpleExpr SimpleExpr Int Word64 Word64 -- ^ MOV
+  | SExtend SimpleExpr Int SimpleExpr Int Word64 Word64 -- ^ Sign extension
+  | SetXX SimpleExpr Word64 Word64 -- ^ SetXX functions (e.g., SETE, SETNE)
+  | Apply Operator Int SimpleExpr [SimpleExpr] Word64 Word64 -- ^ A generic operator (e.g., ADD, XOR)
+  | ApplyWhenImm Operator Int SimpleExpr [SimpleExpr] Word64 Word64 -- ^ A generic operator applied only when one argument is an immediate (e.g., AND, OR)
+  | NoSemantics Opcode (Maybe SimpleExpr) [SimpleExpr] Word64 Word64 -- ^ No relevant semantics (e.g., floating points)
+ deriving Eq
+
+
+instance Show ASemantics where
+  show (Call f rip _)                        = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;CALL&quot;) ++ f
+  show (Ret rip _)                           = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;RET&quot;)
+  show (Jump rip _)                          = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;JUMP&quot;)
+  show (Lea  dst src rip _)                  = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;LEA&quot;) ++ show_dst_srcs dst [src]
+  show (Mov  dst src rip _)                  = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;MOV&quot;) ++ show_dst_srcs dst [src]
+  show (MovZX dst src _ rip _)               = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;MOVZX&quot;) ++ show_dst_srcs dst [src]
+  show (SExtend dst h src l rip _)           = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;SEXT&quot;) ++ show_dst_srcs dst [src]
+  show (SetXX dst rip _)                     = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ (pad_to 11 $ delim &quot;SETXX&quot;) ++ show_maybe_dst (Just dst) ++ &quot;_&quot;
+  show (Apply op op_si dst src rip _)        = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ pad_to 11 (delim (show op)) ++ show_dst_srcs dst [src]
+  show (ApplyWhenImm op op_si dst src rip _) = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ pad_to 11 (delim (show op)) ++ show_dst_srcs dst [src]
+  show (NoSemantics op dst srcs rip _)       = pad_to 10 (&quot;0x&quot; ++ showHex rip) ++ pad_to 11 (&quot;#&quot; ++ delim (show op)) ++ show_maybe_dst dst ++ show_srcs srcs
+
+
+pad_to n str
+  | length str &lt; n = str ++ replicate (n - length str) ' '
+  | otherwise      = str
+
+delim str = &quot;&lt;&quot; ++ str ++ &quot;&gt;&quot;
+
+show_dst_srcs dst srcs    = show_maybe_dst (Just dst) ++ show_srcs srcs 
+show_maybe_dst Nothing    = pad_to 23 &quot;_&quot; ++ &quot;&lt;- &quot;
+show_maybe_dst (Just dst) = pad_to 23 (show dst) ++ &quot;&lt;- &quot;
+show_srcs srcs            = intercalate &quot;,&quot; (map show srcs)
+
+
+-- here we map X86 mnemonics to abstract semantics
+moves = 
+  [ MOV
+  , MOVSD
+  , MOVSS 
+  , MOVAPS
+  , MOVAPD
+  , MOVUPS
+  , MOVUPD
+  , MOVABS
+  , MOVDQU
+  , MOVDQA
+  , MOVLPD
+  , MOVD
+  , MOVQ -- TODO if prefix = Nothing?
+  , VMOVD
+  , VMOVAPD
+  , VMOVAPS
+  ]
+
+xors = 
+  [ XOR
+  , PXOR
+  , VPXOR
+  , XORPS
+  , XORPD ]
+
+sextends =
+  [ MOVSX
+  , MOVSXD
+  , CDQE
+  , CWDE
+  , CBW ]
+
+setxxs = 
+  [ SETO  
+  , SETNO
+  , SETS 
+  , SETNS
+  , SETE 
+  , SETZ 
+  , SETNE
+  , SETNZ
+  , SETB 
+  , SETNAE
+  , SETC 
+  , SETNB
+  , SETAE
+  , SETNC
+  , SETBE
+  , SETNA
+  , SETA 
+  , SETNBE
+  , SETL 
+  , SETNGE
+  , SETG 
+  , SETGE
+  , SETNL
+  , SETLE
+  , SETNG
+  , SETNLE
+  , SETP 
+  , SETPE
+  , SETNP
+  , SETPO ]
+
+cmovs = 
+  [ CMOVO   
+  , CMOVNO 
+  , CMOVS  
+  , CMOVNS 
+  , CMOVE  
+  , CMOVZ  
+  , CMOVNE 
+  , CMOVNZ 
+  , CMOVB  
+  , CMOVNAE
+  , CMOVC  
+  , CMOVNB 
+  , CMOVAE 
+  , CMOVNC 
+  , CMOVBE 
+  , CMOVNA 
+  , CMOVA  
+  , CMOVNBE
+  , CMOVL  
+  , CMOVNGE
+  , CMOVG  
+  , CMOVGE 
+  , CMOVNL 
+  , CMOVLE 
+  , CMOVNG 
+  , CMOVNLE
+  , CMOVP  
+  , CMOVPE 
+  , CMOVNP 
+  , CMOVPO ]
+
+
+-- | Given the address of an operand of an instruction, turn it to a symbolic expression.
+address_to_expr :: Address -&gt; SimpleExpr
+address_to_expr (AddressStorage r)   = SE_StatePart (SP_Reg r) Nothing
+address_to_expr (AddressImm i)       = SE_Immediate i
+address_to_expr (AddressMinus a0 a1) = SE_Op Minus 64 [address_to_expr a0, address_to_expr a1] 
+address_to_expr (AddressTimes a0 a1) = SE_Op Times 64 [address_to_expr a0, address_to_expr a1] 
+address_to_expr (AddressPlus  a0 a1) = SE_Op Plus  64 [address_to_expr a0, address_to_expr a1] 
+
+-- | Given an operand of an instruction, turn it to a symbolic expression
+operand_to_expr :: Operand -&gt; SimpleExpr
+operand_to_expr (Storage r)          = SE_StatePart (SP_Reg r) Nothing
+operand_to_expr (EffectiveAddress a) = simp $ address_to_expr a
+operand_to_expr (Immediate i)        = SE_Immediate i
+operand_to_expr (Memory a si)        = SE_StatePart (SP_Mem (simp $ address_to_expr a) si) Nothing
+
+
+-- | Turn an X86 instruction into abstract semantics
+instr_to_semantics :: Context -&gt; Instruction -&gt; ASemantics
+instr_to_semantics ctxt i@(Instruction _ _ LEA      (Just dst) [src] _)            = Lea (operand_to_expr dst) (operand_to_expr src) (addressof i) (fromIntegral $ sizeof i)
+instr_to_semantics ctxt i@(Instruction _ _ ADD      (Just dst) [src0,src1] _)      = mk_apply Plus   dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ SUB      (Just dst) [src0,src1] _)      = mk_apply Minus  dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ NEG      (Just dst) [src] _)            = mk_apply Minus  dst [Immediate 0,src] i
+instr_to_semantics ctxt i@(Instruction _ _ INC      (Just dst) [src] _)            = mk_apply Plus   dst [src,Immediate 1] i
+instr_to_semantics ctxt i@(Instruction _ _ DEC      (Just dst) [src] _)            = mk_apply Minus  dst [src,Immediate 1] i
+instr_to_semantics ctxt i@(Instruction _ _ IMUL     (Just dst) [src0,src1] _)      = mk_apply Times  dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ IMUL_LO  (Just dst) [src0,src1] _)      = mk_apply IMulLo dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ IMUL_HI  (Just dst) [src0,src1] _)      = mk_apply IMulHi dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ IDIV_LO  (Just dst) [src0,src1,src2] _) = mk_apply SdivLo dst [src0,src1,src2] i
+instr_to_semantics ctxt i@(Instruction _ _ DIV_LO   (Just dst) [src0,src1,src2] _) = mk_apply UdivLo dst [src0,src1,src2] i
+instr_to_semantics ctxt i@(Instruction _ _ IDIV_HI  (Just dst) [src0,src1,src2] _) = mk_apply SdivHi dst [src0,src1,src2] i
+instr_to_semantics ctxt i@(Instruction _ _ DIV_HI   (Just dst) [src0,src1,src2] _) = mk_apply UdivHi dst [src0,src1,src2] i
+instr_to_semantics ctxt i@(Instruction _ _ SHL      (Just dst) [src0,src1] _)      = mk_apply Shl    dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ SHR      (Just dst) [src0,src1] _)      = mk_apply Shr    dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ SAR      (Just dst) [src0,src1] _)      = mk_apply Sar    dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ ADC      (Just dst) [src0,src1] _)      = mk_apply Adc    dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ SBB      (Just dst) [src0,src1] _)      = mk_apply Sbb    dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ CWD      (Just dst) [src] _)            = mk_apply (SExtHi (8 * (operand_size dst))) dst [src] i
+instr_to_semantics ctxt i@(Instruction _ _ AND      (Just dst) [src0,src1] _)      = mk_apply_imm And dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ OR       (Just dst) [src0,src1] _)      = mk_apply_imm Or  dst [src0,src1] i
+instr_to_semantics ctxt i@(Instruction _ _ CDQ      (Just dst) [src] _)            = mk_apply (SExtHi (8 * (operand_size dst))) dst [src] i
+instr_to_semantics ctxt i@(Instruction _ _ CQO      (Just dst) [src] _)            = mk_apply (SExtHi (8 * (operand_size dst))) dst [src] i
+
+instr_to_semantics ctxt i@(Instruction _ _ MOVZX    (Just dst) [src] _)            = MovZX (operand_to_expr dst) (operand_to_expr src) (8*operand_size src) (addressof i) (fromIntegral $ sizeof i)
+
+
+instr_to_semantics ctxt i@(Instruction _ _ mnemonic dst srcs _)
+  | isRet mnemonic            = Ret (addressof i) (fromIntegral $ sizeof i)
+  | isCall mnemonic           = Call (function_name_of_instruction ctxt i) (addressof i) (fromIntegral $ sizeof i)
+  | isJump mnemonic           = Jump (addressof i) (fromIntegral $ sizeof i)
+  | mnemonic `elem` moves     = Mov (operand_to_expr $ fromJust dst) (operand_to_expr (srcs!!0)) (addressof i) (fromIntegral $ sizeof i)
+  | mnemonic `elem` sextends  = SExtend (operand_to_expr $ fromJust dst) (8 * (operand_size $ fromJust dst)) (operand_to_expr (srcs!!0)) (8 * operand_size (srcs!!0))  (addressof i) (fromIntegral $ sizeof i)
+  | mnemonic `elem` setxxs    = SetXX (operand_to_expr $ fromJust dst) (addressof i) (fromIntegral $ sizeof i)
+  | mnemonic `elem` cmovs     = mk_apply Cmov (fromJust dst) [ srcs!!0 ,srcs!!1] i
+  | mnemonic `elem` xors      =
+    if srcs!!0 == srcs!!1 then
+      Mov  (operand_to_expr $ fromJust dst) (SE_Immediate 0) (addressof i) (fromIntegral $ sizeof i)
+    else
+      NoSemantics mnemonic (operand_to_expr &lt;$&gt; dst) (map operand_to_expr srcs) (addressof i) (fromIntegral $ sizeof i)
+  | otherwise                 = NoSemantics mnemonic (operand_to_expr &lt;$&gt; dst) (map operand_to_expr srcs) (addressof i) (fromIntegral $ sizeof i)
+
+
+
+mk_apply op dst srcs i = Apply op (8*operand_size dst) (operand_to_expr dst) (map operand_to_expr srcs) (addressof i) (fromIntegral $ sizeof i)
+mk_apply_imm op dst srcs i = ApplyWhenImm op (8*operand_size dst) (operand_to_expr dst) (map operand_to_expr srcs) (addressof i) (fromIntegral $ sizeof i)
+
+
+--TODO: BSR, ROl, ROR,BSWAP, PEXTRB/D/Q
+-- TODO: OR, NOT
+--TODO TEST
+-- TODO: XADD
+--TODO other sign extension thingies
+--
+
+
+
+
+
+operand_size (Storage r)          = sizeof r
+operand_size (Memory a si)        = si
+operand_size (EffectiveAddress _) = 8
+
+
+
+-- | Turn a path in the CFG to a list of abstract instructions
+path_to_asemantics :: Context -&gt; CFG -&gt; [Int] -&gt; [ASemantics]
+path_to_asemantics ctxt cfg = map (instr_to_semantics ctxt) . concatMap canonicalize . concatMap toInstrs
+ where
+  toInstrs :: Int -&gt; [Instruction]
+  toInstrs blockID = fromJust $ IM.lookup blockID (cfg_instrs cfg)
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+-- Symbolic Execution
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+type Regs = M.Map Register (Maybe SimpleExpr)
+
+data SStoredVal = Written SimpleExpr | Initial | Top 
+  deriving (Eq,Ord)
+
+data SAccess = SStorage SimpleExpr Int SStoredVal Bool | SRef SimpleExpr
+  deriving (Eq)
+
+data SDomain = SDomain [SAccess]
+
+data SMemory = SMemory (M.Map PointerDomain SDomain)
+
+
+
+join_mems :: [SMemory] -&gt; SMemory
+join_mems mems = SMemory $ M.unionsWith join_domains $ map (\(SMemory mem) -&gt; mem) mems
+
+join_domains :: SDomain -&gt; SDomain -&gt; SDomain
+join_domains (SDomain accs0) (SDomain accs1) = SDomain $ foldr' insert_access accs1 accs0
+ where
+  insert_access acc0@(SStorage a0 si0 val0 latest0) accs1 =
+    case partition (aliasses_with_access a0 si0) accs1 of
+      ([SStorage a1 si1 val1 latest1],rest) -&gt; SStorage a1 si1 (join_val val0 val1) False : rest
+      ([],_) -&gt; acc0:accs1
+
+  join_val v0 v1
+    | v0 == v1  = v0
+    | otherwise = Top
+
+instance Show SAccess where
+  show acc@(SRef ptr)                   = &quot;&lt;&quot; ++ show ptr ++ &quot;&gt;&quot;
+  show acc@(SStorage ptr si val latest) = show_latest ++ &quot;[&quot; ++ show ptr ++ &quot;, &quot; ++ show si ++ &quot;] := &quot; ++ show_val val latest
+   where
+    show_val Top         _     = &quot;Top&quot;
+    show_val Initial     True  = &quot;_&quot;
+    show_val Initial     False = &quot;Top&quot;
+    show_val (Written v) True
+      | is_initial acc         = &quot;_&quot;
+      | otherwise              = &quot;&quot; ++ show v
+    show_val (Written v) False = &quot;Top&quot;
+
+    show_latest
+     | latest    = [chr 182]
+     | otherwise = &quot; &quot;
+
+is_initial (SStorage ptr si Initial latest)     = latest
+is_initial (SStorage ptr si Top     _)          = False
+is_initial (SStorage ptr si (Written v) latest) = latest &amp;&amp; v == SE_Var (SP_Mem ptr si)
+
+is_latest (SStorage _ _ _ latest) = latest
+
+
+compare_accesses fctxt (SStorage a0 si0 _ _) (SStorage a1 si1 _ _) = is_below fctxt (a0,si0) (a1,si1)
+compare_accesses fctxt (SStorage a0 si0 _ _) (SRef a1)             = is_below fctxt (a0,si0) (a1,0)
+compare_accesses fctxt (SRef a0)             (SStorage a1 si1 _ _) = is_below fctxt (a0,0)   (a1,si1)
+compare_accesses fctxt (SRef a0)             (SRef a1)             = is_below fctxt (a0,0)   (a1,0)
+
+is_below fctxt (a0,si0) (a1,si1) =
+  let a0' = prune fctxt a0
+      a1' = prune fctxt a1
+      dirty_a0 = a0' /= a0
+      dirty_a1 = a1' /= a1 in
+    case distance a0' 0 a1' of
+      Just d  -&gt; if d==0 then
+                   if dirty_a0 &amp;&amp; not dirty_a1 then
+                     LT
+                   else if dirty_a1 &amp;&amp; not dirty_a0 then
+                     GT
+                   else compare si1 si0
+                 else if testBit d 63 then
+                   GT
+                 else
+                   LT
+      Nothing -&gt;if a0'==a1' then compare si0 si1 else  compare a0' a1'
+
+
+show_sdomain fctxt (SDomain accs) = remove_newlines $ T.drawForest $ groups_to_forest $ map (sortBy (compare_accesses fctxt)) $ group_domain fctxt $ sortBy (compare_accesses fctxt) accs
+ where
+  groups_to_forest = map group_to_child
+  group_to_child group
+    | length group &gt; 1 = T.Node (mk_group_header (head group)) $ map mk_node group
+    | otherwise        = mk_node $ head group
+
+  mk_node acc = T.Node (show acc) []
+
+  mk_group_header (SStorage a si _ _) = &quot;&lt;&lt;&quot; ++ show (prune fctxt a) ++&quot;&gt;&gt;&quot;
+
+
+
+show_smemory fctxt (SMemory mem) = remove_newlines $ intercalate &quot;\n&quot; $ map (show_sdomain fctxt) $ M.elems mem
+
+show_smemory_html fctxt (SMemory mem) = TV.htmlTree Nothing $ T.Node header $ concatMap sdomain_to_forest $ M.elems mem
+ where
+  sdomain_to_forest (SDomain accs) = groups_to_forest $ map (sortBy (compare_accesses fctxt)) $ group_domain fctxt $ sortBy (compare_accesses fctxt) accs
+
+  groups_to_forest = map group_to_child
+  group_to_child group
+    | length group &gt; 1 = T.Node (mk_group_header (head group)) $ map mk_node group
+    | otherwise        = mk_node $ head group
+
+  mk_node acc = T.Node (TV.NodeInfo TV.InitiallyExpanded (show_saccess acc) &quot;&quot;) []
+
+  show_saccess (SStorage a si _ _) = &quot;[&quot; ++ show a ++ &quot;,&quot; ++ show si ++ &quot;]&quot;
+
+  header = TV.NodeInfo TV.InitiallyExpanded &quot;&quot; &quot;&quot;
+  mk_group_header (SStorage a si _ _) = TV.NodeInfo TV.InitiallyExpanded (&quot;&lt;&lt;&quot; ++ show (prune fctxt a) ++ &quot;&gt;&gt;&quot;) &quot;&quot;
+
+  
+
+remove_newlines []              = []
+remove_newlines ('\n':'\n':str) = remove_newlines ('\n':str)
+remove_newlines (c:str)         = c : remove_newlines str
+
+
+insert_storage_into_domain :: FContext -&gt; SimpleExpr -&gt; Int -&gt; State [SAccess] SAccess
+insert_storage_into_domain fctxt a' si = do
+  accs &lt;- get
+  case find (aliasses_with_access a' si) accs of
+    Just n  -&gt; return n 
+    Nothing -&gt; do
+      let accs'       = SStorage a' si Initial True : accs
+      let (touched,_) = runState (partition_domain_touched_by fctxt a' si) accs'
+      -- TODO too simple if enclosure?
+      let latest     = all is_latest touched
+      let initial    = latest &amp;&amp; all is_initial touched
+      let val        = if initial then Initial else Top
+      let storage    = SStorage a' si val (val /= Top &amp;&amp; latest)
+      put $ storage:accs
+      return storage
+
+
+insert_storage_into_mem fctxt msg a' si (SMemory mem) =
+  let dom = get_pointer_domain fctxt $ prune fctxt a' in
+    if dom == NoDomain then
+      error $ show (a',si) ++ &quot;\n&quot; ++ show_smemory fctxt (SMemory mem)
+    else
+      let SDomain accs = M.findWithDefault (SDomain []) dom mem
+          (acc,accs')  = runState (insert_storage_into_domain fctxt a' si) accs in
+        (acc,SMemory $ M.insert dom (SDomain accs') mem)
+
+group_domain fctxt [] = []
+group_domain fctxt mem@((SStorage a0 si0 _ _):accs) =
+  let (touched,not_touched) = runState (partition_domain_touched_by fctxt a0 si0) mem in
+    touched : group_domain fctxt not_touched
+
+
+partition_domain_touched_by :: FContext -&gt; SimpleExpr -&gt; Int -&gt; State [SAccess] [SAccess]
+partition_domain_touched_by fctxt a' si = do
+  touched0     &lt;- extract (overlapping_access a' si)
+  mem &lt;- get
+  if touched0 == [] then error $ show (a',si,mem) else return ()
+  not_touched0 &lt;- get
+  dirty_below  &lt;- extract (is_dirty_below touched0 not_touched0)
+  above        &lt;- if is_dirty fctxt a' then go_contiguous_upwards_all touched0 else return []
+  let ret       = concat [touched0,dirty_below,above]
+  return ret
+ where
+
+  is_dirty_below touched0 not_touched0 acc@(SRef _)              = False
+  is_dirty_below touched0 not_touched0 acc@(SStorage a0 si0 _ _)
+    | not (is_dirty fctxt a0) = False
+    | otherwise =  
+      let (touched,_) = runState (go_contiguous_upwards acc) not_touched0 in
+        intersect touched touched0 /= []
+
+  overlapping_access a' si (SRef _)              = False
+  overlapping_access a' si (SStorage a0 si0 _ _) = (prune fctxt a',si) `overlaps` (prune fctxt a0,si0)
+
+
+  overlapping_accesses (SStorage a0 si0 _ _) acc1 = overlapping_access a0 si0 acc1
+
+  go_contiguous_upwards_all = concatMapM go_contiguous_upwards
+
+  go_contiguous_upwards (SStorage a si _ _) = do
+    above0 &lt;- extract (is_contiguous_above a si)
+    above1 &lt;- extract (\acc1 -&gt; any (overlapping_accesses acc1) above0)
+    above2 &lt;- concatMapM go_contiguous_upwards (above0 ++ above1)
+    return $ concat [above0, above1, above2]
+ 
+  is_contiguous_above a si (SRef _)              = False
+  is_contiguous_above a si (SStorage a0 si0 _ _) =
+    case distance (prune fctxt a) si (prune fctxt a0) of
+      Just d  -&gt; not (testBit d 63) &amp;&amp; (fromIntegral d::Int64) &lt; fromIntegral si
+      Nothing -&gt; False
+
+is_dirty fctxt a = prune fctxt a /= a
+
+
+extract f = do
+  (yes,no) &lt;- gets $ partition f 
+  put no
+  return yes
+
+
+
+(a0,si0) `aliasses_with` (a1,si1) = si0==si1 &amp;&amp; (a0==a1 || necessarily_equal a0 a1)
+
+(a0,si0) `enclosed_in` (a1,si1)   = necessarily_enclosed a0 si0 a1 si1
+
+(a0,si0) `encompasses` (a1,si1)   = necessarily_enclosed a1 si1 a0 si0
+
+(a0,si0) `overlaps` (a1,si1)      = (a0,1) `enclosed_in` (a1,si1) || (a1,1) `enclosed_in` (a0,si0)
+
+
+aliasses_with_access a' si (SStorage a0 si0 _ _) = (a',si) `aliasses_with` (a0,si0)
+
+enclosed_in_access a' si (SStorage a0 si0 _ _) = (a',si) `enclosed_in` (a0,si0)
+
+encompasses_access a' si (SStorage a0 si0 _ _) = (a',si) `encompasses` (a0,si0)
+
+
+
+distance a si a' = 
+  case simp $ SE_Op Minus 64 [a',SE_Op Plus 64 [a,SE_Immediate $ fromIntegral si]] of
+    SE_Immediate imm -&gt; Just imm
+    _                -&gt; Nothing
+
+
+
+data Invariant = Invariant SMemory Regs
+
+show_invariant fctxt (Invariant mem regs) = show_invariant_regs show &quot;\n&quot; regs ++ &quot;\n&quot; ++ show_smemory fctxt mem
+
+get_mem :: State Invariant SMemory
+get_mem = get &lt;&amp;&gt; (\(Invariant mem _) -&gt; mem)
+
+get_regs :: State Invariant Regs
+get_regs = get &lt;&amp;&gt; (\(Invariant _ regs) -&gt; regs)
+
+modify_regs :: (Regs -&gt; Regs) -&gt; State Invariant ()
+modify_regs f = modify (\(Invariant mem regs) -&gt; Invariant mem (f regs))
+
+
+
+read_top_from_statepart :: StatePart -&gt; Regs -&gt; SimpleExpr
+read_top_from_statepart sp regs = do
+  let Just (Just rip) = M.lookup RIP regs in
+    SE_StatePart sp $ Just $ show rip
+
+
+sread_mem :: FContext -&gt; SimpleExpr -&gt; SimpleExpr -&gt; Int -&gt; State Invariant SimpleExpr
+sread_mem fctxt a a' si = do
+  Invariant mem regs &lt;- get
+
+  let (st,mem') = insert_storage_into_mem fctxt &quot;hallo2&quot; a' si mem
+  put $ Invariant mem' regs
+  case st of
+    (SStorage _ _ val latest) -&gt; mk_val val latest
+
+ where
+  mk_val _           False = get_regs &lt;&amp;&gt; (read_top_from_statepart $ SP_Mem a si)
+  mk_val Top         _     = get_regs &lt;&amp;&gt; (read_top_from_statepart $ SP_Mem a si)
+  mk_val Initial     True  = return $ SE_Var $ SP_Mem a' si
+  mk_val (Written v) True  = return $ v
+
+  -- TODO?
+  take_bytes si Top         = Top
+  take_bytes si Initial     = Initial
+  take_bytes si (Written v) = Written $ simp $ SE_Bit (8*si) v
+
+
+swrite_mem :: FContext -&gt; SimpleExpr -&gt; Int -&gt; Maybe SimpleExpr -&gt; State Invariant ()
+swrite_mem fctxt a' si v' = do
+  -- 1.) insert region into memory model
+  Invariant mem regs &lt;- get
+  let (_,SMemory mem') = insert_storage_into_mem fctxt (&quot;hallo3&quot;++show (a',si) ++ &quot;\n&quot; ++ show_invariant fctxt (Invariant mem regs) ) a' si mem
+
+  let dom = get_pointer_domain fctxt $ prune fctxt a'
+  let mem'' = M.adjust dom_write dom mem'
+  put $ Invariant (SMemory mem'') regs
+  
+ where 
+  dom_write (SDomain accs) = 
+    let (touched,not_touched) = runState (partition_domain_touched_by fctxt a' si) accs
+        tr = if length touched &gt; 1 then trace (&quot;\nTouched: &quot; ++ show (a',si) ++ &quot;\n&quot; ++ show touched ++&quot;\n&quot;) else id in
+      SDomain $ map overwrite_access touched ++ not_touched
+
+  overwrite_access acc@(SRef _) = acc
+  overwrite_access acc@(SStorage a0 si0 val0 latest0) 
+    | (a',si) `aliasses_with` (a0,si0)  = SStorage a0 si0 (mk_val v') True
+    | (a',si) `enclosed_in` (a0,si0)    = SStorage a0 si0 Top False
+    | (a',si) `encompasses` (a0,si0)    = SStorage a0 si0 Top False -- TODO use take_bytes
+    | otherwise                         = SStorage a0 si0 Top False -- trace (&quot;Overwriting: &quot; ++ show (a',si,a0,si0)) $ 
+
+  mk_val Nothing  = Top
+  mk_val (Just e) = Written e
+
+
+
+
+-- TODO separation should protect sensitive stack regions
+-- &#182;[(RSP_0 - 8), 8] := RBP_0
+-- &#182;[(RSP_0 - 16), 8] := R15_0
+-- &#182;[(RSP_0 - 24), 8] := R14_0
+-- &#182;[(RSP_0 - 32), 8] := R13_0
+-- &#182;[(RSP_0 - 40), 8] := R12_0
+-- &#182;[(RSP_0 - 48), 8] := RBX_0
+-- &#182;[(RSP_0 - 64), 8] := [(FS_0 + 40), 8]_0
+
+
+
+
+
+
+data PointerDomain = Bases (S.Set PointerBase) | Sources (S.Set StatePart) | NoDomain
+  deriving (Eq,Ord)
+
+instance Show PointerDomain where
+  show (Bases bs)     = show_set &quot;{&quot; &quot;}&quot; $ S.map show bs
+  show (Sources srcs) = show_set &quot;{&quot; &quot;}&quot; $ S.map show srcs
+  show NoDomain       = &quot;UnknownDomain&quot;
+ 
+get_pointer_domain fctxt a' =
+  let bases = get_pointer_base_set fctxt a' in
+    if not $ S.null bases then
+      Bases $ S.map globals_to_section_starts bases
+    else
+      let srcs = get_pointer_sources a' in
+        if not $ S.null srcs then
+          Sources srcs
+        else if is_immediate a' then -- TODO remove this
+          Bases $ S.singleton $ GlobalAddress $ from_immediate a'
+        else
+          NoDomain
+ where
+  from_immediate (SE_Immediate i) = i
+
+  get_pointer_sources :: SimpleExpr -&gt; S.Set StatePart
+  get_pointer_sources (SE_Op Plus _ es)                = S.unions $ map get_pointer_sources es
+  get_pointer_sources (SE_Op Minus _ (e:es))           = get_pointer_sources e
+  get_pointer_sources (SE_Op And _ [e,SE_Immediate _]) = get_pointer_sources e
+  get_pointer_sources e                                = get_pointer_src e
+
+  get_pointer_src (SE_Var sp@(SP_Reg r))
+    | sizeof r == 8 = S.singleton sp
+    | otherwise     = S.empty
+  get_pointer_src (SE_Var sp@(SP_Mem a si))
+    | si == 8       = S.singleton sp
+    | otherwise     = S.empty
+  get_pointer_src _ = S.empty
+
+  globals_to_section_starts (GlobalAddress a) =
+    case find_section_for_address (f_ctxt fctxt) a of
+      Just (_,_,a0,_,_) -&gt; GlobalAddress a0
+      Nothing -&gt; error $ &quot;No section for: &quot; ++ show a'
+  globals_to_section_starts b = b
+
+
+has_pointer_domain fctxt a' = get_pointer_domain fctxt a' /= NoDomain
+
+
+prune :: FContext -&gt; SimpleExpr -&gt; SimpleExpr
+prune fctxt = prune'' fctxt $ SE_Immediate 0
+
+prune_to_bot fctxt = prune'' fctxt $ Bottom RockBottom
+
+prune'' :: FContext -&gt; SimpleExpr -&gt; SimpleExpr -&gt; SimpleExpr
+prune'' fctxt subst e =
+  let e0 = prune' True e
+      e1 = prune' False e in
+    if e0 /= e1 &amp;&amp; (if is_immediate e1 then expr_is_global_immediate (f_ctxt fctxt) e1 else has_pointer_domain fctxt e1) then
+      e1
+    else
+      e0
+ where
+  prune' keepAnd (SE_Op Plus  si es)                  = simp $ SE_Op Plus  si $ map (prune' keepAnd) es
+  prune' keepAnd (SE_Op Minus si (e:es))              = simp $ SE_Op Minus si $ (prune' keepAnd e:map prune_keep_only_imms es)
+  prune' keepAnd (SE_Op And   si [e,SE_Immediate i])
+    | keepAnd   = simp $ SE_Op And   si $ [prune' keepAnd e,SE_Immediate i]
+    | otherwise = SE_Immediate 0
+  prune' keepAnd (SE_Op _     _  _)                   = subst
+  prune' keepAnd (SE_Immediate imm)                   = SE_Immediate imm
+  prune' keepAnd e                                   
+    | get_pointer_domain fctxt e == NoDomain = SE_Immediate 0
+    | otherwise                              = e
+
+  prune_keep_only_imms e@(SE_Immediate _) = e
+  prune_keep_only_imms (SE_Op op si es)   = simp $ SE_Op op si $ map prune_keep_only_imms es
+  prune_keep_only_imms _                  = subst
+
+
+
+
+
+ 
+show_invariant_regs :: (a -&gt; String) -&gt; String -&gt; M.Map Register (Maybe a) -&gt; String
+show_invariant_regs show_a delim = intercalate delim . map show_entry . M.assocs
+ where
+  show_entry (r,v)    = show r ++ &quot; == &quot; ++ show_maybe_expr v
+  show_maybe_expr Nothing  = &quot;UNKNOWN&quot;
+  show_maybe_expr (Just e) = show_a e
+
+
+
+
+
+
+sread_reg :: Register -&gt; State Invariant SimpleExpr
+sread_reg r = do
+  regs &lt;- get_regs
+  return $ do_read (real r) (sizeof r) regs
+ where
+  do_read rr 32 = get_value rr
+  do_read rr 16 = simp . SE_Bit 128 . get_value rr
+  do_read rr 8  = get_value rr
+  do_read rr 4  = simp . SE_Bit 32 . get_value rr
+  do_read rr 2  = simp . SE_Bit 16 . get_value rr
+  do_read rr 1  = simp . SE_Bit 8  . get_value rr
+
+  get_value rr regs = 
+    case M.lookup rr regs of
+      Nothing       -&gt; SE_Var $ SP_Reg rr
+      Just Nothing  -&gt; read_top_from_statepart (SP_Reg rr) regs
+      Just (Just v) -&gt; v
+
+
+
+
+contains :: SimpleExpr -&gt; SimpleExpr -&gt; Bool
+contains e e0@(SE_Immediate _)               = e0==e
+contains e e0@(SE_Var _)                     = e0==e
+contains e e0@(SE_StatePart (SP_Reg r) _)    = e0==e
+contains e e0@(SE_StatePart (SP_Mem a si) _) = (e0==e || contains e a)
+contains e e0@(SE_Malloc a id)               = e0==e
+contains e e0@(SE_Op op si es)               = (e0==e || any (contains e) es)
+contains e e0@(SE_Bit n e')                  = (e0==e || contains e e')
+contains e e0@(SE_SExtend l h e')            = (e0==e || contains e e')
+contains e e0@(SE_Overwrite n e0' e1')       = (e0==e || contains e e0' || contains e e1')
+contains e e0@(Bottom _)                     = e0==e
+
+
+
+swrite_reg :: Register -&gt; Maybe SimpleExpr -&gt; State Invariant ()
+swrite_reg r v' = do
+  curr_v &lt;- sread_reg r
+  modify_regs $ do_write (real r) (sizeof r) curr_v
+ where
+  do_write rr 32 curr_v = M.insert rr v'
+  do_write rr 16 curr_v = M.insert rr (simp &lt;$&gt; SE_Bit 128 &lt;$&gt; v')
+  do_write rr 8  curr_v = M.insert rr v'
+  do_write rr 4  curr_v = M.insert rr (simp &lt;$&gt; SE_Bit 32 &lt;$&gt; v')
+  do_write rr 2  curr_v = M.insert rr (simp &lt;$&gt; SE_Overwrite 16 curr_v &lt;$&gt; SE_Bit 16 &lt;$&gt; v')
+  do_write rr 1  curr_v = M.insert rr (simp &lt;$&gt; SE_Overwrite 8 curr_v &lt;$&gt; SE_Bit 16 &lt;$&gt; v')
+  -- TODO writes to high bytes of lower 2 bytes
+
+
+
+
+sread_statepart :: FContext -&gt; StatePart -&gt; State Invariant SimpleExpr
+sread_statepart fctxt (SP_Reg r)    = sread_reg r
+sread_statepart fctxt (SP_Mem a si) = do
+  as' &lt;- operand_address_to_resolved_exprs fctxt a
+  case as' of
+    Nothing  -&gt; do
+      s &lt;- get
+      error $ &quot;Read from domainless pointer: &quot; ++ show (SP_Mem a si) ++ &quot;\n&quot; ++ show_invariant fctxt s --  get_regs &lt;&amp;&gt; (read_top_from_statepart $ SP_Mem a si)
+    Just as' -&gt; do
+      rets &lt;- nub &lt;$&gt; mapM do_read as'
+      return $ foldr1 (\v0 v1 -&gt; SE_Op Cmov (si*8) [v0,v1]) rets 
+ where
+  do_read a'
+    | has_pointer_domain fctxt a' = sread_mem fctxt a a' si
+    -- TODO check not needed
+      
+
+
+
+sresolve_expr :: FContext -&gt; SimpleExpr -&gt; State Invariant SimpleExpr
+sresolve_expr fctxt e@(SE_Immediate _)        = return e
+sresolve_expr fctxt e@(SE_Var _)              = return e
+sresolve_expr fctxt   (SE_StatePart sp _)     = sread_statepart fctxt sp
+sresolve_expr fctxt   (SE_Op op si es)        = (simp . SE_Op op si) &lt;$&gt; mapM (sresolve_expr fctxt) es
+sresolve_expr fctxt   (SE_Bit n e)            = (simp . SE_Bit n) &lt;$&gt; sresolve_expr fctxt e
+sresolve_expr fctxt   (SE_SExtend l h e)      = (simp . SE_SExtend l h) &lt;$&gt; sresolve_expr fctxt e
+sresolve_expr fctxt   (SE_Overwrite n e0 e1)  = do
+  e0' &lt;- sresolve_expr fctxt e0
+  e1' &lt;- sresolve_expr fctxt e1
+  return $ simp $ SE_Overwrite n e0 e1
+sresolve_expr fctxt e@(Bottom _)              = return e
+
+
+-- take @a@: the address as it occurs in the operand of an instruction.
+-- For example: RAX + RBX*4 in the memory operand QWORD PTR [RAX + RBX*4]
+-- Try to resolve this address to a symbolic value by reading its inputs.
+operand_address_to_resolved_exprs :: FContext -&gt; SimpleExpr -&gt; State Invariant (Maybe [SimpleExpr])
+operand_address_to_resolved_exprs fctxt a = do
+  a'      &lt;- sresolve_expr fctxt a
+  let as'  = nub $ map simp $ unfold_cmovs a'
+
+  if all (has_pointer_domain fctxt) as' then
+    return $ Just as'
+  else do
+    rets &lt;- try_operand_address_to_base a
+    case rets of
+      [] -&gt; return Nothing
+      _  -&gt; return $ Just $ nub rets
+ where
+  try_operand_address_to_base :: SimpleExpr -&gt; State Invariant [SimpleExpr]
+  try_operand_address_to_base op = concat &lt;$&gt; (mapM (get_base op) $ M.assocs $ addends op)
+  get_base op (SE_StatePart (SP_Reg r) _,1) = do
+    a' &lt;- sread_reg r
+    -- TODO unfold cmovs here as well
+    let bases = get_pointer_base_set fctxt a'
+    if S.size bases == 1 then
+      singleton . simp &lt;$&gt; mk_expr r a' op
+    else
+      return []
+  get_base _ _ = return []
+
+  mk_expr r a' e@(SE_StatePart sp@(SP_Reg r') id)
+    | r' == r                      = return a'
+    | otherwise                    = get_regs &lt;&amp;&gt; (read_top_from_statepart sp)
+  mk_expr r a' e@(SE_Immediate _)  = return e
+  mk_expr r a' e@(SE_Op op si es)  = SE_Op op si &lt;$&gt; mapM (mk_expr r a') es
+
+
+
+  unfold_cmovs :: SimpleExpr -&gt; [SimpleExpr]
+  unfold_cmovs (SE_Op Cmov si es)     = concatMap unfold_cmovs es
+  unfold_cmovs (SE_Op op si es)       = map (SE_Op op si)    $ crossProduct (map unfold_cmovs es)
+  unfold_cmovs (SE_Bit n e)           = map (SE_Bit n)       $ unfold_cmovs e
+  unfold_cmovs (SE_SExtend l h e)     = map (SE_SExtend l h) $ unfold_cmovs e
+  unfold_cmovs (SE_Overwrite n e0 e1) = map (\[e0',e1'] -&gt; SE_Overwrite n e0' e1') $ crossProduct (map unfold_cmovs [e0,e1])
+  unfold_cmovs e                      = [e]
+
+
+
+
+
+swrite_dst :: FContext -&gt; SimpleExpr -&gt; Maybe SimpleExpr -&gt; State Invariant ()
+swrite_dst fctxt (SE_StatePart (SP_Reg r) _)    v' = swrite_reg r v'
+swrite_dst fctxt (SE_StatePart (SP_Mem a si) _) v' = do
+  as' &lt;- operand_address_to_resolved_exprs fctxt a
+  case as' of
+    Just as' -&gt; forM_ as' do_write
+    Nothing  -&gt; do
+      inv &lt;- get
+      error $ &quot;Writing to baseless address: &quot; ++ show (a,si) ++ &quot;\n&quot; ++ show_invariant fctxt inv
+ where
+  do_write a'
+    | has_pointer_domain fctxt a' = swrite_mem fctxt a' si (simp . SE_Bit (si*8) &lt;$&gt; v')
+    -- TODO check not needed
+
+sread_src :: FContext -&gt; SimpleExpr -&gt; State Invariant SimpleExpr
+sread_src fctxt   (SE_StatePart sp _)          = sread_statepart fctxt sp
+sread_src fctxt e@(SE_Immediate imm)           = return $ e
+sread_src fctxt e@(SE_Overwrite n src0 src1)   = do
+  src0' &lt;- sread_src fctxt src0
+  src1' &lt;- sread_src fctxt src1
+  return $ simp $ SE_Overwrite n src0' src1'
+sread_src fctxt e                              = error $ &quot;Reading from &quot; ++ show e
+
+
+widen_repeated_accesses :: FContext -&gt; [ASemantics] -&gt; [ResolvedAddresses] -&gt; Invariant -&gt; Invariant
+widen_repeated_accesses fctxt sems ras = update_inv $ zip sems ras
+ where
+  update_inv []                inv = inv
+  update_inv all@((sem,ras):_) inv =
+    let (same,others) = partition ((==) sem . fst) all in
+      if length same == 1 then
+        update_inv others inv
+      else
+        let merged_ras    = M.map nub $ M.unionsWith (++) $ map snd same
+            inv'          = foldr (update_inv_per_operand sem) inv $ M.toList merged_ras in
+          update_inv others inv'
+
+  update_inv_per_operand sem ((a,si),as') inv
+    | length as' &lt;= 1 = inv
+    | otherwise       =
+      let groups = non_trivial_distanced_groups as' in
+        foldr (update_inv_for_group sem si) inv groups
+
+  non_trivial_distanced_groups as' =
+    let pruned_as' = map (prune fctxt) as'
+        groups     = quotientByL hasDistance pruned_as' in
+      filter (\group -&gt; length group &gt; 1) $ map nub groups
+
+  update_inv_for_group sem si group inv =
+    let group'             = sortBy smallerDistance group
+        a'                 = simp $ SE_Op Plus 64 [head group', Bottom RockBottom]
+        Invariant mem regs = inv
+        (_,mem')           = insert_storage_into_mem fctxt &quot;hallo1&quot; a' si mem in
+      trace (&quot;\nWIDENING: &quot; ++ show a')
+        Invariant mem' regs
+
+
+pruned_equal fctxt a0 a1 = prune fctxt a0 == prune fctxt a1
+
+hasDistance a0 a1 = distance a0 0 a1 /= Nothing
+
+smallerDistance a0 a1 = 
+  case distance a0 0 a1 of 
+    Just d -&gt; if testBit d 63 then GT else if d == 0 then EQ else LT
+
+type ResolvedAddresses = M.Map (SimpleExpr,Int) [SimpleExpr]
+
+tau_path :: FContext -&gt; [ASemantics] -&gt; ([ResolvedAddresses], Invariant)
+tau_path fctxt p =
+  let init_invariant   = Invariant (SMemory M.empty) M.empty in
+    runState (traverse 0 p) init_invariant
+ where
+  traverse :: Int -&gt; [ASemantics] -&gt; State Invariant [ResolvedAddresses]
+  traverse n []      = return []
+  traverse n (sem:p) = do
+    set_rip (size_of sem + rip_of sem)
+
+    resolved_ops &lt;- gets $ resolved_operands sem
+
+    -- regs &lt;- get_regs
+    tau fctxt n sem
+    resolved_ops' &lt;- traverse (n+1) p
+    return $ resolved_ops : resolved_ops'
+    -- return (prune_invariant_for_instruction sem regs:regs')
+    -- return (M.empty:regs')
+
+
+  resolved_operands sem inv = M.map nub $ M.unionsWith (++) $ map (resolve_operand inv) $ operands_of sem
+
+  resolve_operand inv (SE_StatePart (SP_Mem a si) Nothing) = 
+    let Just as' = evalState (operand_address_to_resolved_exprs fctxt a) inv in
+      M.singleton (a,si) as'
+  resolve_operand inv (SE_StatePart (SP_Reg r) Nothing) = M.empty
+  resolve_operand inv (SE_Immediate _) = M.empty
+
+
+prune_invariant_for_instruction :: ASemantics -&gt; Regs -&gt; Regs
+prune_invariant_for_instruction sem = M.filterWithKey is_relevant
+ where
+  is_relevant r _ = real r `elem` map real (regs_of_sem sem)
+
+  regs_of_sem (Apply op op_si dst srcs rip si)        = concatMap regs_of_op (dst:srcs)
+  regs_of_sem (ApplyWhenImm op op_si dst srcs rip si) = concatMap regs_of_op (dst:srcs)
+  regs_of_sem (Mov dst src rip si)                    = concatMap regs_of_op [dst,src]
+  regs_of_sem (MovZX dst src _ rip si)                = concatMap regs_of_op [dst,src]
+  regs_of_sem (SExtend dst _ src _ rip si)            = concatMap regs_of_op [dst,src]
+  regs_of_sem (SetXX dst rip si)                      = concatMap regs_of_op [dst]
+  regs_of_sem (NoSemantics op Nothing srcs rip si)    = concatMap regs_of_op srcs
+  regs_of_sem (NoSemantics op (Just dst) srcs rip si) = concatMap regs_of_op (dst:srcs)
+  regs_of_sem (Lea dst src rip si)                    = [] -- regs_of_expr src
+  regs_of_sem (Call f rip si)                         = []
+  regs_of_sem (Jump rip si)                           = []
+  regs_of_sem (Ret rip si)                            = [RSP]
+
+  regs_of_op (SE_StatePart (SP_Mem a si) _) = regs_of_expr a
+  regs_of_op (SE_StatePart (SP_Reg r) _)    = []
+  regs_of_op _                              = []
+
+  
+
+regs_of_expr :: SimpleExpr -&gt; [Register]
+regs_of_expr (SE_Immediate _)               = []
+regs_of_expr (SE_Var _)                     = []
+regs_of_expr (SE_StatePart (SP_Reg r) _)    = [r]
+regs_of_expr (SE_StatePart (SP_Mem a si) _) = regs_of_expr a
+regs_of_expr (SE_Op op si es)               = concatMap regs_of_expr es
+regs_of_expr (SE_Bit n e)                   = regs_of_expr e
+regs_of_expr (SE_SExtend l h e)             = regs_of_expr e
+regs_of_expr (SE_Overwrite n e0 e1)         = concat [regs_of_expr e0,regs_of_expr e1]
+regs_of_expr (Bottom _)                     = []
+
+
+
+
+set_rip :: Word64 -&gt; State Invariant ()
+set_rip rip = swrite_reg RIP (Just $ SE_Immediate rip)
+
+
+size_of (Call f rip si)                        = si
+size_of (Ret rip si)                           = si
+size_of (Jump rip si)                          = si
+size_of (Lea  dst src rip si)                  = si
+size_of (Mov  dst src rip si)                  = si
+size_of (MovZX dst src _ rip si)               = si
+size_of (SExtend dst h src l rip si)           = si
+size_of (SetXX dst rip si)                     = si
+size_of (Apply op op_si dst src rip si)        = si
+size_of (ApplyWhenImm op op_si dst src rip si) = si
+size_of (NoSemantics op dst srcs rip si)       = si
+
+rip_of (Call f rip si)                        = rip
+rip_of (Ret rip si)                           = rip
+rip_of (Jump rip si)                          = rip
+rip_of (Lea  dst src rip si)                  = rip
+rip_of (Mov  dst src rip si)                  = rip
+rip_of (MovZX dst _ src rip si)               = rip
+rip_of (SExtend dst h src l rip si)           = rip
+rip_of (SetXX dst rip si)                     = rip
+rip_of (Apply op op_si dst src rip si)        = rip
+rip_of (ApplyWhenImm op op_si dst src rip si) = rip
+rip_of (NoSemantics op dst srcs rip si)       = rip
+
+
+scall n f rip = external_behavior $ external_function_behavior f
+ where
+  external_behavior (ExternalFunctionBehavior _ (Input reg)) = do
+    ret_val &lt;- sread_reg reg
+    swrite_reg RAX (Just ret_val)
+  external_behavior _ = do
+    let retval = SE_Malloc (Just rip) (Just $ f ++ &quot;_&quot; ++ show n)
+    swrite_reg RAX (Just retval) -- TODO and XMM0?
+
+--scall n f rip 
+--  | &quot;0x&quot; `isPrefixOf` f || &quot;indirection@&quot; `isPrefixOf` f = swrite_reg RAX Nothing -- TODO
+--  | otherwise                                            = external_call n rip f $ external_function_behavior f
+
+
+external_call n rip f (ExternalFunctionBehavior _ FreshPointer) = do
+  let fresh = SE_Malloc (Just rip) (Just $ f ++ &quot;_&quot; ++ show n)
+  swrite_reg RAX (Just fresh)
+external_call n rip f (ExternalFunctionBehavior _ UnknownReturnValue) = do
+  swrite_reg RAX Nothing
+
+
+
+
+tau :: FContext -&gt; Int -&gt; ASemantics -&gt; State Invariant ()
+tau fctxt n (Apply op op_si dst srcs rip si)          = do
+  srcs' &lt;- mapM (sread_src fctxt) srcs
+  swrite_dst fctxt dst (Just $ simp $ SE_Op op op_si srcs')
+tau fctxt n (ApplyWhenImm op op_si dst srcs rip si)   = do
+  srcs' &lt;- mapM (sread_src fctxt) srcs
+  if any is_immediate srcs' then
+    swrite_dst fctxt dst (Just $ simp $ SE_Op op op_si srcs')
+  else
+    swrite_dst fctxt dst Nothing  
+tau fctxt n (Mov dst src rip si)                = do
+  src' &lt;- sread_src fctxt src
+  swrite_dst fctxt dst (Just src') 
+tau fctxt n (MovZX dst src op_si rip si)        = do
+  src' &lt;- sread_src fctxt src
+  swrite_dst fctxt dst (Just $ simp $ SE_Bit op_si src') 
+tau fctxt n (SExtend dst h src l rip si)        = do
+  src' &lt;- sread_src fctxt src
+  swrite_dst fctxt dst (Just $ simp $ SE_SExtend l h src') 
+tau fctxt n (Lea dst src rip si)                = do
+  src' &lt;- sresolve_expr fctxt src
+  swrite_dst fctxt dst (Just src') 
+tau fctxt n (NoSemantics op dst srcs rip si)       = do
+  -- Note sources must be read, as reading can influence the memory model
+  srcs' &lt;- mapM (sread_src fctxt) srcs
+  case dst of
+    Nothing  -&gt; return ()
+    Just dst -&gt; swrite_dst fctxt dst Nothing  
+tau fctxt n (SetXX dst rip si)                  = swrite_dst fctxt dst $ Just $ SE_Op ZeroOne 8 []
+tau fctxt n (Call f rip si)                     = scall n f rip 
+tau fctxt n (Jump rip si)                       = return () -- TODO what if call to external function
+tau fctxt n (Ret rip si)                        = do
+  v' &lt;- sread_statepart fctxt $ SP_Mem (SE_StatePart (SP_Reg RSP) Nothing) 8
+  swrite_reg RIP (Just v') 
+
+
+
+
+operands_of :: ASemantics -&gt; [SimpleExpr]
+operands_of (Apply op op_si dst srcs rip si)          = dst : srcs
+operands_of (ApplyWhenImm op op_si dst srcs rip si)   = dst : srcs
+operands_of (Mov dst src rip si)                      = [dst,src]
+operands_of (MovZX dst src op_si rip si)              = [dst,src]
+operands_of (SExtend dst h src l rip si)              = [dst,src]
+operands_of (Lea dst src rip si)                      = []
+operands_of (NoSemantics op Nothing srcs rip si)      = srcs
+operands_of (NoSemantics op (Just dst) srcs rip si)   = dst:srcs
+operands_of (SetXX dst rip si)                        = [dst]
+operands_of (Call f rip si)                           = []
+operands_of (Jump rip si)                             = []
+operands_of (Ret rip si)                              = [ SE_StatePart (SP_Mem (SE_StatePart (SP_Reg RSP) Nothing) 8) Nothing ]
+
+{--
+ - {--
+full_cfg_post ctxt (entry,blockID)
+  | isCall (opcode i) || isJump (opcode i) = S.unions $ map jump_target_to_next $ resolve_jump_target ctxt i
+  | otherwise                              =
+    case post of
+      Nothing   -&gt; S.empty
+      Just post -&gt; within_current_cfg post
+ where
+  Just cfg = IM.lookup entry (ctxt_cfgs ctxt)
+  post     = IM.lookup blockID (cfg_edges cfg)
+  i        = 
+    case IM.lookup blockID $ cfg_instrs cfg of
+      Just is -&gt; last is
+      _       -&gt; error $ show (entry,blockID)
+
+  jump_target_to_next Unresolved           = S.empty
+  jump_target_to_next (External sym)       =
+    case post of
+      Just post -&gt; within_current_cfg post
+      _         -&gt; error $ show (&quot;0x&quot; ++ showHex entry,blockID,sym,i)
+  jump_target_to_next (ImmediateAddress a) =
+    case find_block_starting_at $ fromIntegral a of
+      Just nxt -&gt; S.singleton nxt
+
+  find_block_starting_at a
+    | isCall (opcode i) = find_outside_cfg a `orTry` find_inside_cfg a
+    | otherwise         = find_inside_cfg a `orTry` find_outside_cfg a
+
+  within_current_cfg = S.fromList . map (\nxt -&gt; (entry,nxt)) . IS.toList
+
+
+  -- search for a block outside of the current cfg
+  find_outside_cfg a = (\a -&gt; (a,0)) &lt;$&gt; (find ((==) a) (map fromIntegral $ IM.keys $ ctxt_calls ctxt))
+  -- search for a block in the current cfg that starts at @a@, and if found, make a label for it
+  find_inside_cfg a = (\(blockId,_) -&gt; (entry,blockID)) &lt;$&gt; find (block_starts_at a) (IM.toList $ cfg_instrs cfg)
+
+  block_starts_at a (blockId, instrs) = instrs /= [] &amp;&amp; addressof (head instrs) == fromIntegral a
+
+
+
+
+full_cfg_vertices ctxt entry =
+  let Just cfg = IM.lookup entry (ctxt_cfgs ctxt) in
+    S.fromList $ map (\nxt -&gt; (entry,nxt)) $ IM.keys $ cfg_blocks cfg
+--}
+
+
+
+dfs_spanning_forest :: IntGraph g =&gt; g -&gt; [Int] -&gt; State IS.IntSet [T.Tree (Maybe Int)]
+dfs_spanning_forest g []     = return []
+dfs_spanning_forest g (v:vs) = do
+  visited         &lt;- get
+  let is_visited = v `IS.member` visited
+  if is_visited then
+    dfs_spanning_forest g vs
+  else do
+    tree  &lt;- dfs_spanning_tree g v
+    trees &lt;- dfs_spanning_forest g vs
+    return $ tree:trees
+
+--}
+--}</span><span>
+</span><span id="line-1364"></span></pre></body></html>

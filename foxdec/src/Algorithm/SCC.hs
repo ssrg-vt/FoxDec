@@ -1,6 +1,22 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_HADDOCK hide #-}
 
+{-|
+Module      : Algorithm.SCC
+Description : Strongly Connectd Components
+
+Generating strongly connected components: <https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm>
+
+The only modification is that this algorithm considers SCCs wrt to some /frontier/.
+A frontier is a set of nodes that is not passed, i.e., we consider a subgraph bounded by 
+(up to not including) the frontier.
+
+We assume the existence of a function post :: G -> Int -> IS.IntSet that returns, 
+given the graph and the current node, a set of next nodes.
+We also assume the existence of a function V :: G -> IS.IntSet that returns all vertices.
+
+
+I could get none of the Data.Graph functions to work properly, hence this reimplementation.
+-}
 
 module Algorithm.SCC where
 
@@ -16,21 +32,6 @@ import Debug.Trace
 import Data.Ord (comparing)
 
 
-{--
- - Generating strongly connected components.
- - https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-
- - The only modification is that this algorithm considers SCCs wrt to some \emph{frontier}.
- - A frontier is a set of nodes that is not passed, i.e., we consider a subgraph bounded by 
- - (up to not including) the frontier.
- -
- - We assume the existence of a function post :: G -> Int -> IS.IntSet that returns, 
- - given the graph and the current node, a set of next nodes.
- - We also assume the existence of a function V :: G -> IS.IntSet that returns all vertices.
- -
- -
- - I could get none of the Data.Graph functions to work properly, hence this reimplementation.
---}
 
 
 data SCC_state = SCC_State {

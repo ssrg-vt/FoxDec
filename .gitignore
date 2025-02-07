@@ -2,6 +2,7 @@
 .stack-work/
 dist-newstyle/
 *~
+foxdec/examples/firefox_*/
 foxdec/examples/*/0*/
 foxdec/examples/*/1*/
 foxdec/examples/*/2*/

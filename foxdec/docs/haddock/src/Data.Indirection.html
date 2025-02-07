@@ -1,0 +1,233 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Indirection</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.JumpTarget.html"><span class="hs-identifier">Data.JumpTarget</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html"><span class="hs-identifier">Data.X86.Instruction</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- TODO MOVE</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | A jump table with :</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   index: an operand containing a bounded index at the beginning of execution of the block</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--   bound: the bound on idx</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--   trgt: the operand containg the jump target at the end of execution of the block</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--   tbl: a table from values of idx to resulting jump targets</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="JumpTable"><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-var">JumpTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JumpTable"><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-var">JumpTable</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-35"></span><span>  </span><span id="jtbl_index"><span class="annot"><span class="annottext">JumpTable -&gt; Operand
+</span><a href="Data.Indirection.html#jtbl_index"><span class="hs-identifier hs-var hs-var">jtbl_index</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Operand"><span class="hs-identifier hs-type">Operand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>  </span><span id="jtbl_bound"><span class="annot"><span class="annottext">JumpTable -&gt; Int
+</span><a href="Data.Indirection.html#jtbl_bound"><span class="hs-identifier hs-var hs-var">jtbl_bound</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>  </span><span id="jtbl_target"><span class="annot"><span class="annottext">JumpTable -&gt; Operand
+</span><a href="Data.Indirection.html#jtbl_target"><span class="hs-identifier hs-var hs-var">jtbl_target</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Operand"><span class="hs-identifier hs-type">Operand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>  </span><span id="jtbl_table"><span class="annot"><span class="annottext">JumpTable -&gt; IntMap Word64
+</span><a href="Data.Indirection.html#jtbl_table"><span class="hs-identifier hs-var hs-var">jtbl_table</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span>
+</span><span id="line-39"></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-40"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679379663"><span id="local-6989586621679379665"><span class="annot"><span class="annottext">(forall x. JumpTable -&gt; Rep JumpTable x)
+-&gt; (forall x. Rep JumpTable x -&gt; JumpTable) -&gt; Generic JumpTable
+forall x. Rep JumpTable x -&gt; JumpTable
+forall x. JumpTable -&gt; Rep JumpTable x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. JumpTable -&gt; Rep JumpTable x
+from :: forall x. JumpTable -&gt; Rep JumpTable x
+$cto :: forall x. Rep JumpTable x -&gt; JumpTable
+to :: forall x. Rep JumpTable x -&gt; JumpTable
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679379669"><span id="local-6989586621679379679"><span class="annot"><span class="annottext">JumpTable -&gt; JumpTable -&gt; Bool
+(JumpTable -&gt; JumpTable -&gt; Bool)
+-&gt; (JumpTable -&gt; JumpTable -&gt; Bool) -&gt; Eq JumpTable
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: JumpTable -&gt; JumpTable -&gt; Bool
+== :: JumpTable -&gt; JumpTable -&gt; Bool
+$c/= :: JumpTable -&gt; JumpTable -&gt; Bool
+/= :: JumpTable -&gt; JumpTable -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679379687"><span id="local-6989586621679379697"><span id="local-6989586621679379704"><span id="local-6989586621679379708"><span id="local-6989586621679379711"><span id="local-6989586621679379714"><span id="local-6989586621679379717"><span class="annot"><span class="annottext">Eq JumpTable
+Eq JumpTable =&gt;
+(JumpTable -&gt; JumpTable -&gt; Ordering)
+-&gt; (JumpTable -&gt; JumpTable -&gt; Bool)
+-&gt; (JumpTable -&gt; JumpTable -&gt; Bool)
+-&gt; (JumpTable -&gt; JumpTable -&gt; Bool)
+-&gt; (JumpTable -&gt; JumpTable -&gt; Bool)
+-&gt; (JumpTable -&gt; JumpTable -&gt; JumpTable)
+-&gt; (JumpTable -&gt; JumpTable -&gt; JumpTable)
+-&gt; Ord JumpTable
+JumpTable -&gt; JumpTable -&gt; Bool
+JumpTable -&gt; JumpTable -&gt; Ordering
+JumpTable -&gt; JumpTable -&gt; JumpTable
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: JumpTable -&gt; JumpTable -&gt; Ordering
+compare :: JumpTable -&gt; JumpTable -&gt; Ordering
+$c&lt; :: JumpTable -&gt; JumpTable -&gt; Bool
+&lt; :: JumpTable -&gt; JumpTable -&gt; Bool
+$c&lt;= :: JumpTable -&gt; JumpTable -&gt; Bool
+&lt;= :: JumpTable -&gt; JumpTable -&gt; Bool
+$c&gt; :: JumpTable -&gt; JumpTable -&gt; Bool
+&gt; :: JumpTable -&gt; JumpTable -&gt; Bool
+$c&gt;= :: JumpTable -&gt; JumpTable -&gt; Bool
+&gt;= :: JumpTable -&gt; JumpTable -&gt; Bool
+$cmax :: JumpTable -&gt; JumpTable -&gt; JumpTable
+max :: JumpTable -&gt; JumpTable -&gt; JumpTable
+$cmin :: JumpTable -&gt; JumpTable -&gt; JumpTable
+min :: JumpTable -&gt; JumpTable -&gt; JumpTable
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- | An indirection is either a jump table or a set of resolved jump targets</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">data</span><span> </span><span id="Indirection"><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-var">Indirection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Indirection_JumpTable"><span class="annot"><a href="Data.Indirection.html#Indirection_JumpTable"><span class="hs-identifier hs-var">Indirection_JumpTable</span></a></span></span><span> </span><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-type">JumpTable</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Indirection_Resolved"><span class="annot"><a href="Data.Indirection.html#Indirection_Resolved"><span class="hs-identifier hs-var">Indirection_Resolved</span></a></span></span><span> </span><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-type">ResolvedJumpTarget</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Indirection_Unresolved"><span class="annot"><a href="Data.Indirection.html#Indirection_Unresolved"><span class="hs-identifier hs-var">Indirection_Unresolved</span></a></span></span><span>
+</span><span id="line-44"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679379725"><span id="local-6989586621679379727"><span class="annot"><span class="annottext">(forall x. Indirection -&gt; Rep Indirection x)
+-&gt; (forall x. Rep Indirection x -&gt; Indirection)
+-&gt; Generic Indirection
+forall x. Rep Indirection x -&gt; Indirection
+forall x. Indirection -&gt; Rep Indirection x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Indirection -&gt; Rep Indirection x
+from :: forall x. Indirection -&gt; Rep Indirection x
+$cto :: forall x. Rep Indirection x -&gt; Indirection
+to :: forall x. Rep Indirection x -&gt; Indirection
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679379730"><span id="local-6989586621679379735"><span class="annot"><span class="annottext">Indirection -&gt; Indirection -&gt; Bool
+(Indirection -&gt; Indirection -&gt; Bool)
+-&gt; (Indirection -&gt; Indirection -&gt; Bool) -&gt; Eq Indirection
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Indirection -&gt; Indirection -&gt; Bool
+== :: Indirection -&gt; Indirection -&gt; Bool
+$c/= :: Indirection -&gt; Indirection -&gt; Bool
+/= :: Indirection -&gt; Indirection -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679379741"><span id="local-6989586621679379746"><span id="local-6989586621679379750"><span id="local-6989586621679379754"><span id="local-6989586621679379757"><span id="local-6989586621679379760"><span id="local-6989586621679379763"><span class="annot"><span class="annottext">Eq Indirection
+Eq Indirection =&gt;
+(Indirection -&gt; Indirection -&gt; Ordering)
+-&gt; (Indirection -&gt; Indirection -&gt; Bool)
+-&gt; (Indirection -&gt; Indirection -&gt; Bool)
+-&gt; (Indirection -&gt; Indirection -&gt; Bool)
+-&gt; (Indirection -&gt; Indirection -&gt; Bool)
+-&gt; (Indirection -&gt; Indirection -&gt; Indirection)
+-&gt; (Indirection -&gt; Indirection -&gt; Indirection)
+-&gt; Ord Indirection
+Indirection -&gt; Indirection -&gt; Bool
+Indirection -&gt; Indirection -&gt; Ordering
+Indirection -&gt; Indirection -&gt; Indirection
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Indirection -&gt; Indirection -&gt; Ordering
+compare :: Indirection -&gt; Indirection -&gt; Ordering
+$c&lt; :: Indirection -&gt; Indirection -&gt; Bool
+&lt; :: Indirection -&gt; Indirection -&gt; Bool
+$c&lt;= :: Indirection -&gt; Indirection -&gt; Bool
+&lt;= :: Indirection -&gt; Indirection -&gt; Bool
+$c&gt; :: Indirection -&gt; Indirection -&gt; Bool
+&gt; :: Indirection -&gt; Indirection -&gt; Bool
+$c&gt;= :: Indirection -&gt; Indirection -&gt; Bool
+&gt;= :: Indirection -&gt; Indirection -&gt; Bool
+$cmax :: Indirection -&gt; Indirection -&gt; Indirection
+max :: Indirection -&gt; Indirection -&gt; Indirection
+$cmin :: Indirection -&gt; Indirection -&gt; Indirection
+min :: Indirection -&gt; Indirection -&gt; Indirection
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">type</span><span> </span><span id="Indirections"><span class="annot"><a href="Data.Indirection.html#Indirections"><span class="hs-identifier hs-var">Indirections</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-type">Indirection</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379768"><span id="local-6989586621679379773"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-type">JumpTable</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679379785"><span class="annot"><span class="annottext">show :: JumpTable -&gt; String
+</span><a href="#local-6989586621679379785"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-type">JumpTable</span></a></span><span> </span><span id="local-6989586621679379787"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679379787"><span class="hs-identifier hs-var">idx</span></a></span></span><span> </span><span id="local-6989586621679379788"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679379788"><span class="hs-identifier hs-var">bnd</span></a></span></span><span> </span><span id="local-6989586621679379789"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679379789"><span class="hs-identifier hs-var">trgt</span></a></span></span><span> </span><span id="local-6989586621679379790"><span class="annot"><span class="annottext">IntMap Word64
+</span><a href="#local-6989586621679379790"><span class="hs-identifier hs-var">tbl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;JumpTable: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Operand -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679379787"><span class="hs-identifier hs-var">idx</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &lt; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679379788"><span class="hs-identifier hs-var">bnd</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; --&gt; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Operand -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679379789"><span class="hs-identifier hs-var">trgt</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; in &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; String
+</span><a href="Base.html#showHex_set"><span class="hs-identifier hs-var">showHex_set</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; IntSet) -&gt; [Int] -&gt; IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Int) -&gt; [Word64] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">([Word64] -&gt; [Int]) -&gt; [Word64] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap Word64 -&gt; [Word64]
+forall a. IntMap a -&gt; [a]
+</span><span class="hs-identifier hs-var">IM.elems</span></span><span> </span><span class="annot"><span class="annottext">IntMap Word64
+</span><a href="#local-6989586621679379790"><span class="hs-identifier hs-var">tbl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379795"><span id="local-6989586621679379800"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-type">Indirection</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679379805"><span class="annot"><span class="annottext">show :: Indirection -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Indirection.html#Indirection_JumpTable"><span class="hs-identifier hs-type">Indirection_JumpTable</span></a></span><span> </span><span id="local-6989586621679379806"><span class="annot"><span class="annottext">JumpTable
+</span><a href="#local-6989586621679379806"><span class="hs-identifier hs-var">tbl</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JumpTable -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">JumpTable
+</span><a href="#local-6989586621679379806"><span class="hs-identifier hs-var">tbl</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Indirection.html#Indirection_Resolved"><span class="hs-identifier hs-type">Indirection_Resolved</span></a></span><span>  </span><span id="local-6989586621679379807"><span class="annot"><span class="annottext">ResolvedJumpTarget
+</span><a href="#local-6989586621679379807"><span class="hs-identifier hs-var">trgt</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget
+</span><a href="#local-6989586621679379807"><span class="hs-identifier hs-var">trgt</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Indirection
+</span><a href="Data.Indirection.html#Indirection_Unresolved"><span class="hs-identifier hs-var">Indirection_Unresolved</span></a></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unresolved&quot;</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379809"><span id="local-6989586621679379816"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-type">JumpTable</span></a></span></span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379863"><span id="local-6989586621679379870"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-type">Indirection</span></a></span></span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379919"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-type">JumpTable</span></a></span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679379949"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-type">Indirection</span></a></span></span><span>
+</span><span id="line-62"></span></pre></body></html>

@@ -1,0 +1,525 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">WithAbstractSymbolicValues.ResolveIndirections</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html"><span class="hs-identifier">WithAbstractSymbolicValues.Class</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.FInit.html"><span class="hs-identifier">WithAbstractSymbolicValues.FInit</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Sstate.html"><span class="hs-identifier">WithAbstractSymbolicValues.Sstate</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.SymbolicExecution.html"><span class="hs-identifier">WithAbstractSymbolicValues.SymbolicExecution</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Opcode.html"><span class="hs-identifier">Data.X86.Opcode</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html"><span class="hs-identifier">Data.X86.Instruction</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Register.html"><span class="hs-identifier">Data.X86.Register</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.JumpTarget.html"><span class="hs-identifier">Data.JumpTarget</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Indirection.html"><span class="hs-identifier">Data.Indirection</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html"><span class="hs-identifier">Data.SymbolicExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SymbolicExpression.html#FlagStatus"><span class="hs-identifier">FlagStatus</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NES</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">intercalate</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">partition</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">intersectBy</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">find</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">nub</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Extra</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">join</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679404796"><span id="local-6989586621679404797"><span id="local-6989586621679404798"><span class="annot"><a href="WithAbstractSymbolicValues.ResolveIndirections.html#stry_resolve_indirection"><span class="hs-identifier hs-type">stry_resolve_indirection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#WithAbstractSymbolicValues"><span class="hs-identifier hs-type">WithAbstractSymbolicValues</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679404796"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679404797"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679404798"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679404796"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679404797"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679404798"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.X86.Instruction.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirections"><span class="hs-identifier hs-type">Indirections</span></a></span></span></span></span><span>
+</span><span id="line-38"></span><span id="stry_resolve_indirection"><span class="annot"><span class="annottext">stry_resolve_indirection :: forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Sstate v p -&gt; [Instruction] -&gt; Indirections
+</span><a href="WithAbstractSymbolicValues.ResolveIndirections.html#stry_resolve_indirection"><span class="hs-identifier hs-var hs-var">stry_resolve_indirection</span></a></span></span><span> </span><span id="local-6989586621679404948"><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span id="local-6989586621679404949"><span class="annot"><span class="annottext">p :: Sstate v p
+</span><a href="#local-6989586621679404949"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span id="local-6989586621679404951"><span class="annot"><span class="annottext">Map Register v
+</span><a href="#local-6989586621679404951"><span class="hs-identifier hs-var">regs</span></a></span></span><span> </span><span id="local-6989586621679404952"><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v
+</span><a href="#local-6989586621679404952"><span class="hs-identifier hs-var">mem</span></a></span></span><span> </span><span id="local-6989586621679404953"><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679404953"><span class="hs-identifier hs-var">flg</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679404954"><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">[</span><span id="local-6989586621679404957"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404957"><span class="hs-identifier hs-var">trgt</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instruction -&gt; [Operand]
+</span><a href="Data.X86.Instruction.html#srcs"><span class="hs-identifier hs-var">srcs</span></a></span><span> </span><span class="annot"><span class="annottext">(Instruction -&gt; [Operand]) -&gt; Instruction -&gt; [Operand]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; FlagStatus -&gt; Maybe (Operand, Word64)
+forall {a}.
+Integral a =&gt;
+a -&gt; FlagStatus -&gt; Maybe (Operand, Word64)
+</span><a href="#local-6989586621679404960"><span class="hs-identifier hs-var">flagstatus_to_tries</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10000</span></span><span> </span><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679404953"><span class="hs-identifier hs-var">flg</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="annottext">Maybe (Operand, Word64)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Indirections
+</span><a href="#local-6989586621679404961"><span class="hs-identifier hs-var">try_to_resolve_error_call</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Indirections -&gt; Maybe Indirections -&gt; Maybe Indirections
+forall a. Eq a =&gt; Maybe a -&gt; Maybe a -&gt; Maybe a
+</span><a href="Base.html#orTry"><span class="hs-operator hs-var">`orTry`</span></a></span><span> </span><span class="annot"><span class="annottext">Operand -&gt; Sstate v p -&gt; Maybe Indirections
+</span><a href="#local-6989586621679404963"><span class="hs-identifier hs-var">try_to_resolve_from_pre</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404957"><span class="hs-identifier hs-var">trgt</span></a></span><span> </span><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679404949"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Indirections -&gt; Indirections -&gt; Indirections
+forall a. Eq a =&gt; Maybe a -&gt; a -&gt; a
+</span><a href="Base.html#orElse"><span class="hs-operator hs-var">`orElse`</span></a></span><span> </span><span class="annot"><span class="annottext">Indirection -&gt; Indirections
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">S.singleton</span></span><span> </span><span class="annot"><span class="annottext">Indirection
+</span><a href="Data.Indirection.html#Indirection_Unresolved"><span class="hs-identifier hs-var">Indirection_Unresolved</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679404967"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404967"><span class="hs-identifier hs-var">op1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679404968"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679404968"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Indirections
+</span><a href="#local-6989586621679404961"><span class="hs-identifier hs-var">try_to_resolve_error_call</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Indirections -&gt; Maybe Indirections -&gt; Maybe Indirections
+forall a. Eq a =&gt; Maybe a -&gt; Maybe a -&gt; Maybe a
+</span><a href="Base.html#orTry"><span class="hs-operator hs-var">`orTry`</span></a></span><span> </span><span class="annot"><span class="annottext">Instruction -&gt; Operand -&gt; Word64 -&gt; Operand -&gt; Maybe Indirections
+forall {p}.
+Integral p =&gt;
+Instruction -&gt; Operand -&gt; p -&gt; Operand -&gt; Maybe Indirections
+</span><a href="#local-6989586621679404969"><span class="hs-identifier hs-var">try_to_resolve_using_bound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404967"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679404968"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404957"><span class="hs-identifier hs-var">trgt</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Indirections -&gt; Maybe Indirections -&gt; Maybe Indirections
+forall a. Eq a =&gt; Maybe a -&gt; Maybe a -&gt; Maybe a
+</span><a href="Base.html#orTry"><span class="hs-operator hs-var">`orTry`</span></a></span><span> </span><span class="annot"><span class="annottext">Operand -&gt; Sstate v p -&gt; Maybe Indirections
+</span><a href="#local-6989586621679404963"><span class="hs-identifier hs-var">try_to_resolve_from_pre</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404957"><span class="hs-identifier hs-var">trgt</span></a></span><span> </span><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679404949"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Indirections -&gt; Indirections -&gt; Indirections
+forall a. Eq a =&gt; Maybe a -&gt; a -&gt; a
+</span><a href="Base.html#orElse"><span class="hs-operator hs-var">`orElse`</span></a></span><span> </span><span class="annot"><span class="annottext">Indirection -&gt; Indirections
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">S.singleton</span></span><span> </span><span class="annot"><span class="annottext">Indirection
+</span><a href="Data.Indirection.html#Indirection_Unresolved"><span class="hs-identifier hs-var">Indirection_Unresolved</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679404969"><span class="annot"><span class="annottext">try_to_resolve_using_bound :: Instruction -&gt; Operand -&gt; p -&gt; Operand -&gt; Maybe Indirections
+</span><a href="#local-6989586621679404969"><span class="hs-identifier hs-var hs-var">try_to_resolve_using_bound</span></a></span></span><span> </span><span id="local-6989586621679404991"><span class="annot"><span class="annottext">Instruction
+</span><a href="#local-6989586621679404991"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679404992"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404992"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621679404993"><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679404993"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679404994"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404994"><span class="hs-identifier hs-var">trgt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679405003"><span class="annot"><span class="annottext">values1 :: [Maybe (Set ResolvedJumpTarget)]
+</span><a href="#local-6989586621679405003"><span class="hs-identifier hs-var hs-var">values1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(p -&gt; Maybe (Set ResolvedJumpTarget))
+-&gt; [p] -&gt; [Maybe (Set ResolvedJumpTarget)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679405004"><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679405004"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+-&gt; (Sstate v p, VCS v) -&gt; Maybe (Set ResolvedJumpTarget)
+forall s a. State s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">evalState</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Instruction
+-&gt; Operand
+-&gt; p
+-&gt; Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+forall {i}.
+Integral i =&gt;
+Instruction
+-&gt; Operand
+-&gt; i
+-&gt; Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+</span><a href="#local-6989586621679405006"><span class="hs-identifier hs-var">evaluate_target_after_setting_value_and_block</span></a></span><span> </span><span class="annot"><span class="annottext">Instruction
+</span><a href="#local-6989586621679404991"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404992"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679405004"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404994"><span class="hs-identifier hs-var">trgt</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Sstate v p -&gt; Sstate v p
+forall {p}. Sstate v p -&gt; Sstate v p
+</span><a href="#local-6989586621679405007"><span class="hs-identifier hs-var">clean_sstate</span></a></span><span> </span><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679404949"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">VCS v
+forall a. Set a
+</span><span class="hs-identifier hs-var">S.empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">p
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679404993"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Maybe (Set ResolvedJumpTarget)]
+</span><a href="#local-6989586621679405003"><span class="hs-identifier hs-var">values1</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Set ResolvedJumpTarget)]
+-&gt; [Maybe (Set ResolvedJumpTarget)] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><span class="annottext">Maybe Indirections
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(Maybe (Set ResolvedJumpTarget) -&gt; Bool)
+-&gt; [Maybe (Set ResolvedJumpTarget)] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Set ResolvedJumpTarget) -&gt; Bool
+</span><a href="#local-6989586621679405010"><span class="hs-identifier hs-var">is_jump_table_entry</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Set ResolvedJumpTarget)]
+</span><a href="#local-6989586621679405003"><span class="hs-identifier hs-var">values1</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679405016"><span class="annot"><span class="annottext">trgts :: [Word64]
+</span><a href="#local-6989586621679405016"><span class="hs-identifier hs-var hs-var">trgts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe (Set ResolvedJumpTarget) -&gt; Word64)
+-&gt; [Maybe (Set ResolvedJumpTarget)] -&gt; [Word64]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64)
+-&gt; (Maybe (Set ResolvedJumpTarget) -&gt; Word64)
+-&gt; Maybe (Set ResolvedJumpTarget)
+-&gt; Word64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; Word64
+</span><a href="#local-6989586621679405018"><span class="hs-identifier hs-var">get_immediate</span></a></span><span> </span><span class="annot"><span class="annottext">(ResolvedJumpTarget -&gt; Word64)
+-&gt; (Maybe (Set ResolvedJumpTarget) -&gt; ResolvedJumpTarget)
+-&gt; Maybe (Set ResolvedJumpTarget)
+-&gt; Word64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set ResolvedJumpTarget -&gt; ResolvedJumpTarget
+forall a. Set a -&gt; a
+</span><span class="hs-identifier hs-var">S.findMin</span></span><span> </span><span class="annot"><span class="annottext">(Set ResolvedJumpTarget -&gt; ResolvedJumpTarget)
+-&gt; (Maybe (Set ResolvedJumpTarget) -&gt; Set ResolvedJumpTarget)
+-&gt; Maybe (Set ResolvedJumpTarget)
+-&gt; ResolvedJumpTarget
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Set ResolvedJumpTarget) -&gt; Set ResolvedJumpTarget
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Maybe (Set ResolvedJumpTarget)]
+</span><a href="#local-6989586621679405003"><span class="hs-identifier hs-var">values1</span></a></span><span> </span><span>
+</span><span id="line-51"></span><span>            </span><span id="local-6989586621679405034"><span class="annot"><span class="annottext">tbl :: JumpTable
+</span><a href="#local-6989586621679405034"><span class="hs-identifier hs-var hs-var">tbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Operand -&gt; Int -&gt; Operand -&gt; IntMap Word64 -&gt; JumpTable
+</span><a href="Data.Indirection.html#JumpTable"><span class="hs-identifier hs-var">JumpTable</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404992"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679404993"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679404994"><span class="hs-identifier hs-var">trgt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Int, Word64)] -&gt; IntMap Word64
+forall a. [(Int, a)] -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Int, Word64)] -&gt; IntMap Word64)
+-&gt; [(Int, Word64)] -&gt; IntMap Word64
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Word64] -&gt; [(Int, Word64)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">p -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679404993"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679405016"><span class="hs-identifier hs-var">trgts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><span class="annottext">Indirections -&gt; Maybe Indirections
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Indirections -&gt; Maybe Indirections)
+-&gt; Indirections -&gt; Maybe Indirections
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Indirection -&gt; Indirections
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">S.singleton</span></span><span> </span><span class="annot"><span class="annottext">(Indirection -&gt; Indirections) -&gt; Indirection -&gt; Indirections
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">JumpTable -&gt; Indirection
+</span><a href="Data.Indirection.html#Indirection_JumpTable"><span class="hs-identifier hs-var">Indirection_JumpTable</span></a></span><span> </span><span class="annot"><span class="annottext">JumpTable
+</span><a href="#local-6989586621679405034"><span class="hs-identifier hs-var">tbl</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-keyword">else</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">Maybe Indirections
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679404963"><span class="annot"><span class="annottext">try_to_resolve_from_pre :: Operand -&gt; Sstate v p -&gt; Maybe Indirections
+</span><a href="#local-6989586621679404963"><span class="hs-identifier hs-var hs-var">try_to_resolve_from_pre</span></a></span></span><span> </span><span id="local-6989586621679405042"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405042"><span class="hs-identifier hs-var">trgt</span></a></span></span><span> </span><span id="local-6989586621679405043"><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679405043"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679405044"><span class="annot"><span class="annottext">trgts :: Maybe (Set ResolvedJumpTarget)
+</span><a href="#local-6989586621679405044"><span class="hs-identifier hs-var hs-var">trgts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+-&gt; (Sstate v p, VCS v) -&gt; Maybe (Set ResolvedJumpTarget)
+forall s a. State s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">evalState</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+</span><a href="#local-6989586621679405045"><span class="hs-identifier hs-var">evaluate_target_after_block</span></a></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405042"><span class="hs-identifier hs-var">trgt</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679405043"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">VCS v
+forall a. Set a
+</span><span class="hs-identifier hs-var">S.empty</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">(ResolvedJumpTarget -&gt; Indirection)
+-&gt; Set ResolvedJumpTarget -&gt; Indirections
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">S.map</span></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; Indirection
+</span><a href="Data.Indirection.html#Indirection_Resolved"><span class="hs-identifier hs-var">Indirection_Resolved</span></a></span><span> </span><span class="annot"><span class="annottext">(Set ResolvedJumpTarget -&gt; Indirections)
+-&gt; Maybe (Set ResolvedJumpTarget) -&gt; Maybe Indirections
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Set ResolvedJumpTarget)
+</span><a href="#local-6989586621679405044"><span class="hs-identifier hs-var">trgts</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679405006"><span class="annot"><span class="annottext">evaluate_target_after_setting_value_and_block :: Instruction
+-&gt; Operand
+-&gt; i
+-&gt; Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+</span><a href="#local-6989586621679405006"><span class="hs-identifier hs-var hs-var">evaluate_target_after_setting_value_and_block</span></a></span></span><span> </span><span id="local-6989586621679405079"><span class="annot"><span class="annottext">Instruction
+</span><a href="#local-6989586621679405079"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679405080"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405080"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621679405081"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679405081"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679405082"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405082"><span class="hs-identifier hs-var">trgt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sset_rip"><span class="hs-identifier hs-var">sset_rip</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">ctxt
+-&gt; Instruction
+-&gt; Bool
+-&gt; Operand
+-&gt; v
+-&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt
+-&gt; Instruction
+-&gt; Bool
+-&gt; Operand
+-&gt; v
+-&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#swrite_operand"><span class="hs-identifier hs-var">swrite_operand</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">Instruction
+</span><a href="#local-6989586621679405079"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405080"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ctxt -&gt; i -&gt; v
+forall i. Integral i =&gt; ctxt -&gt; i -&gt; v
+forall ctxt v p i.
+(WithAbstractSymbolicValues ctxt v p, Integral i) =&gt;
+ctxt -&gt; i -&gt; v
+</span><a href="WithAbstractSymbolicValues.Class.html#simmediate"><span class="hs-identifier hs-var">simmediate</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679405081"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+</span><a href="#local-6989586621679405045"><span class="hs-identifier hs-var">evaluate_target_after_block</span></a></span><span>  </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405082"><span class="hs-identifier hs-var">trgt</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679405045"><span class="annot"><span class="annottext">evaluate_target_after_block :: Operand
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+</span><a href="#local-6989586621679405045"><span class="hs-identifier hs-var hs-var">evaluate_target_after_block</span></a></span></span><span> </span><span id="local-6989586621679405112"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405112"><span class="hs-identifier hs-var">trgt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679405113"><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679405113"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">VCS v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT (Sstate v p, VCS v) Identity (Sstate v p, VCS v)
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="annottext">ctxt
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sexec_block"><span class="hs-identifier hs-var">sexec_block</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; [Instruction]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">init</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [Instruction]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679405117"><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679405117"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">VCS v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT (Sstate v p, VCS v) Identity (Sstate v p, VCS v)
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><span class="annottext">ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sset_rip"><span class="hs-identifier hs-var">sset_rip</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>    </span><span id="local-6989586621679405118"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405118"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; String -&gt; Operand -&gt; State (Sstate v p, VCS v) v
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; String -&gt; Operand -&gt; State (Sstate v p, VCS v) v
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sread_operand"><span class="hs-identifier hs-var">sread_operand</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;indirection resolving&quot;</span></span><span> </span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405112"><span class="hs-identifier hs-var">trgt</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Set ResolvedJumpTarget)
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+forall a. a -&gt; StateT (Sstate v p, VCS v) Identity a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (Set ResolvedJumpTarget)
+ -&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget)))
+-&gt; Maybe (Set ResolvedJumpTarget)
+-&gt; State (Sstate v p, VCS v) (Maybe (Set ResolvedJumpTarget))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; v -&gt; Maybe (Set ResolvedJumpTarget)
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; v -&gt; Maybe (Set ResolvedJumpTarget)
+</span><a href="WithAbstractSymbolicValues.Class.html#stry_jump_targets"><span class="hs-identifier hs-var">stry_jump_targets</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405118"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-comment">-- $ trace (&quot;is = &quot; ++ show (instrs) ++ &quot;P:\n&quot; ++ show p ++ &quot;\nQ:\n&quot; ++ show q ++ &quot;\nval,trgt: &quot; ++ show (val,trgt)) $ </span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679404960"><span class="annot"><span class="annottext">flagstatus_to_tries :: a -&gt; FlagStatus -&gt; Maybe (Operand, Word64)
+</span><a href="#local-6989586621679404960"><span class="hs-identifier hs-var hs-var">flagstatus_to_tries</span></a></span></span><span> </span><span id="local-6989586621679405136"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679405136"><span class="hs-identifier hs-var">max_tries</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SymbolicExpression.html#FS_CMP"><span class="hs-identifier hs-type">FS_CMP</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679405138"><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405138"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Instruction.html#Op_Imm"><span class="hs-identifier hs-type">Op_Imm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.X86.Instruction.html#Immediate"><span class="hs-identifier hs-type">Immediate</span></a></span><span> </span><span class="annot"><span class="annottext">BitSize
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679405141"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679405141"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679405141"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679405136"><span class="hs-identifier hs-var">max_tries</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Operand, Word64) -&gt; Maybe (Operand, Word64)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Operand
+</span><a href="#local-6989586621679405138"><span class="hs-identifier hs-var">op1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679405141"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe (Operand, Word64)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="#local-6989586621679404960"><span class="hs-identifier hs-var">flagstatus_to_tries</span></a></span><span> </span><span id="local-6989586621679405143"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679405143"><span class="hs-identifier hs-var">max_tries</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlagStatus
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Operand, Word64)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679404961"><span class="annot"><span class="annottext">try_to_resolve_error_call :: Maybe Indirections
+</span><a href="#local-6989586621679404961"><span class="hs-identifier hs-var hs-var">try_to_resolve_error_call</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Indirection -&gt; Indirections
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">S.singleton</span></span><span> </span><span class="annot"><span class="annottext">(Indirection -&gt; Indirections)
+-&gt; Maybe Indirection -&gt; Maybe Indirections
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">State (Sstate v p, VCS v) (Maybe Indirection)
+-&gt; Sstate v p -&gt; Maybe Indirection
+forall v p a. State (Sstate v p, VCS v) a -&gt; Sstate v p -&gt; a
+</span><a href="WithAbstractSymbolicValues.Sstate.html#evalSstate"><span class="hs-identifier hs-var">evalSstate</span></a></span><span> </span><span class="annot"><span class="annottext">State (Sstate v p, VCS v) (Maybe Indirection)
+</span><a href="#local-6989586621679405146"><span class="hs-identifier hs-var">evaluate_error_call_after_block</span></a></span><span> </span><span class="annot"><span class="annottext">Sstate v p
+</span><a href="#local-6989586621679404949"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679405146"><span class="annot"><span class="annottext">evaluate_error_call_after_block :: State (Sstate v p, VCS v) (Maybe Indirection)
+</span><a href="#local-6989586621679405146"><span class="hs-identifier hs-var hs-var">evaluate_error_call_after_block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">ctxt
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sexec_block"><span class="hs-identifier hs-var">sexec_block</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; [Instruction]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">init</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [Instruction]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Instruction -&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sset_rip"><span class="hs-identifier hs-var">sset_rip</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679405170"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405170"><span class="hs-identifier hs-var">rdi</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; Register -&gt; State (Sstate v p, VCS v) v
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Register -&gt; State (Sstate v p, VCS v) v
+</span><a href="WithAbstractSymbolicValues.Sstate.html#sread_reg"><span class="hs-identifier hs-var">sread_reg</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GPR -&gt; Register
+</span><a href="Data.X86.Register.html#Reg64"><span class="hs-identifier hs-var">Reg64</span></a></span><span> </span><span class="annot"><span class="annottext">GPR
+</span><a href="Data.X86.Register.html#RDI"><span class="hs-identifier hs-var">RDI</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="annottext">Maybe Indirection -&gt; State (Sstate v p, VCS v) (Maybe Indirection)
+forall a. a -&gt; StateT (Sstate v p, VCS v) Identity a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Indirection
+ -&gt; State (Sstate v p, VCS v) (Maybe Indirection))
+-&gt; Maybe Indirection
+-&gt; State (Sstate v p, VCS v) (Maybe Indirection)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; Instruction -&gt; v -&gt; Maybe Indirection
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Instruction -&gt; v -&gt; Maybe Indirection
+</span><a href="WithAbstractSymbolicValues.Class.html#stry_resolve_error_call"><span class="hs-identifier hs-var">stry_resolve_error_call</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Instruction] -&gt; Instruction
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Instruction]
+</span><a href="#local-6989586621679404954"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405170"><span class="hs-identifier hs-var">rdi</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679405010"><span class="annot"><span class="annottext">is_jump_table_entry :: Maybe (Set ResolvedJumpTarget) -&gt; Bool
+</span><a href="#local-6989586621679405010"><span class="hs-identifier hs-var hs-var">is_jump_table_entry</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (Set ResolvedJumpTarget)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="#local-6989586621679405010"><span class="hs-identifier hs-var">is_jump_table_entry</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679405180"><span class="annot"><span class="annottext">Set ResolvedJumpTarget
+</span><a href="#local-6989586621679405180"><span class="hs-identifier hs-var">trgts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set ResolvedJumpTarget -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">S.size</span></span><span> </span><span class="annot"><span class="annottext">Set ResolvedJumpTarget
+</span><a href="#local-6989586621679405180"><span class="hs-identifier hs-var">trgts</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ResolvedJumpTarget -&gt; Bool) -&gt; Set ResolvedJumpTarget -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget -&gt; Bool
+</span><a href="#local-6989586621679405183"><span class="hs-identifier hs-var">is_immediate</span></a></span><span> </span><span class="annot"><span class="annottext">Set ResolvedJumpTarget
+</span><a href="#local-6989586621679405180"><span class="hs-identifier hs-var">trgts</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679405183"><span class="annot"><span class="annottext">is_immediate :: ResolvedJumpTarget -&gt; Bool
+</span><a href="#local-6989586621679405183"><span class="hs-identifier hs-var hs-var">is_immediate</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-type">ImmediateAddress</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><a href="#local-6989586621679405183"><span class="hs-identifier hs-var">is_immediate</span></a></span><span> </span><span class="annot"><span class="annottext">ResolvedJumpTarget
+</span><span class="hs-identifier">_</span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679405018"><span class="annot"><span class="annottext">get_immediate :: ResolvedJumpTarget -&gt; Word64
+</span><a href="#local-6989586621679405018"><span class="hs-identifier hs-var hs-var">get_immediate</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.JumpTarget.html#ImmediateAddress"><span class="hs-identifier hs-type">ImmediateAddress</span></a></span><span> </span><span id="local-6989586621679405185"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679405185"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679405185"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679405007"><span class="annot"><span class="annottext">clean_sstate :: Sstate v p -&gt; Sstate v p
+</span><a href="#local-6989586621679405007"><span class="hs-identifier hs-var hs-var">clean_sstate</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span id="local-6989586621679405186"><span class="annot"><span class="annottext">Map Register v
+</span><a href="#local-6989586621679405186"><span class="hs-identifier hs-var">sregs</span></a></span></span><span> </span><span id="local-6989586621679405187"><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v
+</span><a href="#local-6989586621679405187"><span class="hs-identifier hs-var">smem</span></a></span></span><span> </span><span id="local-6989586621679405188"><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679405188"><span class="hs-identifier hs-var">fs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Register v
+-&gt; Map (p, Maybe ByteSize) v -&gt; FlagStatus -&gt; Sstate v p
+forall v p.
+Map Register v
+-&gt; Map (p, Maybe ByteSize) v -&gt; FlagStatus -&gt; Sstate v p
+</span><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-var">Sstate</span></a></span><span> </span><span class="annot"><span class="annottext">Map Register v
+</span><a href="#local-6989586621679405186"><span class="hs-identifier hs-var">sregs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v -&gt; Map (p, Maybe ByteSize) v
+forall {a} {b}. Map (a, b) v -&gt; Map (a, b) v
+</span><a href="#local-6989586621679405189"><span class="hs-identifier hs-var">clean_smem</span></a></span><span> </span><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v
+</span><a href="#local-6989586621679405187"><span class="hs-identifier hs-var">smem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679405188"><span class="hs-identifier hs-var">fs</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679405189"><span class="annot"><span class="annottext">clean_smem :: Map (a, b) v -&gt; Map (a, b) v
+</span><a href="#local-6989586621679405189"><span class="hs-identifier hs-var hs-var">clean_smem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a, b) -&gt; v -&gt; Bool) -&gt; Map (a, b) v -&gt; Map (a, b) v
+forall k a. (k -&gt; a -&gt; Bool) -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.filterWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679405200"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679405200"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679405201"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679405201"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679405202"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405202"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ctxt -&gt; v -&gt; Bool
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; v -&gt; Bool
+</span><a href="WithAbstractSymbolicValues.Class.html#sis_deterministic"><span class="hs-identifier hs-var">sis_deterministic</span></a></span><span> </span><span class="annot"><span class="annottext">ctxt
+</span><a href="#local-6989586621679404948"><span class="hs-identifier hs-var">ctxt</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679405202"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span></pre></body></html>

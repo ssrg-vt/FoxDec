@@ -1,0 +1,978 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, StrictData #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">WithAbstractPredicates.GenerateCFG</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Config.html"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractPredicates.Class.html"><span class="hs-identifier">WithAbstractPredicates.Class</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractPredicates.ControlFlow.html"><span class="hs-identifier">WithAbstractPredicates.ControlFlow</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.Generic.html"><span class="hs-identifier">Binary.Generic</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.JumpTarget.html"><span class="hs-identifier">Data.JumpTarget</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Symbol.html"><span class="hs-identifier">Data.Symbol</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.L0.html"><span class="hs-identifier">Data.L0</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.CFG.html"><span class="hs-identifier">Data.CFG</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Opcode.html"><span class="hs-identifier">Data.X86.Opcode</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html"><span class="hs-identifier">Data.X86.Instruction</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Extra</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- CONTROL FLOW</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | Produce a CFG</span></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679395470"><span id="local-6989586621679395471"><span id="local-6989586621679395472"><span id="local-6989586621679395473"><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#generate_cfg"><span class="hs-identifier hs-type">generate_cfg</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="WithAbstractPredicates.Class.html#WithAbstractPredicates"><span class="hs-identifier hs-type">WithAbstractPredicates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395470"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395471"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395472"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395473"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="Data.L0.html#Lifting"><span class="hs-identifier hs-type">Lifting</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395470"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395471"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395472"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395473"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ The entry point of the function</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span></span></span></span></span><span>
+</span><span id="line-39"></span><span id="generate_cfg"><span class="annot"><span class="annottext">generate_cfg :: forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v -&gt; Word64 -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#generate_cfg"><span class="hs-identifier hs-var hs-var">generate_cfg</span></a></span></span><span> </span><span id="local-6989586621679395593"><span class="annot"><span class="annottext">l :: Lifting bin pred finit v
+</span><a href="#local-6989586621679395593"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679395594"><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395594"><span class="hs-identifier hs-var">bin</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Config
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">L0 pred finit v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679395595"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395595"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395598"><span class="annot"><span class="annottext">g :: CFG
+</span><a href="#local-6989586621679395598"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; CFG
+forall {a}. Integral a =&gt; a -&gt; CFG
+</span><a href="Data.CFG.html#init_cfg"><span class="hs-identifier hs-var">init_cfg</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395595"><span class="hs-identifier hs-var">entry</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span id="local-6989586621679395601"><span class="annot"><span class="annottext">i :: Maybe Instruction
+</span><a href="#local-6989586621679395601"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bin -&gt; Word64 -&gt; Maybe Instruction
+forall bin. BinaryClass bin =&gt; bin -&gt; Word64 -&gt; Maybe Instruction
+</span><a href="Binary.Generic.html#fetch_instruction"><span class="hs-identifier hs-var">fetch_instruction</span></a></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395594"><span class="hs-identifier hs-var">bin</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395595"><span class="hs-identifier hs-var">entry</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span id="local-6989586621679395605"><span class="annot"><span class="annottext">nxt :: NextRips
+</span><a href="#local-6989586621679395605"><span class="hs-identifier hs-var hs-var">nxt</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v -&gt; Maybe Instruction -&gt; NextRips
+forall bin pred finit v.
+(BinaryClass bin, Eq pred) =&gt;
+Lifting bin pred finit v -&gt; Maybe Instruction -&gt; NextRips
+</span><a href="WithAbstractPredicates.ControlFlow.html#next_rips"><span class="hs-identifier hs-var">next_rips</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395593"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Instruction
+</span><a href="#local-6989586621679395601"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span id="local-6989586621679395612"><span class="annot"><span class="annottext">bag :: Set (Word64, Word64)
+</span><a href="#local-6989586621679395612"><span class="hs-identifier hs-var hs-var">bag</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Word64, Word64)] -&gt; Set (Word64, Word64)
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">S.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Word64, Word64)] -&gt; Set (Word64, Word64))
+-&gt; [(Word64, Word64)] -&gt; Set (Word64, Word64)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractPredicates.ControlFlow.html#JustRips"><span class="hs-identifier hs-type">JustRips</span></a></span><span> </span><span id="local-6989586621679395615"><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679395615"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; (Word64, Word64)) -&gt; [Word64] -&gt; [(Word64, Word64)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395616"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395616"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395595"><span class="hs-identifier hs-var">entry</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395616"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679395615"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NextRips
+</span><a href="#local-6989586621679395605"><span class="hs-identifier hs-var">nxt</span></a></span><span> </span><span>
+</span><span id="line-44"></span><span>      </span><span id="local-6989586621679395626"><span class="annot"><span class="annottext">g' :: CFG
+</span><a href="#local-6989586621679395626"><span class="hs-identifier hs-var hs-var">g'</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-var">mk_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395593"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395595"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395612"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395598"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span>
+</span><span id="line-45"></span><span>      </span><span id="local-6989586621679395637"><span class="annot"><span class="annottext">g'' :: CFG
+</span><a href="#local-6989586621679395637"><span class="hs-identifier hs-var hs-var">g''</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v -&gt; CFG -&gt; CFG
+forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#cfg_add_instrs"><span class="hs-identifier hs-var">cfg_add_instrs</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395593"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395626"><span class="hs-identifier hs-var">g'</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395637"><span class="hs-identifier hs-var">g''</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621679395506"><span id="local-6989586621679395507"><span id="local-6989586621679395508"><span id="local-6989586621679395509"><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-type">mk_graph</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="WithAbstractPredicates.Class.html#WithAbstractPredicates"><span class="hs-identifier hs-type">WithAbstractPredicates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395506"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395507"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395508"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395509"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.L0.html#Lifting"><span class="hs-identifier hs-type">Lifting</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395506"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395507"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395508"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395509"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span></span></span></span></span><span>
+</span><span id="line-50"></span><span id="mk_graph"><span class="annot"><span class="annottext">mk_graph :: forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-var hs-var">mk_graph</span></a></span></span><span> </span><span id="local-6989586621679395653"><span class="annot"><span class="annottext">l :: Lifting bin pred finit v
+</span><a href="#local-6989586621679395653"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679395654"><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395654"><span class="hs-identifier hs-var">bin</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Config
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">L0 pred finit v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679395655"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395655"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span id="local-6989586621679395656"><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395656"><span class="hs-identifier hs-var">bag</span></a></span></span><span> </span><span id="local-6989586621679395657"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395657"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+-&gt; Maybe ((Word64, Word64), Set (Word64, Word64))
+forall a. Set a -&gt; Maybe (a, Set a)
+</span><span class="hs-identifier hs-var">S.minView</span></span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395656"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">Maybe ((Word64, Word64), Set (Word64, Word64))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395657"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679395659"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395659"><span class="hs-identifier hs-var">a0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679395660"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395660"><span class="hs-identifier hs-var">a1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679395661"><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395661"><span class="hs-identifier hs-var">bag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Int -&gt; Int -&gt; Bool
+</span><a href="WithAbstractPredicates.GenerateCFG.html#is_edge"><span class="hs-identifier hs-var">is_edge</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395657"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395659"><span class="hs-identifier hs-var">a0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395660"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-var">mk_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395653"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395655"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395661"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395657"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-56"></span><span>      </span><span class="hs-keyword">else</span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395667"><span class="annot"><span class="annottext">g' :: CFG
+</span><a href="#local-6989586621679395667"><span class="hs-identifier hs-var hs-var">g'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_edge"><span class="hs-identifier hs-var">add_edge</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395659"><span class="hs-identifier hs-var">a0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395660"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Bool
+</span><a href="#local-6989586621679395669"><span class="hs-identifier hs-var">is_call</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395659"><span class="hs-identifier hs-var">a0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395657"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-58"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v -&gt; Maybe Instruction -&gt; NextRips
+forall bin pred finit v.
+(BinaryClass bin, Eq pred) =&gt;
+Lifting bin pred finit v -&gt; Maybe Instruction -&gt; NextRips
+</span><a href="WithAbstractPredicates.ControlFlow.html#next_rips"><span class="hs-identifier hs-var">next_rips</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395653"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bin -&gt; Word64 -&gt; Maybe Instruction
+forall bin. BinaryClass bin =&gt; bin -&gt; Word64 -&gt; Maybe Instruction
+</span><a href="Binary.Generic.html#fetch_instruction"><span class="hs-identifier hs-var">fetch_instruction</span></a></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395654"><span class="hs-identifier hs-var">bin</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395660"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>            </span><span class="annot"><a href="WithAbstractPredicates.ControlFlow.html#JustRips"><span class="hs-identifier hs-type">JustRips</span></a></span><span> </span><span id="local-6989586621679395670"><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679395670"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395675"><span class="annot"><span class="annottext">bag' :: Set (Word64, Word64)
+</span><a href="#local-6989586621679395675"><span class="hs-identifier hs-var hs-var">bag'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+-&gt; Set (Word64, Word64) -&gt; Set (Word64, Word64)
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">S.union</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Word64, Word64)] -&gt; Set (Word64, Word64)
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">S.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Word64, Word64)] -&gt; Set (Word64, Word64))
+-&gt; [(Word64, Word64)] -&gt; Set (Word64, Word64)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; (Word64, Word64)) -&gt; [Word64] -&gt; [(Word64, Word64)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395677"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395677"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395660"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395677"><span class="hs-identifier hs-var">a2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679395670"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395661"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-60"></span><span>                             </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-var">mk_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395653"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395655"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395675"><span class="hs-identifier hs-var">bag'</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395667"><span class="hs-identifier hs-var">g'</span></a></span><span> </span><span>
+</span><span id="line-61"></span><span>            </span><span class="annot"><span class="annottext">NextRips
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v
+-&gt; Word64 -&gt; Set (Word64, Word64) -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#mk_graph"><span class="hs-identifier hs-var">mk_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Lifting bin pred finit v
+</span><a href="#local-6989586621679395653"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395655"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">Set (Word64, Word64)
+</span><a href="#local-6989586621679395661"><span class="hs-identifier hs-var">bag</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395667"><span class="hs-identifier hs-var">g'</span></a></span><span>
+</span><span id="line-62"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679395669"><span class="annot"><span class="annottext">is_call :: Word64 -&gt; Bool
+</span><a href="#local-6989586621679395669"><span class="hs-identifier hs-var hs-var">is_call</span></a></span></span><span> </span><span id="local-6989586621679395680"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395680"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395682"><span class="annot"><span class="annottext">i :: Maybe Instruction
+</span><a href="#local-6989586621679395682"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bin -&gt; Word64 -&gt; Maybe Instruction
+forall bin. BinaryClass bin =&gt; bin -&gt; Word64 -&gt; Maybe Instruction
+</span><a href="Binary.Generic.html#fetch_instruction"><span class="hs-identifier hs-var">fetch_instruction</span></a></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395654"><span class="hs-identifier hs-var">bin</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679395680"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Opcode -&gt; Bool
+</span><a href="Data.X86.Opcode.html#isCall"><span class="hs-identifier hs-var">isCall</span></a></span><span> </span><span class="annot"><span class="annottext">(Opcode -&gt; Bool) -&gt; Opcode -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Instruction -&gt; Opcode
+</span><a href="Data.X86.Instruction.html#inOperation"><span class="hs-identifier hs-var">inOperation</span></a></span><span> </span><span class="annot"><span class="annottext">(Instruction -&gt; Opcode) -&gt; Instruction -&gt; Opcode
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Instruction -&gt; Instruction
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">Maybe Instruction
+</span><a href="#local-6989586621679395682"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- CONTROL FLOW GRAPH</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- the algorithm below has been formally proven correct in Isabelle/HOL</span><span>
+</span><span id="line-75"></span><span id="split_graph%27"><span class="annot"><span class="annottext">split_graph' :: Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#split_graph%27"><span class="hs-identifier hs-var hs-var">split_graph'</span></a></span></span><span> </span><span id="local-6989586621679395694"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395694"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679395695"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395694"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395698"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395698"><span class="hs-identifier hs-var">blockID</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395698"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><span class="annottext">Maybe [Int]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-81"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395700"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395700"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-82"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395700"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395694"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679395704"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395704"><span class="hs-identifier hs-var">begin</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679395705"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395705"><span class="hs-identifier hs-var">end</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; [Int] -&gt; ([Int], [Int])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395694"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395700"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-84"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395707"><span class="annot"><span class="annottext">f :: Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Int
+</span><a href="Data.CFG.html#cfg_fresh"><span class="hs-identifier hs-var">cfg_fresh</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-85"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395711"><span class="annot"><span class="annottext">blocks' :: IntMap [Int]
+</span><a href="#local-6989586621679395711"><span class="hs-identifier hs-var hs-var">blocks'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395698"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395704"><span class="hs-identifier hs-var">begin</span></a></span><span class="annot"><span class="annottext">[Int] -&gt; [Int] -&gt; [Int]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395694"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntMap [Int] -&gt; IntMap [Int]) -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; [Int]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">tail</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395705"><span class="hs-identifier hs-var">end</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395715"><span class="annot"><span class="annottext">edges' :: IntMap IntSet
+</span><a href="#local-6989586621679395715"><span class="hs-identifier hs-var hs-var">edges'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395698"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.singleton</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntMap IntSet -&gt; IntMap IntSet) -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. (Int -&gt; Int) -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.mapKeys</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395718"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395718"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395718"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395698"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395718"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395725"><span class="annot"><span class="annottext">a_to_b' :: IntMap Int
+</span><a href="#local-6989586621679395725"><span class="hs-identifier hs-var hs-var">a_to_b'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; IntMap Int -&gt; IntMap Int
+forall a b. (Int -&gt; a -&gt; b) -&gt; IntMap a -&gt; IntMap b
+</span><span class="hs-identifier hs-var">IM.mapWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395727"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395727"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span id="local-6989586621679395728"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395728"><span class="hs-identifier hs-var">blockID</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395727"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Int]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">tail</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395705"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395728"><span class="hs-identifier hs-var">blockID</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395732"><span class="annot"><span class="annottext">fresh' :: Int
+</span><a href="#local-6989586621679395732"><span class="hs-identifier hs-var hs-var">fresh'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395707"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-89"></span><span>            </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+-&gt; IntMap IntSet
+-&gt; IntMap Int
+-&gt; Int
+-&gt; IntMap [Instruction]
+-&gt; CFG
+</span><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+</span><a href="#local-6989586621679395711"><span class="hs-identifier hs-var">blocks'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap IntSet
+</span><a href="#local-6989586621679395715"><span class="hs-identifier hs-var">edges'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679395725"><span class="hs-identifier hs-var">a_to_b'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395732"><span class="hs-identifier hs-var">fresh'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Instruction]
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IM.empty</span></span><span>
+</span><span id="line-90"></span><span>          </span><span class="hs-keyword">else</span><span>
+</span><span id="line-91"></span><span>            </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395695"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span id="split_graph"><span class="annot"><span class="annottext">split_graph :: Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#split_graph"><span class="hs-identifier hs-var hs-var">split_graph</span></a></span></span><span> </span><span id="local-6989586621679395742"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395742"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679395743"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395742"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395744"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395744"><span class="hs-identifier hs-var">blockID</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395744"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="annottext">Maybe [Int]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395745"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395745"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395745"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395742"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679395748"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395748"><span class="hs-identifier hs-var">begin</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679395749"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395749"><span class="hs-identifier hs-var">end</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; [Int] -&gt; ([Int], [Int])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395742"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395745"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-102"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395750"><span class="annot"><span class="annottext">f :: Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Int
+</span><a href="Data.CFG.html#cfg_fresh"><span class="hs-identifier hs-var">cfg_fresh</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-103"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395751"><span class="annot"><span class="annottext">blocks' :: IntMap [Int]
+</span><a href="#local-6989586621679395751"><span class="hs-identifier hs-var hs-var">blocks'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395744"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395748"><span class="hs-identifier hs-var">begin</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap [Int] -&gt; IntMap [Int]) -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395749"><span class="hs-identifier hs-var">end</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395753"><span class="annot"><span class="annottext">edges' :: IntMap IntSet
+</span><a href="#local-6989586621679395753"><span class="hs-identifier hs-var hs-var">edges'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395744"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.singleton</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IntMap IntSet -&gt; IntMap IntSet) -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. (Int -&gt; Int) -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.mapKeys</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395754"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395754"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395754"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395744"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395754"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395757"><span class="annot"><span class="annottext">a_to_b' :: IntMap Int
+</span><a href="#local-6989586621679395757"><span class="hs-identifier hs-var hs-var">a_to_b'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; IntMap Int -&gt; IntMap Int
+forall a b. (Int -&gt; a -&gt; b) -&gt; IntMap a -&gt; IntMap b
+</span><span class="hs-identifier hs-var">IM.mapWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679395758"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395758"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span id="local-6989586621679395759"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395759"><span class="hs-identifier hs-var">blockID</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395758"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395749"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395759"><span class="hs-identifier hs-var">blockID</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395762"><span class="annot"><span class="annottext">fresh' :: Int
+</span><a href="#local-6989586621679395762"><span class="hs-identifier hs-var hs-var">fresh'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395750"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-107"></span><span>            </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+-&gt; IntMap IntSet
+-&gt; IntMap Int
+-&gt; Int
+-&gt; IntMap [Instruction]
+-&gt; CFG
+</span><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+</span><a href="#local-6989586621679395751"><span class="hs-identifier hs-var">blocks'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap IntSet
+</span><a href="#local-6989586621679395753"><span class="hs-identifier hs-var">edges'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679395757"><span class="hs-identifier hs-var">a_to_b'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395762"><span class="hs-identifier hs-var">fresh'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Instruction]
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IM.empty</span></span><span>
+</span><span id="line-108"></span><span>          </span><span class="hs-keyword">else</span><span>
+</span><span id="line-109"></span><span>            </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395743"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span id="add_edge_to_graph"><span class="annot"><span class="annottext">add_edge_to_graph :: Int -&gt; Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_edge_to_graph"><span class="hs-identifier hs-var hs-var">add_edge_to_graph</span></a></span></span><span> </span><span id="local-6989586621679395767"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395767"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679395768"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679395769"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395767"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395770"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-116"></span><span>        </span><span class="annot"><span class="annottext">Maybe [Int]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395771"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395771"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-118"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-119"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395772"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395772"><span class="hs-identifier hs-var">blockID'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-120"></span><span>              </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395772"><span class="hs-identifier hs-var">blockID'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-121"></span><span>                </span><span class="annot"><span class="annottext">Maybe [Int]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-122"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395773"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395773"><span class="hs-identifier hs-var">block'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395774"><span class="annot"><span class="annottext">edges' :: IntMap IntSet
+</span><a href="#local-6989586621679395774"><span class="hs-identifier hs-var hs-var">edges'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Int -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. (Maybe a -&gt; Maybe a) -&gt; Int -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.alter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_to_intset"><span class="hs-identifier hs-var">add_to_intset</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395772"><span class="hs-identifier hs-var">blockID'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>                  </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679395774"><span class="hs-identifier hs-type">edges'</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-125"></span><span>            </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-126"></span><span>              </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap IntSet -&gt; Maybe IntSet
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>                </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-128"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395777"><span class="annot"><span class="annottext">blocks' :: IntMap [Int]
+</span><a href="#local-6989586621679395777"><span class="hs-identifier hs-var hs-var">blocks'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe [Int] -&gt; Maybe [Int]) -&gt; Int -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. (Maybe a -&gt; Maybe a) -&gt; Int -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.alter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe [Int] -&gt; Maybe [Int]
+forall {a}. a -&gt; Maybe [a] -&gt; Maybe [a]
+</span><a href="WithAbstractPredicates.GenerateCFG.html#append_to_list"><span class="hs-identifier hs-var">append_to_list</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395779"><span class="annot"><span class="annottext">a_to_b' :: IntMap Int
+</span><a href="#local-6989586621679395779"><span class="hs-identifier hs-var hs-var">a_to_b'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; IntMap Int -&gt; IntMap Int
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>                  </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679395777"><span class="hs-identifier hs-type">blocks'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679395779"><span class="hs-identifier hs-type">a_to_b'</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-131"></span><span>                </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395780"><span class="annot"><span class="annottext">f :: Int
+</span><a href="#local-6989586621679395780"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Int
+</span><a href="Data.CFG.html#cfg_fresh"><span class="hs-identifier hs-var">cfg_fresh</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-133"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395781"><span class="annot"><span class="annottext">blocks' :: IntMap [Int]
+</span><a href="#local-6989586621679395781"><span class="hs-identifier hs-var hs-var">blocks'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; IntMap [Int] -&gt; IntMap [Int]
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395780"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395782"><span class="annot"><span class="annottext">edges' :: IntMap IntSet
+</span><a href="#local-6989586621679395782"><span class="hs-identifier hs-var hs-var">edges'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Int -&gt; IntMap IntSet -&gt; IntMap IntSet
+forall a. (Maybe a -&gt; Maybe a) -&gt; Int -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.alter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_to_intset"><span class="hs-identifier hs-var">add_to_intset</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395780"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395770"><span class="hs-identifier hs-var">blockID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395783"><span class="annot"><span class="annottext">a_to_b' :: IntMap Int
+</span><a href="#local-6989586621679395783"><span class="hs-identifier hs-var hs-var">a_to_b'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; IntMap Int -&gt; IntMap Int
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395768"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395780"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395786"><span class="annot"><span class="annottext">fresh' :: Int
+</span><a href="#local-6989586621679395786"><span class="hs-identifier hs-var hs-var">fresh'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395780"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-137"></span><span>                  </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+-&gt; IntMap IntSet
+-&gt; IntMap Int
+-&gt; Int
+-&gt; IntMap [Instruction]
+-&gt; CFG
+</span><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-var">CFG</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Int]
+</span><a href="#local-6989586621679395781"><span class="hs-identifier hs-var">blocks'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap IntSet
+</span><a href="#local-6989586621679395782"><span class="hs-identifier hs-var">edges'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679395783"><span class="hs-identifier hs-var">a_to_b'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395786"><span class="hs-identifier hs-var">fresh'</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap [Instruction]
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IM.empty</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span id="add_to_intset"><span class="annot"><span class="annottext">add_to_intset :: Int -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_to_intset"><span class="hs-identifier hs-var hs-var">add_to_intset</span></a></span></span><span> </span><span id="local-6989586621679395787"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395787"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; Maybe IntSet) -&gt; IntSet -&gt; Maybe IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.singleton</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395787"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#add_to_intset"><span class="hs-identifier hs-var">add_to_intset</span></a></span><span> </span><span id="local-6989586621679395788"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395788"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395789"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679395789"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; Maybe IntSet) -&gt; IntSet -&gt; Maybe IntSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395788"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679395789"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span id="append_to_list"><span class="annot"><span class="annottext">append_to_list :: a -&gt; Maybe [a] -&gt; Maybe [a]
+</span><a href="WithAbstractPredicates.GenerateCFG.html#append_to_list"><span class="hs-identifier hs-var hs-var">append_to_list</span></a></span></span><span> </span><span id="local-6989586621679395791"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395791"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395791"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-145"></span><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#append_to_list"><span class="hs-identifier hs-var">append_to_list</span></a></span><span> </span><span id="local-6989586621679395792"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395792"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395793"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395793"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395793"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395792"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span id="add_edge"><span class="annot"><span class="annottext">add_edge :: Int -&gt; Int -&gt; Bool -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_edge"><span class="hs-identifier hs-var hs-var">add_edge</span></a></span></span><span> </span><span id="local-6989586621679395796"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395796"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679395797"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395797"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679395798"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679395798"><span class="hs-identifier hs-var">is_call_a0</span></a></span></span><span> </span><span id="local-6989586621679395799"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395799"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+</span><a href="#local-6989586621679395800"><span class="hs-identifier hs-var">add_to</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395799"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="annottext">Maybe CFG
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; CFG
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Could not add edge&quot;</span></span><span>
+</span><span id="line-150"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395802"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395802"><span class="hs-identifier hs-var">g</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395802"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-151"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>  </span><span id="local-6989586621679395800"><span class="annot"><span class="annottext">add_to :: CFG -&gt; Maybe CFG
+</span><a href="#local-6989586621679395800"><span class="hs-identifier hs-var hs-var">add_to</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#split_graph%27"><span class="hs-identifier hs-var">split_graph'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395796"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; (CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#split_graph"><span class="hs-identifier hs-var">split_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395797"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; (CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#add_edge_to_graph"><span class="hs-identifier hs-var">add_edge_to_graph</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395796"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395797"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">(CFG -&gt; Maybe CFG) -&gt; (CFG -&gt; Maybe CFG) -&gt; CFG -&gt; Maybe CFG
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; CFG -&gt; Maybe CFG
+</span><a href="#local-6989586621679395807"><span class="hs-identifier hs-var">split_calls</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395796"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679395798"><span class="hs-identifier hs-var">is_call_a0</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621679395807"><span class="annot"><span class="annottext">split_calls :: Int -&gt; Bool -&gt; CFG -&gt; Maybe CFG
+</span><a href="#local-6989586621679395807"><span class="hs-identifier hs-var hs-var">split_calls</span></a></span></span><span> </span><span id="local-6989586621679395809"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395809"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CFG -&gt; Maybe CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#split_graph%27"><span class="hs-identifier hs-var">split_graph'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395809"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><a href="#local-6989586621679395807"><span class="hs-identifier hs-var">split_calls</span></a></span><span> </span><span id="local-6989586621679395810"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395810"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CFG -&gt; Maybe CFG
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span id="fromJust%27"><span class="annot"><span class="annottext">fromJust' :: a -&gt; [a] -&gt; Maybe a -&gt; a
+</span><a href="WithAbstractPredicates.GenerateCFG.html#fromJust%27"><span class="hs-identifier hs-var hs-var">fromJust'</span></a></span></span><span> </span><span id="local-6989586621679395832"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395832"><span class="hs-identifier hs-var">instrs</span></a></span></span><span> </span><span id="local-6989586621679395833"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395833"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; a
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; a) -&gt; [Char] -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [Char]
+forall {a}. Integral a =&gt; [a] -&gt; [Char]
+</span><a href="Base.html#showHex_list"><span class="hs-identifier hs-var">showHex_list</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395833"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395832"><span class="hs-identifier hs-var">instrs</span></a></span><span>
+</span><span id="line-157"></span><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#fromJust%27"><span class="hs-identifier hs-var">fromJust'</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395836"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395836"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395836"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span id="local-6989586621679395510"><span id="local-6989586621679395511"><span id="local-6989586621679395512"><span id="local-6989586621679395513"><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#cfg_add_instrs"><span class="hs-identifier hs-type">cfg_add_instrs</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><a href="WithAbstractPredicates.Class.html#WithAbstractPredicates"><span class="hs-identifier hs-type">WithAbstractPredicates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395510"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395511"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395512"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395513"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-161"></span><span>     </span><span class="annot"><a href="Data.L0.html#Lifting"><span class="hs-identifier hs-type">Lifting</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395510"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395511"><span class="hs-identifier hs-type">pred</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395512"><span class="hs-identifier hs-type">finit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679395513"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CFG.html#CFG"><span class="hs-identifier hs-type">CFG</span></a></span></span></span></span></span><span>
+</span><span id="line-164"></span><span id="cfg_add_instrs"><span class="annot"><span class="annottext">cfg_add_instrs :: forall bin pred finit v.
+WithAbstractPredicates bin pred finit v =&gt;
+Lifting bin pred finit v -&gt; CFG -&gt; CFG
+</span><a href="WithAbstractPredicates.GenerateCFG.html#cfg_add_instrs"><span class="hs-identifier hs-var hs-var">cfg_add_instrs</span></a></span></span><span> </span><span id="local-6989586621679395839"><span class="annot"><span class="annottext">l :: Lifting bin pred finit v
+</span><a href="#local-6989586621679395839"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679395840"><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395840"><span class="hs-identifier hs-var">bin</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Config
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">L0 pred finit v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679395841"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395841"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395844"><span class="annot"><span class="annottext">instrs :: [(Int, [Instruction])]
+</span><a href="#local-6989586621679395844"><span class="hs-identifier hs-var hs-var">instrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, [Int]) -&gt; (Int, [Instruction]))
+-&gt; [(Int, [Int])] -&gt; [(Int, [Instruction])]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Int, [Int]) -&gt; (Int, [Instruction])
+forall {a} {a}. Integral a =&gt; (a, [a]) -&gt; (a, [Instruction])
+</span><a href="#local-6989586621679395845"><span class="hs-identifier hs-var">block_to_instrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap [Int] -&gt; [(Int, [Int])]
+forall a. IntMap a -&gt; [(Int, a)]
+</span><span class="hs-identifier hs-var">IM.toList</span></span><span> </span><span class="annot"><span class="annottext">(IntMap [Int] -&gt; [(Int, [Int])]) -&gt; IntMap [Int] -&gt; [(Int, [Int])]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395841"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395841"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Data.CFG.html#cfg_instrs"><span class="hs-identifier hs-var">cfg_instrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.fromList</span></span><span> </span><span class="annot"><a href="#local-6989586621679395844"><span class="hs-identifier hs-type">instrs</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-167"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>  </span><span id="local-6989586621679395845"><span class="annot"><span class="annottext">block_to_instrs :: (a, [a]) -&gt; (a, [Instruction])
+</span><a href="#local-6989586621679395845"><span class="hs-identifier hs-var hs-var">block_to_instrs</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679395867"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395867"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679395868"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395868"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679395878"><span class="annot"><span class="annottext">instrs :: [Maybe Instruction]
+</span><a href="#local-6989586621679395878"><span class="hs-identifier hs-var hs-var">instrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe Instruction) -&gt; [a] -&gt; [Maybe Instruction]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bin -&gt; Word64 -&gt; Maybe Instruction
+forall bin. BinaryClass bin =&gt; bin -&gt; Word64 -&gt; Maybe Instruction
+</span><a href="Binary.Generic.html#fetch_instruction"><span class="hs-identifier hs-var">fetch_instruction</span></a></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679395840"><span class="hs-identifier hs-var">bin</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Maybe Instruction)
+-&gt; (a -&gt; Word64) -&gt; a -&gt; Maybe Instruction
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395868"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395867"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Maybe Instruction -&gt; Instruction)
+-&gt; [Maybe Instruction] -&gt; [Instruction]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Maybe Instruction] -&gt; [a] -&gt; Maybe Instruction -&gt; Instruction
+forall {a} {a} {a}.
+(Integral a, Show a) =&gt;
+a -&gt; [a] -&gt; Maybe a -&gt; a
+</span><a href="WithAbstractPredicates.GenerateCFG.html#fromJust%27"><span class="hs-identifier hs-var">fromJust'</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe Instruction]
+</span><a href="#local-6989586621679395878"><span class="hs-identifier hs-var">instrs</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395868"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Maybe Instruction]
+</span><a href="#local-6989586621679395878"><span class="hs-identifier hs-var">instrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span id="is_consecutive"><span class="annot"><span class="annottext">is_consecutive :: a -&gt; a -&gt; [a] -&gt; Bool
+</span><a href="WithAbstractPredicates.GenerateCFG.html#is_consecutive"><span class="hs-identifier hs-var hs-var">is_consecutive</span></a></span></span><span> </span><span id="local-6989586621679395886"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395886"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679395887"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395887"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-175"></span><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#is_consecutive"><span class="hs-identifier hs-var">is_consecutive</span></a></span><span> </span><span id="local-6989586621679395888"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395888"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679395889"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395889"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-176"></span><span class="annot"><a href="WithAbstractPredicates.GenerateCFG.html#is_consecutive"><span class="hs-identifier hs-var">is_consecutive</span></a></span><span> </span><span id="local-6989586621679395890"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395890"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679395891"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395891"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679395892"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395892"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679395893"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395893"><span class="hs-identifier hs-var">d</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679395894"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395894"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395890"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395891"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; (a, a) -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395892"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395893"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; [a] -&gt; Bool
+</span><a href="WithAbstractPredicates.GenerateCFG.html#is_consecutive"><span class="hs-identifier hs-var">is_consecutive</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395890"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395891"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679395893"><span class="hs-identifier hs-var">d</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679395894"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span id="is_edge"><span class="annot"><span class="annottext">is_edge :: CFG -&gt; Int -&gt; Int -&gt; Bool
+</span><a href="WithAbstractPredicates.GenerateCFG.html#is_edge"><span class="hs-identifier hs-var hs-var">is_edge</span></a></span></span><span> </span><span id="local-6989586621679395896"><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679395897"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395897"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679395898"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395898"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621679395899"><span class="hs-identifier hs-var">lookup</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="annottext">Maybe Bool
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679395900"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679395900"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679395900"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-182"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-183"></span><span>  </span><span id="local-6989586621679395899"><span class="annot"><span class="annottext">lookup :: Maybe Bool
+</span><a href="#local-6989586621679395899"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679395916"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395916"><span class="hs-identifier hs-var">blockId</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395897"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621679395917"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395917"><span class="hs-identifier hs-var">blockId'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Int -&gt; Maybe Int
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395898"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap Int
+</span><a href="Data.CFG.html#cfg_addr_to_blockID"><span class="hs-identifier hs-var">cfg_addr_to_blockID</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621679395918"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395918"><span class="hs-identifier hs-var">b</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395916"><span class="hs-identifier hs-var">blockId</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621679395919"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395919"><span class="hs-identifier hs-var">b'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap [Int] -&gt; Maybe [Int]
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395917"><span class="hs-identifier hs-var">blockId'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap [Int]
+</span><a href="Data.CFG.html#cfg_blocks"><span class="hs-identifier hs-var">cfg_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395918"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395897"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>      </span><span id="local-6989586621679395920"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679395920"><span class="hs-identifier hs-var">edges</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap IntSet -&gt; Maybe IntSet
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395916"><span class="hs-identifier hs-var">blockId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CFG -&gt; IntMap IntSet
+</span><a href="Data.CFG.html#cfg_edges"><span class="hs-identifier hs-var">cfg_edges</span></a></span><span> </span><span class="annot"><span class="annottext">CFG
+</span><a href="#local-6989586621679395896"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Maybe Bool) -&gt; Bool -&gt; Maybe Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395919"><span class="hs-identifier hs-var">b'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395898"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395917"><span class="hs-identifier hs-var">blockId'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-operator hs-var">`IS.member`</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679395920"><span class="hs-identifier hs-var">edges</span></a></span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-192"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Maybe Bool) -&gt; Bool -&gt; Maybe Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395916"><span class="hs-identifier hs-var">blockId</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395917"><span class="hs-identifier hs-var">blockId'</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; [Int] -&gt; Bool
+forall {a}. Eq a =&gt; a -&gt; a -&gt; [a] -&gt; Bool
+</span><a href="WithAbstractPredicates.GenerateCFG.html#is_consecutive"><span class="hs-identifier hs-var">is_consecutive</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395897"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679395898"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679395918"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span></pre></body></html>

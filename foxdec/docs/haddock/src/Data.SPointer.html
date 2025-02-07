@@ -1,43 +1,44 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="%24con2tag_6KdIBgI8HA2HFyFxKQzZrR"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict, StandaloneDeriving, BangPatterns #-}</span><span>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, DefaultSignatures, Strict, StandaloneDeriving, BangPatterns #-}</span><span>
 </span><span id="line-2"></span><span>
-</span><span id="line-3"></span><span class="hs-comment">{-|
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">{-|
 Module      : SPointer
 Description : 
--}</span><span>
+-}</span></span><span>
 </span><span id="line-7"></span><span>
 </span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.SPointer</span><span> </span><span class="hs-keyword">where</span><span>
 </span><span id="line-9"></span><span>
 </span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html"><span class="hs-identifier">Data.SymbolicExpression</span></a></span><span>
 </span><span id="line-11"></span><span>
-</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
-</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
-</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
-</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
-</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span>
-</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
-</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
-</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
-</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">)</span><span>
-</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NES</span></span><span>
-</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
-</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
-</span><span id="line-24"></span><span>
-</span><span id="line-25"></span><span id="local-6989586621679353007"><span id="local-6989586621679353008"></span></span><span class="hs-keyword">data</span><span> </span><span id="SPointer"><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-var">SPointer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
-</span><span id="line-26"></span><span>    </span><span id="Concrete"><span class="annot"><a href="Data.SPointer.html#Concrete"><span class="hs-identifier hs-var">Concrete</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Bases"><span class="annot"><a href="Data.SPointer.html#Bases"><span class="hs-identifier hs-var">Bases</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#PointerBase"><span class="hs-identifier hs-type">PointerBase</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Sources"><span class="annot"><a href="Data.SPointer.html#Sources"><span class="hs-identifier hs-var">Sources</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NES.NESet</span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#BotSrc"><span class="hs-identifier hs-type">BotSrc</span></a></span><span class="hs-special">)</span><span>
-</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Top"><span class="annot"><a href="Data.SPointer.html#Top"><span class="hs-identifier hs-var">Top</span></a></span></span><span>
-</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679352999"><span id="local-6989586621679353001"><span class="annot"><span class="annottext">SPointer -&gt; SPointer -&gt; Bool
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NES</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="SPointer"><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-var">SPointer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-28"></span><span>    </span><span id="Ptr_Concrete"><span class="annot"><a href="Data.SPointer.html#Ptr_Concrete"><span class="hs-identifier hs-var">Ptr_Concrete</span></a></span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Ptr_Base"><span class="annot"><a href="Data.SPointer.html#Ptr_Base"><span class="hs-identifier hs-var">Ptr_Base</span></a></span></span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#SimpleExpr"><span class="hs-identifier hs-type">SimpleExpr</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Ptr_Top"><span class="annot"><a href="Data.SPointer.html#Ptr_Top"><span class="hs-identifier hs-var">Ptr_Top</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679387525"><span id="local-6989586621679387530"><span class="annot"><span class="annottext">SPointer -&gt; SPointer -&gt; Bool
 (SPointer -&gt; SPointer -&gt; Bool)
 -&gt; (SPointer -&gt; SPointer -&gt; Bool) -&gt; Eq SPointer
 forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
-/= :: SPointer -&gt; SPointer -&gt; Bool
-$c/= :: SPointer -&gt; SPointer -&gt; Bool
-== :: SPointer -&gt; SPointer -&gt; Bool
 $c== :: SPointer -&gt; SPointer -&gt; Bool
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679352983"><span id="local-6989586621679352985"><span id="local-6989586621679352987"><span id="local-6989586621679352989"><span id="local-6989586621679352991"><span id="local-6989586621679352993"><span id="local-6989586621679352995"><span class="annot"><span class="annottext">Eq SPointer
-Eq SPointer
--&gt; (SPointer -&gt; SPointer -&gt; Ordering)
+== :: SPointer -&gt; SPointer -&gt; Bool
+$c/= :: SPointer -&gt; SPointer -&gt; Bool
+/= :: SPointer -&gt; SPointer -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679387537"><span id="local-6989586621679387542"><span id="local-6989586621679387546"><span id="local-6989586621679387550"><span id="local-6989586621679387553"><span id="local-6989586621679387556"><span id="local-6989586621679387559"><span class="annot"><span class="annottext">Eq SPointer
+Eq SPointer =&gt;
+(SPointer -&gt; SPointer -&gt; Ordering)
 -&gt; (SPointer -&gt; SPointer -&gt; Bool)
 -&gt; (SPointer -&gt; SPointer -&gt; Bool)
 -&gt; (SPointer -&gt; SPointer -&gt; Bool)
@@ -49,8 +50,8 @@ SPointer -&gt; SPointer -&gt; Bool
 SPointer -&gt; SPointer -&gt; Ordering
 SPointer -&gt; SPointer -&gt; SPointer
 forall a.
-Eq a
--&gt; (a -&gt; a -&gt; Ordering)
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
 -&gt; (a -&gt; a -&gt; Bool)
 -&gt; (a -&gt; a -&gt; Bool)
 -&gt; (a -&gt; a -&gt; Bool)
@@ -58,114 +59,58 @@ Eq a
 -&gt; (a -&gt; a -&gt; a)
 -&gt; (a -&gt; a -&gt; a)
 -&gt; Ord a
-min :: SPointer -&gt; SPointer -&gt; SPointer
-$cmin :: SPointer -&gt; SPointer -&gt; SPointer
-max :: SPointer -&gt; SPointer -&gt; SPointer
-$cmax :: SPointer -&gt; SPointer -&gt; SPointer
-&gt;= :: SPointer -&gt; SPointer -&gt; Bool
-$c&gt;= :: SPointer -&gt; SPointer -&gt; Bool
-&gt; :: SPointer -&gt; SPointer -&gt; Bool
-$c&gt; :: SPointer -&gt; SPointer -&gt; Bool
-&lt;= :: SPointer -&gt; SPointer -&gt; Bool
-$c&lt;= :: SPointer -&gt; SPointer -&gt; Bool
-&lt; :: SPointer -&gt; SPointer -&gt; Bool
-$c&lt; :: SPointer -&gt; SPointer -&gt; Bool
-compare :: SPointer -&gt; SPointer -&gt; Ordering
 $ccompare :: SPointer -&gt; SPointer -&gt; Ordering
-$cp1Ord :: Eq SPointer
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(forall x. SPointer -&gt; Rep SPointer x)
+compare :: SPointer -&gt; SPointer -&gt; Ordering
+$c&lt; :: SPointer -&gt; SPointer -&gt; Bool
+&lt; :: SPointer -&gt; SPointer -&gt; Bool
+$c&lt;= :: SPointer -&gt; SPointer -&gt; Bool
+&lt;= :: SPointer -&gt; SPointer -&gt; Bool
+$c&gt; :: SPointer -&gt; SPointer -&gt; Bool
+&gt; :: SPointer -&gt; SPointer -&gt; Bool
+$c&gt;= :: SPointer -&gt; SPointer -&gt; Bool
+&gt;= :: SPointer -&gt; SPointer -&gt; Bool
+$cmax :: SPointer -&gt; SPointer -&gt; SPointer
+max :: SPointer -&gt; SPointer -&gt; SPointer
+$cmin :: SPointer -&gt; SPointer -&gt; SPointer
+min :: SPointer -&gt; SPointer -&gt; SPointer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679387563"><span id="local-6989586621679387565"><span class="annot"><span class="annottext">(forall x. SPointer -&gt; Rep SPointer x)
 -&gt; (forall x. Rep SPointer x -&gt; SPointer) -&gt; Generic SPointer
 forall x. Rep SPointer x -&gt; SPointer
 forall x. SPointer -&gt; Rep SPointer x
 forall a.
 (forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
-$cto :: forall x. Rep SPointer x -&gt; SPointer
 $cfrom :: forall x. SPointer -&gt; Rep SPointer x
-</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
-</span><span id="line-31"></span><span>
-</span><span id="line-32"></span><span class="hs-comment">--TODO move to Base</span><span>
-</span><span id="line-33"></span><span id="local-6989586621679353019"><span id="local-6989586621679353020"><span class="annot"><a href="Data.SPointer.html#show_set"><span class="hs-identifier hs-type">show_set</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679353020"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679353019"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679353020"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679353019"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span></span></span><span>
-</span><span id="line-34"></span><span id="show_set"><span class="annot"><span class="annottext">show_set :: t a -&gt; String
-</span><a href="Data.SPointer.html#show_set"><span class="hs-identifier hs-var hs-var">show_set</span></a></span></span><span> </span><span id="local-6989586621679352977"><span class="annot"><span class="annottext">t a
-</span><a href="#local-6989586621679352977"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;{&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
-forall a. [a] -&gt; [[a]] -&gt; [a]
-</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;, &quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; String) -&gt; [a] -&gt; [String]
-forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
-</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+from :: forall x. SPointer -&gt; Rep SPointer x
+$cto :: forall x. Rep SPointer x -&gt; SPointer
+to :: forall x. Rep SPointer x -&gt; SPointer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387569"><span id="local-6989586621679387574"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679387580"><span class="annot"><span class="annottext">show :: SPointer -&gt; String
+</span><a href="#local-6989586621679387580"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Ptr_Concrete"><span class="hs-identifier hs-type">Ptr_Concrete</span></a></span><span> </span><span id="local-6989586621679387582"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679387582"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
 forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [String]) -&gt; [a] -&gt; [String]
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">t a -&gt; [a]
-forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
-</span><span class="hs-identifier hs-var">F.toList</span></span><span> </span><span class="annot"><span class="annottext">t a
-</span><a href="#local-6989586621679352977"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;}&quot;</span></span><span> </span><span>
-</span><span id="line-35"></span><span>
-</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352969"><span id="local-6989586621679352972"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
-</span><span id="line-37"></span><span>  </span><span id="local-6989586621679352967"><span class="annot"><span class="annottext">show :: SPointer -&gt; String
-</span><a href="#local-6989586621679352967"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Concrete"><span class="hs-identifier hs-type">Concrete</span></a></span><span> </span><span id="local-6989586621679352966"><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352966"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span>
-</span><span id="line-38"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; Int
-forall a. NESet a -&gt; Int
-</span><span class="hs-identifier hs-var">NES.size</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352966"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
-forall a. Eq a =&gt; a -&gt; a -&gt; Bool
-</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
-</span><span class="hs-number">1</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679387582"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Ptr_Base"><span class="hs-identifier hs-type">Ptr_Base</span></a></span><span> </span><span id="local-6989586621679387583"><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679387583"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SimpleExpr -&gt; String
 forall a. Show a =&gt; a -&gt; String
-</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(SimpleExpr -&gt; String) -&gt; SimpleExpr -&gt; String
-forall a b. (a -&gt; b) -&gt; a -&gt; b
-</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; SimpleExpr
-forall a. NESet a -&gt; a
-</span><span class="hs-identifier hs-var">NES.findMin</span></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352966"><span class="hs-identifier hs-var">es</span></a></span><span>
-</span><span id="line-39"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">otherwise</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr -&gt; String
-forall (t :: * -&gt; *) a. (Foldable t, Show a) =&gt; t a -&gt; String
-</span><a href="Data.SPointer.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><a href="#local-6989586621679352966"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SimpleExpr
+</span><a href="#local-6989586621679387583"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
 forall a. [a] -&gt; [a] -&gt; [a]
 </span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;C&quot;</span></span><span>
-</span><span id="line-40"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Bases"><span class="hs-identifier hs-type">Bases</span></a></span><span> </span><span id="local-6989586621679352963"><span class="annot"><span class="annottext">NESet PointerBase
-</span><a href="#local-6989586621679352963"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet PointerBase -&gt; String
-forall (t :: * -&gt; *) a. (Foldable t, Show a) =&gt; t a -&gt; String
-</span><a href="Data.SPointer.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="annot"><span class="annottext">NESet PointerBase
-</span><a href="#local-6989586621679352963"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;B&quot;</span></span><span>
-</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Sources"><span class="hs-identifier hs-type">Sources</span></a></span><span> </span><span id="local-6989586621679352962"><span class="annot"><span class="annottext">NESet BotSrc
-</span><a href="#local-6989586621679352962"><span class="hs-identifier hs-var">srcs</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet BotSrc -&gt; String
-forall (t :: * -&gt; *) a. (Foldable t, Show a) =&gt; t a -&gt; String
-</span><a href="Data.SPointer.html#show_set"><span class="hs-identifier hs-var">show_set</span></a></span><span> </span><span class="annot"><span class="annottext">NESet BotSrc
-</span><a href="#local-6989586621679352962"><span class="hs-identifier hs-var">srcs</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
-forall a. [a] -&gt; [a] -&gt; [a]
-</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
-</span><span class="hs-string">&quot;S&quot;</span></span><span>
-</span><span id="line-42"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SPointer
-</span><a href="Data.SPointer.html#Top"><span class="hs-identifier hs-var">Top</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;+...&quot;</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SPointer
+</span><a href="Data.SPointer.html#Ptr_Top"><span class="hs-identifier hs-var">Ptr_Top</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
 </span><span class="hs-string">&quot;top&quot;</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
 </span><span id="line-43"></span><span>
 </span><span id="line-44"></span><span>
-</span><span id="line-45"></span><span>
-</span><span id="line-46"></span><span id="isConcrete"><span class="annot"><span class="annottext">isConcrete :: SPointer -&gt; Bool
-</span><a href="Data.SPointer.html#isConcrete"><span class="hs-identifier hs-var hs-var">isConcrete</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SPointer.html#Concrete"><span class="hs-identifier hs-type">Concrete</span></a></span><span> </span><span class="annot"><span class="annottext">NESet SimpleExpr
-</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">True</span></span><span>
-</span><span id="line-47"></span><span class="annot"><a href="Data.SPointer.html#isConcrete"><span class="hs-identifier hs-var">isConcrete</span></a></span><span> </span><span class="annot"><span class="annottext">SPointer
-</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
-</span><span class="hs-identifier hs-var">False</span></span><span>
-</span><span id="line-48"></span><span>
-</span><span id="line-49"></span><span>
-</span><span id="line-50"></span><span>
-</span><span id="line-51"></span><span>
-</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352957"><span id="local-6989586621679352959"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span>
-</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679352954"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span><span>
-</span><span id="line-54"></span></pre></body></html>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387585"><span id="local-6989586621679387592"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679387640"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Data.SPointer.html#SPointer"><span class="hs-identifier hs-type">SPointer</span></a></span></span><span>
+</span><span id="line-47"></span></pre></body></html>

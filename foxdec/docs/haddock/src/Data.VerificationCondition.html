@@ -1,0 +1,390 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FunctionalDependencies, FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.VerificationCondition</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="PointerAnalysisResult"><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-var">PointerAnalysisResult</span></a></span></span><span> </span><span id="local-6989586621679369466"><span class="annot"><a href="#local-6989586621679369466"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PointerAnalysisResult"><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-var">PointerAnalysisResult</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-19"></span><span>  </span><span id="pa_mem_write"><span class="annot"><span class="annottext">forall v. PointerAnalysisResult v -&gt; Maybe v
+</span><a href="Data.VerificationCondition.html#pa_mem_write"><span class="hs-identifier hs-var hs-var">pa_mem_write</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679369466"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span id="pa_mem_reads"><span class="annot"><span class="annottext">forall v. PointerAnalysisResult v -&gt; [Maybe v]
+</span><a href="Data.VerificationCondition.html#pa_mem_reads"><span class="hs-identifier hs-var hs-var">pa_mem_reads</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679369466"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-21"></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679369589"><span id="local-6989586621679369591"><span class="annot"><span class="annottext">(forall x.
+ PointerAnalysisResult v -&gt; Rep (PointerAnalysisResult v) x)
+-&gt; (forall x.
+    Rep (PointerAnalysisResult v) x -&gt; PointerAnalysisResult v)
+-&gt; Generic (PointerAnalysisResult v)
+forall x.
+Rep (PointerAnalysisResult v) x -&gt; PointerAnalysisResult v
+forall x.
+PointerAnalysisResult v -&gt; Rep (PointerAnalysisResult v) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v x.
+Rep (PointerAnalysisResult v) x -&gt; PointerAnalysisResult v
+forall v x.
+PointerAnalysisResult v -&gt; Rep (PointerAnalysisResult v) x
+$cfrom :: forall v x.
+PointerAnalysisResult v -&gt; Rep (PointerAnalysisResult v) x
+from :: forall x.
+PointerAnalysisResult v -&gt; Rep (PointerAnalysisResult v) x
+$cto :: forall v x.
+Rep (PointerAnalysisResult v) x -&gt; PointerAnalysisResult v
+to :: forall x.
+Rep (PointerAnalysisResult v) x -&gt; PointerAnalysisResult v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679369596"><span id="local-6989586621679369602"><span class="annot"><span class="annottext">PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+(PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; (PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; Eq (PointerAnalysisResult v)
+forall v.
+Eq v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall v.
+Eq v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+== :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+$c/= :: forall v.
+Eq v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+/= :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679369611"><span id="local-6989586621679369617"><span id="local-6989586621679369621"><span id="local-6989586621679369625"><span id="local-6989586621679369628"><span id="local-6989586621679369631"><span id="local-6989586621679369634"><span class="annot"><span class="annottext">Eq (PointerAnalysisResult v)
+Eq (PointerAnalysisResult v) =&gt;
+(PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Ordering)
+-&gt; (PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; (PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; (PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; (PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool)
+-&gt; (PointerAnalysisResult v
+    -&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v)
+-&gt; (PointerAnalysisResult v
+    -&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v)
+-&gt; Ord (PointerAnalysisResult v)
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Ordering
+PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v. Ord v =&gt; Eq (PointerAnalysisResult v)
+forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Ordering
+forall v.
+Ord v =&gt;
+PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+$ccompare :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Ordering
+compare :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Ordering
+$c&lt; :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+&lt; :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+$c&lt;= :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+&lt;= :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+$c&gt; :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+&gt; :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+$c&gt;= :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+&gt;= :: PointerAnalysisResult v -&gt; PointerAnalysisResult v -&gt; Bool
+$cmax :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+max :: PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+$cmin :: forall v.
+Ord v =&gt;
+PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+min :: PointerAnalysisResult v
+-&gt; PointerAnalysisResult v -&gt; PointerAnalysisResult v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369488"><span id="local-6989586621679369640"><span id="local-6989586621679369645"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369488"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369488"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679369651"><span class="annot"><span class="annottext">show :: PointerAnalysisResult v -&gt; String
+</span><a href="#local-6989586621679369651"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe v
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span id="local-6989586621679369653"><span class="annot"><span class="annottext">[Maybe v]
+</span><a href="#local-6989586621679369653"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe v] -&gt; String
+forall {a}. Show a =&gt; [Maybe a] -&gt; String
+</span><a href="Data.VerificationCondition.html#show_pars"><span class="hs-identifier hs-var">show_pars</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe v]
+</span><a href="#local-6989586621679369653"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679369655"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679369655"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679369656"><span class="annot"><span class="annottext">[Maybe v]
+</span><a href="#local-6989586621679369656"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679369655"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &lt;-- &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Maybe v] -&gt; String
+forall {a}. Show a =&gt; [Maybe a] -&gt; String
+</span><a href="Data.VerificationCondition.html#show_pars"><span class="hs-identifier hs-var">show_pars</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe v]
+</span><a href="#local-6989586621679369656"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="show_pars"><span class="annot"><span class="annottext">show_pars :: [Maybe a] -&gt; String
+</span><a href="Data.VerificationCondition.html#show_pars"><span class="hs-identifier hs-var hs-var">show_pars</span></a></span></span><span> </span><span id="local-6989586621679369659"><span class="annot"><span class="annottext">[Maybe a]
+</span><a href="#local-6989586621679369659"><span class="hs-identifier hs-var">pars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe a -&gt; String) -&gt; [Maybe a] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; String
+forall {a}. Show a =&gt; Maybe a -&gt; String
+</span><a href="#local-6989586621679369661"><span class="hs-identifier hs-var">show_pa</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe a]
+</span><a href="#local-6989586621679369659"><span class="hs-identifier hs-var">pars</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;]&quot;</span></span><span>
+</span><span id="line-30"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679369661"><span class="annot"><span class="annottext">show_pa :: Maybe a -&gt; String
+</span><a href="#local-6989586621679369661"><span class="hs-identifier hs-var hs-var">show_pa</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;_&quot;</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="#local-6989586621679369661"><span class="hs-identifier hs-var">show_pa</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679369664"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679369664"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679369664"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="VerificationCondition"><span class="annot"><a href="Data.VerificationCondition.html#VerificationCondition"><span class="hs-identifier hs-var">VerificationCondition</span></a></span></span><span> </span><span id="local-6989586621679369665"><span class="annot"><a href="#local-6989586621679369665"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span id="FunctionPointers"><span class="annot"><a href="Data.VerificationCondition.html#FunctionPointers"><span class="hs-identifier hs-var">FunctionPointers</span></a></span></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ A set of function pointers passed to a function</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PointerAnalysis"><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysis"><span class="hs-identifier hs-var">PointerAnalysis</span></a></span></span><span>       </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369665"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ A pointer analysis result for the instruction at the address</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679369669"><span id="local-6989586621679369671"><span class="annot"><span class="annottext">(forall x.
+ VerificationCondition v -&gt; Rep (VerificationCondition v) x)
+-&gt; (forall x.
+    Rep (VerificationCondition v) x -&gt; VerificationCondition v)
+-&gt; Generic (VerificationCondition v)
+forall x.
+Rep (VerificationCondition v) x -&gt; VerificationCondition v
+forall x.
+VerificationCondition v -&gt; Rep (VerificationCondition v) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v x.
+Rep (VerificationCondition v) x -&gt; VerificationCondition v
+forall v x.
+VerificationCondition v -&gt; Rep (VerificationCondition v) x
+$cfrom :: forall v x.
+VerificationCondition v -&gt; Rep (VerificationCondition v) x
+from :: forall x.
+VerificationCondition v -&gt; Rep (VerificationCondition v) x
+$cto :: forall v x.
+Rep (VerificationCondition v) x -&gt; VerificationCondition v
+to :: forall x.
+Rep (VerificationCondition v) x -&gt; VerificationCondition v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679369675"><span id="local-6989586621679369683"><span class="annot"><span class="annottext">VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+(VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; (VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; Eq (VerificationCondition v)
+forall v.
+Eq v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall v.
+Eq v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+== :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+$c/= :: forall v.
+Eq v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+/= :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679369691"><span id="local-6989586621679369699"><span id="local-6989586621679369705"><span id="local-6989586621679369709"><span id="local-6989586621679369712"><span id="local-6989586621679369715"><span id="local-6989586621679369718"><span class="annot"><span class="annottext">Eq (VerificationCondition v)
+Eq (VerificationCondition v) =&gt;
+(VerificationCondition v -&gt; VerificationCondition v -&gt; Ordering)
+-&gt; (VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; (VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; (VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; (VerificationCondition v -&gt; VerificationCondition v -&gt; Bool)
+-&gt; (VerificationCondition v
+    -&gt; VerificationCondition v -&gt; VerificationCondition v)
+-&gt; (VerificationCondition v
+    -&gt; VerificationCondition v -&gt; VerificationCondition v)
+-&gt; Ord (VerificationCondition v)
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+VerificationCondition v -&gt; VerificationCondition v -&gt; Ordering
+VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v. Ord v =&gt; Eq (VerificationCondition v)
+forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Ordering
+forall v.
+Ord v =&gt;
+VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+$ccompare :: forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Ordering
+compare :: VerificationCondition v -&gt; VerificationCondition v -&gt; Ordering
+$c&lt; :: forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+&lt; :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+$c&lt;= :: forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+&lt;= :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+$c&gt; :: forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+&gt; :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+$c&gt;= :: forall v.
+Ord v =&gt;
+VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+&gt;= :: VerificationCondition v -&gt; VerificationCondition v -&gt; Bool
+$cmax :: forall v.
+Ord v =&gt;
+VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+max :: VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+$cmin :: forall v.
+Ord v =&gt;
+VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+min :: VerificationCondition v
+-&gt; VerificationCondition v -&gt; VerificationCondition v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369504"><span id="local-6989586621679369722"><span id="local-6989586621679369727"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369504"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#VerificationCondition"><span class="hs-identifier hs-type">VerificationCondition</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369504"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679369733"><span class="annot"><span class="annottext">show :: VerificationCondition v -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#FunctionPointers"><span class="hs-identifier hs-type">FunctionPointers</span></a></span><span> </span><span id="local-6989586621679369734"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369734"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679369735"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679369735"><span class="hs-identifier hs-var">ptrs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
+forall {a}. Integral a =&gt; a -&gt; String
+</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369734"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;: function pointer loaded &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; String
+</span><a href="Base.html#showHex_set"><span class="hs-identifier hs-var">showHex_set</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679369735"><span class="hs-identifier hs-var">ptrs</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysis"><span class="hs-identifier hs-type">PointerAnalysis</span></a></span><span> </span><span id="local-6989586621679369738"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369738"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679369739"><span class="annot"><span class="annottext">PointerAnalysisResult v
+</span><a href="#local-6989586621679369739"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; String
+forall {a}. Integral a =&gt; a -&gt; String
+</span><a href="Base.html#showHex"><span class="hs-identifier hs-var">showHex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369738"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PointerAnalysisResult v -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PointerAnalysisResult v
+</span><a href="#local-6989586621679369739"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369530"><span id="local-6989586621679369742"><span id="local-6989586621679369749"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679369530"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369530"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369545"><span id="local-6989586621679369781"><span id="local-6989586621679369788"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679369545"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#VerificationCondition"><span class="hs-identifier hs-type">VerificationCondition</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369545"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369563"><span id="local-6989586621679369834"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679369563"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369563"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369568"><span id="local-6989586621679369856"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679369568"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#VerificationCondition"><span class="hs-identifier hs-type">VerificationCondition</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369568"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">type</span><span> </span><span id="VCS"><span class="annot"><a href="Data.VerificationCondition.html#VCS"><span class="hs-identifier hs-var">VCS</span></a></span></span><span> </span><span id="local-6989586621679369879"><span class="annot"><a href="#local-6989586621679369879"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#VerificationCondition"><span class="hs-identifier hs-type">VerificationCondition</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369879"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span id="local-6989586621679369569"><span class="annot"><a href="Data.VerificationCondition.html#gather_pa_results"><span class="hs-identifier hs-type">gather_pa_results</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.VerificationCondition.html#VCS"><span class="hs-identifier hs-type">VCS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369569"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysisResult"><span class="hs-identifier hs-type">PointerAnalysisResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369569"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-56"></span><span id="gather_pa_results"><span class="annot"><span class="annottext">gather_pa_results :: forall v. VCS v -&gt; IntMap (PointerAnalysisResult v)
+</span><a href="Data.VerificationCondition.html#gather_pa_results"><span class="hs-identifier hs-var hs-var">gather_pa_results</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(VerificationCondition v
+ -&gt; IntMap (PointerAnalysisResult v)
+ -&gt; IntMap (PointerAnalysisResult v))
+-&gt; IntMap (PointerAnalysisResult v)
+-&gt; Set (VerificationCondition v)
+-&gt; IntMap (PointerAnalysisResult v)
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Set a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">VerificationCondition v
+-&gt; IntMap (PointerAnalysisResult v)
+-&gt; IntMap (PointerAnalysisResult v)
+forall {v}.
+VerificationCondition v
+-&gt; IntMap (PointerAnalysisResult v)
+-&gt; IntMap (PointerAnalysisResult v)
+</span><a href="#local-6989586621679369884"><span class="hs-identifier hs-var">gather</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap (PointerAnalysisResult v)
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IM.empty</span></span><span>
+</span><span id="line-57"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679369884"><span class="annot"><span class="annottext">gather :: VerificationCondition v
+-&gt; IntMap (PointerAnalysisResult v)
+-&gt; IntMap (PointerAnalysisResult v)
+</span><a href="#local-6989586621679369884"><span class="hs-identifier hs-var hs-var">gather</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.VerificationCondition.html#PointerAnalysis"><span class="hs-identifier hs-type">PointerAnalysis</span></a></span><span> </span><span id="local-6989586621679369889"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369889"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679369890"><span class="annot"><span class="annottext">PointerAnalysisResult v
+</span><a href="#local-6989586621679369890"><span class="hs-identifier hs-var">par</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; PointerAnalysisResult v
+-&gt; IntMap (PointerAnalysisResult v)
+-&gt; IntMap (PointerAnalysisResult v)
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679369889"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PointerAnalysisResult v
+</span><a href="#local-6989586621679369890"><span class="hs-identifier hs-var">par</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="#local-6989586621679369884"><span class="hs-identifier hs-var">gather</span></a></span><span> </span><span class="annot"><span class="annottext">VerificationCondition v
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap (PointerAnalysisResult v)
+-&gt; IntMap (PointerAnalysisResult v)
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-60"></span></pre></body></html>

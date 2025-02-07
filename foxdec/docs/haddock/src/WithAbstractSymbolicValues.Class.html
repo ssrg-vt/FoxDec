@@ -1,0 +1,493 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FunctionalDependencies #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">WithAbstractSymbolicValues.Class</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html"><span class="hs-identifier">Data.SymbolicExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.SymbolicExpression.html#FlagStatus"><span class="hs-identifier">FlagStatus</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Indirection.html"><span class="hs-identifier">Data.Indirection</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.JumpTarget.html"><span class="hs-identifier">Data.JumpTarget</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Size.html"><span class="hs-identifier">Data.Size</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.VerificationCondition.html"><span class="hs-identifier">Data.VerificationCondition</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Opcode.html"><span class="hs-identifier">Data.X86.Opcode</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html"><span class="hs-identifier">Data.X86.Instruction</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Register.html"><span class="hs-identifier">Data.X86.Register</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NES</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">join</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Serialize</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cereal</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="SymbolicOperation"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SymbolicOperation"><span class="hs-identifier hs-var">SymbolicOperation</span></a></span></span><span> </span><span id="local-6989586621679398215"><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SO_Op"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Op"><span class="hs-identifier hs-var">SO_Op</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Opcode.html#Opcode"><span class="hs-identifier hs-type">Opcode</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_Bit"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Bit"><span class="hs-identifier hs-var">SO_Bit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_SExtend"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_SExtend"><span class="hs-identifier hs-var">SO_SExtend</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_Overwrite"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Overwrite"><span class="hs-identifier hs-var">SO_Overwrite</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_Plus"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Plus"><span class="hs-identifier hs-var">SO_Plus</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_Minus"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Minus"><span class="hs-identifier hs-var">SO_Minus</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="SO_Times"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SO_Times"><span class="hs-identifier hs-var">SO_Times</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398215"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | A statepart is either a register or a region in memory</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="SStatePart"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-var">SStatePart</span></a></span></span><span> </span><span id="local-6989586621679398224"><span class="annot"><a href="#local-6989586621679398224"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span id="SSP_Reg"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SSP_Reg"><span class="hs-identifier hs-var">SSP_Reg</span></a></span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ A register</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SSP_Mem"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SSP_Mem"><span class="hs-identifier hs-var">SSP_Mem</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679398224"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ A region with a symbolic address and an immediate size.</span></span><span>
+</span><span id="line-37"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679398229"><span id="local-6989586621679398236"><span class="annot"><span class="annottext">SStatePart p -&gt; SStatePart p -&gt; Bool
+(SStatePart p -&gt; SStatePart p -&gt; Bool)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; Bool) -&gt; Eq (SStatePart p)
+forall p. Eq p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall p. Eq p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+== :: SStatePart p -&gt; SStatePart p -&gt; Bool
+$c/= :: forall p. Eq p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+/= :: SStatePart p -&gt; SStatePart p -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679398245"><span id="local-6989586621679398252"><span id="local-6989586621679398257"><span id="local-6989586621679398261"><span id="local-6989586621679398264"><span id="local-6989586621679398267"><span id="local-6989586621679398270"><span class="annot"><span class="annottext">Eq (SStatePart p)
+Eq (SStatePart p) =&gt;
+(SStatePart p -&gt; SStatePart p -&gt; Ordering)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; Bool)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; Bool)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; Bool)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; Bool)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; SStatePart p)
+-&gt; (SStatePart p -&gt; SStatePart p -&gt; SStatePart p)
+-&gt; Ord (SStatePart p)
+SStatePart p -&gt; SStatePart p -&gt; Bool
+SStatePart p -&gt; SStatePart p -&gt; Ordering
+SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall p. Ord p =&gt; Eq (SStatePart p)
+forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Ordering
+forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+$ccompare :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Ordering
+compare :: SStatePart p -&gt; SStatePart p -&gt; Ordering
+$c&lt; :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+&lt; :: SStatePart p -&gt; SStatePart p -&gt; Bool
+$c&lt;= :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+&lt;= :: SStatePart p -&gt; SStatePart p -&gt; Bool
+$c&gt; :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+&gt; :: SStatePart p -&gt; SStatePart p -&gt; Bool
+$c&gt;= :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; Bool
+&gt;= :: SStatePart p -&gt; SStatePart p -&gt; Bool
+$cmax :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+max :: SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+$cmin :: forall p. Ord p =&gt; SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+min :: SStatePart p -&gt; SStatePart p -&gt; SStatePart p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679398275"><span id="local-6989586621679398277"><span class="annot"><span class="annottext">(forall x. SStatePart p -&gt; Rep (SStatePart p) x)
+-&gt; (forall x. Rep (SStatePart p) x -&gt; SStatePart p)
+-&gt; Generic (SStatePart p)
+forall x. Rep (SStatePart p) x -&gt; SStatePart p
+forall x. SStatePart p -&gt; Rep (SStatePart p) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall p x. Rep (SStatePart p) x -&gt; SStatePart p
+forall p x. SStatePart p -&gt; Rep (SStatePart p) x
+$cfrom :: forall p x. SStatePart p -&gt; Rep (SStatePart p) x
+from :: forall x. SStatePart p -&gt; Rep (SStatePart p) x
+$cto :: forall p x. Rep (SStatePart p) x -&gt; SStatePart p
+to :: forall x. Rep (SStatePart p) x -&gt; SStatePart p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398074"><span id="local-6989586621679398282"><span id="local-6989586621679398289"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679398074"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398074"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398093"><span id="local-6989586621679398338"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679398093"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398093"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">data</span><span> </span><span id="Sstate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-var">Sstate</span></a></span></span><span> </span><span id="local-6989586621679398094"><span class="annot"><a href="#local-6989586621679398094"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679398095"><span class="annot"><a href="#local-6989586621679398095"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Sstate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-var">Sstate</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-44"></span><span>    </span><span id="sregs"><span class="annot"><span class="annottext">forall v p. Sstate v p -&gt; Map Register v
+</span><a href="WithAbstractSymbolicValues.Class.html#sregs"><span class="hs-identifier hs-var hs-var">sregs</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398094"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span id="smem"><span class="annot"><span class="annottext">forall v p. Sstate v p -&gt; Map (p, Maybe ByteSize) v
+</span><a href="WithAbstractSymbolicValues.Class.html#smem"><span class="hs-identifier hs-var hs-var">smem</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679398095"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679398094"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span id="sflags"><span class="annot"><span class="annottext">forall v p. Sstate v p -&gt; FlagStatus
+</span><a href="WithAbstractSymbolicValues.Class.html#sflags"><span class="hs-identifier hs-var hs-var">sflags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#FlagStatus"><span class="hs-identifier hs-type">FlagStatus</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679398370"><span id="local-6989586621679398379"><span class="annot"><span class="annottext">Sstate v p -&gt; Sstate v p -&gt; Bool
+(Sstate v p -&gt; Sstate v p -&gt; Bool)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Bool) -&gt; Eq (Sstate v p)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall v p. (Eq v, Eq p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+$c== :: forall v p. (Eq v, Eq p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+== :: Sstate v p -&gt; Sstate v p -&gt; Bool
+$c/= :: forall v p. (Eq v, Eq p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+/= :: Sstate v p -&gt; Sstate v p -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398394"><span id="local-6989586621679398403"><span id="local-6989586621679398410"><span id="local-6989586621679398414"><span id="local-6989586621679398417"><span id="local-6989586621679398420"><span id="local-6989586621679398423"><span class="annot"><span class="annottext">Eq (Sstate v p)
+Eq (Sstate v p) =&gt;
+(Sstate v p -&gt; Sstate v p -&gt; Ordering)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Bool)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Bool)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Bool)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Bool)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Sstate v p)
+-&gt; (Sstate v p -&gt; Sstate v p -&gt; Sstate v p)
+-&gt; Ord (Sstate v p)
+Sstate v p -&gt; Sstate v p -&gt; Bool
+Sstate v p -&gt; Sstate v p -&gt; Ordering
+Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v p. (Ord v, Ord p) =&gt; Eq (Sstate v p)
+forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Ordering
+forall v p.
+(Ord v, Ord p) =&gt;
+Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+$ccompare :: forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Ordering
+compare :: Sstate v p -&gt; Sstate v p -&gt; Ordering
+$c&lt; :: forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+&lt; :: Sstate v p -&gt; Sstate v p -&gt; Bool
+$c&lt;= :: forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+&lt;= :: Sstate v p -&gt; Sstate v p -&gt; Bool
+$c&gt; :: forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+&gt; :: Sstate v p -&gt; Sstate v p -&gt; Bool
+$c&gt;= :: forall v p. (Ord v, Ord p) =&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+&gt;= :: Sstate v p -&gt; Sstate v p -&gt; Bool
+$cmax :: forall v p.
+(Ord v, Ord p) =&gt;
+Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+max :: Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+$cmin :: forall v p.
+(Ord v, Ord p) =&gt;
+Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+min :: Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398433"><span id="local-6989586621679398435"><span class="annot"><span class="annottext">(forall x. Sstate v p -&gt; Rep (Sstate v p) x)
+-&gt; (forall x. Rep (Sstate v p) x -&gt; Sstate v p)
+-&gt; Generic (Sstate v p)
+forall x. Rep (Sstate v p) x -&gt; Sstate v p
+forall x. Sstate v p -&gt; Rep (Sstate v p) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v p x. Rep (Sstate v p) x -&gt; Sstate v p
+forall v p x. Sstate v p -&gt; Rep (Sstate v p) x
+$cfrom :: forall v p x. Sstate v p -&gt; Rep (Sstate v p) x
+from :: forall x. Sstate v p -&gt; Rep (Sstate v p) x
+$cto :: forall v p x. Rep (Sstate v p) x -&gt; Sstate v p
+to :: forall x. Rep (Sstate v p) x -&gt; Sstate v p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398135"><span id="local-6989586621679398136"><span id="local-6989586621679398442"><span id="local-6989586621679398449"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398135"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679398135"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398136"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679398136"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398135"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398136"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398144"><span id="local-6989586621679398145"><span id="local-6989586621679398502"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679398144"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679398145"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398144"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398145"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398150"><span id="local-6989586621679398151"><span id="local-6989586621679398532"><span id="local-6989586621679398537"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679398150"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679398151"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398150"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398151"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679398545"><span class="annot"><span class="annottext">show :: Sstate v p -&gt; String
+</span><a href="#local-6989586621679398545"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span id="local-6989586621679398547"><span class="annot"><span class="annottext">Map Register v
+</span><a href="#local-6989586621679398547"><span class="hs-identifier hs-var">regs</span></a></span></span><span> </span><span id="local-6989586621679398548"><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v
+</span><a href="#local-6989586621679398548"><span class="hs-identifier hs-var">mem</span></a></span></span><span> </span><span id="local-6989586621679398549"><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679398549"><span class="hs-identifier hs-var">flags</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String) -&gt; [String] -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Register, v) -&gt; String) -&gt; [(Register, v)] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Register, v) -&gt; String
+forall {a} {a}. (Show a, Show a) =&gt; (a, a) -&gt; String
+</span><a href="#local-6989586621679398551"><span class="hs-identifier hs-var">show_reg</span></a></span><span> </span><span class="annot"><span class="annottext">([(Register, v)] -&gt; [String]) -&gt; [(Register, v)] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Map Register v -&gt; [(Register, v)]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">M.assocs</span></span><span> </span><span class="annot"><span class="annottext">Map Register v
+</span><a href="#local-6989586621679398547"><span class="hs-identifier hs-var">regs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String] -&gt; [String]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(((p, Maybe ByteSize), v) -&gt; String)
+-&gt; [((p, Maybe ByteSize), v)] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">((p, Maybe ByteSize), v) -&gt; String
+forall {a} {a}.
+(Show a, Show a) =&gt;
+((a, Maybe ByteSize), a) -&gt; String
+</span><a href="#local-6989586621679398553"><span class="hs-identifier hs-var">show_mem</span></a></span><span> </span><span class="annot"><span class="annottext">([((p, Maybe ByteSize), v)] -&gt; [String])
+-&gt; [((p, Maybe ByteSize), v)] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v -&gt; [((p, Maybe ByteSize), v)]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">M.assocs</span></span><span> </span><span class="annot"><span class="annottext">Map (p, Maybe ByteSize) v
+</span><a href="#local-6989586621679398548"><span class="hs-identifier hs-var">mem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String] -&gt; [String]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FlagStatus -&gt; String
+</span><a href="#local-6989586621679398554"><span class="hs-identifier hs-var">show_flags</span></a></span><span> </span><span class="annot"><span class="annottext">FlagStatus
+</span><a href="#local-6989586621679398549"><span class="hs-identifier hs-var">flags</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679398551"><span class="annot"><span class="annottext">show_reg :: (a, a) -&gt; String
+</span><a href="#local-6989586621679398551"><span class="hs-identifier hs-var hs-var">show_reg</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679398559"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398559"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679398560"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398560"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398559"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; := &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398560"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679398553"><span class="annot"><span class="annottext">show_mem :: ((a, Maybe ByteSize), a) -&gt; String
+</span><a href="#local-6989586621679398553"><span class="hs-identifier hs-var hs-var">show_mem</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679398565"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398565"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679398566"><span class="annot"><span class="annottext">Maybe ByteSize
+</span><a href="#local-6989586621679398566"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679398567"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398567"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398565"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteSize -&gt; String
+</span><a href="#local-6989586621679398568"><span class="hs-identifier hs-var">show_size</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteSize
+</span><a href="#local-6989586621679398566"><span class="hs-identifier hs-var">si</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;] := &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398567"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679398554"><span class="annot"><span class="annottext">show_flags :: FlagStatus -&gt; String
+</span><a href="#local-6989586621679398554"><span class="hs-identifier hs-var hs-var">show_flags</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlagStatus -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679398568"><span class="annot"><span class="annottext">show_size :: Maybe ByteSize -&gt; String
+</span><a href="#local-6989586621679398568"><span class="hs-identifier hs-var hs-var">show_size</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteSize
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unknown&quot;</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><a href="#local-6989586621679398568"><span class="hs-identifier hs-var">show_size</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span id="local-6989586621679398574"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679398574"><span class="hs-identifier hs-var">si</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679398574"><span class="hs-identifier hs-var">si</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- | A function initialisation consists of a mapping of state parts to values, and memory relations</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">data</span><span> </span><span id="MemRelation"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#MemRelation"><span class="hs-identifier hs-var">MemRelation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Separate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Separate"><span class="hs-identifier hs-var">Separate</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Aliassing"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Aliassing"><span class="hs-identifier hs-var">Aliassing</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Unknown"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679398579"><span id="local-6989586621679398581"><span class="annot"><span class="annottext">(forall x. MemRelation -&gt; Rep MemRelation x)
+-&gt; (forall x. Rep MemRelation x -&gt; MemRelation)
+-&gt; Generic MemRelation
+forall x. Rep MemRelation x -&gt; MemRelation
+forall x. MemRelation -&gt; Rep MemRelation x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. MemRelation -&gt; Rep MemRelation x
+from :: forall x. MemRelation -&gt; Rep MemRelation x
+$cto :: forall x. Rep MemRelation x -&gt; MemRelation
+to :: forall x. Rep MemRelation x -&gt; MemRelation
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398584"><span id="local-6989586621679398586"><span class="annot"><span class="annottext">MemRelation -&gt; MemRelation -&gt; Bool
+(MemRelation -&gt; MemRelation -&gt; Bool)
+-&gt; (MemRelation -&gt; MemRelation -&gt; Bool) -&gt; Eq MemRelation
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: MemRelation -&gt; MemRelation -&gt; Bool
+== :: MemRelation -&gt; MemRelation -&gt; Bool
+$c/= :: MemRelation -&gt; MemRelation -&gt; Bool
+/= :: MemRelation -&gt; MemRelation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398592"><span id="local-6989586621679398594"><span id="local-6989586621679398596"><span id="local-6989586621679398600"><span id="local-6989586621679398603"><span id="local-6989586621679398606"><span id="local-6989586621679398609"><span class="annot"><span class="annottext">Eq MemRelation
+Eq MemRelation =&gt;
+(MemRelation -&gt; MemRelation -&gt; Ordering)
+-&gt; (MemRelation -&gt; MemRelation -&gt; Bool)
+-&gt; (MemRelation -&gt; MemRelation -&gt; Bool)
+-&gt; (MemRelation -&gt; MemRelation -&gt; Bool)
+-&gt; (MemRelation -&gt; MemRelation -&gt; Bool)
+-&gt; (MemRelation -&gt; MemRelation -&gt; MemRelation)
+-&gt; (MemRelation -&gt; MemRelation -&gt; MemRelation)
+-&gt; Ord MemRelation
+MemRelation -&gt; MemRelation -&gt; Bool
+MemRelation -&gt; MemRelation -&gt; Ordering
+MemRelation -&gt; MemRelation -&gt; MemRelation
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: MemRelation -&gt; MemRelation -&gt; Ordering
+compare :: MemRelation -&gt; MemRelation -&gt; Ordering
+$c&lt; :: MemRelation -&gt; MemRelation -&gt; Bool
+&lt; :: MemRelation -&gt; MemRelation -&gt; Bool
+$c&lt;= :: MemRelation -&gt; MemRelation -&gt; Bool
+&lt;= :: MemRelation -&gt; MemRelation -&gt; Bool
+$c&gt; :: MemRelation -&gt; MemRelation -&gt; Bool
+&gt; :: MemRelation -&gt; MemRelation -&gt; Bool
+$c&gt;= :: MemRelation -&gt; MemRelation -&gt; Bool
+&gt;= :: MemRelation -&gt; MemRelation -&gt; Bool
+$cmax :: MemRelation -&gt; MemRelation -&gt; MemRelation
+max :: MemRelation -&gt; MemRelation -&gt; MemRelation
+$cmin :: MemRelation -&gt; MemRelation -&gt; MemRelation
+min :: MemRelation -&gt; MemRelation -&gt; MemRelation
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398612"><span id="local-6989586621679398614"><span id="local-6989586621679398618"><span class="annot"><span class="annottext">Int -&gt; MemRelation -&gt; ShowS
+[MemRelation] -&gt; ShowS
+MemRelation -&gt; String
+(Int -&gt; MemRelation -&gt; ShowS)
+-&gt; (MemRelation -&gt; String)
+-&gt; ([MemRelation] -&gt; ShowS)
+-&gt; Show MemRelation
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; MemRelation -&gt; ShowS
+showsPrec :: Int -&gt; MemRelation -&gt; ShowS
+$cshow :: MemRelation -&gt; String
+show :: MemRelation -&gt; String
+$cshowList :: [MemRelation] -&gt; ShowS
+showList :: [MemRelation] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">data</span><span> </span><span id="FInit"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-var">FInit</span></a></span></span><span> </span><span id="local-6989586621679398202"><span class="annot"><a href="#local-6989586621679398202"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679398201"><span class="annot"><a href="#local-6989586621679398201"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FInit"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-var">FInit</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398201"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679398202"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398201"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398201"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#MemRelation"><span class="hs-identifier hs-type">MemRelation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679398622"><span id="local-6989586621679398624"><span class="annot"><span class="annottext">(forall x. FInit v p -&gt; Rep (FInit v p) x)
+-&gt; (forall x. Rep (FInit v p) x -&gt; FInit v p)
+-&gt; Generic (FInit v p)
+forall x. Rep (FInit v p) x -&gt; FInit v p
+forall x. FInit v p -&gt; Rep (FInit v p) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v p x. Rep (FInit v p) x -&gt; FInit v p
+forall v p x. FInit v p -&gt; Rep (FInit v p) x
+$cfrom :: forall v p x. FInit v p -&gt; Rep (FInit v p) x
+from :: forall x. FInit v p -&gt; Rep (FInit v p) x
+$cto :: forall v p x. Rep (FInit v p) x -&gt; FInit v p
+to :: forall x. Rep (FInit v p) x -&gt; FInit v p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398629"><span id="local-6989586621679398637"><span class="annot"><span class="annottext">FInit v p -&gt; FInit v p -&gt; Bool
+(FInit v p -&gt; FInit v p -&gt; Bool)
+-&gt; (FInit v p -&gt; FInit v p -&gt; Bool) -&gt; Eq (FInit v p)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall v p. (Eq p, Eq v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+$c== :: forall v p. (Eq p, Eq v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+== :: FInit v p -&gt; FInit v p -&gt; Bool
+$c/= :: forall v p. (Eq p, Eq v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+/= :: FInit v p -&gt; FInit v p -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679398648"><span id="local-6989586621679398656"><span id="local-6989586621679398663"><span id="local-6989586621679398667"><span id="local-6989586621679398670"><span id="local-6989586621679398673"><span id="local-6989586621679398676"><span class="annot"><span class="annottext">Eq (FInit v p)
+Eq (FInit v p) =&gt;
+(FInit v p -&gt; FInit v p -&gt; Ordering)
+-&gt; (FInit v p -&gt; FInit v p -&gt; Bool)
+-&gt; (FInit v p -&gt; FInit v p -&gt; Bool)
+-&gt; (FInit v p -&gt; FInit v p -&gt; Bool)
+-&gt; (FInit v p -&gt; FInit v p -&gt; Bool)
+-&gt; (FInit v p -&gt; FInit v p -&gt; FInit v p)
+-&gt; (FInit v p -&gt; FInit v p -&gt; FInit v p)
+-&gt; Ord (FInit v p)
+FInit v p -&gt; FInit v p -&gt; Bool
+FInit v p -&gt; FInit v p -&gt; Ordering
+FInit v p -&gt; FInit v p -&gt; FInit v p
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v p. (Ord p, Ord v) =&gt; Eq (FInit v p)
+forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Ordering
+forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+$ccompare :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Ordering
+compare :: FInit v p -&gt; FInit v p -&gt; Ordering
+$c&lt; :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+&lt; :: FInit v p -&gt; FInit v p -&gt; Bool
+$c&lt;= :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+&lt;= :: FInit v p -&gt; FInit v p -&gt; Bool
+$c&gt; :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+&gt; :: FInit v p -&gt; FInit v p -&gt; Bool
+$c&gt;= :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; Bool
+&gt;= :: FInit v p -&gt; FInit v p -&gt; Bool
+$cmax :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+max :: FInit v p -&gt; FInit v p -&gt; FInit v p
+$cmin :: forall v p. (Ord p, Ord v) =&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+min :: FInit v p -&gt; FInit v p -&gt; FInit v p
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398681"><span id="local-6989586621679398688"><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#MemRelation"><span class="hs-identifier hs-type">MemRelation</span></a></span></span></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398191"><span id="local-6989586621679398192"><span id="local-6989586621679398723"><span id="local-6989586621679398730"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679398191"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="annot"><a href="#local-6989586621679398192"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398192"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398191"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cereal.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-type">FInit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398191"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398192"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398767"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#MemRelation"><span class="hs-identifier hs-type">MemRelation</span></a></span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679398197"><span id="local-6989586621679398198"><span id="local-6989586621679398783"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679398197"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679398198"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-type">FInit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398198"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398197"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="empty_finit"><span class="annot"><span class="annottext">empty_finit :: FInit v p
+</span><a href="WithAbstractSymbolicValues.Class.html#empty_finit"><span class="hs-identifier hs-var hs-var">empty_finit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set (SStatePart p, v)
+-&gt; Map (SStatePart p, SStatePart p) MemRelation -&gt; FInit v p
+forall v p.
+Set (SStatePart p, v)
+-&gt; Map (SStatePart p, SStatePart p) MemRelation -&gt; FInit v p
+</span><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-var">FInit</span></a></span><span> </span><span class="annot"><span class="annottext">Set (SStatePart p, v)
+forall a. Set a
+</span><span class="hs-identifier hs-var">S.empty</span></span><span> </span><span class="annot"><span class="annottext">Map (SStatePart p, SStatePart p) MemRelation
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span id="unknownSize"><span class="annot"><span class="annottext">unknownSize :: Maybe a
+</span><a href="WithAbstractSymbolicValues.Class.html#unknownSize"><span class="hs-identifier hs-var hs-var">unknownSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="WithAbstractSymbolicValues"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#WithAbstractSymbolicValues"><span class="hs-identifier hs-var">WithAbstractSymbolicValues</span></a></span></span><span> </span><span id="local-6989586621679398208"><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span></span><span> </span><span id="local-6989586621679398209"><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679398210"><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-90"></span><span>  </span><span id="sseparate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sseparate"><span class="hs-identifier hs-type">sseparate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-91"></span><span>  </span><span id="senclosed"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#senclosed"><span class="hs-identifier hs-type">senclosed</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-92"></span><span>  </span><span id="salias"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#salias"><span class="hs-identifier hs-type">salias</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-93"></span><span>  </span><span id="ssensitive"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#ssensitive"><span class="hs-identifier hs-type">ssensitive</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-94"></span><span>  </span><span id="sread_from_ro_data"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sread_from_ro_data"><span class="hs-identifier hs-type">sread_from_ro_data</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span id="smk_mem_addresses"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#smk_mem_addresses"><span class="hs-identifier hs-type">smk_mem_addresses</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>  </span><span id="sjoin_values"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sjoin_values"><span class="hs-identifier hs-type">sjoin_values</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679398819"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679398819"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398819"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-98"></span><span>  </span><span id="swiden_values"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#swiden_values"><span class="hs-identifier hs-type">swiden_values</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span id="sjoin_pointers"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sjoin_pointers"><span class="hs-identifier hs-type">sjoin_pointers</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-100"></span><span>  </span><span id="top"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#top"><span class="hs-identifier hs-type">top</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>  </span><span id="ssemantics"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#ssemantics"><span class="hs-identifier hs-type">ssemantics</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SymbolicOperation"><span class="hs-identifier hs-type">SymbolicOperation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span id="sflg_semantics"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sflg_semantics"><span class="hs-identifier hs-type">sflg_semantics</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#FlagStatus"><span class="hs-identifier hs-type">FlagStatus</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.SymbolicExpression.html#FlagStatus"><span class="hs-identifier hs-type">FlagStatus</span></a></span><span>
+</span><span id="line-105"></span><span>  </span><span id="simmediate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#simmediate"><span class="hs-identifier hs-type">simmediate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679398827"><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679398827"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398827"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>  </span><span id="smk_init_reg_value"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#smk_init_reg_value"><span class="hs-identifier hs-type">smk_init_reg_value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.X86.Register.html#Register"><span class="hs-identifier hs-type">Register</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span id="smk_init_mem_value"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#smk_init_mem_value"><span class="hs-identifier hs-type">smk_init_mem_value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Size.html#ByteSize"><span class="hs-identifier hs-type">ByteSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>  </span><span id="scall"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#scall"><span class="hs-identifier hs-type">scall</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.VerificationCondition.html#VCS"><span class="hs-identifier hs-type">VCS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>  </span><span id="sjump"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sjump"><span class="hs-identifier hs-type">sjump</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.VerificationCondition.html#VCS"><span class="hs-identifier hs-type">VCS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span id="saddress_has_instruction"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#saddress_has_instruction"><span class="hs-identifier hs-type">saddress_has_instruction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-113"></span><span>  </span><span id="skeep_for_finit"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#skeep_for_finit"><span class="hs-identifier hs-type">skeep_for_finit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#SStatePart"><span class="hs-identifier hs-type">SStatePart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679398210"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>  </span><span id="stry_jump_targets"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#stry_jump_targets"><span class="hs-identifier hs-type">stry_jump_targets</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="Data.JumpTarget.html#ResolvedJumpTarget"><span class="hs-identifier hs-type">ResolvedJumpTarget</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>  </span><span id="stry_resolve_error_call"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#stry_resolve_error_call"><span class="hs-identifier hs-type">stry_resolve_error_call</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.X86.Instruction.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Indirection.html#Indirection"><span class="hs-identifier hs-type">Indirection</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>  </span><span id="stry_immediate"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#stry_immediate"><span class="hs-identifier hs-type">stry_immediate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-119"></span><span>  </span><span id="sis_deterministic"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#sis_deterministic"><span class="hs-identifier hs-type">sis_deterministic</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-120"></span><span>  </span><span id="scheck_regs_in_postcondition"><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#scheck_regs_in_postcondition"><span class="hs-identifier hs-type">scheck_regs_in_postcondition</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679398208"><span class="hs-identifier hs-type">ctxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679398209"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span></pre></body></html>

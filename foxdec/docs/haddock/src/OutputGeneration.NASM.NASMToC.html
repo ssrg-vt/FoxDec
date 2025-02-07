@@ -1,0 +1,321 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK prune  #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">{-|
+Module      : NASMToC
+Description : Lift the L0 representation of the binary to symbolized and recompilable NASM.
+-}</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">OutputGeneration.NASM.NASMToC</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Base.html"><span class="hs-identifier">Base</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Config.html"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.X86.Opcode.html"><span class="hs-identifier">Data.X86.Opcode</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="OutputGeneration.NASM.NASM.html"><span class="hs-identifier">OutputGeneration.NASM.NASM</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mapMaybe</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">fromJust</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.Split</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">chunksOf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">w2c</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="render_NASM"><span class="annot"><span class="annottext">render_NASM :: p -&gt; NASM -&gt; String
+</span><a href="OutputGeneration.NASM.NASMToC.html#render_NASM"><span class="hs-identifier hs-var hs-var">render_NASM</span></a></span></span><span> </span><span id="local-6989586621679393291"><span class="annot"><span class="annottext">p
+</span><a href="#local-6989586621679393291"><span class="hs-identifier hs-var">ctxt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="OutputGeneration.NASM.NASM.html#NASM"><span class="hs-identifier hs-type">NASM</span></a></span><span> </span><span id="local-6989586621679393293"><span class="annot"><span class="annottext">Set String
+</span><a href="#local-6989586621679393293"><span class="hs-identifier hs-var">externals</span></a></span></span><span> </span><span id="local-6989586621679393294"><span class="annot"><span class="annottext">Set String
+</span><a href="#local-6989586621679393294"><span class="hs-identifier hs-var">globals</span></a></span></span><span> </span><span id="local-6989586621679393295"><span class="annot"><span class="annottext">[NASM_Section]
+</span><a href="#local-6989586621679393295"><span class="hs-identifier hs-var">sections</span></a></span></span><span> </span><span id="local-6989586621679393296"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679393296"><span class="hs-identifier hs-var">footer</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-comment">{--
+  let (ts,ds) = partition isTextSection sections
+      h       = intercalate &quot;\n\n&quot; $ render_externals externals : map render_section ds
+      c       = intercalate &quot;\n\n&quot; $ mk_includes : map render_section ts in
+    (c, h)
+ where
+  isTextSection (NASM_Section_Text _) = True
+  isTextSection _                     = False
+
+
+  mk_includes = intercalate &quot;\n&quot;
+    [ &quot;#include \&quot;foxdec.h\&quot;&quot;
+    , &quot;#include \&quot;&quot; ++ ctxt_name ctxt ++ &quot;.h\&quot;&quot; ]
+
+render_externals externals = &quot;&quot; -- intercalate &quot;\n&quot; $ map render_external $ S.toList externals
+ where
+  render_external f = &quot;void* &quot; ++ f ++ &quot;;&quot;
+
+render_section (NASM_Section_Text text) = render_textsection text
+render_section (NASM_Section_Data dat)  = concatMap render_datasection dat
+
+mk_section_name (segment,section,a0) = mk_C_name $ section_name segment section a0
+
+render_datasection (NASM_DataSection sec align labels [DataEntry_BSS si]) = &quot;uint8_t &quot; ++ mk_section_name sec ++ &quot;[&quot; ++ show si ++ &quot;] = {0};&quot;
+render_datasection (NASM_DataSection sec align labels dat) = 
+  let fields      = mk_fields dat 
+      struct      = mk_struct fields
+      struct_init = mk_struct_init fields in
+    intercalate &quot;\n&quot; 
+      [ &quot;// &quot; ++ mk_name
+      , struct
+      , struct_init
+      , &quot;uint8_t* const &quot; ++ mk_name ++ &quot; = (uint8_t*)&amp;&quot; ++ mk_name ++ &quot;_init;&quot;
+      -- TODO , show labels
+      , &quot;\n\n&quot; ]
+ where
+  mk_fields [] = []
+  mk_fields (DataEntry_Byte a b:dat) =
+    let (bs,dat') = takeWhileBytes dat in
+      (DataEntry_Byte a b:bs) : mk_fields dat'
+  mk_fields (e : dat) = [e] : mk_fields dat
+
+
+  mk_struct fields = intercalate &quot;\n&quot; 
+    [ &quot;struct __attribute__((packed)) &quot; ++ mk_name
+    , &quot;{&quot;
+    , intercalate &quot;\n&quot; $ map mk_struct_fields fields
+    , &quot;};&quot;
+    ]
+  mk_struct_fields [DataEntry_String a s]    = &quot;  char &quot; ++ mk_name ++ &quot;_0x&quot; ++ showHex a ++ &quot;[&quot; ++ show (length s + 1) ++ &quot;];&quot;
+  mk_struct_fields [DataEntry_Pointer a ptr] = &quot;  void* &quot; ++ mk_name ++ &quot;_0x&quot; ++ showHex a ++ &quot;;&quot;
+  mk_struct_fields bs@(DataEntry_Byte a _:_) = &quot;  uint8_t &quot; ++ mk_name ++ &quot;_0x&quot; ++ showHex a ++ &quot;[&quot; ++ show (length bs) ++ &quot;];&quot;
+
+
+  mk_struct_init fields = &quot;struct &quot; ++ mk_name ++ &quot; &quot; ++ mk_name ++ &quot;_init = {\n&quot; ++ intercalate &quot;\n&quot; (map mk_struct_init_fields fields) ++ &quot;\n};&quot;
+  mk_struct_init_fields [DataEntry_String _ s]      = &quot;  \&quot;&quot; ++ word8s_to_string s ++ &quot;\&quot;,&quot;
+  mk_struct_init_fields [DataEntry_Pointer _ (a,_)] = &quot;  &amp;&quot; ++ show a ++ &quot;,&quot;
+  mk_struct_init_fields bs                          = &quot;  {&quot; ++ intercalate &quot;,&quot; (map show_byte bs) ++ &quot;},&quot;
+
+  show_byte (DataEntry_Byte _ b) = &quot;0x&quot; ++ showHex b
+
+  takeWhileBytes (DataEntry_Byte a b:dat) =
+    let (bs,dat') = takeWhileBytes dat in
+      (DataEntry_Byte a b:bs,dat')
+  takeWhileBytes dat = ([],dat)
+
+  mk_name = mk_section_name sec
+
+  word8s_to_string = concatMap (escape . w2c) 
+  escape '\\' = &quot;\\\\&quot;
+  escape '\n'  = &quot;\\n&quot;
+  escape '\t'  = &quot;\\t&quot;
+  escape c    = [c]
+
+
+mk_C_name = map repl
+ where
+  repl '.' = '_'
+  repl c   = c
+
+render_textsection (NASM_TextSection f blocks) = intercalate &quot;\n&quot;
+  [ &quot;void &quot; ++ mk_C_function_name f ++ &quot;() {&quot;
+  , render_blocks blocks
+  , &quot;}\n&quot; ]
+ where
+  mk_C_function_name f
+    | head f `elem` &quot;0123456789&quot; = &quot;FUN_&quot; ++ f
+    | otherwise = f
+
+render_blocks = intercalate &quot;\n\n&quot; . map render_block 
+
+render_block (blockID,lines) = intercalate &quot;\n&quot; $ map render_line lines
+
+render_line (NASM_Comment _ comment) = &quot;// &quot; ++ comment
+render_line (NASM_Label label) = show label ++ &quot;:&quot;
+render_line (NASM_Line i@(NASM_Instruction pre (Just m) ops comment annot)) =
+  case mnemonic_to_C m ops of
+    Just strs -&gt; intercalate &quot;\n&quot; $ map add_colon strs
+    Nothing  -&gt; &quot;/// &quot; ++ show i
+
+ where
+  add_colon str = &quot;  &quot; ++ str ++ &quot;;&quot;
+
+
+
+data TypeMode = UInt | SInt | Double | Pointer | Unknown
+ deriving (Eq,Show)
+
+get_size :: NASM_Operand -&gt; Maybe Int
+get_size (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing))  = Just $ sizeof base
+get_size (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just fun)))   = Just $ 8
+get_size (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing)) = Just $ 8
+get_size (NASM_Operand_EffectiveAddress _) = Just 8
+get_size (NASM_Operand_Memory (si,_) _) = Just si
+get_size (NASM_Operand_Immediate _) = Nothing
+get_size a = error $ show a
+
+ 
+
+
+mnemonic_to_C m = mk m
+ where
+  mk MOV    [op0,op1] = Just $ mk_assign (nasm_operand_to_c_destination op0) UInt (render_operand op1 UInt)
+  mk MOVAPS [op0,op1] = Just $ mk_assign (nasm_operand_to_c_destination op0) UInt (render_operand op1 UInt)
+  mk LEA    [op0,op1] = Just $ mk_assign (nasm_operand_to_c_destination op0) Pointer (render_operand op1 Pointer)
+
+  mk MOVZX  [op0,op1] = Just $ mk_assign (nasm_operand_to_c_destination op0) UInt (render_operand op1 UInt `castToType` (UInt,fromJust $ get_size op0))
+  mk MOVSX  [op0,op1] = Just $ mk_assign (nasm_operand_to_c_destination op0) SInt (render_operand op1 SInt `castToType` (SInt,fromJust $ get_size op0))
+  mk CDQE    []       = Just $ [ &quot;RAX.s = (int64_t)(read32(RAX).s)&quot; ]
+
+  mk SETNE  [op0]     = Just $ mk_assign (nasm_operand_to_c_destination op0) UInt (flag_to_byte &quot;!ZF&quot;)
+
+  mk ADD    [op0,op1] = Just $ mk_src_from_dests &quot;+&quot;  (nasm_operand_to_c_destination op0) op0 op1 UInt
+  mk SUB    [op0,op1] = Just $ mk_src_from_dests &quot;-&quot;  (nasm_operand_to_c_destination op0) op0 op1 UInt
+  mk AND    [op0,op1] = Just $ mk_src_from_dests &quot;&amp;&quot;  (nasm_operand_to_c_destination op0) op0 op1 UInt 
+  mk SHR    [op0,op1] = Just $ mk_src_from_dests &quot;&gt;&gt;&quot; (nasm_operand_to_c_destination op0) op0 op1 UInt
+  mk SAR    [op0,op1] = Just $ mk_src_from_dests &quot;&gt;&gt;&quot; (nasm_operand_to_c_destination op0) op0 op1 SInt
+  mk XOR    [op0,op1] 
+    | op0 == op1 = Just $ mk_assign (nasm_operand_to_c_destination op0) UInt &quot;0&quot;
+    | otherwise  = Just $ mk_src_from_dests &quot;^&quot; (nasm_operand_to_c_destination op0) op0 op1 UInt
+
+  mk PUSH    [op0] = Just $ mk_push op0
+  mk POP     [op0] = Just $ mk_pop op0
+  mk LEAVE   []    = Just $ mk_leave
+  mk RET     []    = Just $ mk_ret
+
+
+  mk CALL    [op0] = Just $ mk_call op0
+  mk JMP     [op0] = Just $ [&quot;goto &quot; ++ render_operand op0 Unknown]
+  mk JE      [op0] = Just $ [mk_cond_jump &quot;ZF&quot; op0 ]
+  mk JNE     [op0] = Just $ [mk_cond_jump &quot;!ZF&quot; op0 ]
+  mk JG      [op0] = Just $ [mk_cond_jump &quot;GF&quot; op0 ]
+  mk JLE     [op0] = Just $ [mk_cond_jump &quot;!GF&quot; op0 ]
+  mk JL      [op0] = Just $ [mk_cond_jump &quot;!GF &amp;&amp; !ZF&quot; op0 ]
+
+  mk CMP     [op0,op1] = Just $ mk_cmp op0 op1
+  mk TEST    [op0,op1] = Just $ mk_test op0 op1
+
+  mk NOP     _         = Just $ []
+  mk HLT     _         = Just $ [&quot;abort()&quot;]
+  mk _ _               = Nothing
+
+
+data C_Dest = Register Register | Flag String | Operand NASM_Operand
+
+nasm_operand_to_c_destination (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing)) = Register base
+nasm_operand_to_c_destination a = Operand a
+
+mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Function fun)))) = [&quot;CALL(&quot; ++ fun ++ &quot;)&quot;]
+mk_call (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing))                      = [&quot;RSP.u -= 8&quot;, show label ++ &quot;()&quot;]
+mk_call op0 = [&quot;//TODO: call to &quot; ++ render_operand op0 Unknown]
+
+mk_push op0 =
+  let Just si = get_size op0 in
+    [ &quot;RSP.u -= &quot; ++ show si
+    , &quot;*((uint&quot; ++ show (si*8) ++ &quot;_t*) RSP.ptr) = &quot; ++ render_operand op0 UInt
+    ]
+
+mk_pop op0 =
+  let Just si = get_size op0 in
+    [ render_operand op0 UInt ++ &quot; = *((uint&quot; ++ show (si*8) ++ &quot;_t*) RSP.ptr)&quot;
+    , &quot;RSP.u += &quot; ++ show si
+    ]
+
+mk_leave =
+  [ &quot;RSP.u = RBP.u&quot;
+  , &quot;RBP.u = *((uint64_t*) RSP.ptr)&quot;
+  , &quot;RSP.u += 8&quot; ]
+
+mk_ret = 
+  [ &quot;RSP.u += 8&quot; ]
+
+mk_assign (Register reg) tm src
+  | real reg == reg || sizeof reg == 16 = [ reg `regWithTypeMode` tm ++ &quot; = &quot; ++ src ]
+  | otherwise = [ write_to_reg reg src ]
+mk_assign (Operand dst) tm src = [ render_operand dst tm ++ &quot; = &quot; ++ src ]
+mk_assign (Flag flg) tm src = [ flg ++ &quot; = &quot; ++ src ]
+
+mk_src_from_dests operation dst op0 op1 tm = mk_assign dst tm (render_operand op0 tm ++ &quot; &quot; ++ operation ++ &quot; &quot; ++ render_operand op1 tm)
+
+mk_cmp op0 op1 = map mk
+  [ (&quot;ZF&quot;, &quot;==&quot;, UInt)
+  , (&quot;GF&quot;, &quot;&gt;&quot;, SInt)]
+ where
+  mk (flg,op,tm) = concat $ mk_src_from_dests op (Flag flg) op0 op1 tm
+
+
+mk_test op0 op1
+  | op0 == op1 = [ &quot;ZF = (&quot; ++ render_operand op0 UInt ++ &quot; == 0)&quot; ]
+
+flag_to_byte flg = &quot;(uint8_t)(&quot; ++ flg ++ &quot; ? 1 : 0)&quot;
+
+mk_cond_jump flg trgt = &quot;if (&quot; ++ flg ++ &quot;) goto &quot; ++ render_operand trgt Pointer
+
+
+write_to_reg reg val = &quot;write&quot; ++ show (8 * sizeof reg) ++ &quot;(&quot; ++ show (real reg) ++ &quot;, (&quot; ++ castTo val (&quot;union d&quot; ++ show (8 * sizeof reg)) ++ &quot;))&quot;
+read_from_reg reg = &quot;read&quot; ++ show (8 * sizeof reg) ++ &quot;(&quot; ++ show (real reg) ++ &quot;)&quot;
+
+
+-- Produce a C expression that is of the type coorespodning to the type mode
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 (Just base) Nothing Nothing Nothing))                        tm = base `regWithTypeMode` tm
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing Nothing (Just (NASM_Symbol_Object   obj)))) tm = obj `castToType` (tm,8)
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing Nothing (Just (NASM_Symbol_Function fun)))) tm = fun `castToType` (tm,8)
+render_operand (NASM_Operand_Address (NASM_Address Nothing Nothing 1 Nothing  Nothing (Just label) Nothing))                      tm = show label
+
+--render_operand (NASM_Operand_Memory _ (NASM_Address Nothing Nothing 1 Nothing  Nothing (Just label) Nothing)) tm = label
+render_operand (NASM_Operand_EffectiveAddress a) tm = render_address a
+render_operand (NASM_Operand_Memory (si,_) a) tm    = &quot;(*&quot; ++ (render_address a `castToTypePtr` (tm,si)) ++ &quot;)&quot;
+render_operand (NASM_Operand_Immediate imm) tm      = (&quot;0x&quot; ++ showHex imm) -- `castToType` tm
+render_operand op tm = error $ show op
+
+regWithTypeMode reg tm
+  | real reg /= reg &amp;&amp; sizeof reg /= 16 = read_from_reg reg ++ accessor tm
+  | otherwise                           = show reg ++ accessor tm
+ where
+  accessor UInt    = &quot;.u&quot;
+  accessor SInt    = &quot;.s&quot;
+  accessor Pointer = &quot;.ptr&quot;
+  accessor Double  = &quot;.d&quot;
+  accessor Unknown = &quot;&quot;
+
+castToType a (UInt,si)    = castTo a $ mk_uint_ty si
+castToType a (SInt,si)    = castTo a $ mk_sint_ty si
+castToType a (Pointer,si) = castTo a $ &quot;void*&quot;
+castToType a (Double,si)  = castTo a $ &quot;double&quot;
+castToType a (Unknown,si) = a
+
+castToTypePtr a (UInt,si)    = castTo a $ mk_uint_ty si ++ &quot;*&quot;
+castToTypePtr a (SInt,si)    = castTo a $ mk_sint_ty si ++ &quot;*&quot;
+castToTypePtr a (Pointer,si) = castTo a $ &quot;void**&quot;
+castToTypePtr a (Double,si)  = castTo a $ &quot;double*&quot;
+castToTypePtr a (Unknown,si) = a
+
+mk_uint_ty si = &quot;uint&quot; ++ show (si*8) ++ &quot;_t&quot;
+mk_sint_ty si = &quot;int&quot; ++ show (si*8) ++ &quot;_t&quot;
+
+castTo a ty = &quot;(&quot; ++ ty ++ &quot;)(&quot; ++ a ++ &quot;)&quot;
+
+
+render_address a@(NASM_Address Nothing Nothing 1 (Just base) displ Nothing Nothing)                         = base `regWithTypeMode` Pointer ++ show_displacement displ
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing (Just label) Nothing)                      = render_label label
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Function fun))) = fun
+render_address a@(NASM_Address Nothing Nothing 1 Nothing Nothing Nothing (Just (NASM_Symbol_Object obj)))   = obj
+render_address a@(NASM_Address (Just seg) indx scale base displ label fun)                                  = seg `regWithTypeMode` Pointer ++ show_displacement displ
+render_address a@(NASM_Address Nothing (Just indx) scale Nothing Nothing Nothing Nothing)                   = (indx `regWithTypeMode` SInt ++ &quot;*&quot; ++ show scale) `castToType` (Pointer,8)
+render_address a@(NASM_Address Nothing (Just indx) scale (Just base) Nothing Nothing Nothing)               = base `regWithTypeMode` Pointer ++ &quot; + &quot; ++ ((indx `regWithTypeMode` SInt) ++ &quot;*&quot; ++ show scale) `castToType` (Pointer,8)
+
+render_address a@(NASM_Address seg indx scale base displ label fun) = error $ show a
+
+
+show_displacement Nothing     = &quot;&quot;
+show_displacement (Just 0)   = &quot;&quot;
+show_displacement (Just imm) 
+  | testBit (fromIntegral imm::Word64) 63 = &quot; - 0x&quot; ++ showHex (0 - imm)
+  | otherwise =  &quot; + 0x&quot; ++ showHex imm
+
+
+render_label (Label str) = str
+render_label (Macro segment section a0 offset) = mk_section_name (segment,section,a0) ++ show_offset offset
+ where
+  show_offset 0 = &quot;&quot;
+  show_offset offset = &quot; + &quot; ++ show offset
+--}</span><span>
+</span><span id="line-314"></span></pre></body></html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">WithAbstractSymbolicValues.InstanceOfAbstractPredicates</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Config.html"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractPredicates.Class.html"><span class="hs-identifier">WithAbstractPredicates.Class</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.SymbolicExecution.html"><span class="hs-identifier">WithAbstractSymbolicValues.SymbolicExecution</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.ResolveIndirections.html"><span class="hs-identifier">WithAbstractSymbolicValues.ResolveIndirections</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html"><span class="hs-identifier">WithAbstractSymbolicValues.Class</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.FInit.html"><span class="hs-identifier">WithAbstractSymbolicValues.FInit</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Binary.Generic.html"><span class="hs-identifier">Binary.Generic</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.L0.html"><span class="hs-identifier">Data.L0</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679405234"><span id="local-6989586621679405235"><span id="local-6989586621679405237"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Binary.Generic.html#BinaryClass"><span class="hs-identifier hs-type">BinaryClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405235"><span class="hs-identifier hs-type">bin</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#WithAbstractSymbolicValues"><span class="hs-identifier hs-type">WithAbstractSymbolicValues</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679405235"><span class="hs-identifier hs-type">bin</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.L0.html#L0"><span class="hs-identifier hs-type">L0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405237"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-type">FInit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405237"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405237"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="WithAbstractPredicates.Class.html#WithAbstractPredicates"><span class="hs-identifier hs-type">WithAbstractPredicates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405235"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#Sstate"><span class="hs-identifier hs-type">Sstate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405237"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-type">FInit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679405237"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679405234"><span class="hs-identifier hs-type">v</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679405317"><span class="annot"><span class="annottext">symbolically_execute :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+</span><a href="#local-6989586621679405317"><span class="hs-identifier hs-var hs-var hs-var hs-var">symbolically_execute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt
+-&gt; Bool
+-&gt; [Instruction]
+-&gt; Maybe [Instruction]
+-&gt; State (Sstate v p, VCS v) ()
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sexec_block"><span class="hs-identifier hs-var">sexec_block</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679405321"><span class="annot"><span class="annottext">verify_postcondition :: LiftingEntry bin (Sstate v p) (FInit v p) v -&gt; Sstate v p -&gt; Bool
+</span><a href="#local-6989586621679405321"><span class="hs-identifier hs-var hs-var hs-var hs-var">verify_postcondition</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v -&gt; Sstate v p -&gt; Bool
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Sstate v p -&gt; Bool
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sverify_postcondition"><span class="hs-identifier hs-var">sverify_postcondition</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679405325"><span class="annot"><span class="annottext">finit_to_init_pred :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; FInit v p -&gt; Sstate v p
+</span><a href="#local-6989586621679405325"><span class="hs-identifier hs-var hs-var hs-var hs-var">finit_to_init_pred</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; FInit v p -&gt; Sstate v p
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; FInit v p -&gt; Sstate v p
+</span><a href="WithAbstractSymbolicValues.FInit.html#finit_to_init_sstate"><span class="hs-identifier hs-var">finit_to_init_sstate</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679405329"><span class="annot"><span class="annottext">pred_to_finit :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; FInit v p
+</span><a href="#local-6989586621679405329"><span class="hs-identifier hs-var hs-var hs-var hs-var">pred_to_finit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; FInit v p
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Sstate v p -&gt; FInit v p
+</span><a href="WithAbstractSymbolicValues.FInit.html#sstate_to_finit"><span class="hs-identifier hs-var">sstate_to_finit</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679405333"><span class="annot"><span class="annottext">resolve_indirection :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; [Instruction] -&gt; Indirections
+</span><a href="#local-6989586621679405333"><span class="hs-identifier hs-var hs-var hs-var hs-var">resolve_indirection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; [Instruction] -&gt; Indirections
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; Sstate v p -&gt; [Instruction] -&gt; Indirections
+</span><a href="WithAbstractSymbolicValues.ResolveIndirections.html#stry_resolve_indirection"><span class="hs-identifier hs-var">stry_resolve_indirection</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679405337"><span class="annot"><span class="annottext">is_weaker_than :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+</span><a href="#local-6989586621679405337"><span class="hs-identifier hs-var hs-var hs-var hs-var">is_weaker_than</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; Sstate v p -&gt; Bool
+forall {p1} {v} {p2}.
+WithAbstractSymbolicValues p1 v p2 =&gt;
+p1 -&gt; Sstate v p2 -&gt; Sstate v p2 -&gt; Bool
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#simplies"><span class="hs-identifier hs-var">simplies</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679405341"><span class="annot"><span class="annottext">join_preds :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+</span><a href="#local-6989586621679405341"><span class="hs-identifier hs-var hs-var hs-var hs-var">join_preds</span></a></span></span><span> </span><span id="local-6989586621679405343"><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+</span><a href="#local-6989586621679405343"><span class="hs-identifier hs-var">static</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; String -&gt; Sstate v p -&gt; Sstate v p -&gt; Sstate v p
+forall {p1} {v} {p2}.
+WithAbstractSymbolicValues p1 v p2 =&gt;
+p1 -&gt; String -&gt; Sstate v p2 -&gt; Sstate v p2 -&gt; Sstate v p2
+</span><a href="WithAbstractSymbolicValues.SymbolicExecution.html#sjoin_states"><span class="hs-identifier hs-var">sjoin_states</span></a></span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+</span><a href="#local-6989586621679405343"><span class="hs-identifier hs-var">static</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679405346"><span class="annot"><span class="annottext">join_finits :: LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+</span><a href="#local-6989586621679405346"><span class="hs-identifier hs-var hs-var hs-var hs-var">join_finits</span></a></span></span><span> </span><span id="local-6989586621679405348"><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+</span><a href="#local-6989586621679405348"><span class="hs-identifier hs-var">static</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+-&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+forall ctxt v p.
+WithAbstractSymbolicValues ctxt v p =&gt;
+ctxt -&gt; FInit v p -&gt; FInit v p -&gt; FInit v p
+</span><a href="WithAbstractSymbolicValues.FInit.html#join_finit"><span class="hs-identifier hs-var">join_finit</span></a></span><span> </span><span class="annot"><span class="annottext">LiftingEntry bin (Sstate v p) (FInit v p) v
+</span><a href="#local-6989586621679405348"><span class="hs-identifier hs-var">static</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679405350"><span class="annot"><span class="annottext">new_finit :: Lifting bin (Sstate v p) (FInit v p) v -&gt; FInit v p
+</span><a href="#local-6989586621679405350"><span class="hs-identifier hs-var hs-var hs-var hs-var">new_finit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Lifting bin (Sstate v p) (FInit v p) v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Set (SStatePart p, v)
+-&gt; Map (SStatePart p, SStatePart p) MemRelation -&gt; FInit v p
+forall v p.
+Set (SStatePart p, v)
+-&gt; Map (SStatePart p, SStatePart p) MemRelation -&gt; FInit v p
+</span><a href="WithAbstractSymbolicValues.Class.html#FInit"><span class="hs-identifier hs-var">FInit</span></a></span><span> </span><span class="annot"><span class="annottext">Set (SStatePart p, v)
+forall a. Set a
+</span><span class="hs-identifier hs-var">S.empty</span></span><span> </span><span class="annot"><span class="annottext">Map (SStatePart p, SStatePart p) MemRelation
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679405358"><span class="annot"><span class="annottext">pp_finit :: Lifting bin (Sstate v p) (FInit v p) v -&gt; FInit v p -&gt; String
+</span><a href="#local-6989586621679405358"><span class="hs-identifier hs-var hs-var hs-var hs-var">pp_finit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Lifting bin (Sstate v p) (FInit v p) v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FInit v p -&gt; String
+forall p v. (Show p, Show v, Ord p) =&gt; FInit v p -&gt; String
+</span><a href="WithAbstractSymbolicValues.FInit.html#pp_finitC"><span class="hs-identifier hs-var">pp_finitC</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span></pre></body></html>
