@@ -31,6 +31,7 @@ import WithNoAbstraction.Pointers
 import WithAbstractSymbolicValues.Class
 import WithAbstractSymbolicValues.SymbolicExecution
 import WithAbstractSymbolicValues.Sstate
+import WithAbstractSymbolicValues.GMem
 
 import Binary.Generic
 
@@ -121,7 +122,7 @@ group_immediates l@(bin,config,l0,_) addends =
     else
       NES.unsafeFromSet $ S.union (S.map merge_imms $ group_imms_by_section imms) remainder
  where
-  is_imm (SE_Immediate _) = True
+  is_imm (SE_Immediate a) = find_section_for_address bin a /= Nothing
   is_imm _ = False
 
   group_imms_by_section :: S.Set SimpleExpr -> S.Set (S.Set SimpleExpr)
@@ -144,7 +145,7 @@ cimmediate fctxt = mk_concrete fctxt "cimmediate" . NES.singleton . SE_Immediate
 cwiden :: BinaryClass bin => Static bin v -> String -> SValue -> SValue
 --cwiden fctxt msg v | trace ("cwiden: " ++ msg ++ "\n" ++ show v) False = error "trace"
 cwiden fctxt msg (SConcrete es) = 
-  let ass = NES.map (try_get_base fctxt) es in
+  let ass = NES.map (try_get_base fctxt False) es in
     if Nothing `elem` ass then
       traceTop ("cwiden" ++ show_set es ++ "_" ++ msg) Top
     else
@@ -193,7 +194,7 @@ cjoin_pointers fctxt@(bin,_,l0,entry) es =
     []  -> error $ "Cannot join []"
     [e] -> [e]
     es  -> 
-      let bs = nub $ map (try_get_base fctxt) $ map ptr_to_expr es in
+      let bs = nub $ map (try_get_base fctxt False) $ map ptr_to_expr es in
         if Nothing `elem` bs then
           error $ show es ++ "\n" ++ (intercalate "\n" $ map show $ concatMap mk [(e0,e1) | e0 <- es, e1 <- es]) ++ "\n\nFinit:\n" ++ show (fst <$> l0_lookup_entry entry l0)
         else
@@ -561,8 +562,8 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
 -- MAKING POINTERS FROM EXPRESSIONS
 
 
-try_get_base :: BinaryClass bin => Static bin v -> SimpleExpr -> Maybe SimpleExpr
-try_get_base (bin,_,l0,entry) a = (mk_base $ get_pointer_base_set bin get_finit a) `orTry` (try_mk_addition $ filter is_possible_base $ M.keys $ M.filter (== 1) $ addends a)  -- `orTry` null_pointer a
+try_get_base :: BinaryClass bin => Static bin v -> Bool -> SimpleExpr -> Maybe SimpleExpr
+try_get_base (bin,_,l0,entry) strict a = (mk_base $ get_pointer_base_set bin get_finit a) `orTry` (try_mk_addition $ filter is_possible_base $ M.keys $ M.filter (== 1) $ addends a)
  where
   mk_base :: S.Set PointerBase -> Maybe SimpleExpr
   mk_base bs
@@ -575,16 +576,14 @@ try_get_base (bin,_,l0,entry) a = (mk_base $ get_pointer_base_set bin get_finit 
   plus a b = SE_Op Plus 64 [a,b]
 
     
-  is_possible_base (SE_Var sp) = True
-  is_possible_base (Bottom (FromCall f)) = True
+  is_possible_base (SE_Var sp) = not strict
+  is_possible_base (Bottom (FromCall f)) = not strict
   is_possible_base _ = False
 
   get_finit =
     case l0_lookup_entry entry l0 of
       Just (finit,_) -> finit
 
-  null_pointer a@(SE_Immediate imm) = if imm < 100 then Just a else Nothing
-  null_pointer _ = Nothing
 
 
 base_to_expr (StackPointer)        = SE_Var$ SP_Reg (Reg64 RSP)
@@ -594,29 +593,27 @@ base_to_expr ThreadLocalStorage    = SE_Var (SP_Reg $ RegSeg FS)
 base_to_expr (BaseIsStatePart sp)  = SE_Var sp
 
 
-cmk_mem_addresses :: BinaryClass bin => Static bin v -> String -> SValue -> S.Set SPointer
-cmk_mem_addresses l@(bin,_,l0,entry) msg v@(SConcrete es) = 
+cmk_mem_addresses :: BinaryClass bin => Static bin v -> String -> Bool -> SValue -> S.Set SPointer
+cmk_mem_addresses l@(bin,_,l0,entry) msg strict v@(SConcrete es) = 
   let es' = NES.filter could_be_pointer es
-      bs  = S.map (try_get_base l) es' in
+      bs  = S.map (try_get_base l strict) es' in
     if any ((==) Nothing) bs then -- TODO check if all is OK
       S.empty
     else
       S.map Ptr_Concrete es'
  where
-  could_be_pointer (SE_Immediate imm) = find_section_for_address bin imm /= Nothing
+  could_be_pointer (SE_Immediate imm) = is_roughly_an_address bin imm 
   could_be_pointer _ = True
-cmk_mem_addresses fctxt msg v@(SAddends as) = 
+cmk_mem_addresses fctxt msg strict v@(SAddends as) = 
   let bs = NES.map try_get_base_from_addends as in
     if any ((==) Nothing) bs then
      S.empty
     else
       S.map (Ptr_Base . fromJust) $ NES.toSet bs
  where
-  try_get_base_from_addends a = try_get_base fctxt a
+  try_get_base_from_addends a = try_get_base fctxt strict a
 
-
-
-cmk_mem_addresses _ _ Top = S.empty
+cmk_mem_addresses _ _ _ Top = S.empty
 
 
 -- MAKING INITIAL VALUES
@@ -699,13 +696,7 @@ cis_local (bin,_,_,_) (Ptr_Concrete a) = expr_is_maybe_local_pointer bin a
 cis_local (bin,_,_,_) (Ptr_Base a) = expr_is_maybe_local_pointer bin a
 cis_local _ Ptr_Top = False
 
-ckeep_for_finit ctxt@(bin,_,_,_) (SSP_Reg r) v 
-  | r `notElem` [Reg64 RSP,Reg64 RIP,Reg64 RBP] && is_function_pointer bin v = Just $ cmk_mem_addresses ctxt "finit" v 
-  | otherwise = Nothing
-ckeep_for_finit ctxt@(bin,_,_,_) (SSP_Mem a si) v = 
-  case a of
-    Ptr_Concrete (SE_Immediate _) -> if is_function_pointer bin v then Just $ cmk_mem_addresses ctxt "finit" v else Nothing
-    _ -> Nothing
+
 
 
 is_function_pointer bin (SConcrete vs) = all is_function_pointer_expr vs
@@ -750,6 +741,23 @@ ctry_resolve_error_call ctxt@(bin,config,l0,_) i rdi
       _ -> Nothing
   | otherwise = Nothing
 
+ctry_global ctxt@(bin,_,_,_) p =
+ case p of
+   Ptr_Concrete a -> 
+     case a of
+       e@(SE_Immediate imm) -> if expr_is_global_immediate bin e then Just (fromIntegral imm,True) else Nothing
+       _ -> Nothing
+   Ptr_Base b -> get_global b
+ where
+  get_global v =
+    case filter is_global_base $ S.toList $ get_pointer_base_set bin empty_finit v of
+      [GlobalAddress a] -> Just (fromIntegral a,False)
+      _ -> Nothing
+
+  is_global_base (GlobalAddress _) = True
+  is_global_base _ = False
+
+
 instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPointer where
   sseparate                = cseparate
   senclosed                = cnecessarily_enclosed
@@ -766,7 +774,7 @@ instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPo
   top                      = \_ -> mk_top
   smk_init_reg_value       = cmk_init_reg_value
   smk_init_mem_value       = cmk_init_mem_value
-  skeep_for_finit          = ckeep_for_finit
+  simmediate_to_pointer    = \_ -> Ptr_Concrete . SE_Immediate
   sjump                    = jump
   scall                    = call
   stry_jump_targets        = ctry_jump_targets
@@ -775,6 +783,7 @@ instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPo
   saddress_has_instruction = \(bin,_,_,_)-> address_has_instruction bin
   scheck_regs_in_postcondition = check_regs_in_postcondition
   stry_resolve_error_call  = ctry_resolve_error_call
+  stry_global              = ctry_global
   
 
 
@@ -1089,10 +1098,10 @@ transpose_bw_addends fctxt p a =
 transpose_bw_spointer :: BinaryClass bin => Static bin v -> Sstate SValue SPointer -> SPointer -> S.Set SPointer
 transpose_bw_spointer fctxt p (Ptr_Concrete a) =
   let a' = transpose_bw_e fctxt p a in
-    cmk_mem_addresses fctxt "transpose_bw" a'
+    cmk_mem_addresses fctxt "transpose_bw" False a'
 transpose_bw_spointer fctxt p (Ptr_Base b) =
   let b' = transpose_bw_e fctxt p b in
-    cmk_mem_addresses fctxt "transpose_bw" $ cwiden fctxt "transpose_bw" b'
+    cmk_mem_addresses fctxt "transpose_bw" False $ cwiden fctxt "transpose_bw" b'
 transpose_bw_spointer fctxt p Ptr_Top = S.singleton Ptr_Top
 
 
@@ -1107,6 +1116,12 @@ transpose_bw_mem fctxt p ((a,si),v) =
   let as' = transpose_bw_spointer fctxt p a
       v'  = if si == Just (ByteSize 8) then transpose_bw_svalue fctxt p v else mk_top "transpose_bw_mem" in
     S.toList $ S.map (\a' -> ((a',si),v')) as'
+
+transpose_bw_gmem fctxt p (Stores v si) = (Stores (transpose_bw_svalue fctxt p v) si)
+transpose_bw_gmem fctxt p (SpansTo a')  = (SpansTo a')
+
+
+
 
 
 
@@ -1205,9 +1220,14 @@ call fctxt@(bin,_,l0,entry) i = do
     -- obtain the postcondition of the function, and do backwards transposition
     let q_eqs_transposed_regs  = catMaybes $ map (transpose_bw_reg fctxt p) $ filter (\(r,_) -> r `notElem` [Reg64 RIP,Reg64 RSP]) $ sstate_to_reg_eqs q
     let q_eqs_transposed_mem   = concatMap (transpose_bw_mem fctxt p) $ filter do_transfer $ sstate_to_mem_eqs q
+    let q_eqs_transposed_gmem  = IM.toList $ IM.map (transpose_bw_gmem fctxt p) $ sstate_to_gmem_eqs q
+
     -- write transposed postcondition to current state
     mapM_ (\(r,v) -> swrite_reg fctxt ("call: " ++ show i) r v) $ q_eqs_transposed_regs
     mapM_ (\((a,si),v) -> swrite_mem_to_ptr fctxt True a si v) $ q_eqs_transposed_mem 
+    (Sstate _ _ gmem _,_) <- get
+    let gmem' = foldr (uncurry $ add_global_mem_access fctxt) gmem q_eqs_transposed_gmem
+    modify $ \(Sstate regs mem _ flgs,vcs) -> (Sstate regs mem gmem' flgs,vcs)
 
     incr_rsp 
 
@@ -1232,8 +1252,9 @@ call fctxt@(bin,_,l0,entry) i = do
   is_global_base _ = False
   
 
-  sstate_to_reg_eqs (Sstate regs _ _) = M.toList regs
-  sstate_to_mem_eqs (Sstate _ mem _)  = M.toList mem
+  sstate_to_reg_eqs (Sstate regs _ _ _) = M.toList regs
+  sstate_to_mem_eqs (Sstate _ mem _ _)  = M.toList mem
+  sstate_to_gmem_eqs (Sstate _ _ (GlobalMem gmem) _)  = gmem
 
   unknown_internal_function fctxt i = return ()-- TODO try as external
 

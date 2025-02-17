@@ -6,6 +6,7 @@ import Base
 
 import WithAbstractSymbolicValues.Class
 import WithAbstractSymbolicValues.FInit
+import WithAbstractSymbolicValues.GMem
 import WithAbstractSymbolicValues.Sstate
 
 import Data.Size
@@ -262,7 +263,7 @@ sjoin_mem ctxt msg s0 s1 =
   sjoin_mem' m ((((a,si),v),s'):rest) =
     let v' = evalSstate (sread_mem_from_ptr ctxt ("joinmem" ++ show (a,si,s0,s1)++ "_" ++msg) a si) s'
         j  = join_values v v'
-        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, sflags = None} in
+        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, gmem = GlobalMem IM.empty, sflags = None} in
       sjoin_mem' m' rest
 
   join_values a b = sjoin_values ctxt ("States (mem value) " ++ show a ++ " joined with " ++ show b ++ "_" ++ msg) [a,b]
@@ -281,12 +282,33 @@ sjoin_regs ctxt r0 r1 =
   join_with_init_value v r = sjoin_values ctxt ("joinregs2"++show r) [v, smk_init_reg_value ctxt r]
   
 
+
+sjoin_gmem :: WithAbstractSymbolicValues ctxt v p => ctxt -> GlobalMem p v -> GlobalMem p v -> GlobalMem p v
+sjoin_gmem ctxt (GlobalMem m0) (GlobalMem m1) = 
+  let step0 = IM.foldrWithKey (join_entry m1) (GlobalMem IM.empty) m0 in
+    IM.foldrWithKey (join_entry m0) step0 m1
+ where
+  join_entry m1 a0 ma0 j =
+    let (si0,isPrecise0) = mk ma0
+        touched = get_touched_mem_accesses m1 a0 si0 isPrecise0
+        (a_j,ma_j) = foldr1 (join_mem_accesses ctxt) $ (a0,ma0) : touched in
+      add_global_mem_access ctxt a_j ma_j j 
+
+  mk (Stores _ si) = (Just $ ByteSize si,True)
+  mk (SpansTo _)   = (Nothing,False)
+
+
+
+
+
+
 --sjoin_states ctxt msg s0 s1 | trace ("sjoin_states") False = error "trace"
-sjoin_states ctxt msg s0@(Sstate regs0 mem0 flg0) s1@(Sstate regs1 mem1 flg1) =
+sjoin_states ctxt msg s0@(Sstate regs0 mem0 gmem0 flg0) s1@(Sstate regs1 mem1 gmem1 flg1) =
   let flg  = join_flags flg0 flg1
       regs = sjoin_regs ctxt regs0 regs1
       mem  = sjoin_mem ctxt msg s0 s1
-      s'   = Sstate regs mem flg in
+      gmem = sjoin_gmem ctxt gmem0 gmem1
+      s'   = Sstate regs mem gmem flg in
      s'
  where
   join_flags (FS_CMP (Just True) o0 v0) (FS_CMP (Just True) o0' v0')

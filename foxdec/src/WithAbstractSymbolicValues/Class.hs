@@ -1,6 +1,8 @@
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, FunctionalDependencies, FlexibleContexts #-}
 
 module WithAbstractSymbolicValues.Class where
+
+import Base
 
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 
@@ -16,6 +18,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntSet as IS
 import qualified Data.IntMap as IM
+import qualified Data.IntMap.Internal as IM (lookupLT, lookupGT)
 import qualified Data.Set.NonEmpty as NES
 import Data.Word
 import Data.List
@@ -40,9 +43,35 @@ data SStatePart p =
 instance (Cereal.Serialize p) => Cereal.Serialize (SStatePart p)
 instance (NFData p) => NFData (SStatePart p)
 
+
+data MemAccess p v = Stores v Int | SpansTo Int
+ deriving (Eq, Ord, Generic)
+
+instance (Show p, Show v) => Show (MemAccess p v) where
+  show (Stores v si) = "Stores " ++ show v ++ "  " ++ show si
+  show (SpansTo a)   = "SpansTo " ++ showHex a
+
+data GlobalMem p v = GlobalMem (IM.IntMap (MemAccess p v))
+  deriving (Eq,Ord,Generic)
+
+
+instance (Show p,Show v) => Show (GlobalMem p v) where
+  show (GlobalMem m) = intercalate "\n" $ map show_entry $ IM.toList m
+   where
+    show_entry (a,Stores v si) = "[" ++ showHex a ++ "," ++ show si ++ "] := " ++ show v 
+    show_entry (a,SpansTo a') = "[" ++ showHex a ++ " --> " ++ showHex a' ++ "]" --  stores at " ++ show p ++ ": " ++ show v
+
+
+
+
+
+
+
+
 data Sstate v p = Sstate {
     sregs  :: M.Map Register v,
     smem   :: M.Map (p,Maybe ByteSize) v,
+    gmem   :: GlobalMem p v,
     sflags :: FlagStatus
   }
   deriving (Eq,Ord,Generic)
@@ -51,7 +80,7 @@ instance (Ord v, Cereal.Serialize v,Ord p, Cereal.Serialize p) => Cereal.Seriali
 instance (NFData v,NFData p) => NFData (Sstate v p)
 
 instance (Show v,Show p) => Show (Sstate v p) where
-  show (Sstate regs mem flags) = intercalate "\n" $ (map show_reg $ M.assocs regs) ++ (map show_mem $ M.assocs mem) ++ [show_flags flags]
+  show (Sstate regs mem gmem flags) = intercalate "\n" $ (map show_reg $ M.assocs regs) ++ (map show_mem $ M.assocs mem) ++ [show gmem] ++ [show_flags flags]
    where
     show_reg (r,v)      = show r ++ " := " ++ show v
     show_mem ((a,si),v) = "[" ++ show a ++ "," ++ show_size si ++ "] := " ++ show v 
@@ -74,9 +103,13 @@ data FInit v p = FInit (S.Set (SStatePart p,v)) (M.Map (SStatePart p,SStatePart 
 
 
 instance Cereal.Serialize MemRelation
+instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (MemAccess p v)
+instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (GlobalMem p v)
 instance (Cereal.Serialize v,Cereal.Serialize p, Ord p,Ord v) => Cereal.Serialize (FInit v p)
 
 instance NFData MemRelation
+instance (NFData p,NFData v) => NFData (MemAccess p v)
+instance (NFData p,NFData v) => NFData (GlobalMem p v)
 instance (NFData p,NFData v) => NFData (FInit v p)
 
 
@@ -92,7 +125,7 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
   salias :: ctxt -> p -> Maybe ByteSize -> p -> Maybe ByteSize -> Bool
   ssensitive :: ctxt -> p -> Maybe ByteSize -> v -> Bool
   sread_from_ro_data :: ctxt -> p -> Maybe ByteSize -> Maybe v
-  smk_mem_addresses :: ctxt -> String -> v -> S.Set p
+  smk_mem_addresses :: ctxt -> String -> Bool -> v -> S.Set p
 
   sjoin_values :: Foldable t => ctxt -> String -> t v -> v
   swiden_values :: ctxt -> String -> v -> v
@@ -110,12 +143,13 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
   scall :: ctxt -> Instruction -> State (Sstate v p,VCS v) ()
   sjump :: ctxt -> Instruction -> State (Sstate v p,VCS v) ()
   saddress_has_instruction :: ctxt -> Word64 -> Bool
-  skeep_for_finit :: ctxt -> SStatePart p -> v -> Maybe (S.Set p)
 
+  stry_global :: ctxt -> p -> Maybe (Int, Bool)
   stry_jump_targets :: ctxt -> v -> Maybe (S.Set ResolvedJumpTarget)
   stry_resolve_error_call :: ctxt -> Instruction -> v -> Maybe Indirection
 
   stry_immediate :: ctxt -> v -> Maybe Word64
+  simmediate_to_pointer :: ctxt -> Word64 -> p
   sis_deterministic :: ctxt -> v -> Bool
   scheck_regs_in_postcondition :: ctxt -> v -> v -> Bool
 

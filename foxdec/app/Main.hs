@@ -183,7 +183,7 @@ start args = do
   when (args_generate_L0 args)        $ serialize_l0 bin l0
   when (args_generate_callgraph args) $ generate_call_graph bin config l0
   when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
-  when (args_generate_functions args) $ generate_per_function bin l0
+  when (args_generate_functions args) $ generate_per_function bin config l0
 
 
 
@@ -256,12 +256,13 @@ generate_metrics bin l0 = do
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
 
 -- | Generate information per function
-generate_per_function bin l0 = do
+generate_per_function bin config l0 = do
   let dirname     = binary_dir_name bin
   let name        = binary_file_name bin
 
   mapM_ (write_function dirname name) $ IM.assocs $ l0_functions l0
   putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
+  putStrLn $ "Upper functions: " ++ (showHex_set $ get_call_graph_sources (bin,config,l0))
  where
   write_function dirname name (entry,(finit,Just r@(FResult cfg post calls vcs pa))) = do
     let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
@@ -309,7 +310,7 @@ generate_call_graph bin config l0 = do
   let do_pdfs  = generate_pdfs config
   let fname    = dirname ++ name ++ ".callgraph.dot" 
   let pdfname  = dirname ++ name ++ ".callgraph.pdf" 
-  let g        = mk_callgraph (bin,config,l0) pp_finitC
+  let g        = mk_callgraph_in_dot (bin,config,l0) pp_finitC
 
   writeFile fname g
   if do_pdfs then do

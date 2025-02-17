@@ -35,7 +35,7 @@ import Control.DeepSeq
 
 
 stry_resolve_indirection :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> [Instruction] -> Indirections
-stry_resolve_indirection ctxt p@(Sstate regs mem flg) instrs =
+stry_resolve_indirection ctxt p@(Sstate regs mem gmem flg) instrs =
   let [trgt] = srcs $ last instrs in
     case flagstatus_to_tries 10000 flg of -- TODO
       Nothing -> try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
@@ -89,7 +89,7 @@ stry_resolve_indirection ctxt p@(Sstate regs mem flg) instrs =
   is_immediate _                    = False
   get_immediate (ImmediateAddress a) = a
 
-  clean_sstate (Sstate sregs smem fs) = Sstate sregs (clean_smem smem) fs
+  clean_sstate (Sstate sregs smem gmem fs) = Sstate sregs (clean_smem smem) gmem fs -- TODO clean gmem
   clean_smem = M.filterWithKey (\(a,si) v -> sis_deterministic ctxt v)
 
 

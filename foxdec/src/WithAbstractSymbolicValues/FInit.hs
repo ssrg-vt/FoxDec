@@ -54,13 +54,14 @@ finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
   let rsp0                 = smk_init_reg_value ctxt $ Reg64 RSP
       write_stack_pointer  = swrite_rreg ctxt "finit_to_init" (Reg64 RSP) rsp0
 
-      [rsp0_pointer]       = S.toList $ smk_mem_addresses ctxt "RSP0" rsp0
+      [rsp0_pointer]       = S.toList $ smk_mem_addresses ctxt "RSP0" False rsp0
       top_stack_frame      = smk_init_mem_value ctxt "[RSP0,8]" rsp0_pointer (Just $ ByteSize 8)
       write_return_address = swrite_mem ctxt False rsp0 (Just $ ByteSize 8) top_stack_frame
 
       sregs                = M.empty
-      smem                 = M.empty in
-    execSstate (write_stack_pointer >> write_return_address >> write_finit (S.toList sps)) (Sstate sregs smem None)
+      smem                 = M.empty
+      gmem                 = GlobalMem IM.empty in
+    execSstate (write_stack_pointer >> write_return_address >> write_finit (S.toList sps)) (Sstate sregs smem gmem None)
  where
   write_finit []             = return ()
   write_finit ((sp,v):finit) = write_sp ctxt sp v >> write_finit finit 
@@ -71,40 +72,59 @@ finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
 sstate_to_finit :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> FInit v p
 ---invariant_to_finit ctxt p | trace ("invariant_to_finit: "++ show p) False = error "trace"
 sstate_to_finit ctxt p = 
-  let sps      = S.fromList $ regs_to_sps (sregs p) ++ mem_to_sps (smem p)
+  let sps      = S.fromList $ regs_to_sps (sregs p) ++ mem_to_sps (smem p) ++ gmem_to_sps (gmem p)
       pairs    = S.toList $ S.filter (\(x,y) -> x /= y) $ S.cartesianProduct sps sps
       mem_rels = M.fromList $ mapMaybe (mk_memrel ctxt) pairs in
-    FInit (S.filter keep_sp $ S.map (\(sp,v,p) -> (sp,v)) $ sps) mem_rels
+    FInit (S.map (\(sp,v,p) -> (sp,v)) $ S.filter keep_sp sps) mem_rels
  where
-    regs_to_sps regs = mapMaybe mk_reg $ filter suitable_reg $ M.assocs regs
-    mem_to_sps  mem  = mapMaybe mk_mem $ M.assocs mem
+    regs_to_sps regs             = mapMaybe mk_reg $ filter suitable_reg $ M.assocs regs
+    mem_to_sps  mem              = mapMaybe mk_mem $ M.assocs mem
+    gmem_to_sps (GlobalMem gmem) = mapMaybe mk_gmem $ IM.assocs gmem
 
     suitable_reg (Reg64 RIP,_) = False
     suitable_reg (Reg64 RSP,_) = False
     suitable_reg (Reg64 RBP,_) = False
     suitable_reg _           = True
 
+    -- Constructing tuples (statepart,value,pointers represented by value)
     mk_reg (r,v)
-     | regSize r == ByteSize 8 && r /= RegTemp = 
-        let ptrs = smk_mem_addresses ctxt "finit" v in
-          if S.null ptrs then Nothing else Just $ (SSP_Reg r,v,ptrs)
+     | regSize r == ByteSize 8 && r /= RegTemp = maybe_mk_tuple (SSP_Reg r) v
      | otherwise = Nothing
 
-    mk_mem ((a,Just (ByteSize si)),v) =
-      case skeep_for_finit ctxt (SSP_Mem a si) v of
-        Nothing   -> Nothing
-        Just ptrs -> Just $ (SSP_Mem a $ fromIntegral si,v,ptrs)
+    mk_mem ((a,Just (ByteSize si)),v) = Nothing -- TODO using forward transposition? for maybe_mk_tuple (SSP_Mem a si) v
     mk_mem _ = Nothing
 
+    mk_gmem (a,Stores v 8) = maybe_mk_tuple (SSP_Mem (simmediate_to_pointer ctxt $ fromIntegral a) 8) v
+    mk_gmem _ = Nothing
+
+    maybe_mk_tuple sp v =
+      let ptrs = smk_mem_addresses ctxt "finit" True v in
+        if S.null ptrs then
+          Nothing
+        else 
+          Just (sp,v,ptrs)
+
+
+    -- Constructing memory relations over values stored in state parts
     mk_memrel ctxt ((sp0,v0,ptrs0),(sp1,v1,ptrs1))
-    -- TODO separation should be necc here
       | all (\ptr0 -> all (\ptr1 -> sseparate ctxt "invariant_to_finit" ptr0 unknownSize ptr1 unknownSize) ptrs1) ptrs0 = Just ((sp0,sp1),Separate)
       | all (\ptr0 -> all (\ptr1 -> salias ctxt ptr0 unknownSize ptr1 unknownSize) ptrs1) ptrs0 = Just ((sp0,sp1),Aliassing)
       | otherwise = Nothing
-
     
-    keep_sp (sp@(SSP_Reg _),v)   = skeep_for_finit ctxt sp v /= Nothing
-    keep_sp (SSP_Mem _ _,v)      = True
+
+    -- Keep initial values stored in stateparts as part of the FInit
+    -- TODO experiment with keeping more values, perhaps mahe a config option
+    keep_sp (sp@(SSP_Reg _),v,ptrs) = is_function_pointer v -- stry_immediate ctxt v /= Nothing --all is_global ptrs
+    keep_sp (SSP_Mem _ _,v,ptrs)    = is_function_pointer v -- stry_immediate ctxt v /= Nothing --all is_global ptrs
+
+    is_function_pointer v =
+      case stry_immediate ctxt v of
+        Just imm -> saddress_has_instruction ctxt imm
+        Nothing  -> False
+    is_global p = 
+      case stry_global ctxt p of
+        Just (_,True) -> True
+        _ -> False
 
 
 
@@ -116,7 +136,7 @@ join_finit ctxt f0@(FInit sps0 m0) f1@(FInit sps1 m1)
  where
   join_rel r0 r1
     | r0 == r1  = r0
-    | otherwise = Unknown
+    | otherwise = Unknown -- TODO try join
 
 
 pp_finitC :: (Show p, Show v, Ord p) => (FInit v p) -> String

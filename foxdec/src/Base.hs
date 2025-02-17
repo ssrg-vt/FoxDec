@@ -239,6 +239,14 @@ graph_is_edge (Edges es) v0 v1  =
     Nothing -> False
     Just vs -> IS.member v1 vs
 
+-- | Find source nodes (nodes not reachable from any other node)
+find_source_nodes g@(Edges es) = 
+  let all_parents = IM.keys es in
+    IS.filter (is_root all_parents) $ IS.fromList all_parents
+ where
+  is_root all_parents v = all (\v' -> not (not $ graph_is_edge g v' v)) all_parents
+
+
 
 -- | Find an end (terminal node) reachable from the given node v0
 try_find_end_node_from_node (Edges es) v0 = evalState (go v0) IS.empty

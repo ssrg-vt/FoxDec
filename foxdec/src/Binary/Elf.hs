@@ -75,6 +75,7 @@ sections_ro_data = [
    ("",".init"),
    ("",".fini"),
    ("",".rodata"),
+   ("",".got"),
    ("",".plt"),
    ("",".plt.got"),
    ("",".plt.sec"),

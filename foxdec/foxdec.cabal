@@ -67,6 +67,7 @@ library
       WithAbstractPredicates.GenerateInvariants
       WithAbstractSymbolicValues.Class
       WithAbstractSymbolicValues.FInit
+      WithAbstractSymbolicValues.GMem
       WithAbstractSymbolicValues.InstanceOfAbstractPredicates
       WithAbstractSymbolicValues.ResolveIndirections
       WithAbstractSymbolicValues.Sstate

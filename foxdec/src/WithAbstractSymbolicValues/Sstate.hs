@@ -6,6 +6,7 @@ import Base
 
 
 import WithAbstractSymbolicValues.Class
+import WithAbstractSymbolicValues.GMem
 
 import Data.Size
 import Data.X86.Register
@@ -104,7 +105,7 @@ sread_mem :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> v -> Maybe
 --sread_mem ctxt msg a si | trace ("sread_mem: "++ show (a,si)) False = error "trace"
 sread_mem ctxt msg a si = do
   (p,_) <- get
-  let ptrs = smk_mem_addresses ctxt ("sread_mem" ++ show (msg,a,si,p)) a
+  let ptrs = smk_mem_addresses ctxt ("sread_mem" ++ show (msg,a,si,p)) False a
   if S.null ptrs then
     return $ top ctxt $ "read_mem from top"
   else do
@@ -113,8 +114,19 @@ sread_mem ctxt msg a si = do
 
 sread_mem_from_ptr :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> p -> Maybe ByteSize -> State (Sstate v p,VCS v) v
 --sread_mem_from_ptr ctxt msg a si | trace ("sread_mem_from_ptr: "++ show (a,si)) False = error "trace"
-sread_mem_from_ptr ctxt msg a si = return (sread_from_ro_data ctxt a si) `orElseM` sread_mem' a 
+sread_mem_from_ptr ctxt msg p@a si = return (sread_from_ro_data ctxt a si) `orTryM` try_global a  `orElseM` sread_mem' a -- TODO this order does not structure ro data section
  where
+  try_global a =
+    case stry_global ctxt p of
+      Nothing -> return Nothing
+      Just (a,isPrecise) -> use_global_mem a isPrecise
+  use_global_mem a isPrecise = do
+    (s,vcs) <- get
+    let (v',gmem') = runState (read_global_mem_access ctxt p a si isPrecise) (gmem s)
+    put $ (s { gmem = gmem' },vcs)
+    return $ Just v'
+
+
   sread_mem' a = do
     (s,vcs) <- get
     case find (\((a0,si0),v0) -> (a0,si0) == (a,si) && ssensitive ctxt a0 si0 v0) $ M.assocs $ smem s of
@@ -149,7 +161,7 @@ sread_mem_from_ptr ctxt msg a si = return (sread_from_ro_data ctxt a si) `orElse
 swrite_mem :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> v -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
 swrite_mem ctxt use_existing_value a si v = do
   (p,_) <- get
-  let ptrs = smk_mem_addresses ctxt ("swrite_mem\n"++show p) a
+  let ptrs = smk_mem_addresses ctxt ("swrite_mem\n"++show p) False a
   if S.null ptrs then
     --error ("TOP: writing to " ++ show (a,si) ++ "\nIn state:\n" ++ show p)
     --trace ("TOP: writing to " ++ show (a,si) ++ "\nIn state:\n" ++ show p) $
@@ -158,26 +170,37 @@ swrite_mem ctxt use_existing_value a si v = do
     mapM_ (\ptr -> swrite_mem_to_ptr ctxt use_existing_value ptr si v) ptrs
 
 swrite_mem_to_ptr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> p -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
-swrite_mem_to_ptr ctxt use_existing_value a si v = do
+swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
   modify $ \(s,vcs) -> (s { sflags = clean_flg (SSP_Mem (simmediate ctxt 0) 0) (sflags s) }, vcs)
-  (s,vcs) <- get
 
-  let (equal,enclosed_by,encloses,separate,overlap) = do_partitioning (smem s) a
-  if equal /= [] then
-    put $ (s { smem = combine [ [((a,si),v)], enclosed_by, encloses, separate, overlap] }, vcs)
-  else if enclosed_by /= [] then do
-    (p,_) <- get
-    let v' = swiden_values ctxt "write_mem (enclosure)" $ sjoin_values ctxt ("MemWrite (enclosure)" ++ show (a,si,enclosed_by) ++ "\n" ++ show p) (v : map snd enclosed_by)
-    put $ (s { smem = combine [ [(fst $ head enclosed_by,v')], encloses, separate, overlap] }, vcs)
-  else if encloses /= [] then do
-    let v' = swiden_values ctxt "write_mem (encloses)" $ sjoin_values ctxt "MemWrite (encloses)" (v : map snd encloses)
-    put $ (s { smem = combine [ [((a,si),v')], separate, overlap] }, vcs)
-  else if overlap == [] then
-    put $ (s { smem = combine [ [((a,si),v)],  separate ] }, vcs)
-  else let m' = merge ctxt $ ((a,si),v):overlap in
-    --trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nm = " ++ show m' ++ "\nIn state:\n" ++ show s) $
-    put $ (s { smem = combine [ m',  separate ] }, vcs)
+  case stry_global ctxt p of
+    Nothing -> write' p
+    Just (a,isPrecise) -> use_global_mem a isPrecise
  where
+  use_global_mem a isPrecise = do
+    (s,vcs) <- get
+    let (v',gmem') = runState (write_global_mem_access ctxt a si isPrecise v) (gmem s)
+    put $ (s { gmem = gmem' },vcs)
+
+
+  write' p = do
+    (s,vcs) <- get
+    let (equal,enclosed_by,encloses,separate,overlap) = do_partitioning (smem s) a
+    if equal /= [] then
+      put $ (s { smem = combine [ [((a,si),v)], enclosed_by, encloses, separate, overlap] }, vcs)
+    else if enclosed_by /= [] then do
+      (p,_) <- get
+      let v' = swiden_values ctxt "write_mem (enclosure)" $ sjoin_values ctxt ("MemWrite (enclosure)" ++ show (a,si,enclosed_by) ++ "\n" ++ show p) (v : map snd enclosed_by)
+      put $ (s { smem = combine [ [(fst $ head enclosed_by,v')], encloses, separate, overlap] }, vcs)
+    else if encloses /= [] then do
+      let v' = swiden_values ctxt "write_mem (encloses)" $ sjoin_values ctxt "MemWrite (encloses)" (v : map snd encloses)
+      put $ (s { smem = combine [ [((a,si),v')], separate, overlap] }, vcs)
+    else if overlap == [] then
+      put $ (s { smem = combine [ [((a,si),v)],  separate ] }, vcs)
+    else let m' = merge ctxt $ ((a,si),v):overlap in
+      --trace ("Overlapping write:\nWriting to: " ++ show (a,si,map fst overlap) ++ "\nm = " ++ show m' ++ "\nIn state:\n" ++ show s) $
+      put $ (s { smem = combine [ m',  separate ] }, vcs)
+
   combine = M.fromList . concat
 
   do_partitioning m a = M.foldrWithKey (do_partition a) ([],[],[],[],[]) m
