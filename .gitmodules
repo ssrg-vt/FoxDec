@@ -1,4 +1,0 @@
-[submodule "foxdec/examples/opensc_pkcs11_tool/vspells-challenges"]
-	path = foxdec/examples/opensc_pkcs11_tool/vspells-challenges
-	url = https://vspells.ext.bbn.com/bbn/vspells-challenges
-	branch = e1_ch1_DynamicLibrary
