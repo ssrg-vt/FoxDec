@@ -10,6 +10,7 @@ import WithAbstractSymbolicValues.Class
 import Data.Size
 import Data.X86.Register
 import Data.X86.Instruction
+import Data.GlobalMem
 import Data.VerificationCondition
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 

@@ -244,7 +244,7 @@ find_source_nodes g@(Edges es) =
   let all_parents = IM.keys es in
     IS.filter (is_root all_parents) $ IS.fromList all_parents
  where
-  is_root all_parents v = all (\v' -> not (not $ graph_is_edge g v' v)) all_parents
+  is_root all_parents v = all (\v' -> not (graph_is_edge g v' v)) all_parents
 
 
 
@@ -264,6 +264,24 @@ try_find_end_node_from_node (Edges es) v0 = evalState (go v0) IS.empty
         else do
           modify $ IS.insert v
           firstJustM go $ IS.toList vs
+
+-- | Traverse graph upwards from a node
+graph_traverse_upwards :: Graph -> Int -> IS.IntSet
+graph_traverse_upwards g@(Edges es) v0 = execState (go v0) IS.empty
+ where
+  go :: Int -> State IS.IntSet ()
+  go v = do
+    visited <- get
+    if v `IS.member` visited then
+      return ()
+    else do
+      modify $ IS.insert v
+      let parents = filter (\p -> graph_is_edge g p v) $ IM.keys es
+      mapM_ go parents
+
+
+graph_mk_subgraph :: IS.IntSet -> Graph -> Graph
+graph_mk_subgraph subgraph (Edges es) = Edges $ IM.map (\s -> s `IS.intersection` subgraph) $ IM.filterWithKey (\v _ -> v `IS.member` subgraph) es
 
 instance IntGraph Graph where
   intgraph_post (Edges es) v =

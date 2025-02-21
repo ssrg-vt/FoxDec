@@ -179,7 +179,7 @@ cfg_to_dot ::
      bin
   -> FResult pred v
   -> String
-cfg_to_dot bin (FResult g post _ _ _) =
+cfg_to_dot bin (FResult g post _ _ _ _) =
  let name = binary_file_name bin
      sccs = scc_of g 0 IS.empty in
   "diGraph " ++ name ++ "{\n"

@@ -89,8 +89,8 @@ mk_metrics bin l0 =
   --putStrLn $ show $ IM.filter is_error $ IM.map get_post $ l0_functions l0
   --putStrLn $ show $ IM.map get_cfg $ IM.filter (is_error . get_post) $ l0_functions l0
  where
-  get_post (finit,Just (FResult _ post _ _ _)) = post
-  get_cfg (finit,Just (FResult cfg post _ _ _)) = cfg
+  get_post (finit,Just (FResult _ post _ _ _ _)) = post
+  get_cfg (finit,Just (FResult cfg post _ _ _ _)) = cfg
 
 
   is_error (VerificationError _) = True

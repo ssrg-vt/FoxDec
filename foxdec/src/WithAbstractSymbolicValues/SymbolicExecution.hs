@@ -17,6 +17,7 @@ import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 import Data.JumpTarget
 import Data.Indirection
 import Data.VerificationCondition
+import Data.GlobalMem
 
 
 import qualified Data.Serialize as Cereal
@@ -26,7 +27,7 @@ import qualified Data.IntSet as IS
 import qualified Data.IntMap as IM
 import qualified Data.Set.NonEmpty as NES
 
-import Data.List (intercalate,partition,intersectBy,find,nub)
+import Data.List 
 import Data.Word 
 import Data.Maybe
 
@@ -111,16 +112,17 @@ swrite_operand ctxt i _ op v = error $ show (i,op)
 
 
 -- TODO JE, other JMP aboves and JUMP lesses
-add_jump_to_pred :: Instruction -> Instruction -> FlagStatus -> FlagStatus
-add_jump_to_pred i0@(Instruction _ _ JA _ [Op_Jmp (Immediate _ trgt)] _) i1 flg =
-  case flg of
-    FS_CMP b o1 o2 -> if inAddress i1 == fromIntegral trgt then FS_CMP (Just False) o1 o2 else FS_CMP (Just True) o1 o2
-    _ -> flg
-add_jump_to_pred i0@(Instruction _ _ JBE _ [Op_Jmp (Immediate _ trgt)] _) i1 flg =
-  case flg of
-    FS_CMP b o1 o2 -> if inAddress i1 == fromIntegral trgt then FS_CMP (Just True) o1 o2 else FS_CMP (Just False) o1 o2
-    _ -> flg
-add_jump_to_pred i0 i1 flg = flg
+add_jump_to_pred :: Instruction -> Instruction -> [FlagStatus] -> [FlagStatus]
+add_jump_to_pred i0 i1 flgs
+  | inOperation i0 `elem` [JA,JBE] =
+    case inOperands i0 of
+      [Op_Jmp (Immediate _ trgt)] -> map (mod_FS_CMP trgt) flgs
+  | otherwise = flgs
+ where
+  mod_FS_CMP trgt (FS_CMP b o1 o2)
+    | inAddress i1 == fromIntegral trgt = FS_CMP (Just False) o1 o2
+    | otherwise                         = FS_CMP (Just True) o1 o2
+  mod_FS_CMP trgt flg = flg
 
 
 
@@ -263,7 +265,7 @@ sjoin_mem ctxt msg s0 s1 =
   sjoin_mem' m ((((a,si),v),s'):rest) =
     let v' = evalSstate (sread_mem_from_ptr ctxt ("joinmem" ++ show (a,si,s0,s1)++ "_" ++msg) a si) s'
         j  = join_values v v'
-        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, gmem = GlobalMem IM.empty, sflags = None} in
+        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, gmem = GlobalMem IM.empty, sflags = []} in
       sjoin_mem' m' rest
 
   join_values a b = sjoin_values ctxt ("States (mem value) " ++ show a ++ " joined with " ++ show b ++ "_" ++ msg) [a,b]
@@ -311,16 +313,8 @@ sjoin_states ctxt msg s0@(Sstate regs0 mem0 gmem0 flg0) s1@(Sstate regs1 mem1 gm
       s'   = Sstate regs mem gmem flg in
      s'
  where
-  join_flags (FS_CMP (Just True) o0 v0) (FS_CMP (Just True) o0' v0')
-    | flg0 == flg1 = flg0
-    | o0 /= o0'    = None
-    | otherwise    = 
-      case (v0,v0') of
-        (Op_Imm (Immediate si0 n0),Op_Imm (Immediate si1 n1)) -> FS_CMP (Just True) o0 (Op_Imm $ Immediate (max si0 si1) (max n0 n1))
-        _ -> None
-  join_flags _ _ 
-    | flg0 == flg1 = flg0
-    | otherwise    = None
+  join_flags = intersect 
+
 
 
 -- | The supremum of a list of predicates
@@ -329,8 +323,8 @@ supremum ctxt [] = error $ "Cannot compute supremum of []"
 supremum ctxt ss = foldr1 (sjoin_states ctxt "supremum") ss
 
 simplies ctxt s0 s1 = 
-  let j = set_rip $ sjoin_states ctxt "simplies" (s0 {sflags = None}) (s1 {sflags = None}) in
-    if j == set_rip (s0 {sflags = None}) then
+  let j = set_rip $ sjoin_states ctxt "simplies" (s0 {sflags = []}) (s1 {sflags = []}) in
+    if j == set_rip (s0 {sflags = []}) then
       True
     else
       False -- trace ("s0:\n" ++ show s0 ++ "\ns1:\n" ++ show s1 ++ "\nj:\n" ++ show j) False

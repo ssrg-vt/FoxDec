@@ -15,6 +15,7 @@ import Data.Size
 import Data.SValue
 import Data.SPointer
 import Data.JumpTarget
+import Data.GlobalMem
 import Data.SymbolicExpression
 import Data.Symbol
 import Data.VerificationCondition
@@ -454,10 +455,15 @@ replace_rip_in_operand rip op = op
 
 
 
-cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> FlagStatus -> FlagStatus
+cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> [FlagStatus] -> [FlagStatus]
 cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs = flg mnemonic
  where
-  flg CMP      = FS_CMP Nothing (replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i)) $ srcs!!0) (replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i)) $ srcs!!1)
+  mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
+
+  flg CMP      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg SUB      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg MOV      = [FS_EQ (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ flgs
+
 
   flg PUSH     = flgs
   flg POP      = flgs
@@ -469,7 +475,6 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
   flg WAIT     = flgs
   flg MFENCE   = flgs
   flg CLFLUSH  = flgs
-  flg MOV      = flgs
   flg MOVSD    = flgs
   flg MOVSS    = flgs
   flg MOVAPS   = flgs
@@ -554,7 +559,7 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
   flg CDQ      = flgs
   flg CQO      = flgs
   flg XCHG     = flgs
-  flg mnemonic = if isJump mnemonic || isCondJump mnemonic then flgs else None -- TODO
+  flg mnemonic = if isJump mnemonic || isCondJump mnemonic then flgs else [] -- TODO
 
 
 
@@ -895,7 +900,9 @@ external_function_behavior "__ctype_toupper_loc" = pure_and_fresh
 external_function_behavior "readdir" = pure_and_fresh
 external_function_behavior "getmntent" = pure_and_fresh
 external_function_behavior "setmntent" = pure_and_fresh
-external_function_behavior "hasmntopt" = pure_and_fresh
+external_function_behavior "dlsym" = pure_and_fresh
+external_function_behavior "dlopen" = pure_and_fresh
+external_function_behavior "dlerror" = pure_and_fresh
 -- | A list of some functions that are assumed not to change the state in any significant way, and that return an unknown bottom value through RAX
 external_function_behavior "feof" = pure_and_unknown
 external_function_behavior "_feof" = pure_and_unknown

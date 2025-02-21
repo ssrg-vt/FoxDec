@@ -373,6 +373,9 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , VPAND
          , VPANDN
          , VPXOR
+         , PUNPCKHBW
+         , PUNPCKHWD
+         , PUNPCKLWD
          , PUNPCKLQDQ
          , PUNPCKLBW
          , PUNPCKLDQ
@@ -410,6 +413,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PEXTRB
          , PEXTRD
          , PEXTRQ
+         , PEXTRW
          , PBLENDW
          , PCLMULQDQ
          , PACKSSDW
@@ -553,6 +557,8 @@ mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
          , FSTCW, FNSTCW
          , SQRTSD
          , SQRTSS
+         , PMOVMSKB
+         , PSRAW, PSRAD
         ]
 
 -- Does the instruction not make state change?

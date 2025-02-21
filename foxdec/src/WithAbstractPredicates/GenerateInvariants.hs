@@ -113,7 +113,14 @@ get_postcondition_for_block l blockID instrs invs =
 
 
 
-
+invs_to_joined_post :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> IM.IntMap pred -> pred
+invs_to_joined_post l@(bin,_,l0,_) cfg invs =
+  let blocks = IM.assocs $ cfg_instrs cfg
+      end_blocks = filter (\(blockID,_) -> is_end_node cfg blockID) blocks
+      posts = map (get_post l invs) end_blocks in
+    foldr1 (join_preds l) posts
+ where
+  get_post l@(_,_,l0,_) invs (blockID,instrs) = fst $ get_postcondition_for_block l blockID instrs invs
 
 
 

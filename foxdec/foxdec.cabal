@@ -35,6 +35,7 @@ library
       Config
       Conventions
       Data.CFG
+      Data.GlobalMem
       Data.Indirection
       Data.JumpTarget
       Data.L0

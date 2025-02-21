@@ -36,17 +36,14 @@ import Data.List.Extra (groupSort)
 import Data.Maybe (fromJust)
 import Debug.Trace
 
-mk_callgraph_in_dot l@(bin,_,l0) pp_finit =
-  let g    = mk_callgraph l
-      fptrs = Edges $ IM.map get_function_pointer_intros $ l0_functions l0 in
-    callgraph_to_dot l pp_finit g fptrs
-
 
 mk_callgraph l@(bin,_,l0) =
-  let cfgs  = l0_get_cfgs l0 in
-    Edges $ IM.map (calls_of_cfg l) cfgs 
+  let cfgs  = l0_get_cfgs l0
+      fptrs = Edges $ IM.map get_function_pointer_intros $ l0_functions l0
+      g     = Edges $ IM.map (calls_of_cfg l) cfgs in
+    (g,fptrs)
 
-get_call_graph_sources l@(bin,_,l0) = find_source_nodes $ mk_callgraph l
+get_call_graph_sources l@(bin,_,l0) = find_source_nodes $ fst $ mk_callgraph l
  
 
 get_function_pointer_intros = IS.unions . map get_ptrs . S.toList . result_vcs . fromJust . snd
@@ -70,7 +67,7 @@ callgraph_to_dot :: BinaryClass bin => Lifting bin pred finit v -> (finit -> Str
 callgraph_to_dot (bin,_,l0) pp_finit (Edges es) (Edges fptrs) =
  let name  = binary_file_name bin in
   "diGraph " ++ name ++ "{\n"
-  ++ intercalate "\n" (map node_to_dot $ IM.keys es)
+  ++ intercalate "\n" (map node_to_dot $ IS.toList $ IS.fromList $ IM.keys es ++ IM.keys fptrs)
   ++ "\n\n"
   ++ intercalate "\n" (map (edge_to_dot' "") $ IM.assocs es)
   ++ "\n\n"

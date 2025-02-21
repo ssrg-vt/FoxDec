@@ -11,6 +11,7 @@ import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 import Data.X86.Instruction
 import Data.X86.Register
 import Data.Size
+import Data.GlobalMem
 
 
 import Algorithm.SCC
@@ -61,7 +62,7 @@ finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
       sregs                = M.empty
       smem                 = M.empty
       gmem                 = GlobalMem IM.empty in
-    execSstate (write_stack_pointer >> write_return_address >> write_finit (S.toList sps)) (Sstate sregs smem gmem None)
+    execSstate (write_stack_pointer >> write_return_address >> write_finit (S.toList sps)) (Sstate sregs smem gmem [])
  where
   write_finit []             = return ()
   write_finit ((sp,v):finit) = write_sp ctxt sp v >> write_finit finit 

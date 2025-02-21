@@ -10,6 +10,7 @@ import Base
 import Data.Indirection
 import Data.CFG
 import Data.VerificationCondition
+import Data.GlobalMem 
 
 import Binary.Generic
 
@@ -18,6 +19,7 @@ import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import Data.Word
 import Data.List
+import Data.Maybe
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Control.DeepSeq
@@ -38,11 +40,12 @@ instance Show pred => Show (Postcondition pred) where
 
 
 data FResult pred v = FResult {
-  result_cfg   :: CFG,
-  result_post  :: Postcondition pred,
-  result_calls :: S.Set Word64,
-  result_vcs   :: S.Set (VerificationCondition v),
-  result_pa    :: IM.IntMap (PointerAnalysisResult v)
+  result_cfg   :: CFG,                                 -- The control flow graph
+  result_post  :: Postcondition pred,                  -- The postcondition
+  result_join  :: Maybe pred,                          -- The join of all postconditions, even if terminating or unresolved
+  result_calls :: S.Set Word64,                        -- All function calls of the current function
+  result_vcs   :: S.Set (VerificationCondition v),     -- Side effects observed during verification
+  result_pa    :: IM.IntMap (PointerAnalysisResult v)  -- The results of the pointer analysis per instruciton address (as Int)
  }
  deriving Generic
 
@@ -64,7 +67,10 @@ l0_lookup_indirection a (L0 fs inds time) = IM.lookup (fromIntegral a) inds
 
 l0_insert_indirection a ind (L0 fs inds time) = L0 fs (IM.insert (fromIntegral a) ind inds) time
 
-empty_result = FResult (init_cfg 0) TimeOut S.empty S.empty IM.empty
+l0_lookup_join (L0 fs inds time) entry = fromJust $ result_join $ fromJust $ snd $ fs IM.! entry 
+
+empty_result :: FResult pred v
+empty_result = FResult (init_cfg 0) TimeOut Nothing S.empty S.empty IM.empty
 
 
 
@@ -73,7 +79,7 @@ empty_result = FResult (init_cfg 0) TimeOut S.empty S.empty IM.empty
 l0_get_cfgs :: L0 pred finit v -> IM.IntMap CFG
 l0_get_cfgs = IM.map get_cfg . l0_functions
  where
-  get_cfg (_,Just (FResult cfg _ _ _ _)) = cfg
+  get_cfg (_,Just (FResult cfg _ _ _ _ _)) = cfg
 
 l0_get_function_entries :: L0 pred finit v -> S.Set Int
 l0_get_function_entries = S.fromList . IM.keys . l0_functions
@@ -81,7 +87,7 @@ l0_get_function_entries = S.fromList . IM.keys . l0_functions
 l0_get_pars :: L0 pred finit v -> IM.IntMap (IM.IntMap (PointerAnalysisResult v))
 l0_get_pars = IM.map get_par . l0_functions
  where
-  get_par (_,Just (FResult _ _ _ _ pa)) = pa
+  get_par (_,Just (FResult _ _ _ _ _ pa)) = pa
 
 
 

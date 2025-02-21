@@ -381,6 +381,7 @@ data Opcode =
   | PCMPGTD
   | PEXTRB
   | PEXTRD
+  | PEXTRW
   | PEXTRQ
   | PHADDD
   | PINSRB
@@ -441,6 +442,8 @@ data Opcode =
   | PSUBUSW
   | PSUBW
   | PTEST
+  | PUNPCKHBW
+  | PUNPCKHWD
   | PUNPCKLBW
   | PUNPCKLWD
   | PUNPCKLDQ
@@ -1043,6 +1046,7 @@ read_opcode "PCMPGTB" = PCMPGTB
 read_opcode "PCMPGTD" = PCMPGTD
 read_opcode "PEXTRB" = PEXTRB
 read_opcode "PEXTRD" = PEXTRD
+read_opcode "PEXTRW" = PEXTRW
 read_opcode "PEXTRQ" = PEXTRQ
 read_opcode "PHADDD" = PHADDD
 read_opcode "PINSRB" = PINSRB
@@ -1103,6 +1107,8 @@ read_opcode "PSUBUSB" = PSUBUSB
 read_opcode "PSUBUSW" = PSUBUSW
 read_opcode "PSUBW" = PSUBW
 read_opcode "PTEST" = PTEST
+read_opcode "PUNPCKHBW" = PUNPCKHBW
+read_opcode "PUNPCKHWD" = PUNPCKHWD
 read_opcode "PUNPCKLBW" = PUNPCKLBW
 read_opcode "PUNPCKLWD" = PUNPCKLWD
 read_opcode "PUNPCKLDQ" = PUNPCKLDQ

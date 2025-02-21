@@ -10,29 +10,7 @@ on equalities between the current values stored in state parts (lhs)
 and constant expressions (rhs).
 -}
 
-module Data.SymbolicExpression ( 
-  StatePart (..),
-  SimpleExpr (..),
-  FlagStatus (..),
-  BotTyp (..),
-  BotSrc (..),
-  Operator (..),
-  PointerBase(..),
-  is_immediate,
-  is_mem_sp,
-  is_reg_sp,
-  contains_bot,
-  contains_bot_sp,
-  all_bot_satisfy,
-  simp,
-  pp_expr,
-  expr_size,
-  sextend_32_64,
-  sextend_16_64,
-  sextend_8_64,
-  addends
- )
- where
+module Data.SymbolicExpression where
 
 import Base
 import Config
@@ -495,13 +473,15 @@ instance Show StatePart where
 
 -- | Symbolically represent the status of all flags in the current state
 data FlagStatus = 
-    None                                         -- ^ No information known, flags could have any value
+    FS_EQ Operand Operand -- ^ The two operands evlauet to equal values
   | FS_CMP (Maybe Bool) Operand Operand  -- ^ The flags are set by the x86 CMP instruction applied to the given operands.
   deriving (Generic,Eq,Ord)
 
+is_FS_CMP (FS_CMP _ _ _) = True
+is_FS_CMP _ = False
 
 instance Show FlagStatus where
- show None = ""
+ show (FS_EQ op1 op2)  = show op1 ++ " == " ++ show op2
  show (FS_CMP Nothing      op1 op2) = "flags set by CMP(" ++ show op1 ++ "," ++ show op2 ++ ")"
  show (FS_CMP (Just True)  op1 op2) = show op1 ++ " < " ++ show op2
  show (FS_CMP (Just False) op1 op2) = show op1 ++ " >= " ++ show op2

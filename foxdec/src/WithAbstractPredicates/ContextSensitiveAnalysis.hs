@@ -43,6 +43,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Control.Monad.Extra
 
+import System.Directory (doesFileExist)
 
 
 
@@ -98,7 +99,15 @@ lift_to_L0 config bin finit = do
     let dirname = binary_dir_name bin
     let name    = binary_file_name bin
     let fname   = dirname ++ name ++ ".entry" 
-    liftIO $ parse $! fname
+    let entry   = case binary_entry bin of
+                    0 -> []
+                    a -> [fromIntegral a]
+    exists <- doesFileExist fname
+    if exists then do
+      entries <- liftIO $ parse $! fname
+      return $ entry ++ entries
+    else
+      return entry
   parse filename = do
     ls <- readFile filename
     return $ map read_line $ lines ls
@@ -186,7 +195,7 @@ exploreFunctionEntry entries recursions entry = do
   let valid_entry = address_has_instruction bin entry
   has_been_done  <- entry_has_been_done recursions entry
   explore has_been_done valid_entry 
- where 
+ where
   explore _ False = do
     -- Entry is not within a text section of the binary, delete it and continue
     liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " ignored."
@@ -299,9 +308,10 @@ analyze_entry entry = do
       -- liftIO $ putStrLn $ "Invariants:\n" ++ intercalate "\n" (map show $ IM.assocs invs)
 
       let posts = invs_to_post (withEntry entry static) cfg invs
+      let join  = invs_to_joined_post (withEntry entry static) cfg invs
       let pars  = invs_to_PA (withEntry entry static) cfg invs
       calls <- S.fromList <$> (concatMapM get_internal_calls $ concat $ IM.elems $ cfg_instrs cfg)
-      return $ AnalyzedWithResult $ FResult cfg posts calls vcs pars
+      return $ AnalyzedWithResult $ FResult cfg posts (Just join) calls vcs pars
  where
   join_duplicate_new_calls static [] = []
   join_duplicate_new_calls static ((a,finit):new_calls) =

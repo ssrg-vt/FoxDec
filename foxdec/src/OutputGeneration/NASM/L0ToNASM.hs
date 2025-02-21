@@ -217,9 +217,17 @@ block_label l@(bin,_,l0) entry a blockID = (try_start_symbol `orTry` try_symbol 
 
 
 -- Make a label for the start of a section
-section_label segment section addr = Label addr $ "L" ++ segment ++ "_" ++ section ++ "_0x" ++ showHex addr 
+section_label l@(bin,_,l0) segment section addr = try_symbol `orElse` (Label addr $ "L" ++ segment ++ "_" ++ section ++ "_0x" ++ showHex addr)
+ where
+  try_symbol = do
+    sym  <- (IM.lookup (fromIntegral addr) $ IM.filter is_address_of_symbol $ binary_get_symbol_table bin)
+    let name = symbol_to_name sym
+    return $ Label addr name
+ 
 -- Make a label for the end of a section
+-- TODO: should be same as section_label (i.e., lookup symbol first)?
 end_of_section_label (segment,section,a0,sz,_) = Label (a0+sz) $ "L" ++ segment ++ "_" ++ section ++ "_END"  
+
 -- Make a macro name
 macro_name segment section a0 offset = Macro segment section a0 offset
 -- Make a "safe" label (no duplicates)
@@ -768,11 +776,11 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
  where
   within_section    = show_section_relative imm <$> find_section_for_address bin imm
 
-  show_section_relative a sec@(segment,section,a0,_,_) = (label,[(a, section_label segment section a0, a - a0)])
+  show_section_relative a sec@(segment,section,a0,_,_) = (label,[(a, section_label l segment section a0, a - a0)])
    where
     label
       | not_part_of_larger_expression = NASM_Addr_Label (macro_name segment section a0 (a - a0)) $ Nothing
-      | otherwise                     = NASM_Addr_Label (section_label segment section a0)       $ Just (a - a0)
+      | otherwise                     = NASM_Addr_Label (section_label l segment section a0)       $ Just (a - a0)
 
   try_internal a = (\sym -> (NASM_Addr_Symbol sym,[])) <$> (IM.lookup (fromIntegral a) $ IM.filter is_internal_symbol $ binary_get_symbol_table bin)
 
@@ -834,7 +842,7 @@ mk_macros l@(bin,_,l0) = intercalate "\n" $ macros ++ [""] ++ internals
 
   mk_internal (a,(sym,segment,section,a0,offset)) = ["%define " ++ sym ++ " " ++ show (macro_name segment section a0 offset)]
 
-  mk_macro (segment,section,a0,sz,_) = "%define " ++ show_macro_name segment section a0 ++ "(offset) (" ++ show (section_label segment section a0) ++ " + offset)"
+  mk_macro (segment,section,a0,sz,_) = "%define " ++ show_macro_name segment section a0 ++ "(offset) (" ++ show (section_label l segment section a0) ++ " + offset)"
 
 
 is_internal_symbol (AddressOfLabel _ False) = True
@@ -879,7 +887,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
  where
   mk_data_section (segment,section,a0,sz,align) =
     let (entries,labels) = runState (mk_data_entries 0 segment section a0 sz) IM.empty in
-      NASM_DataSection (segment,section,a0) (fromIntegral align) (add_label 0 (section_label segment section a0) labels) entries
+      NASM_DataSection (segment,section,a0) (fromIntegral align) (add_label 0 (section_label l segment section a0) labels) entries
 
 
   --mk_data_section (segment,section,a0,sz,align) = intercalate "\n" $
@@ -955,7 +963,7 @@ bss_data_section l@(bin,_,l0) =
  where
   mk_bss_data_section (segment,section,a0,sz,align) = 
     let (entries,labels) = runState (mk_bss segment section a0 sz) IM.empty in
-      NASM_DataSection (segment,section,a0) (fromIntegral align) (IM.insert 0 (S.singleton $ section_label segment section a0) labels) entries
+      NASM_DataSection (segment,section,a0) (fromIntegral align) (IM.insert 0 (S.singleton $ section_label l segment section a0) labels) entries
 -- "section " ++ section ++ " align=" ++ show align ++ "\n" ++ section_label segment section a0 ++ ":\n" ++ mk_bss segment section a0 sz
 
   mk_bss segment section a0 sz =

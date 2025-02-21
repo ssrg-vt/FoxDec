@@ -645,11 +645,23 @@ mmx_sse = choice
   , opcode 0x0f >> opcode 0x6c >> modrm >> noPrefix <$>                       instr "PUNPCKLQDQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
   , opcode 0x0f >> opcode 0x6d >> modrm >> noPrefix <$>                       instr "PUNPCKHQDQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
   , opcode 0x0f >> opcode 0x6e >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "movq" [modrm_xmm, opWidthF 64 >> modrm_rm]) ]
-                                                                     (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST registe
+                                                                     (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
   , opcode 0x0f >> opcode 0x6f >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "movdqu" [modrm_xmm, opWidthF 128 >> modrm_xmm_m])
                                                                      , (0x66, instr "movdqa" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]) ]
                                                                      (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
+  , opcode 0x0f >> opcode 0x70 >> modrm >> immB >> noPrefix <$> forkPrefixes [ (0xf3, instr "PSHUFHW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m, immed])
+                                                                             , (0x66, instr "PSHUFD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m, immed])
+                                                                             , (0xf2, instr "PSHUFLW" [modrm_xmm, opWidthF 64 >> modrm_xmm_m, immed]) ]
+                                                                             (        instr "PSHUFW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone,immed] )
 
+
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0x72 >> modrm >> opcodeMatch 4 >> immB >> noPrefix <$> instr "PSRAD" [modrm_xmm_m, immed]
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 2 >> immB >> noPrefix <$> instr "PSRLQ" [modrm_xmm_m, immed]
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 3 >> immB >> noPrefix <$> instr "PSRLDQ" [modrm_xmm_m, immed]
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 6 >> immB >> noPrefix <$> instr "PSLLQ" [modrm_xmm_m, immed]
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 7 >> immB >> noPrefix <$> instr "PSLLDQ" [modrm_xmm_m, immed]
+  ,                   opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 2 >> immB >> noPrefix <$> instr "PSRLQ" [pure $ Op_Reg RegNone, immed]
+  ,                   opcode 0x0f >> opcode 0x73 >> modrm >> opcodeMatch 2 >> immB >> noPrefix <$> instr "PSLLQ" [pure $ Op_Reg RegNone, immed]
 
   , opcode 0x0f >> opcode 0x74 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "PCMPEQB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]) ]
                                                                      (        instr "PCMPEQB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] )
@@ -660,7 +672,7 @@ mmx_sse = choice
 
   , opcode 0x0f >> opcode 0x7e >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "movq" [modrm_xmm, opWidthF 64 >> modrm_xmm_m])
                                                                      , (0x66, instr "movq" [opWidthF 64 >> modrm_rm, modrm_xmm]) ]
-                                                                     (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST registe
+                                                                     (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
   , opcode 0x0f >> opcode 0x7f >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "movdqu" [opWidthF 128 >> modrm_xmm_m, modrm_xmm])
                                                                      , (0x66, instr "movdqa" [opWidthF 128 >> modrm_xmm_m, modrm_xmm]) ]
                                                                      (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
@@ -671,14 +683,100 @@ mmx_sse = choice
                                                                              , (0xf2, instr "cmpsd" [modrm_xmm, opWidthF 64 >> modrm_xmm_m, immed]) ]
                                                                              (        instr "cmpps" [modrm_xmm, opWidthF 128 >> modrm_xmm_m, immed] )
 
+  , opcode 0x0f >> opcode 0xc5 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "PEXTRW" [modrm_reg, modrm_xmm_m, immed]) ]
+                                                                             (        instr "PEXTRW" [modrm_reg, pure $ Op_Reg RegNone, immed] )
 
+
+
+
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd1 >> modrm >> noPrefix <$> instr "PSRLW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd1 >> modrm >>              instr "PSRLW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd2 >> modrm >> noPrefix <$> instr "PSRLD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd2 >> modrm >>              instr "PSRLD" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd3 >> modrm >> noPrefix <$> instr "PSRLQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd3 >> modrm >>              instr "PSRLQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd4 >> modrm >> noPrefix <$> instr "PADDQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd4 >> modrm >>              instr "PADDQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd5 >> modrm >> noPrefix <$> instr "PMULLW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd5 >> modrm >>              instr "PMULLW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  -- TODO why the immB?
   , opcode 0x0f >> opcode 0xd6 >> modrm >> immB >> noPrefix <$> forkPrefixes [ (0xf3, fail "MOVQ2DQ")
                                                                              , (0x66, instr "movq"  [opWidthF 64 >> modrm_xmm_m, modrm_xmm])
                                                                              , (0xf2, fail "MOVDQ2Q") ]
                                                                              (        fail "" )
+  , opcode 0x0f >> opcode 0xd7 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "PMOVMSKB"  [modrm_rm, modrm_xmm]) ]
+                                                                       (      instr "PMOVMSKB"  [modrm_rm, pure $ Op_Reg RegNone] ) -- TODO ST register
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd8 >> modrm >> noPrefix <$> instr "PSUBUSB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd8 >> modrm >>              instr "PSUBUSB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd9 >> modrm >> noPrefix <$> instr "PSUBUSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xd9 >> modrm >>              instr "PSUBUSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xda >> modrm >> noPrefix <$> instr "PMINUB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xda >> modrm >>              instr "PMINUB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xdb >> modrm >> noPrefix <$> instr "PAND" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xdb >> modrm >>              instr "PAND" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xdc >> modrm >> noPrefix <$> instr "PADDUSB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xdc >> modrm >>              instr "PADDUSB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xdd >> modrm >> noPrefix <$> instr "PADDUSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xdd >> modrm >>              instr "PADDUSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xde >> modrm >> noPrefix <$> instr "PMAXUB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xde >> modrm >>              instr "PMAXUB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xdf >> modrm >> noPrefix <$> instr "PANDN" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xdf >> modrm >>              instr "PANDN" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe0 >> modrm >> noPrefix <$> instr "PAVGB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe0 >> modrm >>              instr "PAVGB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe1 >> modrm >> noPrefix <$> instr "PSRAW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe1 >> modrm >>              instr "PSRAW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe2 >> modrm >> noPrefix <$> instr "PSRAD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe2 >> modrm >>              instr "PSRAD" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe3 >> modrm >> noPrefix <$> instr "PAVGW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe3 >> modrm >>              instr "PAVGW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe4 >> modrm >> noPrefix <$> instr "PMULHUW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe4 >> modrm >>              instr "PMULHUW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe5 >> modrm >> noPrefix <$> instr "PMULHW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe5 >> modrm >>              instr "PMULHW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
 
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe8 >> modrm >> noPrefix <$> instr "PSUBSB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe8 >> modrm >>              instr "PSUBSB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xe9 >> modrm >> noPrefix <$> instr "PSUBSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xe9 >> modrm >>              instr "PSUBSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xea >> modrm >> noPrefix <$> instr "PMINSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xea >> modrm >>              instr "PMINSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xeb >> modrm >> noPrefix <$> instr "POR" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xeb >> modrm >>              instr "POR" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xec >> modrm >> noPrefix <$> instr "PADDSB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xec >> modrm >>              instr "PADDSB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xed >> modrm >> noPrefix <$> instr "PADDSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xed >> modrm >>              instr "PADDSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xee >> modrm >> noPrefix <$> instr "PMAXSW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xee >> modrm >>              instr "PMAXSW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
   , prefixSet 0x66 >> opcode 0x0f >> opcode 0xef >> modrm >> noPrefix <$> instr "pxor" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
   ,                   opcode 0x0f >> opcode 0xef >> modrm >>              instr "pxor" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf1 >> modrm >> noPrefix <$> instr "PSLLW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf1 >> modrm >>              instr "PSLLW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf2 >> modrm >> noPrefix <$> instr "PSLLD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf2 >> modrm >>              instr "PSLLD" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf3 >> modrm >> noPrefix <$> instr "PSLLQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf3 >> modrm >>              instr "PSLLQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf4 >> modrm >> noPrefix <$> instr "PMULUDQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf4 >> modrm >>              instr "PMULUDQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf5 >> modrm >> noPrefix <$> instr "PMADDWD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf5 >> modrm >>              instr "PMADDW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf6 >> modrm >> noPrefix <$> instr "PSADBW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf6 >> modrm >>              instr "PSADBW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf8 >> modrm >> noPrefix <$> instr "PSUBB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf8 >> modrm >>              instr "PSUBB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xf9 >> modrm >> noPrefix <$> instr "PSUBW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xf9 >> modrm >>              instr "PSUBW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xfa >> modrm >> noPrefix <$> instr "PSUBD" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xfa >> modrm >>              instr "PSUBD" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xfb >> modrm >> noPrefix <$> instr "PSUBQ" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xfb >> modrm >>              instr "PSUBQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xfc >> modrm >> noPrefix <$> instr "PADDB" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xfc >> modrm >>              instr "PADDB" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xfd >> modrm >> noPrefix <$> instr "PADDW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xfd >> modrm >>              instr "PADDW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
+  , prefixSet 0x66 >> opcode 0x0f >> opcode 0xfe >> modrm >> noPrefix <$> instr "paddd" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
+  ,                   opcode 0x0f >> opcode 0xfe >> modrm >>              instr "paddd" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
 
 
 

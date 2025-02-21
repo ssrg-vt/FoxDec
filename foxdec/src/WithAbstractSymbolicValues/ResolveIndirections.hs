@@ -13,7 +13,8 @@ import Data.X86.Instruction
 import Data.X86.Register
 import Data.JumpTarget
 import Data.Indirection
-import Data.SymbolicExpression (FlagStatus(..)) -- TODO
+import Data.SymbolicExpression 
+import Data.GlobalMem
 
 
 import qualified Data.Serialize as Cereal
@@ -35,9 +36,9 @@ import Control.DeepSeq
 
 
 stry_resolve_indirection :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> [Instruction] -> Indirections
-stry_resolve_indirection ctxt p@(Sstate regs mem gmem flg) instrs =
+stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   let [trgt] = srcs $ last instrs in
-    case flagstatus_to_tries 10000 flg of -- TODO
+    case flagstatus_to_tries 10000 flgs of -- TODO
       Nothing -> try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
       Just (op1,n) -> try_to_resolve_error_call `orTry` try_to_resolve_using_bound (head instrs) op1 n trgt `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
 
@@ -60,8 +61,17 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flg) instrs =
 
   evaluate_target_after_setting_value_and_block i op1 n trgt = do
     sset_rip ctxt (head instrs)
-    swrite_operand ctxt i False op1 (simmediate ctxt n)
-    evaluate_target_after_block  trgt
+    let ops = get_equivalent_ops flgs [op1]
+    mapM_ (\op1 -> swrite_operand ctxt i False op1 (simmediate ctxt n)) ops
+    evaluate_target_after_block trgt
+
+  get_equivalent_ops flgs ops = 
+    case find (is_FS_EQ_to ops) flgs of
+      Nothing -> ops
+      Just (FS_EQ op0 op1) -> get_equivalent_ops flgs $ nub $ [op0,op1] ++ ops
+
+  is_FS_EQ_to ops (FS_EQ op0 op1) = (op0 `notElem` ops && op1 `elem` ops) || (op0 `elem` ops && op1 `notElem` ops)
+  is_FS_EQ_to _ _ = False
 
   evaluate_target_after_block trgt = do
     (p,_) <- get
@@ -71,10 +81,15 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flg) instrs =
     val <- sread_operand ctxt "indirection resolving" trgt
     return $ stry_jump_targets ctxt val -- $ trace ("is = " ++ show (instrs) ++ "P:\n" ++ show p ++ "\nQ:\n" ++ show q ++ "\nval,trgt: " ++ show (val,trgt)) $ 
 
-  flagstatus_to_tries max_tries (FS_CMP (Just True) op1 (Op_Imm (Immediate _ n))) = if n <= fromIntegral max_tries then Just (op1,n) else Nothing
-  flagstatus_to_tries max_tries _ = Nothing
 
+  flagstatus_to_tries max_tries flgs =
+    case filter is_FS_CMP flgs of
+      [] -> Nothing 
+      [FS_CMP (Just True) op1 (Op_Imm (Immediate _ n))] -> if n <= fromIntegral max_tries then Just (op1,n) else Nothing
+      [FS_CMP _ _ _] -> Nothing
+      _ -> error $ show flgs
 
+  
   try_to_resolve_error_call = S.singleton <$> evalSstate evaluate_error_call_after_block p
 
   evaluate_error_call_after_block = do
@@ -89,8 +104,12 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flg) instrs =
   is_immediate _                    = False
   get_immediate (ImmediateAddress a) = a
 
-  clean_sstate (Sstate sregs smem gmem fs) = Sstate sregs (clean_smem smem) gmem fs -- TODO clean gmem
-  clean_smem = M.filterWithKey (\(a,si) v -> sis_deterministic ctxt v)
+  clean_sstate (Sstate sregs smem (GlobalMem gmem) fs) = Sstate (clean_regs sregs) (clean_smem smem) (GlobalMem gmem) fs 
+  clean_regs = M.filter (\v -> sis_deterministic ctxt v)
+  clean_smem = M.filter (\v -> sis_deterministic ctxt v)
+  clean_gmem = IM.filter keep
+  keep (Stores v si) = sis_deterministic ctxt v
+  keep _ = False
 
 
 

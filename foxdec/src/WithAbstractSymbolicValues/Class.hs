@@ -9,6 +9,7 @@ import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 import Data.Indirection
 import Data.JumpTarget
 import Data.Size
+import Data.GlobalMem
 import Data.VerificationCondition
 import Data.X86.Opcode
 import Data.X86.Instruction
@@ -44,26 +45,6 @@ instance (Cereal.Serialize p) => Cereal.Serialize (SStatePart p)
 instance (NFData p) => NFData (SStatePart p)
 
 
-data MemAccess p v = Stores v Int | SpansTo Int
- deriving (Eq, Ord, Generic)
-
-instance (Show p, Show v) => Show (MemAccess p v) where
-  show (Stores v si) = "Stores " ++ show v ++ "  " ++ show si
-  show (SpansTo a)   = "SpansTo " ++ showHex a
-
-data GlobalMem p v = GlobalMem (IM.IntMap (MemAccess p v))
-  deriving (Eq,Ord,Generic)
-
-
-instance (Show p,Show v) => Show (GlobalMem p v) where
-  show (GlobalMem m) = intercalate "\n" $ map show_entry $ IM.toList m
-   where
-    show_entry (a,Stores v si) = "[" ++ showHex a ++ "," ++ show si ++ "] := " ++ show v 
-    show_entry (a,SpansTo a') = "[" ++ showHex a ++ " --> " ++ showHex a' ++ "]" --  stores at " ++ show p ++ ": " ++ show v
-
-
-
-
 
 
 
@@ -72,7 +53,7 @@ data Sstate v p = Sstate {
     sregs  :: M.Map Register v,
     smem   :: M.Map (p,Maybe ByteSize) v,
     gmem   :: GlobalMem p v,
-    sflags :: FlagStatus
+    sflags :: [FlagStatus]
   }
   deriving (Eq,Ord,Generic)
 
@@ -84,7 +65,9 @@ instance (Show v,Show p) => Show (Sstate v p) where
    where
     show_reg (r,v)      = show r ++ " := " ++ show v
     show_mem ((a,si),v) = "[" ++ show a ++ "," ++ show_size si ++ "] := " ++ show v 
-    show_flags          = show
+    show_flags []       = ""
+    show_flags [flg]    = show flg
+    show_flags flgs     = show flgs
     show_size Nothing   = "unknown"
     show_size (Just (ByteSize si)) = show si
 
@@ -103,13 +86,9 @@ data FInit v p = FInit (S.Set (SStatePart p,v)) (M.Map (SStatePart p,SStatePart 
 
 
 instance Cereal.Serialize MemRelation
-instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (MemAccess p v)
-instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (GlobalMem p v)
 instance (Cereal.Serialize v,Cereal.Serialize p, Ord p,Ord v) => Cereal.Serialize (FInit v p)
 
 instance NFData MemRelation
-instance (NFData p,NFData v) => NFData (MemAccess p v)
-instance (NFData p,NFData v) => NFData (GlobalMem p v)
 instance (NFData p,NFData v) => NFData (FInit v p)
 
 
@@ -134,7 +113,7 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
 
 
   ssemantics :: ctxt -> String -> SymbolicOperation v -> v
-  sflg_semantics :: ctxt -> v -> Instruction -> FlagStatus -> FlagStatus
+  sflg_semantics :: ctxt -> v -> Instruction -> [FlagStatus] -> [FlagStatus]
   simmediate :: Integral i => ctxt -> i -> v
 
   smk_init_reg_value :: ctxt -> Register -> v

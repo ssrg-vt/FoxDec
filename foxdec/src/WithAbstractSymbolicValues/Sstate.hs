@@ -72,7 +72,7 @@ swrite_rreg ctxt i (RegFPU _) v = return ()
 swrite_rreg ctxt i r          v = do
   (s,vcs) <- get
   -- let tr = if (r == Reg64 RSP || r == Reg64 RBP) && v == top ctxt "" then traceShow (show r ++ "WRITE", v, i, s) else id
-  put $ (s {sregs = M.insert r v (sregs s), sflags = clean_flg (SSP_Reg r) (sflags s) }, vcs)
+  put $ (s {sregs = M.insert r v (sregs s), sflags = clean_flgs (SSP_Reg r) (sflags s) }, vcs)
 
 
 soverwrite_reg :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Bool -> Register -> v -> State (Sstate v p,VCS v) ()
@@ -171,7 +171,7 @@ swrite_mem ctxt use_existing_value a si v = do
 
 swrite_mem_to_ptr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> p -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
 swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
-  modify $ \(s,vcs) -> (s { sflags = clean_flg (SSP_Mem (simmediate ctxt 0) 0) (sflags s) }, vcs)
+  modify $ \(s,vcs) -> (s { sflags = clean_flgs (SSP_Mem (simmediate ctxt 0) 0) (sflags s) }, vcs)
 
   case stry_global ctxt p of
     Nothing -> write' p
@@ -230,19 +230,17 @@ swrite_flags ctxt v i = do
 
 -- If the given StatePart is overwritten, does that taint the current flag status?
 -- If so, set flagstatus to None, otherwise keep it.
-clean_flg :: SStatePart p -> FlagStatus -> FlagStatus
-clean_flg sp None               = None
-clean_flg sp (FS_CMP b op1 op2) = do
-  if is_tainted op1 || is_tainted op2 then
-    None
-  else
-    FS_CMP b op1 op2
+clean_flgs :: SStatePart p -> [FlagStatus] -> [FlagStatus]
+clean_flgs sp = concatMap clean_flg
  where
+  clean_flg flg =
+    case flg of
+      (FS_CMP b op1 op2) -> if is_tainted op1 || is_tainted op2 then [] else [FS_CMP b op1 op2]
+      (FS_EQ op1 op2)    -> if is_tainted op1 || is_tainted op2 then [] else [FS_EQ op1 op2]
   is_tainted (Op_Reg r)             = 
     case sp of
       SSP_Reg r' -> real_reg r' == real_reg r
       _          -> False
-      
   is_tainted (Op_Imm _)             = False
   is_tainted (Op_Mem _ _ _ _ _ _ _) =
     case sp of

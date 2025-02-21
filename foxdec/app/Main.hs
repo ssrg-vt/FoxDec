@@ -17,6 +17,7 @@ import OutputGeneration.CallGraph
 import Data.CFG
 import Data.SValue
 import Data.SPointer
+import Data.GlobalMem
 
 
 import WithAbstractPredicates.ControlFlow
@@ -25,7 +26,7 @@ import WithAbstractSymbolicValues.FInit
 import WithAbstractPredicates.ContextSensitiveAnalysis
 import WithAbstractSymbolicValues.InstanceOfAbstractPredicates
 import WithNoAbstraction.SymbolicExecution
-
+import WithAbstractSymbolicValues.SymbolicExecution
 
 import Binary.Generic
 import Binary.Read
@@ -43,6 +44,7 @@ import qualified Data.Set as S
 import qualified Data.ByteString as BS (readFile,writeFile) 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Data.List 
+import Data.Word
 import Data.Function ((&))
 import qualified Data.ByteString.Lazy as B
 
@@ -220,7 +222,7 @@ obtain_L0 config "BINARY" verbose dirname name = do
   lift !config !bin = do
     startTime <- timeCurrent
     when (startTime `deepseq` verbose) $ putStrLn $ binary_pp bin
-    --putStrLn $ show $ fetch_instruction bin 0x8439
+    --putStrLn $ show $ fetch_instruction bin 0x2b40e
     --die $ "END"
 
     l0 <- lift_to_L0 config bin empty_finit
@@ -256,15 +258,20 @@ generate_metrics bin l0 = do
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
 
 -- | Generate information per function
+generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
 generate_per_function bin config l0 = do
   let dirname     = binary_dir_name bin
   let name        = binary_file_name bin
 
   mapM_ (write_function dirname name) $ IM.assocs $ l0_functions l0
   putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
-  putStrLn $ "Upper functions: " ++ (showHex_set $ get_call_graph_sources (bin,config,l0))
+  --let root_functions = get_call_graph_sources (bin,config,l0)
+  --let joined_gmem = foldr1 (sjoin_gmem (bin,config,l0,0::Word64)) $ map (gmem . l0_lookup_join l0) $ IS.toList root_functions
+  --putStrLn $ "Root functions: " ++ (showHex_set root_functions)
+  --putStrLn $ "Joined global memory:\n" ++ show_gmem_structure joined_gmem
+  
  where
-  write_function dirname name (entry,(finit,Just r@(FResult cfg post calls vcs pa))) = do
+  write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa))) = do
     let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
     createDirectoryIfMissing False $ dirname ++ "functions/"
     createDirectoryIfMissing False $ fdirname      
@@ -274,7 +281,7 @@ generate_per_function bin config l0 = do
 
     let fname2 = fdirname ++ name ++ ".txt"
     writeFile fname2 $ show_report entry finit r
-  show_report entry finit (FResult cfg post calls vcs pa) = intercalate "\n" 
+  show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 
     [ "Function: " ++ showHex entry
     , mk_function_boundary entry cfg
     , if show finit == "" then "" else "Precondition:\n" ++ pp_finitC finit ++ "\n"
@@ -305,19 +312,27 @@ mk_function_boundary entry cfg =
 
 -- | Generate the call graph
 generate_call_graph bin config l0 = do
-  let dirname  = binary_dir_name bin
-  let name     = binary_file_name bin
-  let do_pdfs  = generate_pdfs config
-  let fname    = dirname ++ name ++ ".callgraph.dot" 
-  let pdfname  = dirname ++ name ++ ".callgraph.pdf" 
-  let g        = mk_callgraph_in_dot (bin,config,l0) pp_finitC
+  let dirname   = binary_dir_name bin
+  let name      = binary_file_name bin
+  let do_pdfs   = generate_pdfs config
+  let fname     = dirname ++ name ++ ".callgraph.dot" 
+  let pdfname   = dirname ++ name ++ ".callgraph.pdf" 
+  let (g,fptrs) = mk_callgraph (bin,config,l0)
+  let dot       = callgraph_to_dot (bin,config,l0) pp_finitC g fptrs
 
-  writeFile fname g
+  writeFile fname dot
   if do_pdfs then do
     callCommand $ "dot -Tpdf " ++ fname ++ " -o " ++ pdfname
     putStrLn $ "Generated call graph, exported to files: " ++ fname ++ " and " ++ pdfname
   else do
     putStrLn $ "Generated call graph, exported to file: " ++ fname 
+
+  --let g'     = graph_mk_subgraph (graph_traverse_upwards g 0x31be0) g
+  --let fptrs' = graph_mk_subgraph (graph_traverse_upwards fptrs 0x31be0) fptrs
+  --let dot    = callgraph_to_dot (bin,config,l0) pp_finitC g' fptrs'
+  --putStrLn $ show g'
+  --writeFile (dirname ++ name ++ ".callgraph.sub.dot") dot
+
 
 -- | Generate NASM
 generate_NASM :: Lifted -> IO ()
