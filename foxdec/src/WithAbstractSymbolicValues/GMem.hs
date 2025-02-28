@@ -144,3 +144,13 @@ read_global_mem_access ctxt p a si isPrecise = do
 
 
 
+gmem_to_structure (GlobalMem gmem) = merge_consecutive $ sortBy fstLE $ IM.assocs gmem
+ where
+  fstLE (a0,_) (a1,_) = compare a0 a1
+
+  merge_consecutive [] = []
+  merge_consecutive [(a,_)] = [a]
+  merge_consecutive ((a0,Stores v0 si0):(a1,Stores v1 si1):es)
+    | a0+si0 == a1 = merge_consecutive $ (a0,Stores v0 $ si0+si1):es
+    | otherwise    = a0 : merge_consecutive ((a1,Stores v1 si1):es)
+  merge_consecutive ((a,_):es) = a : merge_consecutive es

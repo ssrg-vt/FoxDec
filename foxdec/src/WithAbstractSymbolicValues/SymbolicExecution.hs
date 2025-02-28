@@ -119,11 +119,21 @@ add_jump_to_pred i0 i1 flgs
       [Op_Jmp (Immediate _ trgt)] -> map (mod_FS_CMP trgt) flgs
   | otherwise = flgs
  where
+  -- FC_CMP b o1 o2
+  -- b == Nothing   means "flag is not used in jump"
+  -- b == Just True means "flag is used in jump, we are in path where o1 < o2"
+  -- b == Just False means "flag is used in jump, we are in path where o1 >= o2"
   mod_FS_CMP trgt (FS_CMP b o1 o2)
-    | inAddress i1 == fromIntegral trgt = FS_CMP (Just False) o1 o2
-    | otherwise                         = FS_CMP (Just True) o1 o2
+    | inAddress i1 == fromIntegral trgt = FS_CMP jumped_to_target  o1 o2
+    | otherwise                         = FS_CMP fall_through_case o1 o2
   mod_FS_CMP trgt flg = flg
 
+  jumped_to_target
+    | inOperation i0 == JA  = Just False
+    | inOperation i0 == JBE = Just True
+  fall_through_case
+    | inOperation i0 == JA  = Just True
+    | inOperation i0 == JBE = Just False
 
 
 

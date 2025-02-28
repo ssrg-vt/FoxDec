@@ -460,7 +460,7 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
  where
   mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
 
-  flg CMP      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg CMP      = traceShow ("HALLOCMP", i) $ [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
   flg SUB      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
   flg MOV      = [FS_EQ (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ flgs
 

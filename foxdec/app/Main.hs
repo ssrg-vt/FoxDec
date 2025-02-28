@@ -13,6 +13,7 @@ import Config
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
+--import OutputGeneration.NASM.ModDataSection
 
 import Data.CFG
 import Data.SValue
@@ -23,6 +24,7 @@ import Data.GlobalMem
 import WithAbstractPredicates.ControlFlow
 import WithAbstractSymbolicValues.Class
 import WithAbstractSymbolicValues.FInit
+import WithAbstractSymbolicValues.GMem
 import WithAbstractPredicates.ContextSensitiveAnalysis
 import WithAbstractSymbolicValues.InstanceOfAbstractPredicates
 import WithNoAbstraction.SymbolicExecution
@@ -265,10 +267,11 @@ generate_per_function bin config l0 = do
 
   mapM_ (write_function dirname name) $ IM.assocs $ l0_functions l0
   putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
-  --let root_functions = get_call_graph_sources (bin,config,l0)
-  --let joined_gmem = foldr1 (sjoin_gmem (bin,config,l0,0::Word64)) $ map (gmem . l0_lookup_join l0) $ IS.toList root_functions
-  --putStrLn $ "Root functions: " ++ (showHex_set root_functions)
-  --putStrLn $ "Joined global memory:\n" ++ show_gmem_structure joined_gmem
+  let root_functions = get_call_graph_sources (bin,config,l0)
+  let joined_gmem = foldr1 (sjoin_gmem (bin,config,l0,0::Word64)) $ map (gmem . l0_lookup_join l0) $ IS.toList root_functions
+  putStrLn $ "Root functions: " ++ (showHex_set root_functions)
+  putStrLn $ "Joined global memory:\n" ++ show_gmem_structure joined_gmem
+  putStrLn $ "Joined global memory structure:\n" ++ (showHex_list $ gmem_to_structure joined_gmem)
   
  where
   write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa))) = do
@@ -345,12 +348,18 @@ generate_NASM l@(bin,_,_) = do
 
   createDirectoryIfMissing False dirname      
 
-  let nasm = lift_L0_to_NASM l
+  let nasm' = lift_L0_to_NASM l
+
+  let nasm = nasm' -- split_data_section [0x1e2e0,0x1e3a0,0x1e428,0x1e448,0x1e460,0x1e8a0,0x1e8a8,0x1e9f8,0x1ea00] nasm' -- TODO
+
+
   let gmon = __gmon_start_implementation
   let json = render_NASM_to_JSON nasm
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
   B.writeFile fname2 $ json
+
+
   putStrLn $ "Generated NASM, exported to files: " ++ fname ++ " and " ++ fname2
 
   

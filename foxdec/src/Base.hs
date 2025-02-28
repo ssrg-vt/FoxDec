@@ -43,7 +43,7 @@ class IntGraph g where
 -- | Show the integer in hex.
 showHex i = if i < 0 then Numeric.showHex (fromIntegral i :: Word64) "" else Numeric.showHex i ""
 -- | Show an integer list as hex-list.
-showHex_list is = "[" ++ intercalate "," (map showHex is) ++ "]"
+showHex_list is = "[" ++ intercalate "," (map (\n -> "0x" ++ showHex n) is) ++ "]"
 -- | Show an integer set as hex-list.
 showHex_set     = showHex_list . IS.toList
 -- | Show an optional integer as an optional hex.

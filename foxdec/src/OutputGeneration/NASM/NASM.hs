@@ -50,15 +50,7 @@ data NASM = NASM {
  }
  deriving (Generic)
 
--- | A NASM label is either a string, or a macro. The latter is used when referring to addresses within data sections.
--- For example:
---
---    Macro "" ".data" 0x4000 0x23
---
--- refers to segment "", and the section ".data" that starts at immediate address 0x4000. So the real adress was 0x4023.
-data NASM_Label = 
-    Label Word64 String -- ^ Normal label
-  | Macro String String Word64 Word64 -- ^ Macro into data section (segment, section, a0, offset)
+data NASM_Label = Label Word64 String -- ^ Normal label
  deriving (Eq,Ord,Generic)
 
 
@@ -66,13 +58,11 @@ data NASM_Label =
 data NASM_Section = NASM_Section_Text NASM_TextSection | NASM_Section_Data [NASM_DataSection]
   deriving Generic
 
--- | An annotation consists of an address that is being symbolized to a label and an offset.
--- The offset will often be 0.
+-- | An annotation consists of an address that is being symbolized to a label.
 -- For example:
 --   0x1016 --> L1000_2
---   0x4028 --> L_.bss_0x4020 + 0x8
 -- Annotations translate to NASM comments, and have no effect on the actual NASM itself.
-type Annot = [(Word64,NASM_Label,Word64)]
+type Annot = [(Word64,NASM_Label)]
 
 -- | A NASM text section contains a name and an **ordered** list of basic blocks.
 -- Each basic block has an ID and a list of lines.
@@ -118,8 +108,8 @@ data NASM_Operand =
 
 
 -- | An address can either be a computation or some symbol.
-data NASM_Address = NASM_Addr_Compute NASM_Address_Computation | NASM_Addr_Symbol Symbol | NASM_Addr_Label NASM_Label (Maybe Word64) | NASM_JumpTarget ResolvedJumpTarget
- deriving (Eq,Generic)
+data NASM_Address = NASM_Addr_Compute NASM_Address_Computation | NASM_Addr_Symbol Symbol | NASM_Addr_Label NASM_Label | NASM_JumpTarget ResolvedJumpTarget
+ deriving (Eq,Generic,Ord)
 
 
 -- | An address computation within an operand. The computation is: segment + [base + index*scale + disp]
@@ -131,25 +121,32 @@ data NASM_Address_Computation = NASM_Address_Computation
   , nasm_base     :: Maybe Register
   , nasm_displace :: Maybe Word64
   }
- deriving (Eq,Generic)
+ deriving (Eq,Generic,Ord)
 
 
 
 -- | A data section consists of a list of data section entries.
 -- Each DataEntry stores its address and a value.
 data NASM_DataEntry =
-    DataEntry_Byte Word64 Word8                   -- ^ A single byte
-  | DataEntry_String Word64 [Word8]               -- ^ A string of characters (Word8) 
-  | DataEntry_Pointer Word64 (NASM_Address,Annot) -- ^ A pointer (a label or external symbol)
-  | DataEntry_BSS Int                             -- ^ A BSS section with a given size in bytes
- deriving (Generic)
+    DataEntry_Byte Word8                   -- ^ A single byte
+  | DataEntry_String [Word8] Bool          -- ^ A string of characters (Word8) with a Bool indicating a zero at the end
+  | DataEntry_Pointer (NASM_Address,Annot) -- ^ A pointer (a label or external symbol)
+  | DataEntry_BSS Int                      -- ^ A BSS section with a given size in bytes
+  | DataEntry_Label NASM_Label             -- ^ A label
+ deriving (Generic,Ord,Eq)
+
+instance Show NASM_DataEntry where
+  show (DataEntry_Byte b)              = "db 0" ++ showHex b ++ "h"
+  show (DataEntry_String str zero)     = "db `" ++ word8s_to_string str ++ "`" ++ (if zero then ", 0" else "")
+  show (DataEntry_Pointer (ptr,annot)) = "dq " ++ show ptr ++ "    ; " ++ render_annot annot
+  show (DataEntry_BSS sz)              = "resb " ++ show sz
+  show (DataEntry_Label l)             = show l ++ ":"
 
 -- | A data section then consists of:
 data NASM_DataSection = NASM_DataSection {
-  nasm_data_section :: (String,String,Word64),              -- ^ (segment,section,address)
-  nasm_data_section_align :: Int,                           -- ^ The alignment (0 if unknown)
-  nasm_data_section_labels :: IM.IntMap (S.Set NASM_Label), -- ^ Used internally only
-  nasm_data_section_data :: [NASM_DataEntry]                -- ^ A list of DataEntries
+  nasm_data_section :: (String,String,Word64),        -- ^ (segment,section,address)
+  nasm_data_section_align :: Int,                     -- ^ The alignment (0 if unknown)
+  nasm_data_section_data :: [(Word64, NASM_DataEntry)] -- ^ A list of DataEntries
 }
  deriving (Generic)
 
@@ -172,9 +169,9 @@ instance Cereal.Serialize NASM
 
 
 
-label_to_operand l = NASM_Operand_Address $ NASM_Addr_Label l Nothing
-label_to_mem_operand sizedir l = NASM_Operand_Memory sizedir $ NASM_Addr_Label l Nothing
-label_to_eff_operand l = NASM_Operand_EffectiveAddress $ NASM_Addr_Label l Nothing
+label_to_operand l = NASM_Operand_Address $ NASM_Addr_Label l
+label_to_mem_operand sizedir l = NASM_Operand_Memory sizedir $ NASM_Addr_Label l
+label_to_eff_operand l = NASM_Operand_EffectiveAddress $ NASM_Addr_Label l
 
 
 mk_nasm_instr m ops = NASM_Instruction Nothing (Just m) ops "" []
@@ -192,25 +189,10 @@ empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
 
 -- Pretty printing
 instance Show NASM_DataSection where
-  show (NASM_DataSection (seg,sec,a0) align labels entries) = "section " ++ sec ++ show_align align ++ "\n"  ++ show_data 0 entries
+  show (NASM_DataSection (seg,sec,a0) align entries) = "section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
    where
-    show_data n []     = show_label n
-    show_data n (e:es) = show_label n ++ show_entry e ++ "\n" ++ show_data (n + entry_length e) es 
-
-    entry_length (DataEntry_Byte _ _)      = 1
-    entry_length (DataEntry_String _ str)  = length str + 1
-    entry_length (DataEntry_Pointer _ _)   = 8
-    entry_length (DataEntry_BSS sz)        = sz
-
-    show_label n =
-      case IM.lookup n labels of
-        Nothing     -> ""
-        Just labels -> concatMap (\l -> show l ++ ":\n") $ S.toList labels
-
-    show_entry (DataEntry_Byte _ b)              = "db 0" ++ showHex b ++ "h"
-    show_entry (DataEntry_String _ str)          = "db `" ++ word8s_to_string str ++ "`" ++ ", 0"
-    show_entry (DataEntry_Pointer _ (ptr,annot)) = "dq " ++ show ptr ++ "    ; " ++ render_annot annot
-    show_entry (DataEntry_BSS sz)                = "resb " ++ show sz
+    show_entry (a,e@(DataEntry_String _ _)) = show e ++ "; @ " ++ showHex a
+    show_entry (a,e) = show e
 
     show_align 0 = ""
     show_align n = " align=" ++ show n
@@ -334,7 +316,7 @@ render_annot :: Annot -> String
 render_annot [] = ""
 render_annot m  = intercalate "," (map render_annot_elmt m)
  where
-  render_annot_elmt (a,l,offset) = "0x" ++ showHex a ++ " --> " ++ show l ++ (if offset == 0 then "" else " + 0x" ++ showHex offset)
+  render_annot_elmt (a,l) = "0x" ++ showHex a ++ " --> " ++ show l
     
 
 
@@ -358,9 +340,6 @@ show_nasm_sizedir (16,_) = "oword"
 
 instance Show NASM_Label where
   show (Label _ str) = str
-  show (Macro segment section a0 offset) = show_macro_name segment section a0 ++ show_offset offset
-   where
-    show_offset n = "(0x" ++ showHex offset ++ ")"
 
 show_macro_name segment section a0 = "RELA" ++ section_name segment section a0
 
@@ -399,7 +378,7 @@ instance Show NASM_Address where
   show (NASM_Addr_Symbol sym)                 = show_symbol sym
   show (NASM_JumpTarget (External sym))       = sym ++ " wrt ..plt"
   show (NASM_JumpTarget (ExternalDeref sym))  = "[ " ++ sym ++ " ]"
-  show (NASM_Addr_Label l displ)              = show l ++ show_displacement (show l) displ
+  show (NASM_Addr_Label l)                    = show l 
 
 
 show_symbol (PointerToLabel  l True)       = l ++ " wrt ..plt"

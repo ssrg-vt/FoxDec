@@ -205,6 +205,7 @@ cfg_to_dot bin (FResult g post _ _ _ _) =
 
   mk_node v = binary_file_name bin ++ "_" ++ showHex v
 
+  node_shape _ _ =  "oval" {-- TODO
   node_shape (ReturnsWith _) blockId = "oval"
   node_shape (Terminates) blockId = "terminator"
   node_shape (TimeOut) blockId = "invtriangle"
@@ -213,7 +214,7 @@ cfg_to_dot bin (FResult g post _ _ _ _) =
     | otherwise = "oval"
   node_shape (VerificationError errors) blockId 
     | blockId `elem` map fst errors = "invtriangle"
-    | otherwise = "oval"
+    | otherwise = "oval"--}
     
 
 

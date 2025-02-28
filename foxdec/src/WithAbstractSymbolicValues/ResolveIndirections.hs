@@ -104,11 +104,11 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   is_immediate _                    = False
   get_immediate (ImmediateAddress a) = a
 
-  clean_sstate (Sstate sregs smem (GlobalMem gmem) fs) = Sstate (clean_regs sregs) (clean_smem smem) (GlobalMem gmem) fs 
+  clean_sstate (Sstate sregs smem (GlobalMem gmem) fs) = Sstate (clean_regs sregs) (clean_smem smem) (GlobalMem $ clean_gmem gmem) fs 
   clean_regs = M.filter (\v -> sis_deterministic ctxt v)
   clean_smem = M.filter (\v -> sis_deterministic ctxt v)
   clean_gmem = IM.filter keep
-  keep (Stores v si) = sis_deterministic ctxt v
+  keep (Stores v si) = True -- sis_deterministic ctxt v
   keep _ = False
 
 
