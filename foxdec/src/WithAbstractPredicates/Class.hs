@@ -7,6 +7,7 @@ import Data.Indirection
 import Data.VerificationCondition
 import Binary.Generic
 import Data.X86.Instruction
+import Data.GlobalMem
 
 import Control.Monad.State.Strict
 
@@ -24,5 +25,6 @@ class (Show v,Ord v,Eq pred, Eq finit,BinaryClass bin,Show pred,Show finit) => W
  join_finits :: LiftingEntry bin pred finit v -> finit -> finit -> finit
  new_finit :: Lifting bin pred finit v -> finit
  pp_finit :: Lifting bin pred finit v -> finit -> String
+ 
 
 

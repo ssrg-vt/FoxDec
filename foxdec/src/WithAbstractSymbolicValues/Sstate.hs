@@ -179,7 +179,7 @@ swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
  where
   use_global_mem a isPrecise = do
     (s,vcs) <- get
-    let (v',gmem') = runState (write_global_mem_access ctxt a si isPrecise v) (gmem s)
+    let (v',gmem') = runState (write_global_mem_access ctxt a si isPrecise True v) (gmem s)
     put $ (s { gmem = gmem' },vcs)
 
 

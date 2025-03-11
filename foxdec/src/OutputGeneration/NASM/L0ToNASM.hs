@@ -77,22 +77,22 @@ type LiftedC bin = Lifting bin (Sstate SValue SPointer) (FInit SValue SPointer) 
 lift_L0_to_NASM :: BinaryClass bin => LiftedC bin -> NASM
 lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_jump_tables ++ [mk_temp_storage] 
  where
-  mk_externals       = externals l
-  mk_globals         = with_start_global bin $ S.difference (binary_get_global_symbols bin) mk_externals
+  mk_externals        = externals l
+  mk_globals          = with_start_global bin $ S.difference (binary_get_global_symbols bin) mk_externals
 
-  mk_text_sections   = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
-  mk_ro_data_section = NASM_Section_Data $ ro_data_section l
-  mk_data_section    = NASM_Section_Data $ data_section l
-  mk_bss_section     = NASM_Section_Data $ bss_data_section l
-  mk_resolved_relocs = NASM_Section_Data $ resolved_relocs_section l
+  mk_text_sections    = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
+  mk_ro_data_section  = NASM_Section_Data $ ro_data_section l
+  mk_data_section     = NASM_Section_Data $ data_section l
+  mk_bss_section      = NASM_Section_Data $ bss_data_section l
+  mk_resolved_relocs  = NASM_Section_Data $ resolved_relocs_section l
+  mk_undefined_labels = undefined_internal_global_labels l
 
-  mk_sections        = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section, mk_resolved_relocs]
-  get_annots         = mk_annots l mk_sections
-  mk_sections'       = map (add_labels_to_data_sections get_annots mk_externals) mk_sections
+  mk_sections         = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section, mk_resolved_relocs] ++ mk_undefined_labels
+  get_annots          = mk_annots l mk_sections
+  mk_sections'        = map (add_labels_to_data_sections get_annots mk_externals) mk_sections
 
-  mk_temp_storage    = "section .bss\nLtemp_storage_foxdec:\nresb 8"
-  mk_jump_tables     = filter ((/=) []) $ map (mk_jump_table l) $ get_indirections_per_function l
- -- intercalate "\n" $ ["; Internally resolved relocations", "section .data"] ++ 
+  mk_temp_storage     = "section .bss\nLtemp_storage_foxdec:\nresb 8"
+  mk_jump_tables      = filter ((/=) []) $ map (mk_jump_table l) $ get_indirections_per_function l
 
 
 with_start_global bin = 
@@ -110,6 +110,27 @@ resolved_relocs_section l@(bin,_,l0) =
 
   mk_reloc (a0,Relocated_ResolvedObject str a1) = 
     NASM_DataSection ("",".data",fromIntegral a0) 0 [(fromIntegral a0, DataEntry_Label $ Label (fromIntegral a0) $ strip_GLIBC str), (fromIntegral a0, DataEntry_Pointer (try_symbolize_imm l a1)) ]
+
+
+undefined_internal_global_labels l@(bin,_,l0) =
+  case filter is_global_and_internal_and_outside_of_any_section $ IM.assocs $ binary_get_symbol_table bin of
+    [] -> []
+    ls -> map mk_datasection ls
+ where
+  is_global_and_internal_and_outside_of_any_section (a,sym) = and
+    [ is_internal_symbol sym
+    , symbol_to_name sym `S.member` binary_get_global_symbols bin
+    , is_not_defined_elsewhere a ]
+
+  mk_datasection (a,sym) = NASM_Section_Data [ NASM_DataSection ("",".bss",fromIntegral a) 8 $ mk_entries (fromIntegral a) sym ]
+  mk_entries a sym =
+    [ (a,DataEntry_Label $ Label a (symbol_to_name sym) )
+    , (a,DataEntry_BSS 1) ]
+
+  is_not_defined_elsewhere a = (find (is_section_for a) $ si_sections $ binary_get_sections_info bin) == Nothing
+
+  is_section_for a (segment,section,a0,sz,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
+
 
 -- | Rendering NASM to a String
 render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [

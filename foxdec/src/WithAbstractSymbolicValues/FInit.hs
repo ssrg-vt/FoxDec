@@ -29,7 +29,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 import qualified Data.Serialize as Cereal
 
-
+import Debug.Trace
 
 
 
@@ -50,6 +50,7 @@ instance Show p => Show (SStatePart p) where
 
 
 -- | The initial predicate.
+-- TODO: Use aliassing information
 finit_to_init_sstate :: WithAbstractSymbolicValues ctxt v p => ctxt -> FInit v p -> Sstate v p
 finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
   let rsp0                 = smk_init_reg_value ctxt $ Reg64 RSP
@@ -61,7 +62,7 @@ finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
 
       sregs                = M.empty
       smem                 = M.empty
-      gmem                 = GlobalMem IM.empty in
+      gmem                 = GlobalMem IM.empty IS.empty in
     execSstate (write_stack_pointer >> write_return_address >> write_finit (S.toList sps)) (Sstate sregs smem gmem [])
  where
   write_finit []             = return ()
@@ -78,9 +79,9 @@ sstate_to_finit ctxt p =
       mem_rels = M.fromList $ mapMaybe (mk_memrel ctxt) pairs in
     FInit (S.map (\(sp,v,p) -> (sp,v)) $ S.filter keep_sp sps) mem_rels
  where
-    regs_to_sps regs             = mapMaybe mk_reg $ filter suitable_reg $ M.assocs regs
-    mem_to_sps  mem              = mapMaybe mk_mem $ M.assocs mem
-    gmem_to_sps (GlobalMem gmem) = mapMaybe mk_gmem $ IM.assocs gmem
+    regs_to_sps regs            = mapMaybe mk_reg $ filter suitable_reg $ M.assocs regs
+    mem_to_sps  mem             = mapMaybe mk_mem $ M.assocs mem
+    gmem_to_sps (GlobalMem m _) = mapMaybe mk_gmem $ IM.assocs m
 
     suitable_reg (Reg64 RIP,_) = False
     suitable_reg (Reg64 RSP,_) = False
@@ -95,7 +96,7 @@ sstate_to_finit ctxt p =
     mk_mem ((a,Just (ByteSize si)),v) = Nothing -- TODO using forward transposition? for maybe_mk_tuple (SSP_Mem a si) v
     mk_mem _ = Nothing
 
-    mk_gmem (a,Stores v 8) = maybe_mk_tuple (SSP_Mem (simmediate_to_pointer ctxt $ fromIntegral a) 8) v
+    mk_gmem (a,(v,8)) = maybe_mk_tuple (SSP_Mem (simmediate_to_pointer ctxt $ fromIntegral a) 8) v
     mk_gmem _ = Nothing
 
     maybe_mk_tuple sp v =
@@ -109,7 +110,8 @@ sstate_to_finit ctxt p =
     -- Constructing memory relations over values stored in state parts
     mk_memrel ctxt ((sp0,v0,ptrs0),(sp1,v1,ptrs1))
       | all (\ptr0 -> all (\ptr1 -> sseparate ctxt "invariant_to_finit" ptr0 unknownSize ptr1 unknownSize) ptrs1) ptrs0 = Just ((sp0,sp1),Separate)
-      | all (\ptr0 -> all (\ptr1 -> salias ctxt ptr0 unknownSize ptr1 unknownSize) ptrs1) ptrs0 = Just ((sp0,sp1),Aliassing)
+      -- | all (\ptr0 -> all (\ptr1 -> salias ctxt ptr0 unknownSize ptr1 unknownSize) ptrs1) ptrs0 = Just ((sp0,sp1),Aliassing)
+      | v0 == v1 = Just ((sp0,sp1),Aliassing)
       | otherwise = Nothing
     
 

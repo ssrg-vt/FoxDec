@@ -52,7 +52,7 @@ instance (NFData p) => NFData (SStatePart p)
 data Sstate v p = Sstate {
     sregs  :: M.Map Register v,
     smem   :: M.Map (p,Maybe ByteSize) v,
-    gmem   :: GlobalMem p v,
+    gmem   :: GlobalMem v,
     sflags :: [FlagStatus]
   }
   deriving (Eq,Ord,Generic)
@@ -121,6 +121,7 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
 
   scall :: ctxt -> Instruction -> State (Sstate v p,VCS v) ()
   sjump :: ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+
   saddress_has_instruction :: ctxt -> Word64 -> Bool
 
   stry_global :: ctxt -> p -> Maybe (Int, Bool)
@@ -132,6 +133,6 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
   sis_deterministic :: ctxt -> v -> Bool
   scheck_regs_in_postcondition :: ctxt -> v -> v -> Bool
 
-
+  sget_gmem_structure :: ctxt -> GMemStructure
 
 

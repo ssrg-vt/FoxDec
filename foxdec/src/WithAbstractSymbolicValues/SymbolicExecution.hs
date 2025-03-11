@@ -151,21 +151,18 @@ slea :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> Operand ->
 slea ctxt i dst op = do
   e <- sresolve_address ctxt op
   swrite_operand ctxt i True dst e
-  if rip_relative op then
+  if rip_relative op then do
     case stry_immediate ctxt e of
       Nothing  -> return ()
-      Just imm -> if (saddress_has_instruction ctxt imm) then modify $ add_function_pointer (inAddress i) $ fromIntegral imm else return ()
+      Just imm -> if (saddress_has_instruction ctxt imm) then do
+                     modify $ add_function_pointer (inAddress i) $ fromIntegral imm
+                  else
+                    return ()
   else
     return ()
  where
   rip_relative (Op_Mem _ _ r0 r1 _ _ _) = Reg64 RIP `elem` [r0,r1]
 
--- MOV
-smov :: WithAbstractSymbolicValues ctxt v p => ctxt -> a -> Instruction -> State (Sstate v p,VCS v) ()
-smov ctxt a i@(Instruction label prefix MOV (Just dst) [src@(Op_Imm _)] annot)
-  -- | saddress_has_instruction ctxt imm   = slea ctxt label dst (EffectiveAddress (AddressImm imm))
-  | otherwise                           = sgeneric_cinstr ctxt i
-smov ctxt a i                           = sgeneric_cinstr ctxt i
 
 
 sgeneric_cinstr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
@@ -191,13 +188,12 @@ maybe_operand_size srcs
 sexec_cinstr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 --sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
-  | mnemonic == LEA                      = slea ctxt i dst $ head srcs
-  | mnemonic == MOV                      = smov ctxt (top ctxt "") i
+  | mnemonic == LEA                          = slea ctxt i dst $ head srcs
   | mnemonic `elem` xors && dst == head srcs = swrite_operand ctxt i False dst $ simmediate ctxt 0
   | otherwise                                = sgeneric_cinstr ctxt i
  where
   xors = [XOR,PXOR]
-sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing _ _)
+sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing srcs _)
   | isRet mnemonic        = sreturn ctxt i
   | isJump mnemonic       = sjump ctxt i
   | isCall mnemonic       = scall ctxt i
@@ -275,7 +271,7 @@ sjoin_mem ctxt msg s0 s1 =
   sjoin_mem' m ((((a,si),v),s'):rest) =
     let v' = evalSstate (sread_mem_from_ptr ctxt ("joinmem" ++ show (a,si,s0,s1)++ "_" ++msg) a si) s'
         j  = join_values v v'
-        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, gmem = GlobalMem IM.empty, sflags = []} in
+        m' = smem $ execSstate (swrite_mem_to_ptr ctxt True a si j) $ Sstate {sregs = M.empty, smem = m, gmem = GlobalMem IM.empty IS.empty, sflags = []} in
       sjoin_mem' m' rest
 
   join_values a b = sjoin_values ctxt ("States (mem value) " ++ show a ++ " joined with " ++ show b ++ "_" ++ msg) [a,b]
@@ -293,24 +289,6 @@ sjoin_regs ctxt r0 r1 =
 
   join_with_init_value v r = sjoin_values ctxt ("joinregs2"++show r) [v, smk_init_reg_value ctxt r]
   
-
-
-sjoin_gmem :: WithAbstractSymbolicValues ctxt v p => ctxt -> GlobalMem p v -> GlobalMem p v -> GlobalMem p v
-sjoin_gmem ctxt (GlobalMem m0) (GlobalMem m1) = 
-  let step0 = IM.foldrWithKey (join_entry m1) (GlobalMem IM.empty) m0 in
-    IM.foldrWithKey (join_entry m0) step0 m1
- where
-  join_entry m1 a0 ma0 j =
-    let (si0,isPrecise0) = mk ma0
-        touched = get_touched_mem_accesses m1 a0 si0 isPrecise0
-        (a_j,ma_j) = foldr1 (join_mem_accesses ctxt) $ (a0,ma0) : touched in
-      add_global_mem_access ctxt a_j ma_j j 
-
-  mk (Stores _ si) = (Just $ ByteSize si,True)
-  mk (SpansTo _)   = (Nothing,False)
-
-
-
 
 
 

@@ -30,7 +30,7 @@ instance (Show v,Ord v,BinaryClass bin, WithAbstractSymbolicValues (bin, Config,
   resolve_indirection = stry_resolve_indirection
   is_weaker_than = simplies
   join_preds static = sjoin_states static ""
-  join_finits static = join_finit static
+  join_finits = join_finit
   new_finit = \_ -> FInit S.empty M.empty
   pp_finit = \_ -> pp_finitC
 

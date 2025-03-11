@@ -8,42 +8,55 @@ import Config
 import Base
 
 
-import qualified Data.Set as S
-import qualified Data.IntMap as IM
 import Data.Word
 import Data.List
+import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Data.IntSet as IS
+import qualified Data.IntMap as IM
 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Control.DeepSeq
 import GHC.Generics
 
-data MemAccess p v = Stores v Int | SpansTo Int
- deriving (Eq, Ord, Generic)
+type GMemStructure = IM.IntMap Bool
 
-instance (Show p, Show v) => Show (MemAccess p v) where
-  show (Stores v si) = "Stores " ++ show v ++ "  " ++ show si
-  show (SpansTo a)   = "SpansTo " ++ showHex a
-
-data GlobalMem p v = GlobalMem (IM.IntMap (MemAccess p v))
+data GlobalMem v = GlobalMem (IM.IntMap (v,Int)) IS.IntSet
   deriving (Eq,Ord,Generic)
 
 
-instance (Show p,Show v) => Show (GlobalMem p v) where
-  show (GlobalMem m) = intercalate "\n" $ map show_entry $ IM.toList m
-   where
-    show_entry (a,Stores v si) = "[" ++ showHex a ++ "," ++ show si ++ "] := " ++ show v 
-    show_entry (a,SpansTo a') = "[" ++ showHex a ++ " --> " ++ showHex a' ++ "]" --  stores at " ++ show p ++ ": " ++ show v
+
+show_gmem_entry a (v,si) = "[" ++ showHex a ++ "," ++ show si ++ "] := " ++ show v
+
+gmem_structure_with gmem_structure as = IM.unionWith (||) (IM.fromSet (const True) as) gmem_structure
+
+instance (Show v) => Show (GlobalMem v) where
+  show m = show_gmem m IM.empty
+
+show_gmem (GlobalMem m as) gmem_structure = intercalate "\n" $ map show_entry $ sortBy compare_entry $ IM.assocs (IM.mapWithKey mk_entry' (gmem_structure_with gmem_structure as)) ++ IM.assocs (IM.mapWithKey show_gmem_entry m)
+  where
+   compare_entry (a0,v0) (a1,v1)
+     | a0 == a1  = labelsFirst v0 v1
+     | otherwise = compare a0 a1
+
+   labelsFirst v0 v1
+     | head v0 == '[' && head v1 /= '[' = GT
+     | head v0 /= '[' && head v1 == '[' = LT
+     | otherwise = compare v0 v1
+    
+
+   mk_entry' a True    = showHex a ++ "(*):"
+   mk_entry' a False   = showHex a ++ ":"
+
+   show_entry (a,str) = str  
 
 
+instance (Cereal.Serialize v) => Cereal.Serialize (GlobalMem v)
 
-instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (MemAccess p v)
-instance (Cereal.Serialize v,Cereal.Serialize p) => Cereal.Serialize (GlobalMem p v)
-
-instance (NFData v, NFData p) => NFData (MemAccess p v)
-instance (NFData v, NFData p) => NFData (GlobalMem p v)
+instance (NFData v) => NFData (GlobalMem v)
 
 
-show_gmem_structure (GlobalMem gmem) = intercalate "\n" $ map show_entry $ IM.assocs gmem
- where
-  show_entry (a,Stores v si) = "[" ++ showHex a ++ "," ++ show si ++ "]"
-  show_entry (a, SpansTo a') = "[" ++ showHex a ++ " --> " ++ showHex a' ++ "]"
+empty_gmem_structure = IM.empty
+
+gmem_get_structure    (GlobalMem m ls) = ls
+gmem_get_mem_accesses (GlobalMem m ls) = m

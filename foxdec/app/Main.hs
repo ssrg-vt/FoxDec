@@ -13,7 +13,7 @@ import Config
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
---import OutputGeneration.NASM.ModDataSection
+import OutputGeneration.NASM.ModDataSection
 
 import Data.CFG
 import Data.SValue
@@ -267,12 +267,10 @@ generate_per_function bin config l0 = do
 
   mapM_ (write_function dirname name) $ IM.assocs $ l0_functions l0
   putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
-  let root_functions = get_call_graph_sources (bin,config,l0)
-  let joined_gmem = foldr1 (sjoin_gmem (bin,config,l0,0::Word64)) $ map (gmem . l0_lookup_join l0) $ IS.toList root_functions
-  putStrLn $ "Root functions: " ++ (showHex_set root_functions)
-  putStrLn $ "Joined global memory:\n" ++ show_gmem_structure joined_gmem
-  putStrLn $ "Joined global memory structure:\n" ++ (showHex_list $ gmem_to_structure joined_gmem)
-  
+
+
+  let (joined_gmem,joined_gmem_structure) = join_gmems (bin,config,l0,0::Word64) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0
+  putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
  where
   write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa))) = do
     let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
@@ -350,7 +348,7 @@ generate_NASM l@(bin,_,_) = do
 
   let nasm' = lift_L0_to_NASM l
 
-  let nasm = nasm' -- split_data_section [0x1e2e0,0x1e3a0,0x1e428,0x1e448,0x1e460,0x1e8a0,0x1e8a8,0x1e9f8,0x1ea00] nasm' -- TODO
+  let nasm = nasm' -- split_data_section nasm' -- TODO
 
 
   let gmon = __gmon_start_implementation

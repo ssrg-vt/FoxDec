@@ -99,6 +99,7 @@ resolve_call l@(bin,_,l0) i =
   gather Terminal (JustRips as)         = JustRips as
   gather UnresolvedTarget (JustRips as) = JustRips as
   gather (JustRips as) UnresolvedTarget = JustRips as
+  gather UnresolvedTarget Terminal      = Terminal
   gather x y = error $ show (x,y)
 
 

@@ -88,7 +88,7 @@ lift_to_L0 :: WithAbstractPredicates bin pred finit v => Config -> bin -> finit 
 lift_to_L0 config bin finit = do
   entries <- get_entries
 
-  let empty_L0 = L0 IM.empty IM.empty ""
+  let empty_L0 = L0 IM.empty IM.empty IM.empty ""
   let init_L0 = foldr (\entry -> l0_insert_new_entry entry finit) empty_L0 entries
 
   let recs = IM.empty
@@ -122,6 +122,7 @@ exploreFunctionEntries entries recursions = do
   case rec of
     Just (entry,trgts) -> do
       -- If yes, then reinsert the function entry, remove the current known results and continue
+      -- TODO check whether not already done?
       liftIO $ putStrLn $ "Reconsidering (due to mutual recursion) entry " ++ showHex entry ++ " as all entries " ++ showHex_set trgts ++ " are now done."
       let entries'    = graph_add_edges entries entry IS.empty 
       let recursions' = IM.delete entry recursions
@@ -289,7 +290,8 @@ analyze_entry entry = do
   liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": CFG generation done: #basic blocks = " ++ show (IM.size $ cfg_instrs cfg) ++ ", #instructions = " ++ show (num_of_instructions cfg)
 
   liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": starting invariant generation."
-  let !(invs,vcs)  = generate_invariants (withEntry entry static) cfg finit
+  let !(invs,gmem_structure',vcs)  = generate_invariants (withEntry entry static) cfg finit
+  modify $ l0_set_gmem_structure gmem_structure'
 
   new_calls <- (join_duplicate_new_calls static . catMaybes) <$> (concatMapM (get_new_calls invs) $ IM.assocs $ cfg_instrs cfg)
 

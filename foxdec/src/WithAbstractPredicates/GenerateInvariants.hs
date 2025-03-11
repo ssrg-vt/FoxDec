@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, StrictData, FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric, StrictData, FlexibleContexts, ScopedTypeVariables #-}
 
 module WithAbstractPredicates.GenerateInvariants where
 
@@ -9,10 +9,13 @@ import WithAbstractPredicates.ControlFlow
 
 import Data.X86.Opcode
 import Data.CFG
+import Data.GlobalMem
 import Data.VerificationCondition
 import Data.L0
 import Data.Indirection
 import Data.X86.Instruction
+import Data.X86.Opcode
+import Data.X86.Register
 
 import WithAbstractPredicates.Class
 
@@ -28,14 +31,15 @@ import Control.Monad.State.Strict
 -- Returns a set of invariants, i.e., a mapping of instruction addresses to predicates.
 --
 -- Assumes blockID 0 is start of function
-generate_invariants :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> finit -> (IM.IntMap pred,VCS v)
-generate_invariants l cfg finit =
+generate_invariants :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> finit -> (IM.IntMap pred,GMemStructure,VCS v)
+generate_invariants l@(_,_,l0,_) cfg finit =
   let p = finit_to_init_pred l finit
-      (invs,_,vcs) = execState (propagate l cfg) (IM.singleton 0 p, out_edges cfg 0, S.empty)
+      gmem_structure = l0_gmem_structure l0
+      (invs,_,gem_structure',vcs) = execState (propagate l cfg) (IM.singleton 0 p, out_edges cfg 0, gmem_structure, S.empty)
       blocks = IM.assocs $ cfg_instrs cfg
       end_blocks = filter (\(blockID,_) -> is_end_node cfg blockID) blocks
-      vcs' = map (\(blockID,instrs) -> snd $ get_postcondition_for_block l blockID instrs invs) end_blocks in
-    (invs,S.unions $ vcs:vcs')
+      vcs' = map (\(blockID,instrs) -> snd $ get_postcondition_for_block l blockID instrs invs) end_blocks in -- TODO use updated GMemStructure
+    (invs,gem_structure',S.unions $ vcs:vcs')
 
 
 
@@ -134,19 +138,42 @@ invs_to_joined_post l@(bin,_,l0,_) cfg invs =
 --
 
 
-propagate :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> State (IM.IntMap pred, S.Set (Int,Int), VCS v) ()
-propagate l g = do
+-- TODO CALLS
+add_to_gmem_structure :: Instruction -> GMemStructure -> GMemStructure
+add_to_gmem_structure i@(Instruction _ _ _ maybe_dst srcs _) gmem_structure = foldr add gmem_structure (get_dst maybe_dst ++ srcs)
+ where
+  get_dst Nothing = []
+  get_dst (Just dst) = [dst]
+
+  add (Op_Mem si aSi (Reg64 RIP) RegNone 0 displ Nothing) gmem_structure =
+    let rip   = inAddress i + (fromIntegral $ inSize i)
+        a     = rip + fromIntegral displ
+        dirty = inOperation i == LEA  in
+      IM.insertWith (||) (fromIntegral a) dirty gmem_structure
+  add (Op_Mem si aSi (Reg64 RIP) _ _ _ _) gmem_structure = error "todo"
+  add _ gmem_structure = gmem_structure
+
+
+add_block_to_gmem_structure = foldr add_to_gmem_structure
+
+
+propagate :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> State (IM.IntMap pred, S.Set (Int,Int), GMemStructure, VCS v) ()
+propagate l@(bin,config,l0,entry) g = do
   pick <- pick_edge_from_bag
   case pick of
     Nothing -> return ()
     Just ((v0,v1),bag') -> do
-      modify $ put_bag bag'
       -- take an edge (v0,v1) out of the bag
-      (m,_,_) <- get
+      (m,_,gmem_structure,vcs) <- get
       -- do predicate transformation on the currently available precondition of v0
       let p = m IM.! v0
+
+      let instrs = fetch_block g v0
+      let gmem_structure' = add_block_to_gmem_structure gmem_structure instrs
+      put (m,bag',gmem_structure',vcs)
+      let l' = (bin,config,l0_set_gmem_structure gmem_structure' l0,entry) 
       -- this produces q: the precondition for v1
-      let (q,vcs') = execState (symbolically_execute l False (fetch_block g v0) (Just $ fetch_block g v1)) (p,S.empty)
+      let (q,vcs') = execState (symbolically_execute l' False instrs (Just $ fetch_block g v1)) (p,S.empty)
       modify $ add_vcs vcs'
       -- store q
       add_predicate l q v1
@@ -154,21 +181,18 @@ propagate l g = do
       propagate l g
  where
   pick_edge_from_bag = do
-    (m,bag,vcs) <- get
+    (m,bag,gmem_structure,vcs) <- get
     case find (\(v0,v1) -> IM.member v1 m) bag of
       Just edge -> return $ Just (edge, S.delete edge bag)
       Nothing   -> return $ S.minView bag
-
-  put_bag bag (m,_,vcs) = (m,bag,vcs)
-
-  add_vcs vcs' (m,bag,vcs) = (m,bag,S.union vcs vcs')
+  add_vcs vcs' (m,bag,gmem_structure,vcs) = (m,bag,gmem_structure,S.union vcs vcs')
 
   add_predicate l q v1 = do
-   (m,bag,vcs) <- get
+   (m,bag,gmem_structure,vcs) <- get
    case IM.lookup v1 m of
      Nothing -> do
        -- first time visit, store q and explore all outgoing edges
-       put (IM.insert v1 q m, S.union bag $ out_edges g v1,vcs)
+       put (IM.insert v1 q m, S.union bag $ out_edges g v1,gmem_structure,vcs)
      Just p -> do
        if is_weaker_than l p q then
          -- previously visited, no need for further exploration
@@ -176,7 +200,7 @@ propagate l g = do
        else do
          let j = join_preds l p q
          -- previously visited, need to weaken invariant by joining
-         put (IM.insert v1 j m,S.union bag $ out_edges g v1,vcs)
+         put (IM.insert v1 j m,S.union bag $ out_edges g v1,gmem_structure,vcs)
 
 out_edges g v = S.fromList $ zip (repeat v) $ IS.toList $ post g v
  

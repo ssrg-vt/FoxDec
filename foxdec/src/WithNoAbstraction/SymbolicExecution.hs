@@ -450,7 +450,7 @@ mnemonic_to_semantics _      _ _  = NoSemantics
 
 
 replace_rip_in_operand rip op@(Op_Mem si aSi (Reg64 RIP) RegNone 0 displ Nothing) = Op_Mem si aSi RegNone RegNone 0 (fromIntegral $ fromIntegral rip + displ) Nothing
-replace_rip_in_operand rip op@(Op_Mem si aSi (Reg64 RIP) _ _ displ Nothing) = error $ "TODO: " ++ show op
+replace_rip_in_operand rip op@(Op_Mem si aSi (Reg64 RIP) _ _ displ _) = error $ "TODO: " ++ show op
 replace_rip_in_operand rip op = op
 
 
@@ -460,7 +460,7 @@ cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs
  where
   mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
 
-  flg CMP      = traceShow ("HALLOCMP", i) $ [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg CMP      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
   flg SUB      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
   flg MOV      = [FS_EQ (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ flgs
 
@@ -690,8 +690,11 @@ cread_from_ro_data fctxt@(bin,_,_,_) p@(Ptr_Concrete (SE_Immediate a)) (Just (By
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
       Just (PointerToLabel f True)  -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
       Just (PointerToObject f True) -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
-      --Just s                        -> error $ show (a, s) -- Just $ External f
+      Just (AddressOfObject f True) -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
+      -- Just s                        -> error $ show (a, s) 
       _                             -> Nothing
+
+
 
 
 cread_from_ro_data _ _ _ = Nothing
@@ -763,6 +766,10 @@ ctry_global ctxt@(bin,_,_,_) p =
   is_global_base _ = False
 
 
+
+  
+
+
 instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPointer where
   sseparate                = cseparate
   senclosed                = cnecessarily_enclosed
@@ -789,8 +796,7 @@ instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPo
   scheck_regs_in_postcondition = check_regs_in_postcondition
   stry_resolve_error_call  = ctry_resolve_error_call
   stry_global              = ctry_global
-  
-
+  sget_gmem_structure      = \(_,_,l0,entry) -> l0_gmem_structure l0 
 
 
 
@@ -1124,8 +1130,7 @@ transpose_bw_mem fctxt p ((a,si),v) =
       v'  = if si == Just (ByteSize 8) then transpose_bw_svalue fctxt p v else mk_top "transpose_bw_mem" in
     S.toList $ S.map (\a' -> ((a',si),v')) as'
 
-transpose_bw_gmem fctxt p (Stores v si) = (Stores (transpose_bw_svalue fctxt p v) si)
-transpose_bw_gmem fctxt p (SpansTo a')  = (SpansTo a')
+transpose_bw_gmem fctxt p (v,si) = (transpose_bw_svalue fctxt p v, si)
 
 
 
@@ -1233,7 +1238,7 @@ call fctxt@(bin,_,l0,entry) i = do
     mapM_ (\(r,v) -> swrite_reg fctxt ("call: " ++ show i) r v) $ q_eqs_transposed_regs
     mapM_ (\((a,si),v) -> swrite_mem_to_ptr fctxt True a si v) $ q_eqs_transposed_mem 
     (Sstate _ _ gmem _,_) <- get
-    let gmem' = foldr (uncurry $ add_global_mem_access fctxt) gmem q_eqs_transposed_gmem
+    let gmem' = foldr (\(a,(v,si)) -> add_global_mem_access fctxt False a si v) gmem q_eqs_transposed_gmem
     modify $ \(Sstate regs mem _ flgs,vcs) -> (Sstate regs mem gmem' flgs,vcs)
 
     incr_rsp 
@@ -1261,7 +1266,7 @@ call fctxt@(bin,_,l0,entry) i = do
 
   sstate_to_reg_eqs (Sstate regs _ _ _) = M.toList regs
   sstate_to_mem_eqs (Sstate _ mem _ _)  = M.toList mem
-  sstate_to_gmem_eqs (Sstate _ _ (GlobalMem gmem) _)  = gmem
+  sstate_to_gmem_eqs (Sstate _ _ (GlobalMem m _) _)  = m
 
   unknown_internal_function fctxt i = return ()-- TODO try as external
 

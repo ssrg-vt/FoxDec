@@ -17,6 +17,7 @@ import Binary.Generic
 
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import Data.Word
 import Data.List
 import Data.Maybe
@@ -53,21 +54,25 @@ data FResult pred v = FResult {
 data L0 pred finit v = L0 {
   l0_functions :: IM.IntMap (finit,Maybe (FResult pred v)),
   l0_indirections :: IM.IntMap Indirections,
+  l0_gmem_structure :: GMemStructure,
   l0_time :: String
  }
  deriving Generic
 
-l0_insert_new_entry entry finit (L0 fs inds time) = L0 (IM.insert entry (finit,Nothing) fs) inds time
+l0_insert_new_entry entry finit (L0 fs inds gmem_structure time) = L0 (IM.insert entry (finit,Nothing) fs) inds gmem_structure time
 
-l0_adjust_result entry result (L0 fs inds time) = L0 (IM.adjust (\(finit,_) -> (finit,result)) (fromIntegral entry) fs) inds time
+l0_adjust_result entry result (L0 fs inds gmem_structure time) = L0 (IM.adjust (\(finit,_) -> (finit,result)) (fromIntegral entry) fs) inds gmem_structure time
 
-l0_lookup_entry entry (L0 fs inds time) = IM.lookup (fromIntegral entry) fs
+l0_lookup_entry entry (L0 fs inds gmem_structure time) = IM.lookup (fromIntegral entry) fs
 
-l0_lookup_indirection a (L0 fs inds time) = IM.lookup (fromIntegral a) inds
 
-l0_insert_indirection a ind (L0 fs inds time) = L0 fs (IM.insert (fromIntegral a) ind inds) time
+l0_set_gmem_structure gmem_structure (L0 fs inds _ time) = L0 fs inds gmem_structure time
 
-l0_lookup_join (L0 fs inds time) entry = fromJust $ result_join $ fromJust $ snd $ fs IM.! entry 
+l0_lookup_indirection a (L0 fs inds gmem_structure time) = IM.lookup (fromIntegral a) inds
+
+l0_insert_indirection a ind (L0 fs inds gmem_structure time) = L0 fs (IM.insert (fromIntegral a) ind inds) gmem_structure time
+
+l0_lookup_join (L0 fs inds gmem_structure time) entry = fromJust $ result_join $ fromJust $ snd $ fs IM.! entry 
 
 empty_result :: FResult pred v
 empty_result = FResult (init_cfg 0) TimeOut Nothing S.empty S.empty IM.empty
