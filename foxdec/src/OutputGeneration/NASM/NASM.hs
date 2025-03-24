@@ -200,7 +200,7 @@ instance Show NASM_DataSection where
     show_entry (a,e) = show e
 
     show_align 0 = ""
-    show_align n = " align=" ++ show n
+    show_align n = " .align=" ++ show n
 
 word8s_to_string = concatMap (escape . w2c)
  where
@@ -251,7 +251,7 @@ instance Show NASM_Instruction where
     show_mnemonic (Just SETNLE) = "setg"
     show_mnemonic (Just p) = toLowerCase $ show p
 
-    show_ops = intercalate ", " . map show_op
+    show_ops = intercalate ", " . reverse . map show_op
 
     mk_comment =
       let str = render_annot annot in
