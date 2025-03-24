@@ -31,6 +31,11 @@ import Data.Bits (testBit)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import Data.ByteString.Internal (w2c)
+import Data.Char(toLower)
+
+
+toLowerCase :: String -> String
+toLowerCase = map toLower
 
 
 
@@ -75,7 +80,7 @@ data NASM_TextSection = NASM_TextSection  {
 
 
 -- | A NASM line is either a comment, an instruction or a label
-data NASM_Line = 
+data NASM_Line =
     NASM_Comment Int String    -- ^ A comment with an indentation level (number of spaces)
   | NASM_Line NASM_Instruction -- ^ An instruction with an annotation
   | NASM_Label NASM_Label      -- ^ A label
@@ -98,7 +103,7 @@ data NASM_Instruction = NASM_Instruction
 -- It can be `False` to indicate that the operand should not be rendered (e.g, in case of an LEA instruction).
 type NASM_SizeDir = (Int,Bool)
 
-data NASM_Operand = 
+data NASM_Operand =
     NASM_Operand_Address NASM_Address
   | NASM_Operand_EffectiveAddress NASM_Address
   | NASM_Operand_Reg Register
@@ -136,10 +141,10 @@ data NASM_DataEntry =
  deriving (Generic,Ord,Eq)
 
 instance Show NASM_DataEntry where
-  show (DataEntry_Byte b)              = "db 0" ++ showHex b ++ "h"
-  show (DataEntry_String str zero)     = "db `" ++ word8s_to_string str ++ "`" ++ (if zero then ", 0" else "")
-  show (DataEntry_Pointer (ptr,annot)) = "dq " ++ show ptr ++ "    ; " ++ render_annot annot
-  show (DataEntry_BSS sz)              = "resb " ++ show sz
+  show (DataEntry_Byte b)              = ".byte 0x" ++ showHex b
+  show (DataEntry_String str zero)     = if zero then ".asciz `" ++ word8s_to_string str ++ "`" else ".ascii `" ++ word8s_to_string str ++ "`"
+  show (DataEntry_Pointer (ptr,annot)) = ".quad " ++ show ptr ++ "    ; " ++ render_annot annot
+  show (DataEntry_BSS sz)              = ".space " ++ show sz
   show (DataEntry_Label l)             = show l ++ ":"
 
 -- | A data section then consists of:
@@ -189,7 +194,7 @@ empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
 
 -- Pretty printing
 instance Show NASM_DataSection where
-  show (NASM_DataSection (seg,sec,a0) align entries) = "section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
+  show (NASM_DataSection (seg,sec,a0) align entries) = ".section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
    where
     show_entry (a,e@(DataEntry_String _ _)) = show e ++ "; @ " ++ showHex a
     show_entry (a,e) = show e
@@ -197,7 +202,7 @@ instance Show NASM_DataSection where
     show_align 0 = ""
     show_align n = " align=" ++ show n
 
-word8s_to_string = concatMap (escape . w2c) 
+word8s_to_string = concatMap (escape . w2c)
  where
   escape '\\' = "\\\\"
   escape '`'  = "\\`"
@@ -213,7 +218,7 @@ instance Show NASM_TextSection where
     comment str = "; " ++ str
 
     comment_block strs = intercalate "\n" $ comment_block_delim strs : (map comment strs ++ [comment_block_delim strs,""])
-    comment_block_delim strs = comment $ replicate (length $ max strs) '-' 
+    comment_block_delim strs = comment $ replicate (length $ max strs) '-'
     max strs = maximumBy compare_lengths strs
     compare_lengths str0 str1 = compare (length str0) (length str1)
 
@@ -232,20 +237,20 @@ instance Show NASM_Instruction where
     ]
    where
     show_prefix Nothing  = ""
-    show_prefix (Just PrefixRep) = "REPZ"
-    show_prefix (Just PrefixRepNE) = "REPNE"
-    show_prefix (Just p) = show p
+    show_prefix (Just PrefixRep) = "repz"
+    show_prefix (Just PrefixRepNE) = "repne"
+    show_prefix (Just p) = toLowerCase $ show p
 
     show_mnemonic Nothing  = ""
     -- NOT NEEDED, JUST FOR EASY DIFF
-    show_mnemonic (Just JZ) = "JE"
-    show_mnemonic (Just JNZ) = "JNE"
-    show_mnemonic (Just SETNBE) = "SETA"
-    show_mnemonic (Just CMOVZ) = "CMOVE"
-    show_mnemonic (Just CMOVNZ) = "CMOVNE"
-    show_mnemonic (Just SETNLE) = "SETG"
-    show_mnemonic (Just p) = show p
- 
+    show_mnemonic (Just JZ) = "je"
+    show_mnemonic (Just JNZ) = "jne"
+    show_mnemonic (Just SETNBE) = "seta"
+    show_mnemonic (Just CMOVZ) = "cmove"
+    show_mnemonic (Just CMOVNZ) = "cmovne"
+    show_mnemonic (Just SETNLE) = "setg"
+    show_mnemonic (Just p) = toLowerCase $ show p
+
     show_ops = intercalate ", " . map show_op
 
     mk_comment =
@@ -263,36 +268,36 @@ instance Show NASM_Instruction where
     isImmediate (NASM_Operand_Immediate _) = True
     isImmediate _                          = False
 
-    show_op (NASM_Operand_Reg r)              = show r
+    show_op (NASM_Operand_Reg r)              = "%" ++ toLowerCase (show r)
     show_op (NASM_Operand_Address a)          = show a
-    show_op (NASM_Operand_EffectiveAddress a) = "[" ++ show a ++ "]"
-    show_op (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ " [" ++ show a ++ "]"
-    show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) = 
+    show_op (NASM_Operand_EffectiveAddress a) = show a
+    show_op (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ show a
+    show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) =
       case (instr_op_size,si) of
-        (ByteSize 16,64) -> "0x" ++ showHex imm
-        (ByteSize 16,32) -> "0x" ++ showHex imm
-        (ByteSize 16,16) -> "0x" ++ showHex imm
-        (ByteSize 16, 8) -> "0x" ++ showHex imm
+        (ByteSize 16,64) -> "$0x" ++ showHex imm
+        (ByteSize 16,32) -> "$0x" ++ showHex imm
+        (ByteSize 16,16) -> "$0x" ++ showHex imm
+        (ByteSize 16, 8) -> "$0x" ++ showHex imm
 
-        (ByteSize 8,64) -> "0x" ++ showHex imm
-        (ByteSize 8,32) -> "0x" ++ showHex (sextend_32_64 imm)
-        (ByteSize 8,16) -> "0x" ++ showHex (sextend_16_64 imm)
-        (ByteSize 8, 8) -> "0x" ++ showHex (sextend_8_64 imm)
+        (ByteSize 8,64) -> "$0x" ++ showHex imm
+        (ByteSize 8,32) -> "$0x" ++ showHex (sextend_32_64 imm)
+        (ByteSize 8,16) -> "$0x" ++ showHex (sextend_16_64 imm)
+        (ByteSize 8, 8) -> "$0x" ++ showHex (sextend_8_64 imm)
 
-        (ByteSize 4, 64) -> "0x" ++ showHex imm
-        (ByteSize 4, 32) -> "0x" ++ showHex imm
-        (ByteSize 4, 16) -> "0x" ++ showHex (sextend_16_32 imm)
-        (ByteSize 4,  8) -> "0x" ++ showHex (sextend_8_32 imm)
+        (ByteSize 4, 64) -> "$0x" ++ showHex imm
+        (ByteSize 4, 32) -> "$0x" ++ showHex imm
+        (ByteSize 4, 16) -> "$0x" ++ showHex (sextend_16_32 imm)
+        (ByteSize 4,  8) -> "$0x" ++ showHex (sextend_8_32 imm)
 
-        (ByteSize 2, 64) -> "0x" ++ showHex imm
-        (ByteSize 2, 32) -> "0x" ++ showHex imm
-        (ByteSize 2, 16) -> "0x" ++ showHex imm
-        (ByteSize 2,  8) -> "0x" ++ showHex (sextend_8_16 imm)
+        (ByteSize 2, 64) -> "$0x" ++ showHex imm
+        (ByteSize 2, 32) -> "$0x" ++ showHex imm
+        (ByteSize 2, 16) -> "$0x" ++ showHex imm
+        (ByteSize 2,  8) -> "$0x" ++ showHex (sextend_8_16 imm)
 
-        (ByteSize 1,  64) -> "0x" ++ showHex imm
-        (ByteSize 1,  32) -> "0x" ++ showHex imm
-        (ByteSize 1,  16) -> "0x" ++ showHex imm
-        (ByteSize 1,   8) -> "0x" ++ showHex imm
+        (ByteSize 1,  64) -> "$0x" ++ showHex imm
+        (ByteSize 1,  32) -> "$0x" ++ showHex imm
+        (ByteSize 1,  16) -> "$0x" ++ showHex imm
+        (ByteSize 1,   8) -> "$0x" ++ showHex imm
 
 
         (ByteSize si0,si1) -> error $ show (si0,si1)
@@ -317,26 +322,26 @@ render_annot [] = ""
 render_annot m  = intercalate "," (map render_annot_elmt m)
  where
   render_annot_elmt (a,l) = "0x" ++ showHex a ++ " --> " ++ show l
-    
+
 
 
 instance Show NASM_Operand where
   show (NASM_Operand_Reg r)              = show r
   show (NASM_Operand_Address a)          = show a
-  show (NASM_Operand_EffectiveAddress a) = "[" ++ show a ++ "]"
-  show (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ " [" ++ show a ++ "]"
-  show (NASM_Operand_Immediate (Immediate (BitSize 64) imm)) = "0x" ++ showHex imm
-  show (NASM_Operand_Immediate (Immediate (BitSize 32) imm)) = "0x" ++ showHex imm -- showHex (sextend_32_64 imm)
-  show (NASM_Operand_Immediate (Immediate (BitSize 16) imm)) = "0x" ++ showHex (sextend_16_64 imm)
-  show (NASM_Operand_Immediate (Immediate (BitSize 8)  imm)) = "0x" ++ showHex (sextend_8_64 imm)
+  show (NASM_Operand_EffectiveAddress a) = show a
+  show (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ show a
+  show (NASM_Operand_Immediate (Immediate (BitSize 64) imm)) = "$0x" ++ showHex imm
+  show (NASM_Operand_Immediate (Immediate (BitSize 32) imm)) = "$0x" ++ showHex imm -- showHex (sextend_32_64 imm)
+  show (NASM_Operand_Immediate (Immediate (BitSize 16) imm)) = "$0x" ++ showHex (sextend_16_64 imm)
+  show (NASM_Operand_Immediate (Immediate (BitSize 8)  imm)) = "$0x" ++ showHex (sextend_8_64 imm)
 
 show_nasm_sizedir (_,False) = ""
-show_nasm_sizedir (1,_) = "byte"
-show_nasm_sizedir (2,_) = "word"
-show_nasm_sizedir (4,_) = "dword"
-show_nasm_sizedir (8,_) = "qword"
-show_nasm_sizedir (10,_) = "tword"
-show_nasm_sizedir (16,_) = "oword"
+show_nasm_sizedir (1,_) = "ERRb " -- "byte"
+show_nasm_sizedir (2,_) = "ERRw " --"word"
+show_nasm_sizedir (4,_) = "ERRd " --"dword"
+show_nasm_sizedir (8,_) = "ERRq " --"qword"
+show_nasm_sizedir (10,_) = "ERRt " --"tword"
+show_nasm_sizedir (16,_) = "ERRo " --"oword"
 
 instance Show NASM_Label where
   show (Label _ str) = str
@@ -346,45 +351,45 @@ show_macro_name segment section a0 = "RELA" ++ section_name segment section a0
 section_name segment section a0 = segment ++ "_" ++ section ++ "_0x" ++ showHex a0
 
 instance Show NASM_Address_Computation where
- show (NASM_Address_Computation Nothing Nothing _ Nothing (Just 0)) = "ds:0" 
- show (NASM_Address_Computation Nothing Nothing _ Nothing Nothing)  = "ds:0" 
- show (NASM_Address_Computation seg ind sc base displ) = 
+ show (NASM_Address_Computation Nothing Nothing _ Nothing (Just 0)) = "%ds:0"
+ show (NASM_Address_Computation Nothing Nothing _ Nothing Nothing)  = "%ds:0"
+ show (NASM_Address_Computation seg ind sc base displ) =
    let str0 = show_seg seg
-       str1 = intercalate " + " $ filter ((/=) "") [show_base base, show_index_scale ind sc] 
+       str1 = intercalate ", " $ filter ((/=) "") [show_base base, show_index_scale ind sc]
        str2 = show_displacement str1 displ in
-     concat [str0,str1,str2]
+     concat [str0,str2, "(", str1, ")"]
   where
    show_seg Nothing  = ""
-   show_seg (Just r) = show r ++ ":"
+   show_seg (Just r) = "%" ++ toLowerCase (show r) ++ ":"
 
    show_base Nothing = ""
-   show_base (Just r) = show r
+   show_base (Just r) = "%" ++ toLowerCase (show r)
 
    show_index_scale Nothing _ = ""
    show_index_scale (Just r) 0 = ""
-   show_index_scale (Just r) 1 = show r
-   show_index_scale (Just r) imm = show r ++ " * " ++ show imm
+   show_index_scale (Just r) 1 = "%" ++ toLowerCase (show r) ++ "1"
+   show_index_scale (Just r) imm = "%" ++ toLowerCase (show r) ++ ", " ++ show imm
 
 show_displacement _ Nothing     = ""
 show_displacement "" (Just 0)   = ""
 show_displacement "" (Just imm) = "0x" ++ showHex imm
-show_displacement _  (Just imm) 
-  | testBit (fromIntegral imm::Word64) 63 = " - 0x" ++ showHex (0 - imm)
-  | otherwise =  " + 0x" ++ showHex imm
+show_displacement _  (Just imm)
+  | testBit (fromIntegral imm::Word64) 63 = " -0x" ++ showHex (0 - imm)
+  | otherwise =  " 0x" ++ showHex imm
 
 
 instance Show NASM_Address where
   show (NASM_Addr_Compute addr)               = show addr
   show (NASM_Addr_Symbol sym)                 = show_symbol sym
-  show (NASM_JumpTarget (External sym))       = sym ++ " wrt ..plt"
+  show (NASM_JumpTarget (External sym))       = sym ++ "@PLT"
   show (NASM_JumpTarget (ExternalDeref sym))  = "[ " ++ sym ++ " ]"
-  show (NASM_Addr_Label l)                    = show l 
+  show (NASM_Addr_Label l)                    = show l
 
 
-show_symbol (PointerToLabel  l True)       = l ++ " wrt ..plt"
+show_symbol (PointerToLabel  l True)       = l ++ "@PLT"
 show_symbol (PointerToLabel  l False)      = l
-show_symbol (PointerToObject l True)       = l ++ " wrt ..got"
-show_symbol (PointerToObject l False)      = l ++ " wrt ..got"
+show_symbol (PointerToObject l True)       = l ++ "@GOTPCREL(%rip)"
+show_symbol (PointerToObject l False)      = l ++ "@GOTPCREL(%rip)"
 show_symbol (AddressOfLabel  l _)          = l
 show_symbol (AddressOfObject l _)          = l
 show_symbol (Relocated_ResolvedObject l _) = l
@@ -419,6 +424,3 @@ toJSON_text_section (NASM_TextSection name blocks cf) = JSON_NASM_Function name 
 toJSON_line (NASM_Comment _ _) = []
 toJSON_line (NASM_Line i) = [takeWhile ((/=) ';') $ show i]
 toJSON_line (NASM_Label _) = []
-
-
-
