@@ -91,7 +91,7 @@ lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_ju
   get_annots          = mk_annots l mk_sections
   mk_sections'        = map (add_labels_to_data_sections get_annots mk_externals) mk_sections
 
-  mk_temp_storage     = "section .bss\nLtemp_storage_foxdec:\n.space 8"
+  mk_temp_storage     = ".section .bss\nLtemp_storage_foxdec:\n.space 8"
   mk_jump_tables      = filter ((/=) []) $ map (mk_jump_table l) $ get_indirections_per_function l
 
 
@@ -141,10 +141,10 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
     -- ++ [ render_annots ]
  where
   render_annots = intercalate "\n" $
-    [ "; TEMP_OBJECTs are memory locations inserted by FoxDec not present in the original binary"
-    , "; EXT_OBJECTs are external objects such as stderr and stdout"
-    , "; TERMINAL_CALLs are addresses of instructions in the original binary that always terminate and do not return"
-    , "; The remainder is a mapping from original addresses to internal labels"
+    [ "# TEMP_OBJECTs are memory locations inserted by FoxDec not present in the original binary"
+    , "# EXT_OBJECTs are external objects such as stderr and stdout"
+    , "# TERMINAL_CALLs are addresses of instructions in the original binary that always terminate and do not return"
+    , "# The remainder is a mapping from original addresses to internal labels"
     , "ifdef COMMENT"
     , intercalate "\n" $ map show_temp_object $ Label 0 "Ltemp_storage_foxdec" : (concatMap get_temp_object $ get_indirections_per_function l)
     , intercalate "\n" $ map render_terminal $ get_terminals_per_function l
@@ -379,7 +379,7 @@ cfg_block_to_NASM :: BinaryClass bin => LiftedC bin -> Word64 -> CFG -> Int -> M
 cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_block
  where
   -- header
-  block_header          = NASM_Comment 0 $ "Entry " ++ showHex entry ++ "; block " ++ show blockID ++ "; address " ++ showHex (inAddress $ head block_instrs)
+  block_header          = NASM_Comment 0 $ "Entry " ++ showHex entry ++ "# block " ++ show blockID ++ "# address " ++ showHex (inAddress $ head block_instrs)
   -- instructions: the label and the body
   mk_block              = block_label' ++ insert_nop_if_empty block_body
 
@@ -979,7 +979,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
 try_symbolize_imm :: BinaryClass bin => LiftedC bin -> Word64 -> (NASM_Address,Annot)
 try_symbolize_imm l@(bin,_,l0) a1 =
   case symbolize_immediate l Nothing False a1 of
-    Just (str,annot) -> if "RELA_.text" `isPrefixOf` (show str) then traceShow ("ERROR: UNTRANSLATED ENTRY ADDRESS " ++ showHex a1) (str,annot) else (str,annot) -- show str ++ "    ; " ++ render_annot annot
+    Just (str,annot) -> if "RELA_.text" `isPrefixOf` (show str) then traceShow ("ERROR: UNTRANSLATED ENTRY ADDRESS " ++ showHex a1) (str,annot) else (str,annot) -- show str ++ "    # " ++ render_annot annot
     Nothing          -> error $ "ERROR: could not symbolize relocated immediate value 0x" ++ showHex a1
 
 bss_data_section l@(bin,_,l0) =
@@ -1026,13 +1026,13 @@ get_terminals_per_function l@(bin,_,l0) = concatMap get $ S.toList $ l0_get_func
 mk_jump_table l (entry,cfg,(a,inds)) = concatMap mk $ S.toList inds
  where
   mk (Indirection_JumpTable (JumpTable index bnd trgt tbl)) = intercalate "\n" $
-    [ "; JUMP TABLE: entry == " ++ showHex entry ++ ", instr@" ++ showHex a
-    , "section .bss"
+    [ "# JUMP TABLE: entry == " ++ showHex entry ++ ", instr@" ++ showHex a
+    , ".section .bss"
     , show (label_jump_table_temp_storage entry a 0) ++ ":"
     , ".space 8"
     , show (label_jump_table_temp_storage entry a 1) ++ ":"
     , ".space 8"
-    , "section .rodata"
+    , ".section .rodata"
     , show (label_jump_table_redirect_data entry a) ++ ":"]
     ++
     map mk_entry (sortBy (compare `on` fst) $ IM.assocs tbl)
@@ -1040,7 +1040,7 @@ mk_jump_table l (entry,cfg,(a,inds)) = concatMap mk $ S.toList inds
 
   mk_entry (idx,trgt) =
     case symbolize_immediate l (Just (entry,cfg)) False trgt of
-      Just (str,annot) -> "dq " ++ show str ++ " ; index " ++ show idx ++ "    ; " ++ render_annot annot
+      Just (str,annot) -> ".quad " ++ show str ++ " # index " ++ show idx ++ "    # " ++ render_annot annot
       Nothing          -> "ERROR: cannot symbolize jump target:" ++ showHex trgt
 
 

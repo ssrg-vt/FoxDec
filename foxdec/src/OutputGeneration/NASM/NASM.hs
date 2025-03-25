@@ -142,8 +142,8 @@ data NASM_DataEntry =
 
 instance Show NASM_DataEntry where
   show (DataEntry_Byte b)              = ".byte 0x" ++ showHex b
-  show (DataEntry_String str zero)     = if zero then ".asciz `" ++ word8s_to_string str ++ "`" else ".ascii `" ++ word8s_to_string str ++ "`"
-  show (DataEntry_Pointer (ptr,annot)) = ".quad " ++ show ptr ++ "    ; " ++ render_annot annot
+  show (DataEntry_String str zero)     = if zero then ".asciz \"" ++ word8s_to_string str ++ "\"" else ".ascii \"" ++ word8s_to_string str ++ "\""
+  show (DataEntry_Pointer (ptr,annot)) = ".quad " ++ show ptr ++ "    # " ++ render_annot annot
   show (DataEntry_BSS sz)              = ".space " ++ show sz
   show (DataEntry_Label l)             = show l ++ ":"
 
@@ -194,13 +194,13 @@ empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
 
 -- Pretty printing
 instance Show NASM_DataSection where
-  show (NASM_DataSection (seg,sec,a0) align entries) = ".section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
+  show (NASM_DataSection (seg,sec,a0) align entries) = ".section " ++ sec ++ show_align align ++ " # @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
    where
-    show_entry (a,e@(DataEntry_String _ _)) = show e ++ "; @ " ++ showHex a
+    show_entry (a,e@(DataEntry_String _ _)) = show e ++ " # @ " ++ showHex a
     show_entry (a,e) = show e
 
     show_align 0 = ""
-    show_align n = " .align=" ++ show n
+    show_align n = "\n.align=" ++ show n
 
 word8s_to_string = concatMap (escape . w2c)
  where
@@ -215,7 +215,7 @@ instance Show NASM_TextSection where
    where
     render_block (blockID,lines) = intercalate "\n" $ map show lines
 
-    comment str = "; " ++ str
+    comment str = "# " ++ str
 
     comment_block strs = intercalate "\n" $ comment_block_delim strs : (map comment strs ++ [comment_block_delim strs,""])
     comment_block_delim strs = comment $ replicate (length $ max strs) '-'
@@ -227,7 +227,7 @@ instance Show NASM_TextSection where
 instance Show NASM_Line where
   show (NASM_Line i) = "  " ++ show i
   show (NASM_Label str) = show str ++ ":"
-  show (NASM_Comment indent str) = replicate indent ' ' ++ "; " ++ str
+  show (NASM_Comment indent str) = replicate indent ' ' ++ "# " ++ str
 
 
 instance Show NASM_Instruction where
@@ -256,9 +256,9 @@ instance Show NASM_Instruction where
     mk_comment =
       let str = render_annot annot in
         if comment == [] && str == [] then ""
-        else if comment /= [] && str /= [] then " ; " ++ comment ++ "    ; " ++ str
-        else if comment == [] then "    ; " ++ str
-        else " ; " ++ comment
+        else if comment /= [] && str /= [] then " # " ++ comment ++ "    # " ++ str
+        else if comment == [] then "    # " ++ str
+        else " # " ++ comment
 
     instr_op_size =
       case partition isImmediate ops of
@@ -271,7 +271,7 @@ instance Show NASM_Instruction where
     show_op (NASM_Operand_Reg r)              = "%" ++ toLowerCase (show r)
     show_op (NASM_Operand_Address a)          = show a
     show_op (NASM_Operand_EffectiveAddress a) = show a
-    show_op (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ show a
+    show_op (NASM_Operand_Memory sizedir a)   = show a -- show_nasm_sizedir sizedir ++ show a
     show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) =
       case (instr_op_size,si) of
         (ByteSize 16,64) -> "$0x" ++ showHex imm
@@ -329,7 +329,7 @@ instance Show NASM_Operand where
   show (NASM_Operand_Reg r)              = show r
   show (NASM_Operand_Address a)          = show a
   show (NASM_Operand_EffectiveAddress a) = show a
-  show (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ show a
+  show (NASM_Operand_Memory sizedir a)   = show a -- show_nasm_sizedir sizedir ++ show a
   show (NASM_Operand_Immediate (Immediate (BitSize 64) imm)) = "$0x" ++ showHex imm
   show (NASM_Operand_Immediate (Immediate (BitSize 32) imm)) = "$0x" ++ showHex imm -- showHex (sextend_32_64 imm)
   show (NASM_Operand_Immediate (Immediate (BitSize 16) imm)) = "$0x" ++ showHex (sextend_16_64 imm)
@@ -356,8 +356,9 @@ instance Show NASM_Address_Computation where
  show (NASM_Address_Computation seg ind sc base displ) =
    let str0 = show_seg seg
        str1 = intercalate ", " $ filter ((/=) "") [show_base base, show_index_scale ind sc]
+       str1' = if not (null str1) then "(" ++ str1 ++ ")" else str1
        str2 = show_displacement str1 displ in
-     concat [str0,str2, "(", str1, ")"]
+     concat [str0,str2,str1']
   where
    show_seg Nothing  = ""
    show_seg (Just r) = "%" ++ toLowerCase (show r) ++ ":"
@@ -422,5 +423,5 @@ toJSON_text_section (NASM_TextSection name blocks cf) = JSON_NASM_Function name 
   render_block (blockID,lines) = (blockID, concatMap toJSON_line lines)
 
 toJSON_line (NASM_Comment _ _) = []
-toJSON_line (NASM_Line i) = [takeWhile ((/=) ';') $ show i]
+toJSON_line (NASM_Line i) = [takeWhile ((/=) '#') $ show i]
 toJSON_line (NASM_Label _) = []
