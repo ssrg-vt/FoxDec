@@ -156,9 +156,9 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
 
   render_terminal i = "TERMINAL_CALL 0x" ++ showHex (inAddress i)
 
-  render_externals = intercalate "\n" $ map ((++) ".extern ") $ S.toList $ exts -- S.difference exts (ctxt_get_globals ctxt)
+  render_externals = intercalate "\n" $ map (".extern " ++) $ S.toList $ exts -- S.difference exts (ctxt_get_globals ctxt)
   render_sections  = map render_section sections
-  render_globals   = intercalate "\n" $ map ((++) ".global ") $ S.toList $ globals -- S.difference (ctxt_get_globals ctxt) exts
+  render_globals   = intercalate "\n" $ map (takeWhile (/= '@') . (++) ".global ") $ S.toList globals -- S.difference (ctxt_get_globals ctxt) exts
 
   render_section (NASM_Section_Text ts) = show ts
   render_section (NASM_Section_Data ds) = intercalate "\n\n" (map show ds) ++ "\n\n"

@@ -232,7 +232,7 @@ instance Show NASM_Line where
 
 instance Show NASM_Instruction where
   show (NASM_Instruction pre m ops comment annot) = concat
-    [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m ++ show_suffix ops, show_ops ops]
+    [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m ++ show_suffix ops, star ++ show_ops ops]
     , mk_comment
     ]
    where
@@ -265,6 +265,11 @@ instance Show NASM_Instruction where
 
     show_ops = intercalate ", " . reverse . map show_op
 
+    star =
+      case (m, ops) of
+      (Just CALL, [NASM_Operand_Memory _ _]) -> "*"
+      _ -> ""
+
     mk_comment =
       let str = render_annot annot in
         if comment == [] && str == [] then ""
@@ -280,10 +285,15 @@ instance Show NASM_Instruction where
     isImmediate (NASM_Operand_Immediate _) = True
     isImmediate _                          = False
 
+
     show_op (NASM_Operand_Reg r)              = "%" ++ toLowerCase (show r)
     show_op (NASM_Operand_Address a)          = show a
+    show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Label l)) = show l ++ "(%rip)"
+    show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Symbol s)) = show_symbol s ++ "(%rip)"
     show_op (NASM_Operand_EffectiveAddress a) = show a
-    show_op (NASM_Operand_Memory sizedir a)   = show a -- show_nasm_sizedir sizedir ++ show a
+    show_op (NASM_Operand_Memory _ (NASM_Addr_Label l)) = show l ++ "(%rip)"
+    show_op (NASM_Operand_Memory _ (NASM_Addr_Symbol s)) = show_symbol s ++ "(%rip)"
+    show_op (NASM_Operand_Memory _ a)   = show a
     show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) =
       case (instr_op_size,si) of
         (ByteSize 16,64) -> "$0x" ++ showHex imm
@@ -336,7 +346,7 @@ render_annot m  = intercalate "," (map render_annot_elmt m)
   render_annot_elmt (a,l) = "0x" ++ showHex a ++ " --> " ++ show l
 
 
-
+-- TODO: Do we need the below code?
 instance Show NASM_Operand where
   show (NASM_Operand_Reg r)              = show r
   show (NASM_Operand_Address a)          = show a
@@ -347,13 +357,6 @@ instance Show NASM_Operand where
   show (NASM_Operand_Immediate (Immediate (BitSize 16) imm)) = "$0x" ++ showHex (sextend_16_64 imm)
   show (NASM_Operand_Immediate (Immediate (BitSize 8)  imm)) = "$0x" ++ showHex (sextend_8_64 imm)
 
-show_nasm_sizedir (_,False) = ""
-show_nasm_sizedir (1,_) = "ERRb " -- "byte"
-show_nasm_sizedir (2,_) = "ERRw " --"word"
-show_nasm_sizedir (4,_) = "ERRd " --"dword"
-show_nasm_sizedir (8,_) = "ERRq " --"qword"
-show_nasm_sizedir (10,_) = "ERRt " --"tword"
-show_nasm_sizedir (16,_) = "ERRo " --"oword"
 
 instance Show NASM_Label where
   show (Label _ str) = str
