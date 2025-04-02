@@ -27,5 +27,6 @@
         "YMMWORD"
     ],
     "haskell.formattingProvider": "floskell",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": false,
+    "editor.fontSize": 15
 }

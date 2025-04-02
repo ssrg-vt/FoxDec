@@ -91,7 +91,7 @@ lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_ju
   get_annots          = mk_annots l mk_sections
   mk_sections'        = map (add_labels_to_data_sections get_annots mk_externals) mk_sections
 
-  mk_temp_storage     = ".section .bss\nLtemp_storage_foxdec:\n.space 8"
+  mk_temp_storage     = ".section .bss\nLtemp_storage_foxdec:\n.space 8\n"
   mk_jump_tables      = filter ((/=) []) $ map (mk_jump_table l) $ get_indirections_per_function l
 
 

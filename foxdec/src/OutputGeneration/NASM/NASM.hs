@@ -232,7 +232,7 @@ instance Show NASM_Line where
 
 instance Show NASM_Instruction where
   show (NASM_Instruction pre m ops comment annot) = concat
-    [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
+    [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m ++ show_suffix ops, show_ops ops]
     , mk_comment
     ]
    where
@@ -240,6 +240,18 @@ instance Show NASM_Instruction where
     show_prefix (Just PrefixRep) = "repz"
     show_prefix (Just PrefixRepNE) = "repne"
     show_prefix (Just p) = toLowerCase $ show p
+
+    show_suffix :: [NASM_Operand] -> String
+    show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
+    show_suffix _ = ""
+
+    size_to_suffix 1 = "b"
+    size_to_suffix 2 = "w"
+    size_to_suffix 4 = "l"
+    size_to_suffix 8 = "q"
+    size_to_suffix 10 = "t"
+    size_to_suffix 16 = "o"
+    size_to_suffix _ = error "size_to_suffix: invalid size"
 
     show_mnemonic Nothing  = ""
     -- NOT NEEDED, JUST FOR EASY DIFF
@@ -356,9 +368,10 @@ instance Show NASM_Address_Computation where
  show (NASM_Address_Computation seg ind sc base displ) =
    let str0 = show_seg seg
        str1 = intercalate ", " $ filter ((/=) "") [show_base base, show_index_scale ind sc]
-       str1' = if not (null str1) then "(" ++ str1 ++ ")" else str1
+       str1' = if null (show_base base) && not (null str1) then ", " ++ str1 else str1
+       str1'' = if not (null str1) then "(" ++ str1' ++ ")" else str1'
        str2 = show_displacement str1 displ in
-     concat [str0,str2,str1']
+     concat [str0,str2,str1'']
   where
    show_seg Nothing  = ""
    show_seg (Just r) = "%" ++ toLowerCase (show r) ++ ":"
