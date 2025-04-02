@@ -381,7 +381,7 @@ instance Show NASM_Address_Computation where
 
    show_index_scale Nothing _ = ""
    show_index_scale (Just r) 0 = ""
-   show_index_scale (Just r) 1 = "%" ++ toLowerCase (show r) ++ "1"
+   show_index_scale (Just r) 1 = "%" ++ toLowerCase (show r) ++ ", 1"
    show_index_scale (Just r) imm = "%" ++ toLowerCase (show r) ++ ", " ++ show imm
 
 show_displacement _ Nothing     = ""
