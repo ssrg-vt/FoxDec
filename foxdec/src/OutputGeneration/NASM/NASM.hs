@@ -206,8 +206,9 @@ word8s_to_string = concatMap (escape . w2c)
  where
   escape '\\' = "\\\\"
   escape '`'  = "\\`"
-  escape '\n'  = "\\n"
-  escape '\t'  = "\\t"
+  escape '\n' = "\\n"
+  escape '\t' = "\\t"
+  escape '"'  = "\\\""
   escape c    = [c]
 
 instance Show NASM_TextSection where
@@ -268,6 +269,9 @@ instance Show NASM_Instruction where
     star =
       case (m, ops) of
       (Just CALL, [NASM_Operand_Memory _ _]) -> "*"
+      (Just CALL, [NASM_Operand_Reg _]) -> "*"
+      (Just JMP, [NASM_Operand_Memory _ _]) -> "*"
+      (Just JMP, [NASM_Operand_Reg _]) -> "*"
       _ -> ""
 
     mk_comment =

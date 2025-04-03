@@ -126,7 +126,17 @@ data SReg = ES | CS | SS | DS | FS | GS | SR6 | SR7
     deriving (Show, Eq, Ord, Generic)
 
 data FPUReg = ST0 | ST1 | ST2 | ST3 | ST4 | ST5 | ST6 | ST7
-    deriving (Show, Eq, Ord, Generic)
+    deriving (Eq, Ord, Generic)
+
+instance Show FPUReg where
+    show ST0 = "ST(0)"
+    show ST1 = "ST(1)"
+    show ST2 = "ST(2)"
+    show ST3 = "ST(3)"
+    show ST4 = "ST(4)"
+    show ST5 = "ST(5)"
+    show ST6 = "ST(6)"
+    show ST7 = "ST(7)"
 
 data SSEReg = XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7 | XMM8 | XMM9 | XMM10 | XMM11 | XMM12 | XMM13 | XMM14 | XMM15
     deriving (Show, Eq, Ord, Generic)
