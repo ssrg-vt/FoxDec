@@ -22,6 +22,7 @@ import Data.SPointer
 import Data.SValue
 
 import Binary.FunctionNames
+import Binary.Elf
 import WithAbstractPredicates.ControlFlow
 import Conventions
 
@@ -280,27 +281,6 @@ halting_label l entry a blockID =
   let Label a' lab = block_label l entry a blockID in
     Label a' $ lab ++ "_HLT"
 
-
-
-
-
--- | Information on sections
--- TODO: get from Binary interface
-is_ro_data_section ("",".rodata",_,_,_) = True
-is_ro_data_section ("",".init_array",_,_,_) = True
-is_ro_data_section ("",".fini_array",_,_,_) = True
-is_ro_data_section ("",".data.rel.ro",_,_,_) = True
-is_ro_data_section ("__DATA","__const",_,_,_) = True
-is_ro_data_section _ = False
-
-is_data_section ("__DATA","__data",_,_,_) = True
-is_data_section ("",".data",_,_,_) = True
-is_data_section _ = False
-
-is_bss_data_section ("__DATA","__bss",_,_,_) = True
-is_bss_data_section ("__DATA","__common",_,_,_) = True
-is_bss_data_section ("",".bss",_,_,_) = True
-is_bss_data_section _ = False
 
 
 
@@ -874,7 +854,7 @@ ro_data_section ctxt = generic_data_section ctxt is_ro_data_section binary_read_
 data_section ctxt    = generic_data_section ctxt is_data_section    binary_read_data
 
 
-nub_data_section_entries = nub -- sortBy compareFst . S.toList . S.fromList TODO expensive
+nub_data_section_entries = rmdups -- sortBy compareFst . S.toList . S.fromList TODO expensive
  where
   compareFst (a,e0) (b,e1) = 
     case compare a b of
@@ -885,6 +865,14 @@ nub_data_section_entries = nub -- sortBy compareFst . S.toList . S.fromList TODO
   compareEntry (DataEntry_Label l0) _ = LT
   compareEntry _ (DataEntry_Label l0) = GT
   compareEntry e0 e1 = compare e0 e1
+
+  rmdups :: Ord a => [a] -> [a]
+  rmdups = rmdups' S.empty
+
+  rmdups' _ [] = []
+  rmdups' a (b : c) = if S.member b a
+    then rmdups' a c
+    else b : rmdups' (S.insert b a) c
 
 
 add_labels_to_data_sections :: M.Map Word64 (S.Set NASM_Label) -> S.Set String -> NASM_Section -> NASM_Section

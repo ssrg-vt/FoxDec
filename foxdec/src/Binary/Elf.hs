@@ -208,6 +208,9 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
               value              = steValue symbol_table_entry in
             if any (\sec -> any (\reloc -> elfRelOffset reloc == value) $ elfRelSectRelocations sec) $ parseRelocations elf then
               [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]
+            else if not (snd name_of_reloc_trgt) then -- internal object
+              case find (is_symbol_for (fst name_of_reloc_trgt)) $ concat $ parseSymbolTables elf of
+                Just sym -> [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) $ steValue sym))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
             else
               [(reloc_address, (uncurry PointerToObject) name_of_reloc_trgt)]
         else 
@@ -230,6 +233,8 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
           error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6
    | otherwise = []
 
+
+  is_symbol_for name sym_entry = (get_string_from_steName $ steName sym_entry) == name
 
   -- go through all ELF symbol tables
   -- each symbol table entry that has as type STTObject with binding /= Local is considered external and that is not hidden
@@ -325,3 +330,31 @@ instance BinaryClass NamedElf
     binary_text_section_size = \(NamedElf elf _ _ _ _ _) -> elf_text_section_size elf
     binary_dir_name = \(NamedElf _ d _ _ _ _) -> d
     binary_file_name = \(NamedElf _ _ n _ _ _) -> n
+
+
+
+
+
+-- | Information on sections
+-- TODO: get from Binary interface
+is_ro_data_section ("",".rodata",_,_,_) = True
+is_ro_data_section ("",".init_array",_,_,_) = True
+is_ro_data_section ("",".fini_array",_,_,_) = True
+is_ro_data_section ("",".data.rel.ro",_,_,_) = True
+is_ro_data_section ("__DATA","__const",_,_,_) = True
+is_ro_data_section _ = False
+
+is_data_section ("__DATA","__data",_,_,_) = True
+is_data_section ("",".data",_,_,_) = True
+is_data_section _ = False
+
+is_bss_data_section ("__DATA","__bss",_,_,_) = True
+is_bss_data_section ("__DATA","__common",_,_,_) = True
+is_bss_data_section ("",".bss",_,_,_) = True
+is_bss_data_section _ = False
+
+
+
+
+
+

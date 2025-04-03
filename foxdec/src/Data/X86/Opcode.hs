@@ -448,6 +448,7 @@ data Opcode =
   | PUNPCKLWD
   | PUNPCKLDQ
   | PUNPCKLQDQ
+  | PUNPCKHDQ
   | PUSH
   | PUSHA
   | PUSHAD
@@ -1113,6 +1114,7 @@ read_opcode "PUNPCKLBW" = PUNPCKLBW
 read_opcode "PUNPCKLWD" = PUNPCKLWD
 read_opcode "PUNPCKLDQ" = PUNPCKLDQ
 read_opcode "PUNPCKLQDQ" = PUNPCKLQDQ
+read_opcode "PUNPCKHDQ" = PUNPCKHDQ
 read_opcode "PUSH" = PUSH
 read_opcode "PUSHA" = PUSHA
 read_opcode "PUSHAD" = PUSHAD

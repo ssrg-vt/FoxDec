@@ -553,6 +553,12 @@ mmx_sse = choice
                                                                      , (0xf2, instr "movsd" [opWidthF 64 >> modrm_xmm_m, modrm_xmm]) ]
                                                                      (        instr "movups" [opWidthF 128 >> modrm_xmm_m, modrm_xmm] )
 
+  , opcode 0x0f >> opcode 0x16 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, fail  "MOVSHDUP")
+                                                                     , (0x66, fail  "MOVHPD") ]
+                                                                     (        instr "MOVHPS" [modrm_xmm, opWidthF 64 >> modrm_xmm_m] )
+  , opcode 0x0f >> opcode 0x17 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, fail  "MOVHPD") ]
+                                                                     (        instr "MOVHPS" [opWidthF 64 >> modrm_xmm_m, modrm_xmm] )
+
   , opcode 0x0f >> opcode 0x28 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "movapd" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]) ]
                                                                      (        instr "movaps" [modrm_xmm, opWidthF 128 >> modrm_xmm_m] )
   , opcode 0x0f >> opcode 0x29 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "movapd" [opWidthF 128 >> modrm_xmm_m, modrm_xmm]) ]
@@ -685,6 +691,8 @@ mmx_sse = choice
 
   , opcode 0x0f >> opcode 0xc5 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "PEXTRW" [modrm_reg, modrm_xmm_m, immed]) ]
                                                                              (        instr "PEXTRW" [modrm_reg, pure $ Op_Reg RegNone, immed] )
+  , opcode 0x0f >> opcode 0xc6 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "SHUFPD" [modrm_xmm, modrm_xmm_m, immed]) ]
+                                                                             (        instr "SHUFPS" [modrm_xmm, modrm_xmm_m, immed] )
 
 
 
@@ -699,8 +707,7 @@ mmx_sse = choice
   ,                   opcode 0x0f >> opcode 0xd4 >> modrm >>              instr "PADDQ" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
   , prefixSet 0x66 >> opcode 0x0f >> opcode 0xd5 >> modrm >> noPrefix <$> instr "PMULLW" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]
   ,                   opcode 0x0f >> opcode 0xd5 >> modrm >>              instr "PMULLW" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] -- TODO ST registers
-  -- TODO why the immB?
-  , opcode 0x0f >> opcode 0xd6 >> modrm >> immB >> noPrefix <$> forkPrefixes [ (0xf3, fail "MOVQ2DQ")
+  , opcode 0x0f >> opcode 0xd6 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, fail "MOVQ2DQ")
                                                                              , (0x66, instr "movq"  [opWidthF 64 >> modrm_xmm_m, modrm_xmm])
                                                                              , (0xf2, fail "MOVDQ2Q") ]
                                                                              (        fail "" )

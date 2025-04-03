@@ -22,7 +22,7 @@ import qualified Data.IntSet as IS
 
 import Data.Word
 
-instance (Show v,Ord v,BinaryClass bin, WithAbstractSymbolicValues (bin, Config, L0 (Sstate v p) (FInit v p) v, Word64) v p) => WithAbstractPredicates bin (Sstate v p) (FInit v p) v where
+instance (Show v,Ord v,BinaryClass bin, WithAbstractSymbolicValues (bin, Config, L0 (Sstate v p) (FInit v p) v, Word64) bin v p) => WithAbstractPredicates bin (Sstate v p) (FInit v p) v where
   symbolically_execute = sexec_block
   verify_postcondition = sverify_postcondition
   finit_to_init_pred = finit_to_init_sstate

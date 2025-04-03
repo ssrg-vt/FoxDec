@@ -673,33 +673,6 @@ csensitive (bin,_,_,_) (Ptr_Concrete a) (Just (ByteSize si)) v = is_top_stackfra
 csensitive fctxt _ _ _ = False
 
 
-cread_from_ro_data :: BinaryClass bin => Static bin v -> SPointer -> Maybe ByteSize -> Maybe SValue
-cread_from_ro_data fctxt@(bin,_,_,_) p@(Ptr_Concrete (SE_Immediate a)) (Just (ByteSize si)) = try_read_reloc a si `orTry` try_read_symbol a si `orTry` try_read_ro_data a si
- where
-  try_read_ro_data a si = cimmediate fctxt <$> read_from_ro_datasection bin a (fromIntegral si)
-
-  try_read_reloc a si =
-    case find (is_reloc_for a) $ S.toList $ binary_get_relocations bin of
-      Just (Relocation _ a') -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
-      Nothing -> Nothing
-
-  is_reloc_for a (Relocation a' _) = a == a'
-
-
-  try_read_symbol a si = 
-    case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (PointerToLabel f True)  -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
-      Just (PointerToObject f True) -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
-      Just (AddressOfObject f True) -> Just $ cmk_init_mem_value fctxt "reloc" p $ Just $ ByteSize si
-      -- Just s                        -> error $ show (a, s) 
-      _                             -> Nothing
-
-
-
-
-cread_from_ro_data _ _ _ = Nothing
-
-
 cis_local (bin,_,_,_) (Ptr_Concrete a) = expr_is_maybe_local_pointer bin a
 cis_local (bin,_,_,_) (Ptr_Base a) = expr_is_maybe_local_pointer bin a
 cis_local _ Ptr_Top = False
@@ -770,12 +743,11 @@ ctry_global ctxt@(bin,_,_,_) p =
   
 
 
-instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPointer where
+instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) bin SValue SPointer where
   sseparate                = cseparate
   senclosed                = cnecessarily_enclosed
   salias                   = calias
   ssensitive               = csensitive
-  sread_from_ro_data       = cread_from_ro_data
   smk_mem_addresses        = cmk_mem_addresses
   sjoin_values             = cjoin_all
   swiden_values            = cwiden
@@ -797,7 +769,7 @@ instance BinaryClass bin => WithAbstractSymbolicValues (Static bin v) SValue SPo
   stry_resolve_error_call  = ctry_resolve_error_call
   stry_global              = ctry_global
   sget_gmem_structure      = \(_,_,l0,entry) -> l0_gmem_structure l0 
-
+  sget_binary              = \(bin,_,_,__) -> bin 
 
 
 

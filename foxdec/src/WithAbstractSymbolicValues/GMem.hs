@@ -13,6 +13,8 @@ import Data.X86.Instruction
 import Data.GlobalMem
 import Data.VerificationCondition
 
+import Binary.Elf
+import Binary.Generic
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -87,7 +89,7 @@ get_touched_mem_accesses gmem_structure (GlobalMem m ls) a _ False =
   case (IM.lookupLE a gmem_structure, IM.lookupGT a gmem_structure) of
     (Just (l0,_), Nothing)     -> takeGE l0 m
     (Just (l0,_), Just (l1,_)) -> takeGE_LT l0 l1 m
-    (Nothing, above)           -> error $ show_gmem (GlobalMem m ls) gmem_structure ++ "\n\n" ++  showHex (a) ++ "\n" ++ show above
+    (Nothing, above)           -> IM.empty -- TODO error $ show_gmem (GlobalMem m ls) gmem_structure ++ "\n\n" ++  showHex (a) ++ "\n" ++ show above
  where
   takeGE a0 m =
     case IM.splitLookup a0 m of
@@ -123,7 +125,7 @@ add_dirty_access a = do
 
 
 -- READING
-read_global_mem_access :: WithAbstractSymbolicValues ctxt v p => ctxt -> p -> Int -> Maybe ByteSize -> Bool -> State (GlobalMem v) v
+read_global_mem_access :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> p -> Int -> Maybe ByteSize -> Bool -> State (GlobalMem v) v
 -- precise
 read_global_mem_access ctxt p a si'@(Just (ByteSize si)) True =
   try_alias_mem_access a si read
@@ -140,7 +142,7 @@ read_global_mem_access ctxt p a _ _ = do
   case IM.lookupLE a gmem_structure of
     Just (l0,True) -> return $ top ctxt ""
     Just (l0,False) -> add_dirty_access a >> (return $ top ctxt "")
-    x ->  error $ "TODO:\n" ++ show_gmem gmem gmem_structure ++ "\n\n" ++ show (showHex a,x) ++ "\n\n" ++ show (get_touched_mem_accesses gmem_structure gmem a Nothing False)
+    x -> return $ top ctxt "" -- TODO error $ "TODO:\n" ++ show_gmem gmem gmem_structure ++ "\n\n" ++ show (showHex a,x) ++ "\n\n" ++ show (get_touched_mem_accesses gmem_structure gmem a Nothing False)
 
 
 
@@ -149,7 +151,7 @@ read_global_mem_access ctxt p a _ _ = do
 
 -- WRITING 
 -- precise
-write_global_mem_access :: WithAbstractSymbolicValues ctxt v p => ctxt -> Int -> Maybe ByteSize -> Bool -> Bool -> v -> State (GlobalMem v) ()
+write_global_mem_access :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Int -> Maybe ByteSize -> Bool -> Bool -> v -> State (GlobalMem v) ()
 write_global_mem_access ctxt a (Just (ByteSize si)) True do_fresh v = do
   try_alias_mem_access a si write
    `orTryM`  (if do_fresh then try_fresh_mem_access a si v ret else return Nothing)
@@ -187,7 +189,7 @@ add_global_mem_access ctxt do_fresh a si v = execState (write_global_mem_access 
 
 
 -- JOINING
-sjoin_gmem :: WithAbstractSymbolicValues ctxt v p => ctxt -> GlobalMem v -> GlobalMem v -> GlobalMem v
+sjoin_gmem :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> GlobalMem v -> GlobalMem v -> GlobalMem v
 sjoin_gmem ctxt gmem0@(GlobalMem m0 ls0) gmem1@(GlobalMem m1 ls1) = 
   let step0 = IM.foldrWithKey (join_entry gmem1) (GlobalMem IM.empty $ IS.union ls0 ls1) m0 in
     IM.foldrWithKey (join_entry gmem0) step0 m1
@@ -203,13 +205,8 @@ sjoin_gmem ctxt gmem0@(GlobalMem m0 ls0) gmem1@(GlobalMem m1 ls1) =
     | otherwise            = (min a0 a1, (top ctxt "", max (a0+si0) (a1+si1) - min a0 a1))
 
 
-join_gmems :: WithAbstractSymbolicValues ctxt v p => ctxt -> [GlobalMem v] -> (GlobalMem v, GMemStructure)
-join_gmems ctxt gmems =
-  let gmem_structure  = sget_gmem_structure ctxt
-      gmem_structure' = gmem_structure_with gmem_structure $ IS.unions (map gmem_get_structure gmems) 
-      gmem'           = IM.unions (map gmem_get_mem_accesses gmems) in
-    (GlobalMem gmem' IS.empty,gmem_structure')
-  
+
+
 
 
 

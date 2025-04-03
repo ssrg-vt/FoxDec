@@ -13,7 +13,9 @@ import Data.X86.Register
 import Data.X86.Instruction
 import Data.VerificationCondition
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
+import Data.Symbol
 
+import Binary.Generic
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -49,7 +51,7 @@ sread_rreg ctxt r (s,_) =
 
 
 
-sread_reg :: WithAbstractSymbolicValues ctxt v p => ctxt -> Register -> State (Sstate v p,VCS v) v
+sread_reg :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Register -> State (Sstate v p,VCS v) v
 sread_reg ctxt   (Reg8  r HalfL) = (ssemantics ctxt "read_reg 8" . SO_Bit 8) <$> (gets $ sread_rreg ctxt $ Reg64 r)
 sread_reg ctxt   (Reg8  r HalfH) = return $ top ctxt "read_reg halfR"
 sread_reg ctxt   (Reg16 r)       = (ssemantics ctxt "read_reg 16" . SO_Bit 16) <$> (gets $ sread_rreg ctxt $ Reg64 r)
@@ -67,7 +69,7 @@ sread_reg ctxt r                 = error $ "READING REG " ++ show r
 
 
 -- | Write to a register
-swrite_rreg :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Register -> v -> State (Sstate v p,VCS v) () 
+swrite_rreg :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Register -> v -> State (Sstate v p,VCS v) () 
 swrite_rreg ctxt i (RegFPU _) v = return ()
 swrite_rreg ctxt i r          v = do
   (s,vcs) <- get
@@ -75,7 +77,7 @@ swrite_rreg ctxt i r          v = do
   put $ (s {sregs = M.insert r v (sregs s), sflags = clean_flgs (SSP_Reg r) (sflags s) }, vcs)
 
 
-soverwrite_reg :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Bool -> Register -> v -> State (Sstate v p,VCS v) ()
+soverwrite_reg :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Bool -> Register -> v -> State (Sstate v p,VCS v) ()
 soverwrite_reg ctxt i use_existing_value r@(Reg8 _ HalfL) v = do
   let rr = real_reg r
   curr_v <- gets $ sread_rreg ctxt rr
@@ -96,12 +98,41 @@ soverwrite_reg ctxt i use_existing_value r@(RegFPU _)     v = return ()
 soverwrite_reg ctxt i use_existing_value r                v = error $ show r
 
 
-swrite_reg :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Register -> v -> State (Sstate v p,VCS v) ()
+swrite_reg :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Register -> v -> State (Sstate v p,VCS v) ()
 swrite_reg ctxt i = soverwrite_reg ctxt i True
 
 
 -- | Read from memory
-sread_mem :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> v -> Maybe ByteSize -> State (Sstate v p,VCS v) v
+
+read_from_ro_data :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> p -> Maybe ByteSize -> Maybe v
+read_from_ro_data ctxt p (Just (ByteSize si)) =
+  case stry_global ctxt p of
+    Just (a,True) -> try_read_reloc a si `orTry` try_read_symbol a si `orTry` try_read_ro_data a si
+    _ -> Nothing
+ where
+  bin = sget_binary ctxt 
+  try_read_ro_data a si = simmediate ctxt <$> read_from_ro_datasection bin (fromIntegral a) (fromIntegral si)
+
+  try_read_reloc a si =
+    case find (is_reloc_for $ fromIntegral a) $ S.toList $ binary_get_relocations bin of
+      Just (Relocation _ a') -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Nothing -> Nothing
+
+  is_reloc_for a (Relocation a' _) = a == a'
+
+  try_read_symbol a si = 
+    case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
+      Just (PointerToLabel f True)  -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (PointerToObject f True) -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (AddressOfObject f True) -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      -- Just s                        -> error $ show (a, s) 
+      _                             -> Nothing
+read_from_ro_data _ _ _ = Nothing
+
+
+
+
+sread_mem :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> v -> Maybe ByteSize -> State (Sstate v p,VCS v) v
 --sread_mem ctxt msg a si | trace ("sread_mem: "++ show (a,si)) False = error "trace"
 sread_mem ctxt msg a si = do
   (p,_) <- get
@@ -112,9 +143,9 @@ sread_mem ctxt msg a si = do
     vs <- mapM (\ptr -> sread_mem_from_ptr ctxt msg ptr si) $ S.toList ptrs
     return $ sjoin_values ctxt (msg ++ "\nRead join:" ++ show (ptrs,vs)) vs
 
-sread_mem_from_ptr :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> p -> Maybe ByteSize -> State (Sstate v p,VCS v) v
+sread_mem_from_ptr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> p -> Maybe ByteSize -> State (Sstate v p,VCS v) v
 --sread_mem_from_ptr ctxt msg a si | trace ("sread_mem_from_ptr: "++ show (a,si)) False = error "trace"
-sread_mem_from_ptr ctxt msg p@a si = return (sread_from_ro_data ctxt a si) `orTryM` try_global a  `orElseM` sread_mem' a -- TODO this order does not structure ro data section
+sread_mem_from_ptr ctxt msg p@a si = return (read_from_ro_data ctxt a si) `orTryM` try_global a  `orElseM` sread_mem' a -- TODO this order does not structure ro data section
  where
   try_global a =
     case stry_global ctxt p of
@@ -158,7 +189,7 @@ sread_mem_from_ptr ctxt msg p@a si = return (sread_from_ro_data ctxt a si) `orTr
 
 
 -- | Write to memory
-swrite_mem :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> v -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
+swrite_mem :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Bool -> v -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
 swrite_mem ctxt use_existing_value a si v = do
   (p,_) <- get
   let ptrs = smk_mem_addresses ctxt ("swrite_mem\n"++show p) False a
@@ -169,7 +200,7 @@ swrite_mem ctxt use_existing_value a si v = do
   else
     mapM_ (\ptr -> swrite_mem_to_ptr ctxt use_existing_value ptr si v) ptrs
 
-swrite_mem_to_ptr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> p -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
+swrite_mem_to_ptr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Bool -> p -> Maybe ByteSize -> v -> State (Sstate v p,VCS v) ()
 swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
   modify $ \(s,vcs) -> (s { sflags = clean_flgs (SSP_Mem (simmediate ctxt 0) 0) (sflags s) }, vcs)
 
@@ -213,7 +244,7 @@ swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
     | not use_existing_value               = (equal,enclosing,encloses,((a0,si0),v0):separate,overlap)
     | otherwise                            = (equal,enclosing,encloses,separate,((a0,si0),v0):overlap) 
 
-  merge ::  WithAbstractSymbolicValues ctxt v p => ctxt -> [((p, Maybe ByteSize), v)] -> [((p, Maybe ByteSize), v)]
+  merge ::  WithAbstractSymbolicValues ctxt bin v p => ctxt -> [((p, Maybe ByteSize), v)] -> [((p, Maybe ByteSize), v)]
   merge ctxt m =
     let ptrs = sjoin_pointers ctxt $ map (fst . fst) m
         v'   = swiden_values ctxt "write_mem (overlap)" $ sjoin_values ctxt "MemWrite (values)" $ map snd m in
@@ -222,7 +253,7 @@ swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
 
 
 -- v is bogus, but needed for getting the type checker to accept this. Don't know why. 
-swrite_flags :: WithAbstractSymbolicValues ctxt v p => ctxt -> v -> Instruction -> State (Sstate v p,VCS v) ()
+swrite_flags :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> v -> Instruction -> State (Sstate v p,VCS v) ()
 swrite_flags ctxt v i = do
   (s,vcs) <- get
   put $ (s {sflags = sflg_semantics ctxt v i (sflags s)}, vcs)
@@ -251,11 +282,11 @@ clean_flgs sp = concatMap clean_flg
 
 
 
-write_sp :: WithAbstractSymbolicValues ctxt v p => ctxt -> SStatePart p -> v -> State (Sstate v p, VCS v) ()
+write_sp :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> SStatePart p -> v -> State (Sstate v p, VCS v) ()
 write_sp ctxt (SSP_Reg r)    v = swrite_reg ctxt "write_sp" r v
 write_sp ctxt (SSP_Mem a si) v = swrite_mem_to_ptr ctxt True a (Just $ ByteSize si) v
 
-read_sp :: WithAbstractSymbolicValues ctxt v p => ctxt -> SStatePart p -> State (Sstate v p, VCS v) v
+read_sp :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> SStatePart p -> State (Sstate v p, VCS v) v
 read_sp ctxt (SSP_Reg r)    = sread_reg ctxt r
 read_sp ctxt (SSP_Mem a si) = sread_mem_from_ptr ctxt "read_sp" a $ (Just $ ByteSize si)
 
