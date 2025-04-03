@@ -79,7 +79,7 @@ lift_L0_to_NASM :: BinaryClass bin => LiftedC bin -> NASM
 lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_jump_tables ++ [mk_temp_storage] 
  where
   mk_externals        = externals l
-  mk_globals          = with_start_global bin $ S.difference (binary_get_global_symbols bin) mk_externals
+  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ binary_get_global_symbols bin) mk_externals
 
   mk_text_sections    = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
   mk_ro_data_section  = NASM_Section_Data $ ro_data_section l
