@@ -379,6 +379,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PUNPCKLQDQ
          , PUNPCKLBW
          , PUNPCKLDQ
+         , PUNPCKHDQ
          , PCMPGTD
          , PCMPEQB
          , PCMPEQD

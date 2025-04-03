@@ -17,9 +17,17 @@ import Data.Symbol
 import Data.Size
 import Data.JumpTarget
 import Binary.Generic
-import Data.X86.Register
-import OutputGeneration.NASM.NASM
+import Data.L0
+import Data.SPointer
+import Data.SValue
 
+import OutputGeneration.NASM.NASM
+import OutputGeneration.GlobalMemAnalysis
+
+import Binary.Elf
+
+import WithNoAbstraction.SymbolicExecution
+import WithAbstractSymbolicValues.Class
 
 import qualified Data.Set as S
 import Data.Word
@@ -31,15 +39,52 @@ import qualified Data.IntSet as IS
 import Debug.Trace
 
 
-split_data_section :: NASM -> NASM
-split_data_section (NASM externals globals sections footer) = NASM externals globals new_sections footer
+
+split_data_section l@(bin,config,l0,_) (NASM externals globals sections footer) = NASM externals globals new_sections footer
  where
   new_sections = map split_section sections
 
   split_section s@(NASM_Section_Text _)  = s
-  split_section s@(NASM_Section_Data ds) = NASM_Section_Data $ reverse $ concatMap split_data_section ds
+  split_section s@(NASM_Section_Data ds) = NASM_Section_Data $ concatMap split_data_section ds
 
-  split_data_section ds@(NASM_DataSection n align entries) = concatMap (mk_data_section n align) $ split_entries entries
+  split_data_section ds@(NASM_DataSection (seg,sec,a0) align entries) 
+    | is_data_section (seg,sec,0,0,0) || is_bss_data_section (seg,sec,0,0,0) =  -- mk_analyzable_section ds
+      let ds' = mk_analyzable_section ds
+          split = 18 in
+        reverse (take split ds') ++ drop split ds'
+    | otherwise = [ds]
+
+  mk_analyzable_section ds@(NASM_DataSection (seg,sec,a0) align entries) = 
+    case find_section_for_address bin a0 of
+      Nothing -> [ds]
+      Just (_,_,_,si0,_) ->
+        let regions = analyze_gmem l a0 (fromIntegral si0) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0 
+            regions' = concat_regions $ IM.assocs regions
+            tr = trace (seg ++ sec ++ "\nRegions:\n" ++ (intercalate "\n" (map show_region_info regions')))
+            tr' = trace (seg ++ sec ++ "\nRegions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))) in
+
+          tr' $ tr $ map (region_to_data_section seg sec align entries) regions'
+
+  region_to_data_section seg sec align entries (a,Variable si)       = NASM_DataSection (seg,sec,fromIntegral a) 0 $ filter (is_within_region a si) entries
+  region_to_data_section seg sec align entries (a,RegionInfo _ si _) = NASM_DataSection (seg,sec,fromIntegral a) 0 $ filter (is_within_region a si) entries
+
+  is_within_region a si (a0,_) = a <= fromIntegral a0 && fromIntegral a0 < a + fromIntegral si
+            
+
+  concat_regions [] = []
+  concat_regions (r@(a,Variable _):rs) = r : concat_regions rs
+  concat_regions ((a,r@(RegionInfo dirty si _)) : rs) = 
+    let (yes,no) = span is_not_variable rs
+        si'      = sum $ map get_size (r:map snd yes) in
+      (a,RegionInfo dirty si' []) : concat_regions no
+
+  is_not_variable (_,Variable _) = False
+  is_not_variable _ = True
+
+  get_size (RegionInfo _ si _) = si
+
+{--
+= concatMap (mk_data_section n align) $ split_entries entries
 
   mk_data_section n align [] = [] 
   mk_data_section (seg,sec,_) align ((a,e):es) = [NASM_DataSection (seg,sec,a) align $ (a,e):es]
@@ -55,7 +100,7 @@ split_data_section (NASM externals globals sections footer) = NASM externals glo
 
   isLabel (_,DataEntry_Label _) = True
   isLabel _ = False
-
+--}
 
 {--
 split_data_section :: [Word64] -> NASM -> NASM

@@ -35,7 +35,7 @@ import Control.DeepSeq
 
 
 
-stry_resolve_indirection :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> [Instruction] -> Indirections
+stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Sstate v p -> [Instruction] -> Indirections
 stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   let [trgt] = srcs $ last instrs in
     case flagstatus_to_tries 10000 flgs of -- TODO

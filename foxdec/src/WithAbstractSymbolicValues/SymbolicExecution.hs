@@ -65,7 +65,7 @@ add_pa_result a par (s,vcs) = (s,S.insert (PointerAnalysis a par) vcs)
 
 
 -- | Given the address of an operand of an instruction, resolve it given the current state.
-sresolve_address :: WithAbstractSymbolicValues ctxt v p => ctxt -> Operand -> State (Sstate v p,VCS v) v
+sresolve_address :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Operand -> State (Sstate v p,VCS v) v
 sresolve_address ctxt (Op_Mem si aSi reg idx scale displ (Just seg)) =  do
   ra0 <- sresolve_address ctxt (Op_Mem si (BitSize 64) reg idx scale displ Nothing)
   ra1 <- sread_reg ctxt $ RegSeg seg
@@ -85,7 +85,7 @@ add_base_displ ctxt reg displ = do
 
 
 
-sread_operand :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Operand -> State (Sstate v p,VCS v) v
+sread_operand :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Operand -> State (Sstate v p,VCS v) v
 --sread_operand ctxt msg op | trace ("sgeneric_cinstr: "++ show op) False = error "trace"
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 64) a))  = return $ simmediate ctxt a
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 32) a))  = return $ simmediate ctxt $ sextend_32_64 a
@@ -100,7 +100,7 @@ sread_operand ctxt msg op@(Op_Mem (BitSize si) _ _ _ _ _ _) = do
 
 sread_operand ctxt msg    op  = error $ show (msg,op)
 
-swrite_operand :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> Bool -> Operand -> v -> State (Sstate v p,VCS v) ()
+swrite_operand :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> Bool -> Operand -> v -> State (Sstate v p,VCS v) ()
 swrite_operand ctxt i use_existing_value    (Op_Reg r)   v = soverwrite_reg ctxt (show i) use_existing_value r v
 swrite_operand ctxt i use_existing_value op@(Op_Mem (BitSize si) _ _ _ _ _ _) v = do
   resolved_address <- sresolve_address ctxt op
@@ -137,7 +137,7 @@ add_jump_to_pred i0 i1 flgs
 
 
 
-sreturn :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+sreturn :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 sreturn ctxt i = do
   rsp_value <- sread_reg ctxt (Reg64 RSP)
   ret_addr <- sread_operand ctxt "return" $ mk_RSP_mem_operand (ByteSize 8)
@@ -147,7 +147,7 @@ sreturn ctxt i = do
 
 
 -- LEA
-slea :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> Operand -> Operand -> State (Sstate v p,VCS v) ()
+slea :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> Operand -> Operand -> State (Sstate v p,VCS v) ()
 slea ctxt i dst op = do
   e <- sresolve_address ctxt op
   swrite_operand ctxt i True dst e
@@ -165,7 +165,7 @@ slea ctxt i dst op = do
 
 
 
-sgeneric_cinstr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+sgeneric_cinstr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 --sgeneric_cinstr ctxt i | trace ("sgeneric_cinstr: "++ show i) False = error "trace"
 sgeneric_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot) = do
   ops <- mapM (sread_operand ctxt (show i)) srcs
@@ -185,7 +185,7 @@ maybe_operand_size srcs
   is_immediate (Op_Imm _) = True
   is_immediate _          = False
 
-sexec_cinstr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+sexec_cinstr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 --sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
 sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
   | mnemonic == LEA                          = slea ctxt i dst $ head srcs
@@ -204,10 +204,10 @@ sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing srcs _)
 
 
 
-sset_rip :: WithAbstractSymbolicValues ctxt v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+sset_rip :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 sset_rip ctxt i = swrite_reg ctxt "sset_rip" (Reg64 RIP) (simmediate ctxt $ inAddress i + (fromIntegral $ inSize i))
 
-sexec_instr :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> Instruction -> State (Sstate v p,VCS v) ()
+sexec_instr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Bool -> Instruction -> State (Sstate v p,VCS v) ()
 --sexec_instr ctxt i | trace ("sexec_isntr: "++ show i) False = error "trace"
 sexec_instr ctxt store_pointer_analysis i = do
   sset_rip ctxt i
@@ -244,7 +244,7 @@ sexec_instr ctxt store_pointer_analysis i = do
 
 
 
-sexec_block :: WithAbstractSymbolicValues ctxt v p => ctxt -> Bool -> [Instruction] -> Maybe [Instruction] -> State (Sstate v p,VCS v) ()
+sexec_block :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Bool -> [Instruction] -> Maybe [Instruction] -> State (Sstate v p,VCS v) ()
 sexec_block ctxt store_pointer_analysis []    _    = return ()
 --sexec_block ctxt block next | trace ("sexec_block: "++ show (head block)) False = error "trace"
 sexec_block ctxt store_pointer_analysis block next = run
@@ -260,7 +260,7 @@ sexec_block ctxt store_pointer_analysis block next = run
 
 
 
-sjoin_mem :: WithAbstractSymbolicValues ctxt v p => ctxt -> String -> Sstate v p -> Sstate v p -> M.Map (p, Maybe ByteSize) v
+sjoin_mem :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Sstate v p -> Sstate v p -> M.Map (p, Maybe ByteSize) v
 sjoin_mem ctxt msg s0 s1 =
   let shared  = M.intersectionWith join_values (smem s0) (smem s1)
       from_s1 = map (\r -> (r,s0)) $ M.assocs $ M.difference (smem s1) (smem s0)
@@ -276,7 +276,7 @@ sjoin_mem ctxt msg s0 s1 =
 
   join_values a b = sjoin_values ctxt ("States (mem value) " ++ show a ++ " joined with " ++ show b ++ "_" ++ msg) [a,b]
 
-sjoin_regs :: WithAbstractSymbolicValues ctxt v p => ctxt -> M.Map Register v -> M.Map Register v -> M.Map Register v
+sjoin_regs :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> M.Map Register v -> M.Map Register v -> M.Map Register v
 sjoin_regs ctxt r0 r1 = 
   let regs  = M.intersectionWithKey join_reg r0 r1
       from0 = M.mapWithKey (\r v0 -> join_with_init_value v0 r) $ M.difference r0 r1
@@ -306,7 +306,7 @@ sjoin_states ctxt msg s0@(Sstate regs0 mem0 gmem0 flg0) s1@(Sstate regs1 mem1 gm
 
 
 -- | The supremum of a list of predicates
-supremum :: WithAbstractSymbolicValues ctxt v p => ctxt -> [Sstate v p] -> Sstate v p
+supremum :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> [Sstate v p] -> Sstate v p
 supremum ctxt [] = error $ "Cannot compute supremum of []"
 supremum ctxt ss = foldr1 (sjoin_states ctxt "supremum") ss
 
@@ -321,7 +321,7 @@ simplies ctxt s0 s1 =
 
 
 
-sverify_postcondition :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> Bool
+sverify_postcondition :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Sstate v p -> Bool
 sverify_postcondition ctxt = evalSstate check
  where
   check = do

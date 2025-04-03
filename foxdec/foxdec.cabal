@@ -50,6 +50,7 @@ library
       Data.X86.Register
       Disassembler.Disassembler
       OutputGeneration.CallGraph
+      OutputGeneration.GlobalMemAnalysis
       OutputGeneration.Metrics
       OutputGeneration.NASM.L0ToNASM
       OutputGeneration.NASM.ModDataSection

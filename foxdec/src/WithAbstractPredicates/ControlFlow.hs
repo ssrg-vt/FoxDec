@@ -153,7 +153,7 @@ get_known_jump_targets ::
 get_known_jump_targets l@(bin,_,l0) i =
   case l0_lookup_indirection (inAddress i) l0 of
     Just r -> S.toList $ S.unions $ S.map indirection_to_jump_target r
-    _      -> singleton $ jump_target_for_instruction bin i
+    _      -> [jump_target_for_instruction bin i]
  where
   indirection_to_jump_target (Indirection_JumpTable (JumpTable _ _ _ tbl)) = S.fromList $ map ImmediateAddress $ IM.elems tbl
   indirection_to_jump_target (Indirection_Resolved trgt) = S.singleton trgt

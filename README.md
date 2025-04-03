@@ -34,7 +34,7 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 
 ## How to build <a name="build"></a>
-Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/raw/7de37a096731c9ae8a9fb168db2d8038a8f7a07f/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. Section [How to use](#usage) contains further instructions. The GitHub page is [here][git]. 
+Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/0abd8c85cda0ccf3da9ef6683acb77a99c04b8b6/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. Section [How to use](#usage) contains further instructions. The GitHub page is [here][git]. 
 
 ***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
 
@@ -51,14 +51,14 @@ These are instructions for a quickstart on the already supplied binary `wc`.
 The following files are generated:
 
 - **`$NAME.json`** and **`$NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
-- **`$NAME.metrics.json`** and **`$NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
-- **`$NAME.calls.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
-- **`$NAME.asm`**: recompilable NASM code.
-- **`$ENTRY/$NAME.dot`**: For each function entry **`$ENTRY`** a control flow graph (CFG).
+- **`$NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
+- **`$NAME.callgraph.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
+- **`nasm/$NAME.asm`**: recompilable NASM code.
+- **`functions/$ENTRY/$NAME.dot`**: For each function entry **`$ENTRY`** a control flow graph (CFG) and a log containing a pre- and a postcondition.
 
 
 
-**IMPORTANT:** typically, when running FoxDec for the first time, it will cover only few instructions. It will notify that "dangling function pointers" have been found. These dangling function pointers require manual analysis to see if they correspond to function entries. If so, they manually need to be added to `./binary/$NAME.entry`. After that, rerun FoxDec (step 2) above. In many cases, this manual intervention requires at most one or two iterations.
+**NOTE:** it is possible to manually add entry points, by adding a plain-text file `./binary/$NAME.entry` where each line is an entry address in hexadecimal notation.
 
 
 <!---

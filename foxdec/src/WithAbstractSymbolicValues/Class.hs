@@ -6,6 +6,8 @@ import Base
 
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 
+import Binary.Generic
+
 import Data.Indirection
 import Data.JumpTarget
 import Data.Size
@@ -98,12 +100,11 @@ empty_finit = FInit S.empty M.empty
 unknownSize = Nothing
 
 
-class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt v p | ctxt -> v p where 
+class (Ord v,Eq v,Show v, Eq p,Ord p,Show p,BinaryClass bin) => WithAbstractSymbolicValues ctxt bin v p | ctxt -> v p bin where 
   sseparate :: ctxt -> String -> p -> Maybe ByteSize -> p -> Maybe ByteSize -> Bool
   senclosed :: ctxt -> p -> Maybe ByteSize -> p -> Maybe ByteSize -> Bool
   salias :: ctxt -> p -> Maybe ByteSize -> p -> Maybe ByteSize -> Bool
   ssensitive :: ctxt -> p -> Maybe ByteSize -> v -> Bool
-  sread_from_ro_data :: ctxt -> p -> Maybe ByteSize -> Maybe v
   smk_mem_addresses :: ctxt -> String -> Bool -> v -> S.Set p
 
   sjoin_values :: Foldable t => ctxt -> String -> t v -> v
@@ -134,5 +135,5 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p) => WithAbstractSymbolicValues ctxt 
   scheck_regs_in_postcondition :: ctxt -> v -> v -> Bool
 
   sget_gmem_structure :: ctxt -> GMemStructure
-
+  sget_binary :: ctxt -> bin
 

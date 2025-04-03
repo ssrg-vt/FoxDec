@@ -22,6 +22,7 @@ import Data.SPointer
 import Data.SValue
 
 import Binary.FunctionNames
+import Binary.Elf
 import WithAbstractPredicates.ControlFlow
 import Conventions
 
@@ -78,7 +79,7 @@ lift_L0_to_NASM :: BinaryClass bin => LiftedC bin -> NASM
 lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_jump_tables ++ [mk_temp_storage]
  where
   mk_externals        = externals l
-  mk_globals          = with_start_global bin $ S.difference (binary_get_global_symbols bin) mk_externals
+  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ binary_get_global_symbols bin) mk_externals
 
   mk_text_sections    = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
   mk_ro_data_section  = NASM_Section_Data $ ro_data_section l
@@ -279,27 +280,6 @@ halting_label l entry a blockID =
   let Label a' lab = block_label l entry a blockID in
     Label a' $ lab ++ "_HLT"
 
-
-
-
-
--- | Information on sections
--- TODO: get from Binary interface
-is_ro_data_section ("",".rodata",_,_,_) = True
-is_ro_data_section ("",".init_array",_,_,_) = True
-is_ro_data_section ("",".fini_array",_,_,_) = True
-is_ro_data_section ("",".data.rel.ro",_,_,_) = True
-is_ro_data_section ("__DATA","__const",_,_,_) = True
-is_ro_data_section _ = False
-
-is_data_section ("__DATA","__data",_,_,_) = True
-is_data_section ("",".data",_,_,_) = True
-is_data_section _ = False
-
-is_bss_data_section ("__DATA","__bss",_,_,_) = True
-is_bss_data_section ("__DATA","__common",_,_,_) = True
-is_bss_data_section ("",".bss",_,_,_) = True
-is_bss_data_section _ = False
 
 
 
@@ -873,7 +853,7 @@ ro_data_section ctxt = generic_data_section ctxt is_ro_data_section binary_read_
 data_section ctxt    = generic_data_section ctxt is_data_section    binary_read_data
 
 
-nub_data_section_entries = nub -- sortBy compareFst . S.toList . S.fromList TODO expensive
+nub_data_section_entries = rmdups -- sortBy compareFst . S.toList . S.fromList TODO expensive
  where
   compareFst (a,e0) (b,e1) =
     case compare a b of
@@ -884,6 +864,14 @@ nub_data_section_entries = nub -- sortBy compareFst . S.toList . S.fromList TODO
   compareEntry (DataEntry_Label l0) _ = LT
   compareEntry _ (DataEntry_Label l0) = GT
   compareEntry e0 e1 = compare e0 e1
+
+  rmdups :: Ord a => [a] -> [a]
+  rmdups = rmdups' S.empty
+
+  rmdups' _ [] = []
+  rmdups' a (b : c) = if S.member b a
+    then rmdups' a c
+    else b : rmdups' (S.insert b a) c
 
 
 add_labels_to_data_sections :: M.Map Word64 (S.Set NASM_Label) -> S.Set String -> NASM_Section -> NASM_Section

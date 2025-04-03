@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, FlexibleContexts #-}
 
 module WithAbstractSymbolicValues.FInit where
 
@@ -51,7 +51,7 @@ instance Show p => Show (SStatePart p) where
 
 -- | The initial predicate.
 -- TODO: Use aliassing information
-finit_to_init_sstate :: WithAbstractSymbolicValues ctxt v p => ctxt -> FInit v p -> Sstate v p
+finit_to_init_sstate :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> FInit v p -> Sstate v p
 finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
   let rsp0                 = smk_init_reg_value ctxt $ Reg64 RSP
       write_stack_pointer  = swrite_rreg ctxt "finit_to_init" (Reg64 RSP) rsp0
@@ -71,7 +71,7 @@ finit_to_init_sstate ctxt finit@(FInit sps init_mem) =
 
 
 -- | Convert the current invariant into a function initialisation
-sstate_to_finit :: WithAbstractSymbolicValues ctxt v p => ctxt -> Sstate v p -> FInit v p
+sstate_to_finit :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Sstate v p -> FInit v p
 ---invariant_to_finit ctxt p | trace ("invariant_to_finit: "++ show p) False = error "trace"
 sstate_to_finit ctxt p = 
   let sps      = S.fromList $ regs_to_sps (sregs p) ++ mem_to_sps (smem p) ++ gmem_to_sps (gmem p)
@@ -132,7 +132,7 @@ sstate_to_finit ctxt p =
 
 
 -- | The join between two function initialisations
-join_finit :: WithAbstractSymbolicValues ctxt v p => ctxt -> (FInit v p) -> (FInit v p) -> (FInit v p)
+join_finit :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> (FInit v p) -> (FInit v p) -> (FInit v p)
 join_finit ctxt f0@(FInit sps0 m0) f1@(FInit sps1 m1)
   | f0 == f1 = f0
   | otherwise = FInit (S.intersection sps0 sps1) (M.intersectionWith join_rel m0 m1)
