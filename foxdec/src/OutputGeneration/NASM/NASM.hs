@@ -244,6 +244,7 @@ instance Show NASM_Instruction where
 
     show_suffix :: [NASM_Operand] -> String
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
+    show_suffix [NASM_Operand_Memory (si, _) a] = size_to_suffix si
     show_suffix _ = ""
 
     size_to_suffix 1 = "b"
@@ -256,10 +257,10 @@ instance Show NASM_Instruction where
 
     show_mnemonic Nothing  = ""
     -- NOT NEEDED, JUST FOR EASY DIFF
-    show_mnemonic (Just JZ) = "je"
-    show_mnemonic (Just JNZ) = "jne"
+    show_mnemonic (Just JZ)     = "je"
+    show_mnemonic (Just JNZ)    = "jne"
     show_mnemonic (Just SETNBE) = "seta"
-    show_mnemonic (Just CMOVZ) = "cmove"
+    show_mnemonic (Just CMOVZ)  = "cmove"
     show_mnemonic (Just CMOVNZ) = "cmovne"
     show_mnemonic (Just SETNLE) = "setg"
     show_mnemonic (Just p) = toLowerCase $ show p
@@ -293,10 +294,12 @@ instance Show NASM_Instruction where
     show_op (NASM_Operand_Reg r)              = "%" ++ toLowerCase (show r)
     show_op (NASM_Operand_Address a)          = show a
     show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Label l)) = show l ++ "(%rip)"
-    show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Symbol s)) = show_symbol s ++ "(%rip)"
+    show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Symbol (AddressOfLabel  l _))) = l ++ "(%rip)"
+    show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Symbol (AddressOfObject  l _))) = l ++ "(%rip)"
     show_op (NASM_Operand_EffectiveAddress a) = show a
     show_op (NASM_Operand_Memory _ (NASM_Addr_Label l)) = show l ++ "(%rip)"
-    show_op (NASM_Operand_Memory _ (NASM_Addr_Symbol s)) = show_symbol s ++ "(%rip)"
+    show_op (NASM_Operand_Memory _ (NASM_Addr_Symbol (AddressOfLabel  l _))) = l ++ "(%rip)"
+    show_op (NASM_Operand_Memory _ (NASM_Addr_Symbol (AddressOfObject l _))) = l ++ "(%rip)"
     show_op (NASM_Operand_Memory _ a)   = show a
     show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) =
       case (instr_op_size,si) of
