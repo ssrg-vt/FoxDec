@@ -1020,7 +1020,7 @@ mk_jump_table l (entry,cfg,(a,inds)) = concatMap mk $ S.toList inds
     , ".space 8"
     , show (label_jump_table_temp_storage entry a 1) ++ ":"
     , ".space 8"
-    , ".section .rodata"
+    , ".section .data.rel.ro"
     , show (label_jump_table_redirect_data entry a) ++ ":"]
     ++
     map mk_entry (sortBy (compare `on` fst) $ IM.assocs tbl)
