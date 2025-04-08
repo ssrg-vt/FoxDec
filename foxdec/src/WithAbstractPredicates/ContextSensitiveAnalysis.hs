@@ -96,18 +96,16 @@ lift_to_L0 config bin finit = do
   runReaderT (execStateT (exploreFunctionEntries entry_graph recs) init_L0) (bin,config)
  where
   get_entries = do
-    let dirname = binary_dir_name bin
-    let name    = binary_file_name bin
-    let fname   = dirname ++ name ++ ".entry" 
-    let entry   = case binary_entry bin of
-                    0 -> []
-                    a -> [fromIntegral a]
+    let dirname  = binary_dir_name bin
+    let name     = binary_file_name bin
+    let fname    = dirname ++ name ++ ".entry" 
+    let entries0 = filter ((/=) 0) $ map fromIntegral $ binary_entry bin
     exists <- doesFileExist fname
     if exists then do
       entries <- liftIO $ parse $! fname
-      return $ entry ++ entries
+      return $ entries0 ++ entries
     else
-      return entry
+      return entries0
   parse filename = do
     ls <- readFile filename
     return $ map read_line $ lines ls

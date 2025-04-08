@@ -97,7 +97,7 @@ lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_ju
 
 
 with_start_global bin = 
-  case binary_entry bin of
+  case head (binary_entry bin) of
     0     -> id
     entry -> S.insert "_start" 
 
@@ -226,7 +226,7 @@ block_label l@(bin,_,l0) entry a blockID = (try_start_symbol `orTry` try_symbol 
  where
   -- Try if the address matches the entry point of the ELF
   try_start_symbol
-    | binary_entry bin /= 0 && a == binary_entry bin = Just $ Label a "_start"
+    | head (binary_entry bin) /= 0 && a == head (binary_entry bin) = Just $ Label a "_start"
     | otherwise = Nothing
   -- Try if the address matches a known symbol
   try_symbol = do
