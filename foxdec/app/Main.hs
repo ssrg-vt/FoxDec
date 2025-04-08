@@ -344,7 +344,6 @@ generate_NASM l@(bin,config,l0) = do
   let name     = binary_file_name bin
   let fname    = dirname ++ name ++ ".asm" 
   let fname1   = dirname ++ "__gmon_start__.c" 
-  let fname2   = dirname ++ name ++ ".asm.json" 
 
   createDirectoryIfMissing False dirname      
 
@@ -354,13 +353,11 @@ generate_NASM l@(bin,config,l0) = do
 
 
   let gmon = __gmon_start_implementation
-  let json = render_NASM_to_JSON nasm
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
-  B.writeFile fname2 $ json
 
 
-  putStrLn $ "Generated NASM, exported to files: " ++ fname ++ " and " ++ fname2
+  putStrLn $ "Generated NASM, exported to files: " ++ fname
 
   
 

@@ -77,7 +77,7 @@ class BinaryClass a where
   binary_get_symbols :: a -> SymbolTable
   binary_get_relocations :: a -> S.Set Relocation
   binary_pp :: a -> String
-  binary_entry :: a -> Word64
+  binary_entry :: a -> [Word64] -- The first element is the entry point of the binary (or 0 if shared object)
   binary_text_section_size :: a -> Int
   binary_dir_name :: a -> String
   binary_file_name :: a -> String

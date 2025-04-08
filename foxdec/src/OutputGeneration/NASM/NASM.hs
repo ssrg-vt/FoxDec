@@ -22,7 +22,6 @@ import Data.X86.Register
 
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put,encode)
-import Data.Aeson
 
 import qualified Data.Set as S
 import Data.Word
@@ -430,34 +429,3 @@ show_symbol (PointerToObject l False)      = l ++ "@GOTPCREL(%rip)"
 show_symbol (AddressOfLabel  l _)          = l
 show_symbol (AddressOfObject l _)          = l
 show_symbol (Relocated_ResolvedObject l _) = l
-
-
-
-
--- RENDERING TO JSON
--- We build a list of functions, for each of which we stores the following information:
-data JSON_NASM_Function = JSON_NASM_Function {
-    name   :: String -- ^ The name of the function
-  , blocks :: [(Int,[String])] -- ^ A mapping from blocKIDs to rendered instructions
-  , control_flow :: IM.IntMap (IS.IntSet) -- ^ A mapping from blockIDs to sets of blockIDs
- }
- deriving (Generic)
-
-instance ToJSON JSON_NASM_Function where
-  toEncoding = genericToEncoding $ defaultOptions --  { unwrapUnaryRecords = True }
-
-
-
-
-render_NASM_to_JSON (NASM externals globals sections footer) = encode $ concatMap toJSON_section sections
-
-toJSON_section (NASM_Section_Text ts) = [toJSON_text_section ts]
-toJSON_section (NASM_Section_Data _ ) = []
-
-toJSON_text_section (NASM_TextSection name blocks cf) = JSON_NASM_Function name (map render_block blocks) cf
- where
-  render_block (blockID,lines) = (blockID, concatMap toJSON_line lines)
-
-toJSON_line (NASM_Comment _ _) = []
-toJSON_line (NASM_Line i) = [takeWhile ((/=) '#') $ show i]
-toJSON_line (NASM_Label _) = []

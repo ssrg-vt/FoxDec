@@ -72,8 +72,6 @@ data NamedElf = NamedElf {
 -- | Overview of sections with read only data.
 sections_ro_data = [
    ("",".text"),
-   ("",".init"),
-   ("",".fini"),
    ("",".rodata"),
    ("",".got"),
    ("",".plt"),
@@ -94,12 +92,14 @@ sections_bss = [
 
 
 sections_text = [
-   ("",".text")
+   ("",".text"),
+   ("",".init"),
+   ("",".fini")
  ]
 
 
 
-isRelevantElfSection section = ("",elfSectionName section) `elem` sections_ro_data ++ sections_data ++ sections_bss
+isRelevantElfSection section = ("",elfSectionName section) `elem` sections_ro_data ++ sections_data ++ sections_bss ++ sections_text
 
 isAllocated section = SHF_ALLOC `elem` elfSectionFlags section
 
@@ -317,6 +317,14 @@ elf_text_section_size = sum . map (fromIntegral . elfSectionSize) . filter isTex
  where
   isTextSection sec = ("",elfSectionName sec) `elem` sections_text
 
+
+elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".fini" elf
+ where
+  entry_of name elf =
+    case find (\sec -> elfSectionName sec == name) $ elfSections elf of
+      Just s -> [elfSectionAddr s]
+      _ -> []
+
 instance BinaryClass NamedElf 
   where
     binary_read_bytestring = \(NamedElf elf _ _ _ _ _) -> elf_read_bytestring elf
@@ -326,7 +334,7 @@ instance BinaryClass NamedElf
     binary_get_symbols = \(NamedElf elf _ _ _ t _) -> t
     binary_get_relocations = \(NamedElf elf _ _ _ _ r) -> r
     binary_pp = \(NamedElf elf _ _ _ _ _) -> pp_elf elf
-    binary_entry = \(NamedElf elf _ _ _ _ _) -> elfEntry elf
+    binary_entry = \(NamedElf elf _ _ _ _ _) -> elf_get_entry_points elf
     binary_text_section_size = \(NamedElf elf _ _ _ _ _) -> elf_text_section_size elf
     binary_dir_name = \(NamedElf _ d _ _ _ _) -> d
     binary_file_name = \(NamedElf _ _ n _ _ _) -> n
