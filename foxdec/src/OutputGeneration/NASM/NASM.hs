@@ -274,7 +274,6 @@ instance Show NASM_Instruction where
     show_mnemonic (Just SETNLE) = "setg"
     show_mnemonic (Just MOVZX) = "movz"
     show_mnemonic (Just MOVSX) = "movs"
-    show_mnemonic (Just MOVSD) = "movsl"
     show_mnemonic (Just p) = toLowerCase $ show p
 
     show_ops = intercalate ", " . reverse . map show_op
