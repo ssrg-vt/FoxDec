@@ -245,6 +245,8 @@ instance Show NASM_Instruction where
     show_suffix :: [NASM_Operand] -> String
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
     show_suffix [NASM_Operand_Memory (si, _) a] = size_to_suffix si
+    show_suffix [NASM_Operand_Reg r, NASM_Operand_Memory (si, _) a] = if m == Just MOVZX || m == Just MOVSX then size_to_suffix si ++ bytesize_to_suffix (regSize r) else ""
+    show_suffix [NASM_Operand_Reg r1, NASM_Operand_Reg r2] = if m == Just MOVZX || m == Just MOVSX then bytesize_to_suffix (regSize r2) ++ bytesize_to_suffix (regSize r1) else ""
     show_suffix _ = ""
 
     size_to_suffix 1 = "b"
@@ -255,6 +257,14 @@ instance Show NASM_Instruction where
     size_to_suffix 16 = "o"
     size_to_suffix _ = error "size_to_suffix: invalid size"
 
+    bytesize_to_suffix (ByteSize 1) = "b"
+    bytesize_to_suffix (ByteSize 2) = "w"
+    bytesize_to_suffix (ByteSize 4) = "l"
+    bytesize_to_suffix (ByteSize 8) = "q"
+    bytesize_to_suffix (ByteSize 10) = "t"
+    bytesize_to_suffix (ByteSize 16) = "o"
+    bytesize_to_suffix _ = error "bytesize_to_suffix: invalid size"
+
     show_mnemonic Nothing  = ""
     -- NOT NEEDED, JUST FOR EASY DIFF
     show_mnemonic (Just JZ)     = "je"
@@ -263,6 +273,8 @@ instance Show NASM_Instruction where
     show_mnemonic (Just CMOVZ)  = "cmove"
     show_mnemonic (Just CMOVNZ) = "cmovne"
     show_mnemonic (Just SETNLE) = "setg"
+    show_mnemonic (Just MOVZX) = "movz"
+    show_mnemonic (Just MOVSX) = "movs"
     show_mnemonic (Just p) = toLowerCase $ show p
 
     show_ops = intercalate ", " . reverse . map show_op
