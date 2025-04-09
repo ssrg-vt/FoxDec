@@ -15,6 +15,7 @@ import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
 import OutputGeneration.NASM.ModDataSection
 import OutputGeneration.GlobalMemAnalysis
+import OutputGeneration.NASM.Abstract_ASM
 
 import Data.CFG
 import Data.SValue
@@ -344,6 +345,7 @@ generate_NASM l@(bin,config,l0) = do
   let name     = binary_file_name bin
   let fname    = dirname ++ name ++ ".asm" 
   let fname1   = dirname ++ "__gmon_start__.c" 
+  let fname2   = dirname ++ name ++ ".abstract.asm" 
 
   createDirectoryIfMissing False dirname      
 
@@ -355,6 +357,7 @@ generate_NASM l@(bin,config,l0) = do
   let gmon = __gmon_start_implementation
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
+  --writeFile   fname2 $ ai_show_NASM l nasm
 
 
   putStrLn $ "Generated NASM, exported to files: " ++ fname
