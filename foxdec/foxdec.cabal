@@ -52,6 +52,7 @@ library
       OutputGeneration.CallGraph
       OutputGeneration.GlobalMemAnalysis
       OutputGeneration.Metrics
+      OutputGeneration.NASM.Abstract_ASM
       OutputGeneration.NASM.L0ToNASM
       OutputGeneration.NASM.ModDataSection
       OutputGeneration.NASM.NASM

@@ -89,6 +89,7 @@ data NASM_Instruction = NASM_Instruction
   , nasm_operands :: [NASM_Operand]
   , nasm_comment  :: String
   , nasm_annot    :: Annot
+  , nasm_orig     :: Maybe Instruction
   }
  deriving (Eq,Generic)
 
@@ -173,7 +174,7 @@ label_to_mem_operand sizedir l = NASM_Operand_Memory sizedir $ NASM_Addr_Label l
 label_to_eff_operand l = NASM_Operand_EffectiveAddress $ NASM_Addr_Label l
 
 
-mk_nasm_instr m ops = NASM_Instruction Nothing (Just m) ops "" []
+mk_nasm_instr m ops = NASM_Instruction Nothing (Just m) ops "" [] Nothing
 
 
 empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
@@ -225,7 +226,7 @@ instance Show NASM_Line where
 
 
 instance Show NASM_Instruction where
-  show (NASM_Instruction pre m ops comment annot) = concat
+  show (NASM_Instruction pre m ops comment annot orig) = concat
     [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
     , mk_comment
     ]
@@ -233,6 +234,7 @@ instance Show NASM_Instruction where
     show_prefix Nothing  = ""
     show_prefix (Just PrefixRep) = "REPZ"
     show_prefix (Just PrefixRepNE) = "REPNE"
+    show_prefix (Just PrefixLock) = "LOCK"
     show_prefix (Just p) = show p
 
     show_mnemonic Nothing  = ""

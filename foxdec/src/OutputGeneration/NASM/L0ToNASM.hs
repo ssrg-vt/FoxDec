@@ -334,7 +334,7 @@ mk_annots l@(bin,_,l0) sections = M.fromListWith S.union $ map (\(a,l) -> (a,S.s
 
   get_annots_textsection (NASM_TextSection _ blocks _) = concatMap get_annots_line $ concat $ map snd blocks
 
-  get_annots_line (NASM_Line (NASM_Instruction _ _ _ _ annot)) = annot
+  get_annots_line (NASM_Line (NASM_Instruction _ _ _ _ annot _)) = annot
   get_annots_line _ = []
 
   get_annots_datasection (NASM_DataSection _ _ es) = concat $ mapMaybe get_annot_from_data_entry es
@@ -438,8 +438,15 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
       [ NASM_Comment 2 $ "End of block"
       , NASM_Line $ mk_nasm_instr LEA [NASM_Operand_Reg reg', label_to_eff_operand $ label_jump_table_redirect_data entry a_end ]
       , NASM_Line $ mk_nasm_instr LEA [NASM_Operand_Reg reg', NASM_Operand_EffectiveAddress $ NASM_Addr_Compute $ empty_address {nasm_base = Just reg', nasm_index = Just (reg_of_size (real_reg reg) 8), nasm_scale = 8} ]
-      , NASM_Line $ mk_nasm_instr MOV [trgt_str, NASM_Operand_Memory (8,True) $ NASM_Addr_Compute $ empty_address {nasm_base = Just reg' }] `withAnnot` annot
-      , NASM_Line $ mk_nasm_instr MOV [NASM_Operand_Reg (real_reg reg), label_to_mem_operand (8,False) $ label_jump_table_temp_storage entry a_end 0 ]
+      ]
+      ++
+      (if isMemory trgt then
+        [ NASM_Line $ mk_nasm_instr MOV [NASM_Operand_Reg (real_reg reg'), NASM_Operand_Memory (8,True) $ NASM_Addr_Compute $ empty_address {nasm_base = Just reg' }]  `withAnnot` annot
+        , NASM_Line $ mk_nasm_instr MOV [trgt_str, NASM_Operand_Reg (real_reg reg')] ]
+      else
+        [ NASM_Line $ mk_nasm_instr MOV [trgt_str, NASM_Operand_Memory (8,True) $ NASM_Addr_Compute $ empty_address {nasm_base = Just reg' }] `withAnnot` annot ])
+      ++
+      [ NASM_Line $ mk_nasm_instr MOV [NASM_Operand_Reg (real_reg reg), label_to_mem_operand (8,False) $ label_jump_table_temp_storage entry a_end 0 ]
       , NASM_Line $ mk_nasm_instr MOV [NASM_Operand_Reg (real_reg reg'), label_to_mem_operand (8,False) $ label_jump_table_temp_storage entry a_end 1 ]
       , NASM_Comment 2 $ "Executing resolved indirect jump"
       , NASM_Label $ dontcare_label l entry a_end blockID
@@ -447,12 +454,16 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
       ++
       mk_jmp_call_instr l entry cfg blockID last_instr
 
+  isMemory (Op_Mem _ _ _ _ _ _ _) = True
+  isMemory (Op_Near op) = isMemory op
+  isMemory (Op_Far op) = isMemory op
+  isMemory _ = False
 
 
   -- A resolved jump to a single known target
-  resolved_jump [External f] (Instruction addr pre op Nothing ops annot) =
+  resolved_jump [External f] i@(Instruction addr pre op Nothing ops annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
-    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] "" []]
+    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] "" [] (Just i)]
   resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op Nothing ops annot) = 
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ showHex imm ]
     ++
@@ -542,7 +553,7 @@ instr_to_NASM l entry cfg blockID i@(Instruction addr pre op Nothing ops annot)
 -- Make a normal instruction
 mk_normal_instr l entry cfg i@(Instruction addr pre op Nothing ops annot) = mk_instr
  where
-  mk_instr = NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) (map fst mk_ops) "" mk_annot
+  mk_instr = NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) (map fst mk_ops) "" mk_annot (Just i)
   mk_ops = map (operand_to_NASM l entry cfg i False) ops
   mk_annot = concat $ filter ((/=) []) $ map snd mk_ops
 
@@ -551,14 +562,14 @@ mk_jmp_call_instr :: BinaryClass bin => LiftedC bin -> Word64 -> CFG -> Int -> I
 mk_jmp_call_instr l@(bin,_,l0) entry cfg blockID i@(Instruction addr pre op Nothing [op1] annot) =
   add_label_if_terminating $ use_jump_target $ jump_target_for_instruction bin i
  where
-  use_jump_target j@(External sym)      = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "" []
-  use_jump_target j@(ExternalDeref sym) = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "PointerToObject" []
+  use_jump_target j@(External sym)      = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "" []  (Just i)
+  use_jump_target j@(ExternalDeref sym) = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "PointerToObject" [] (Just i)
   use_jump_target (ImmediateAddress a') = 
         let (op1_str,annot) = operand_to_NASM l entry cfg i True (Op_Jmp $ Immediate (BitSize 64) a') in
-          NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot
+          NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot (Just i)
   use_jump_target Unresolved            =
     let (op1_str,annot) = operand_to_NASM l entry cfg i True op1 in
-      NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot
+      NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot (Just i)
 
 
   add_label_if_terminating label
