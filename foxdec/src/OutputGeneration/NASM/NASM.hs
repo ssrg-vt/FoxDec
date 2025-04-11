@@ -245,7 +245,8 @@ instance Show NASM_Instruction where
 
     show_suffix :: [NASM_Operand] -> String
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
-    show_suffix [NASM_Operand_Memory (si, _) a] = size_to_suffix si
+    show_suffix [NASM_Operand_Memory (si, _) a] = if m == Just FILD || m == Just FISTP then fild_size si else  size_to_suffix si
+    show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Reg r] = if m == Just SHL || m == Just SHR || m == Just SAL || m == Just SAR then size_to_suffix si else ""
     show_suffix [NASM_Operand_Reg r, NASM_Operand_Memory (si, _) a] = if m == Just MOVZX || m == Just MOVSX then size_to_suffix si ++ bytesize_to_suffix (regSize r) else ""
     show_suffix [NASM_Operand_Reg r1, NASM_Operand_Reg r2] = if m == Just MOVZX || m == Just MOVSX then bytesize_to_suffix (regSize r2) ++ bytesize_to_suffix (regSize r1) else ""
     show_suffix _ = ""
@@ -257,6 +258,11 @@ instance Show NASM_Instruction where
     size_to_suffix 10 = "t"
     size_to_suffix 16 = "o"
     size_to_suffix _ = error "size_to_suffix: invalid size"
+
+    fild_size 2 = "s"
+    fild_size 4 = "l"
+    fild_size 8 = "ll"
+    fild_size _ = error "fild_size: invalid size"
 
     bytesize_to_suffix (ByteSize 1) = "b"
     bytesize_to_suffix (ByteSize 2) = "w"
@@ -276,9 +282,11 @@ instance Show NASM_Instruction where
     show_mnemonic (Just SETNLE) = "setg"
     show_mnemonic (Just MOVZX) = "movz"
     show_mnemonic (Just MOVSX) = "movs"
+    show_mnemonic (Just MOVSD) = if null ops then "movsl" else "movsd"
+    show_mnemonic (Just STOSD) = "stosl"
     show_mnemonic (Just p) = toLowerCase $ show p
 
-    show_ops = intercalate ", " . reverse . map show_op
+    show_ops = if m == Just FXCH then intercalate "" . reverse . map show_op  else intercalate ", " . reverse . map show_op -- weird way to handle FXCH
 
     star =
       case (m, ops) of
@@ -304,7 +312,7 @@ instance Show NASM_Instruction where
     isImmediate _                          = False
 
 
-    show_op (NASM_Operand_Reg r)              = "%" ++ toLowerCase (show r)
+    show_op (NASM_Operand_Reg r)              = if m == Just FXCH && r == RegFPU ST0 then "" else  "%" ++ toLowerCase (show r)
     show_op (NASM_Operand_Address a)          = show a
     show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Label l)) = show l ++ "(%rip)"
     show_op (NASM_Operand_EffectiveAddress (NASM_Addr_Symbol (AddressOfLabel  l _))) = l ++ "(%rip)"
