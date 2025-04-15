@@ -247,8 +247,8 @@ instance Show NASM_Instruction where
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
     show_suffix [NASM_Operand_Memory (si, _) a] = if m == Just FILD || m == Just FISTP then fild_size si else  size_to_suffix si
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Reg r] = if m == Just SHL || m == Just SHR || m == Just SAL || m == Just SAR then size_to_suffix si else ""
-    show_suffix [NASM_Operand_Reg r, NASM_Operand_Memory (si, _) a] = if m == Just MOVZX || m == Just MOVSX then size_to_suffix si ++ bytesize_to_suffix (regSize r) else ""
-    show_suffix [NASM_Operand_Reg r1, NASM_Operand_Reg r2] = if m == Just MOVZX || m == Just MOVSX then bytesize_to_suffix (regSize r2) ++ bytesize_to_suffix (regSize r1) else ""
+    show_suffix [NASM_Operand_Reg r, NASM_Operand_Memory (si, _) a] = if m == Just MOVZX || m == Just MOVSX || m == Just MOVSXD then size_to_suffix si ++ bytesize_to_suffix (regSize r) else ""
+    show_suffix [NASM_Operand_Reg r1, NASM_Operand_Reg r2] = if m == Just MOVZX || m == Just MOVSX || m == Just MOVSXD then bytesize_to_suffix (regSize r2) ++ bytesize_to_suffix (regSize r1) else ""
     show_suffix _ = ""
 
     size_to_suffix 1 = "b"
@@ -282,6 +282,7 @@ instance Show NASM_Instruction where
     show_mnemonic (Just SETNLE) = "setg"
     show_mnemonic (Just MOVZX) = "movz"
     show_mnemonic (Just MOVSX) = "movs"
+    show_mnemonic (Just MOVSXD) = "movs"
     show_mnemonic (Just MOVSD) = if null ops then "movsl" else "movsd"
     show_mnemonic (Just STOSD) = "stosl"
     show_mnemonic (Just p) = toLowerCase $ show p
@@ -420,7 +421,7 @@ show_displacement "" (Just 0)   = ""
 show_displacement "" (Just imm) = "0x" ++ showHex imm
 show_displacement _  (Just imm)
   | testBit (fromIntegral imm::Word64) 63 = " -0x" ++ showHex (0 - imm)
-  | otherwise =  " 0x" ++ showHex imm
+  | otherwise =  "0x" ++ showHex imm
 
 
 instance Show NASM_Address where
