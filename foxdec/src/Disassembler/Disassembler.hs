@@ -576,6 +576,8 @@ mmx_sse = choice
   , opcode 0x0f >> opcode 0x2f >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "comisd" [modrm_xmm, opWidthF 64 >> modrm_xmm_m]) ]
                                                                      (        instr "comiss" [modrm_xmm, opWidthF 32 >> modrm_xmm_m] )
 
+  , opcode 0x0f >> opcode 0x50 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "MOVMSKPD" [modrm_rm, modrm_xmm] ) ]
+                                                                     (        instr "MOVMSKPS" [modrm_rm, modrm_xmm] )
 
   , opcode 0x0f >> opcode 0x51 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "sqrtss" [modrm_xmm, opWidthF 32 >> modrm_xmm_m])
                                                                      , (0x66, instr "sqrtpd" [modrm_xmm, opWidthF 128 >> modrm_xmm_m])

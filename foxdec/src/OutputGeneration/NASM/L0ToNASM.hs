@@ -534,7 +534,7 @@ instr_to_NASM l entry cfg blockID i@(Instruction addr pre op Nothing ops annot)
  | op == ENDBR64                         = []
  | no_ops pre op                         = [NASM_Line $ mk_normal_instr l entry cfg $ Instruction addr pre op Nothing [] annot]
  | is_cf op                              = mk_jmp_call_instr l entry cfg blockID i
- | some_operand_reads_GOT_entry l i ops  = map NASM_Line $ mk_GOT_entry_instr l entry cfg i
+ | some_operand_reads_GOT_entry l i ops  && op /= LEA = map NASM_Line $ mk_GOT_entry_instr l entry cfg i
  | otherwise                             = [NASM_Line $ mk_normal_instr l entry cfg i]
  where
   is_cf op      = isCall op || isJump op || isCondJump op
