@@ -548,6 +548,7 @@ mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
          , VPERM2I128
          , VPALIGNR
          , PALIGNR
+         , SHUFPD
          , SHUFPS
          , PSHUFB
          , PSHUFD

@@ -516,6 +516,7 @@ data Opcode =
   | SHLD
   | SHR
   | SHRD
+  | SHUFPD
   | SHUFPS
   | SIDT
   | SLDT
@@ -1182,6 +1183,7 @@ read_opcode "SHL" = SHL
 read_opcode "SHLD" = SHLD
 read_opcode "SHR" = SHR
 read_opcode "SHRD" = SHRD
+read_opcode "SHUFPD" = SHUFPD
 read_opcode "SHUFPS" = SHUFPS
 read_opcode "SIDT" = SIDT
 read_opcode "SLDT" = SLDT
