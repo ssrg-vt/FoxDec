@@ -329,6 +329,8 @@ data Opcode =
   | MOVSB
   | MOVSD
   | MOVSLDUP
+  | MOVSLHUP
+  | MOVSHDUP
   | MOVSS
   | MOVSW
   | MOVSQ
@@ -516,6 +518,7 @@ data Opcode =
   | SHLD
   | SHR
   | SHRD
+  | SHUFPD
   | SHUFPS
   | SIDT
   | SLDT
@@ -981,6 +984,7 @@ read_opcode "MOVDQA" = MOVDQA
 read_opcode "MOVDQU" = MOVDQU
 read_opcode "MOVHLPS" = MOVHLPS
 read_opcode "MOVHPD" = MOVHPD
+read_opcode "MOVSHDUP" = MOVSHDUP
 read_opcode "MOVHPS" = MOVHPS
 read_opcode "MOVLHPS" = MOVLHPS
 read_opcode "MOVLPD" = MOVLPD
@@ -998,6 +1002,7 @@ read_opcode "MOVSB" = MOVSB
 read_opcode "MOVSD" = MOVSD
 read_opcode "MOVSW" = MOVSW
 read_opcode "MOVSLDUP" = MOVSLDUP
+read_opcode "MOVSLHUP" = MOVSLHUP
 read_opcode "MOVSS" = MOVSS
 read_opcode "MOVSQ" = MOVSQ
 read_opcode "MOVSX" = MOVSX
@@ -1182,6 +1187,7 @@ read_opcode "SHL" = SHL
 read_opcode "SHLD" = SHLD
 read_opcode "SHR" = SHR
 read_opcode "SHRD" = SHRD
+read_opcode "SHUFPD" = SHUFPD
 read_opcode "SHUFPS" = SHUFPS
 read_opcode "SIDT" = SIDT
 read_opcode "SLDT" = SLDT

@@ -553,10 +553,16 @@ mmx_sse = choice
                                                                      , (0xf2, instr "movsd" [opWidthF 64 >> modrm_xmm_m, modrm_xmm]) ]
                                                                      (        instr "movups" [opWidthF 128 >> modrm_xmm_m, modrm_xmm] )
 
-  , opcode 0x0f >> opcode 0x16 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, fail  "MOVSHDUP")
-                                                                     , (0x66, fail  "MOVHPD") ]
+  , opcode 0x0f >> opcode 0x12 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "MOVSLDUP" [modrm_xmm, opWidthF 64 >> modrm_xmm_m])
+                                                                     , (0x66, instr "MOVLPD" [modrm_xmm, opWidthF 64 >> modrm_xmm_m])
+                                                                     , (0xf2, instr "MOVDDUP" [modrm_xmm, opWidthF 64 >> modrm_xmm_m]) ]
+                                                                     (        instr "MOVHLPS" [modrm_xmm, modrm_xmm_m] )
+
+
+  , opcode 0x0f >> opcode 0x16 >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "MOVSHDUP" [modrm_xmm, opWidthF 64 >> modrm_xmm_m])
+                                                                     , (0x66, instr "MOVHPD"  [modrm_xmm, opWidthF 64 >> modrm_xmm_m]) ]
                                                                      (        instr "MOVHPS" [modrm_xmm, opWidthF 64 >> modrm_xmm_m] )
-  , opcode 0x0f >> opcode 0x17 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, fail  "MOVHPD") ]
+  , opcode 0x0f >> opcode 0x17 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "MOVHPD" [opWidthF 64 >> modrm_xmm_m, modrm_xmm]) ]
                                                                      (        instr "MOVHPS" [opWidthF 64 >> modrm_xmm_m, modrm_xmm] )
 
   , opcode 0x0f >> opcode 0x28 >> modrm >> noPrefix <$> forkPrefixes [ (0x66, instr "movapd" [modrm_xmm, opWidthF 128 >> modrm_xmm_m]) ]

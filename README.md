@@ -6,6 +6,8 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 
 <span style="font-size: 150%; color:darkblue">NEWS</span>
 
+* Our paper on binary-level ppointer analysis has been accepted at ICSE'25!
+* Our [paper][ccs24-paper] on symbolization has been accepted at CCS'24!
 * Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
 
 ## Table of Contents
@@ -20,7 +22,7 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 **Formally verified decompilation.**
 Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the decompilation phases that are formally verified. 
 
-FoxDec's decompilation phases include disassembly; CFG recovery; extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). The project leverages the [Chum project][chum]'s formal x86-64 machine model for this purpose. 
+FoxDec's decompilation phases include disassembly; CFG recovery; extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). 
 
 Central to formally verified decompilation is the notion of _sound decompilation_. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in a different project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
 
@@ -50,7 +52,7 @@ These are instructions for a quickstart on the already supplied binary `wc`.
 
 The following files are generated:
 
-- **`$NAME.json`** and **`$NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. The exact JSON taxonomy used to generate the JSON can be found [here][taxonomy].
+- **`$NAME.json`** and **`$NAME.json.txt`**: Contain disassembled instructions, control flow recovery, function boundaries, invariants, pointer analysis results. The two files contain the exact same information, one in JSON format and the other in humanly readable format. 
 - **`$NAME.metrics.txt`**: a log containing metrics such as running time, number of covered instructions, accuracy of pointer analysis, etc. The two files contain the exact same information, one in JSON format and the other in humanly readable format.
 - **`$NAME.callgraph.dot`**: A Graphviz `.dot` file containing the ACG (Annotated Call Graph), annotated with verification conditions necessary to ensure \"normal\" behavior (e.g., no stack overflows, calling convention adherence).
 - **`nasm/$NAME.asm`**: recompilable NASM code.
@@ -80,6 +82,7 @@ For the last compilation step, one must manually supply additional libraries as 
 
 
 ## Papers<a name="papers"></a>
+* [Verifiably Correct Lifting of Position-Independent x86-64 Binaries to Symbolized Assembly][ccs24-paper], Freek Verbeek, Nico Naus, Binoy Ravindran. Proceedings of the 2024 ACM SIGSAC Conference on Computer and Communications Security (CCS ’24).
 * [Formally Verified Lifting of C-compiled x86-64 Binaries][pldi22-paper],
 Freek Verbeek, Joshua A. Bockenek, Zhoulai Fu and Binoy Ravindran, 43rd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2022), June 13-17, 2022, San Diego, USA.
 * [_Sound C Code Decompilation for a Subset of x86-64 Binaries_][sefm20-paper],
@@ -128,3 +131,4 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [capstone]: https://github.com/aquynh/capstone/archive/4.0.1.zip
 [taxonomy]: https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/Data-JSON_Taxonomy.html
 [pldi22-paper]: https://dl.acm.org/doi/10.1145/3519939.3523702
+[ccs24-paper]: https://dl.acm.org/doi/abs/10.1145/3658644.3690244
