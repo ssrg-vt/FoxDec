@@ -245,7 +245,10 @@ instance Show NASM_Instruction where
 
     show_suffix :: [NASM_Operand] -> String
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Immediate _] = size_to_suffix si
-    show_suffix [NASM_Operand_Memory (si, _) a] = if m == Just FILD || m == Just FISTP then fild_size si else  size_to_suffix si
+    show_suffix [NASM_Operand_Memory (si, _) a]
+      | m == Just FILD || m == Just FISTP = fild_size si
+      | m == Just FLD = fld_size si
+      | otherwise = size_to_suffix si
     show_suffix [NASM_Operand_Memory (si, _) a, NASM_Operand_Reg r] = if m == Just SHL || m == Just SHR || m == Just SAL || m == Just SAR then size_to_suffix si else ""
     show_suffix [NASM_Operand_Reg r, NASM_Operand_Memory (si, _) a] = if m == Just MOVZX || m == Just MOVSX || m == Just MOVSXD then size_to_suffix si ++ bytesize_to_suffix (regSize r) else ""
     show_suffix [NASM_Operand_Reg r1, NASM_Operand_Reg r2] = if m == Just MOVZX || m == Just MOVSX || m == Just MOVSXD then bytesize_to_suffix (regSize r2) ++ bytesize_to_suffix (regSize r1) else ""
@@ -263,6 +266,11 @@ instance Show NASM_Instruction where
     fild_size 4 = "l"
     fild_size 8 = "ll"
     fild_size _ = error "fild_size: invalid size"
+
+    fld_size 4 = "s"
+    fld_size 8 = "l"
+    fld_size 10 = "t"
+    fld_size _ = error "fld_size: invalid size"
 
     bytesize_to_suffix (ByteSize 1) = "b"
     bytesize_to_suffix (ByteSize 2) = "w"
