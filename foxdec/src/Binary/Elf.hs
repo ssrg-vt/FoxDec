@@ -79,7 +79,8 @@ sections_ro_data = [
    ("",".plt.sec"),
    ("",".data.rel.ro"),
    ("",".init_array"),
-   ("",".fini_array")
+   ("",".fini_array"),
+   ("","__sancov_guards")
  ]
 
 sections_data = [
@@ -346,9 +347,11 @@ instance BinaryClass NamedElf
 -- | Information on sections
 -- TODO: get from Binary interface
 is_ro_data_section ("",".rodata",_,_,_) = True
+is_ro_data_section ("",".got",_,_,_) = True
 is_ro_data_section ("",".init_array",_,_,_) = True
 is_ro_data_section ("",".fini_array",_,_,_) = True
 is_ro_data_section ("",".data.rel.ro",_,_,_) = True
+is_ro_data_section ("","__sancov_guards",_,_,_) = True
 is_ro_data_section ("__DATA","__const",_,_,_) = True
 is_ro_data_section _ = False
 

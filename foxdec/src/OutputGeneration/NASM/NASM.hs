@@ -238,13 +238,6 @@ instance Show NASM_Instruction where
     show_prefix (Just p) = show p
 
     show_mnemonic Nothing  = ""
-    -- NOT NEEDED, JUST FOR EASY DIFF
-    show_mnemonic (Just JZ) = "JE"
-    show_mnemonic (Just JNZ) = "JNE"
-    show_mnemonic (Just SETNBE) = "SETA"
-    show_mnemonic (Just CMOVZ) = "CMOVE"
-    show_mnemonic (Just CMOVNZ) = "CMOVNE"
-    show_mnemonic (Just SETNLE) = "SETG"
     show_mnemonic (Just p) = show p
  
     show_ops = intercalate ", " . map show_op
@@ -304,12 +297,6 @@ instance Show NASM_Instruction where
     operand_size (NASM_Operand_Memory (si,_) a) = ByteSize si
     operand_size (NASM_Operand_Immediate (Immediate (BitSize si) imm)) = ByteSize $ si `div` 8
 
---"0x" ++ showHex imm
-  --  show_op (NASM_Operand_Immediate (Immediate (BitSize 32) imm)) = "0x" ++ showHex imm -- showHex (sextend_32_64 imm)
-   -- show_op (NASM_Operand_Immediate (Immediate (BitSize 16) imm)) = "0x" ++ showHex (sextend_16_64 imm)
-    --show_op (NASM_Operand_Immediate (Immediate (BitSize 8)  imm)) = "0x" ++ showHex (sextend_8_64 imm)
-
-
 
 
 
@@ -347,8 +334,9 @@ show_macro_name segment section a0 = "RELA" ++ section_name segment section a0
 section_name segment section a0 = segment ++ "_" ++ section ++ "_0x" ++ showHex a0
 
 instance Show NASM_Address_Computation where
- show (NASM_Address_Computation Nothing Nothing _ Nothing (Just 0)) = "ds:0" 
- show (NASM_Address_Computation Nothing Nothing _ Nothing Nothing)  = "ds:0" 
+ show (NASM_Address_Computation Nothing    Nothing _ Nothing (Just 0)) = "ds:0" 
+ show (NASM_Address_Computation Nothing    Nothing _ Nothing Nothing)  = "ds:0" 
+ show (NASM_Address_Computation (Just seg) Nothing _ Nothing Nothing)  = show seg ++ ":0" 
  show (NASM_Address_Computation seg ind sc base displ) = 
    let str0 = show_seg seg
        str1 = intercalate " + " $ filter ((/=) "") [show_base base, show_index_scale ind sc] 
