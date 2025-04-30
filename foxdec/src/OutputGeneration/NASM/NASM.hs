@@ -399,7 +399,7 @@ section_name segment section a0 = segment ++ "_" ++ section ++ "_0x" ++ showHex 
 instance Show NASM_Address_Computation where
  show (NASM_Address_Computation Nothing    Nothing _ Nothing (Just 0)) = "ds:0"
  show (NASM_Address_Computation Nothing    Nothing _ Nothing Nothing)  = "ds:0"
- show (NASM_Address_Computation (Just seg) Nothing _ Nothing Nothing)  = show seg ++ ":0"
+ show (NASM_Address_Computation (Just seg) Nothing _ Nothing Nothing)  = "%" ++ toLowerCase (show seg) ++ ":0"
  show (NASM_Address_Computation seg ind sc base displ) =
    let str0 = show_seg seg
        str1 = intercalate ", " $ filter ((/=) "") [show_base base, show_index_scale ind sc]
