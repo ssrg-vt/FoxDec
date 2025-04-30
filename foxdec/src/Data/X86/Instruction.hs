@@ -84,7 +84,7 @@ instance Show Operand where
     show_idx_scale RegNone 1 = ""
     show_idx_scale _  0      = error "todo"
     show_idx_scale idx scale = " + " ++ show idx ++ "*" ++ showHex scale
-    show_displ displ = if displ < 0 then " - 0x" ++ showHex (fromIntegral (0-displ)) else " + 0x" ++ showHex displ 
+    show_displ displ = if displ < 0 then " - 0x" ++ showHex (fromIntegral (0-displ)) else " + 0x" ++ showHex displ
     show_size_directive 128 = "XWORD PTR"
     show_size_directive 80 = "TWORD PTR"
     show_size_directive 64 = "QWORD PTR"
@@ -169,7 +169,7 @@ canonicalize (Instruction label prefix POP Nothing [op1] annot) =
          (Just $ Op_Reg $ Reg64 RSP)
          [Op_Reg $ Reg64 RSP, Op_Imm $ Immediate (BitSize 64) $ fromIntegral si]
          annot]
--- LEAVE 
+-- LEAVE
 canonicalize (Instruction label prefix LEAVE Nothing [] annot) =
   Instruction label prefix MOV (Just $ Op_Reg $ Reg64 RSP) [Op_Reg $ Reg64 RBP] annot
   :canonicalize (Instruction label prefix POP Nothing [Op_Reg $ Reg64 RBP] annot)
@@ -205,7 +205,7 @@ canonicalize i@(Instruction label prefix mnemonic Nothing ops annot)
   | mnemonic `elem` [CWD, CDQ, CQO] = canonicalize_sextend2 i
   | mnemonic `elem` [MUL, IMUL] = canonicalize_mul i
   | mnemonic `elem` [DIV, IDIV] = canonicalize_div i
-  | mnemonic `elem` [MOVS,MOVSB,MOVSW,MOVSD,MOVSQ] && length ops == 2 = 
+  | mnemonic `elem` [MOVS,MOVSB,MOVSW,MOVSD,MOVSQ] && length ops == 2 =
     [Instruction label prefix mnemonic (Just $ head ops) (tail ops) annot]
 
   | mnemonic == MOVSB && ops == [] =
@@ -383,6 +383,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PCMPGTD
          , PCMPEQB
          , PCMPEQD
+         , PCMPEQW
          , PCMPGTB
          , PCMPGTD
          , PADDD
@@ -419,7 +420,8 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PCLMULQDQ
          , PACKSSDW
          , PACKSSWB
-         , PHADDD 
+         , PACKUSWB
+         , PHADDD
          , SUBSS
          , ADDSS
          , DIVSS

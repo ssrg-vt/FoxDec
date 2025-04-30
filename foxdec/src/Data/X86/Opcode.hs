@@ -362,6 +362,7 @@ data Opcode =
   | PALIGNR
   | PACKSSDW
   | PACKSSWB
+  | PACKUSWB
   | PADDB
   | PADDD
   | PADDQ
@@ -379,6 +380,7 @@ data Opcode =
   | PCLMULQDQ
   | PCMPEQB
   | PCMPEQD
+  | PCMPEQW
   | PCMPGTB
   | PCMPGTD
   | PEXTRB
@@ -1031,6 +1033,7 @@ read_opcode "OUTS" = OUTS
 read_opcode "PALIGNR" = PALIGNR
 read_opcode "PACKSSDW" = PACKSSDW
 read_opcode "PACKSSWB" = PACKSSWB
+read_opcode "PACKUSWB" = PACKUSWB
 read_opcode "PADDB" = PADDB
 read_opcode "PADDD" = PADDD
 read_opcode "PADDQ" = PADDQ
@@ -1048,6 +1051,7 @@ read_opcode "PBLENDW" = PBLENDW
 read_opcode "PCLMULQDQ" = PCLMULQDQ
 read_opcode "PCMPEQB" = PCMPEQB
 read_opcode "PCMPEQD" = PCMPEQD
+read_opcode "PCMPEQW" = PCMPEQW
 read_opcode "PCMPGTB" = PCMPGTB
 read_opcode "PCMPGTD" = PCMPGTD
 read_opcode "PEXTRB" = PEXTRB
