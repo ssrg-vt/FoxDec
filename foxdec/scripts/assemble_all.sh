@@ -1,7 +1,22 @@
 #!/bin/bash
 
-# Assemble all .asm files in the current directory
-for asm_file in *.asm; do
+# Check if a directory is provided as an argument
+if [ -z "$1" ]; then
+    echo "Usage: $0 <directory>"
+    exit 1
+fi
+
+# Get the directory from the argument
+directory="$1"
+
+# Check if the provided argument is a valid directory
+if [ ! -d "$directory" ]; then
+    echo "Error: $directory is not a valid directory"
+    exit 1
+fi
+
+# Assemble all .asm files in the specified directory
+for asm_file in "$directory"/*.asm; do
     # Skip if no .asm files are found
     [ -e "$asm_file" ] || continue
 
@@ -17,4 +32,3 @@ for asm_file in *.asm; do
         echo "Failed to assemble $asm_file"
     fi
 done
-
