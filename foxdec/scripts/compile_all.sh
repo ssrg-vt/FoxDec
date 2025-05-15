@@ -14,12 +14,12 @@ GMON_OBJ="$TARGET_DIR/__gmon_start__.o"
 
 # Check if __gmon_start__.o exists
 if [ ! -f "$GMON_OBJ" ]; then
-    gcc -c "$TARGET_DIR/__gmon_start_.c" -o "$GMON_OBJ"
+    gcc -c "$TARGET_DIR/__gmon_start__.c" -o "$GMON_OBJ"
     if [ $? -ne 0 ]; then
-        echo "Failed to compile __gmon_start_.c"
+        echo "Failed to compile __gmon_start__.c"
         exit 1
     fi
-    echo "Compiled __gmon_start_.c to $GMON_OBJ"
+    echo "Compiled __gmon_start__.c to $GMON_OBJ"
 fi
 
 # Loop through all .o files in the directory excluding __gmon_start__.o
