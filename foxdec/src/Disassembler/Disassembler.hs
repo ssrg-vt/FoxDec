@@ -375,8 +375,10 @@ baseOpcode = choice [
                 , opcode 0x0f >> opcode 0x9e >> modrm >> instr "setle" [opWidthB >> modrm_rm]
                 , opcode 0x0f >> opcode 0x9f >> modrm >> instr "setnle" [opWidthB >> modrm_rm]
 
+                , opcode 0x0f >> opcode 0xa2 >> instr "cpuid" []
                 , opcode 0x0f >> opcode 0xa3 >> opWidthW >> modrm >> instr "bt" [modrm_rm, modrm_reg]
                 , opcode 0x0f >> opcode 0xab >> modrm >> opWidthW >> instr "bts" [modrm_rm, modrm_reg]
+                , opcode 0x0f >> opcode 0xae >> modrm >> opcodeMatch 3 >> instr "STMXCSR" [opWidthF 32 >> modrm_rm]
                 , opcode 0x0f >> opcode 0xaf >> opWidthW >> modrm >> instr "imul" [modrm_reg, modrm_rm]
 
 
@@ -692,11 +694,14 @@ mmx_sse = choice
                                                                      (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
 
 
+
   , opcode 0x0f >> opcode 0xc2 >> modrm >> immB >> noPrefix <$> forkPrefixes [ (0xf3, instr "cmpss" [modrm_xmm, opWidthF 32 >> modrm_xmm_m, immed])
                                                                              , (0x66, instr "cmppd" [modrm_xmm, opWidthF 128 >> modrm_xmm_m, immed])
                                                                              , (0xf2, instr "cmpsd" [modrm_xmm, opWidthF 64 >> modrm_xmm_m, immed]) ]
                                                                              (        instr "cmpps" [modrm_xmm, opWidthF 128 >> modrm_xmm_m, immed] )
 
+  , opcode 0x0f >> opcode 0xc4 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "PINSRW" [modrm_xmm, modrm_rm, immed]) ]
+                                                                             (        instr "PINSRW" [modrm_xmm, pure $ Op_Reg RegNone, immed] )
   , opcode 0x0f >> opcode 0xc5 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "PEXTRW" [modrm_reg, modrm_xmm_m, immed]) ]
                                                                              (        instr "PEXTRW" [modrm_reg, pure $ Op_Reg RegNone, immed] )
   , opcode 0x0f >> opcode 0xc6 >> modrm >> immB >> noPrefix <$> forkPrefixes [(0x66,  instr "SHUFPD" [modrm_xmm, modrm_xmm_m, immed]) ]

@@ -89,7 +89,9 @@ resolve_call l@(bin,_,l0) i =
         Just _ -> JustRips $ [inAddress i + fromIntegral (inSize i)]
         _ -> UnresolvedTarget
     else let nexts = map next resolved_addresses in
-      foldr1 gather nexts
+      case nexts of
+        [] -> error $ "Empty nexts"
+        _  -> foldr1 gather nexts
  where
   gather n@(UnvisitedFunctionCall i) _  = n
   gather (JustRips as) (JustRips as')   = JustRips $ as++as'

@@ -188,6 +188,7 @@ data Opcode =
   | FST
   | FSTCW
   | FSTENV
+  | FNSTENV
   | FSTP
   | FSTSW
   | FSUB
@@ -362,6 +363,7 @@ data Opcode =
   | PALIGNR
   | PACKSSDW
   | PACKSSWB
+  | PACKUSWB
   | PADDB
   | PADDD
   | PADDQ
@@ -379,6 +381,7 @@ data Opcode =
   | PCLMULQDQ
   | PCMPEQB
   | PCMPEQD
+  | PCMPEQW
   | PCMPGTB
   | PCMPGTD
   | PEXTRB
@@ -389,6 +392,7 @@ data Opcode =
   | PINSRB
   | PINSRD
   | PINSRQ
+  | PINSRW
   | PMADDWD
   | PMAXSD
   | PMAXSW
@@ -863,6 +867,7 @@ read_opcode "FSQRT" = FSQRT
 read_opcode "FST" = FST
 read_opcode "FSTCW" = FSTCW
 read_opcode "FSTENV" = FSTENV
+read_opcode "FNSTENV" = FNSTENV
 read_opcode "FSTP" = FSTP
 read_opcode "FSTSW" = FSTSW
 read_opcode "FSUB" = FSUB
@@ -1031,6 +1036,7 @@ read_opcode "OUTS" = OUTS
 read_opcode "PALIGNR" = PALIGNR
 read_opcode "PACKSSDW" = PACKSSDW
 read_opcode "PACKSSWB" = PACKSSWB
+read_opcode "PACKUSWB" = PACKUSWB
 read_opcode "PADDB" = PADDB
 read_opcode "PADDD" = PADDD
 read_opcode "PADDQ" = PADDQ
@@ -1048,6 +1054,7 @@ read_opcode "PBLENDW" = PBLENDW
 read_opcode "PCLMULQDQ" = PCLMULQDQ
 read_opcode "PCMPEQB" = PCMPEQB
 read_opcode "PCMPEQD" = PCMPEQD
+read_opcode "PCMPEQW" = PCMPEQW
 read_opcode "PCMPGTB" = PCMPGTB
 read_opcode "PCMPGTD" = PCMPGTD
 read_opcode "PEXTRB" = PEXTRB
@@ -1058,6 +1065,7 @@ read_opcode "PHADDD" = PHADDD
 read_opcode "PINSRB" = PINSRB
 read_opcode "PINSRD" = PINSRD
 read_opcode "PINSRQ" = PINSRQ
+read_opcode "PINSRW" = PINSRW
 read_opcode "PMADDWD" = PMADDWD
 read_opcode "PMAXSD" = PMAXSD
 read_opcode "PMAXSW" = PMAXSW

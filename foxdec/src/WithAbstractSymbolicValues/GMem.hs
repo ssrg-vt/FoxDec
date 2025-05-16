@@ -180,7 +180,8 @@ write_global_mem_access ctxt a _ _ _ v = do
   case IM.lookupLE a gmem_structure of
     Just (l0,True)  -> return ()
     Just (l0,False) -> add_dirty_access a
-    x ->  error $ "TODO:\n" ++ show_gmem gmem gmem_structure ++ "\n\n" ++ show (showHex a,x) ++ "\n\n" ++ show (get_touched_mem_accesses gmem_structure gmem a Nothing False)
+    Nothing         -> return () -- TODO: actually this indicates that the write is not global
+    --x ->  error $ "TODO:\n" ++ show_gmem gmem gmem_structure ++ "\n\n" ++ show (showHex a,x) ++ "\n\n" ++ show (get_touched_mem_accesses gmem_structure gmem a Nothing False)
 
 
 

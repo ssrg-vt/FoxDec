@@ -199,6 +199,10 @@ canonicalize (Instruction label prefix XGETBV Nothing [] annot) =
     Instruction label prefix XGETBV (Just $ Op_Reg $ Reg32 RDX) [] annot,
     Instruction label prefix XGETBV (Just $ Op_Reg $ Reg32 RAX) [] annot
   ]
+canonicalize (Instruction label prefix CPUID _ _ annot) =
+  [
+    Instruction label prefix CPUID (Just $ Op_Reg $ Reg32 RAX) [] annot
+  ]
 -- The remaining cases
 canonicalize i@(Instruction label prefix mnemonic Nothing ops annot)
   | mnemonic `elem` [CBW, CWDE, CDQE] = canonicalize_sextend1 i
@@ -385,6 +389,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PCMPEQD
          , PCMPGTB
          , PCMPGTD
+         , PCMPEQW
          , PADDD
          , PADDB
          , PADDQ
@@ -410,6 +415,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PSUBUSW
          , PINSRB
          , PINSRQ
+         , PINSRW
          , PINSRD
          , PEXTRB
          , PEXTRD
@@ -463,7 +469,7 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , CMOVPE
          , CMOVNP
          , CMOVPO
-
+         , FLDENV
       ]
 
 -- Does the instruction read from all operands, except for the first one?
@@ -555,13 +561,15 @@ mnemonic_reads_from_all_but_first_operands mnemonic = mnemonic
          , VPSHUFB
          , VPSHUFD
          , PSHUFLW
-         , FST, FSTP, FIST, FISTP, FISTTP
+         , FST, FSTP, FIST, FISTP, FISTTP, FSTENV, FNSTENV
          , FSTCW, FNSTCW
          , SQRTSD
          , SQRTSS
          , PMOVMSKB
          , PSRAW, PSRAD
          , MOVSLDUP, MOVLPD, MOVDDUP, MOVHLPS, MOVSHDUP
+         , STMXCSR
+         , PACKUSWB
         ]
 
 -- Does the instruction not make state change?

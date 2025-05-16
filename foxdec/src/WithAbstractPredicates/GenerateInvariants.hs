@@ -70,10 +70,12 @@ invs_to_post l@(bin,_,l0,_) cfg invs =
     | any ((==) TimeOut . snd) posts = TimeOut
     | any (is_unresolved_indirection . snd) posts = join_unresolved_indirections $ map snd posts
     | otherwise =
-      let errors = filter is_error posts in
-        case errors of
-          [] -> ReturnsWith $ foldr1 (join_preds l) $ mapMaybe get_return_pred $ map snd posts
-          _  -> VerificationError $ map (\(blockID,ReturnsWith pred) -> (blockID,pred)) errors
+      let errors = filter is_error posts 
+          return_preds = mapMaybe get_return_pred $ map snd posts in
+        case (errors,return_preds) of
+          ([],[]) -> error $ "Empty set of return predicates"
+          ([],_)  -> ReturnsWith $ foldr1 (join_preds l) $ return_preds
+          _       -> VerificationError $ map (\(blockID,ReturnsWith pred) -> (blockID,pred)) errors
 
   is_error (blockID, ReturnsWith pred) = not $ verify_postcondition l pred
   is_error _ = False
@@ -118,11 +120,13 @@ get_postcondition_for_block l blockID instrs invs =
 
 
 invs_to_joined_post :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> CFG -> IM.IntMap pred -> pred
-invs_to_joined_post l@(bin,_,l0,_) cfg invs =
+invs_to_joined_post l@(bin,config,l0,entry) cfg invs =
   let blocks = IM.assocs $ cfg_instrs cfg
       end_blocks = filter (\(blockID,_) -> is_end_node cfg blockID) blocks
       posts = map (get_post l invs) end_blocks in
-    foldr1 (join_preds l) posts
+    case posts of
+      [] -> finit_to_init_pred l $ new_finit (bin,config,l0) -- TODO check out why this happens
+      _  -> foldr1 (join_preds l) posts
  where
   get_post l@(_,_,l0,_) invs (blockID,instrs) = fst $ get_postcondition_for_block l blockID instrs invs
 
