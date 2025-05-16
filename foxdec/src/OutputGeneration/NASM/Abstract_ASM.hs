@@ -42,7 +42,7 @@ ai_show_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ filt
   render_section (NASM_Section_Data ds) = []
 
 
-ai_show_NASM_DataSection (NASM_DataSection (seg,sec,a0) align entries) = "section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
+ai_show_NASM_DataSection (NASM_DataSection (seg,sec,a0) align flags entries) = "section " ++ sec ++ show_align align ++ " ; @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
  where
   show_entry (a,e@(DataEntry_String _ _)) = show e ++ "; @ " ++ showHex a
   show_entry (a,e) = show e

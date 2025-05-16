@@ -24,14 +24,29 @@ import Debug.Trace
 import GHC.Generics
 
 
+-- | Section Flags
+data SectionFlag
+    = SectionIsWritable     -- ^ Section contains writable data
+    | SectionIsAllocated    -- ^ Section is allocated in memory image of program
+    | SectionIsExecutable   -- ^ Section contains executable instructions
+    | SectionHasFlag Int    -- ^ Processor- or environment-specific flag
+    deriving (Generic,Eq)
+
+instance Show SectionFlag where
+  show SectionIsWritable    = "W"
+  show SectionIsAllocated   = "A"
+  show SectionIsExecutable  = "X"
+  show (SectionHasFlag i)   = "EXT(" ++ show i ++ ")"
+
 -- |  Information on the sections in the binary
 data SectionsInfo = SectionsInfo {
-  si_sections    :: ![(String,String,Word64,Word64,Word64)], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
+  si_sections    :: ![(String,String,Word64,Word64,Word64,[SectionFlag])], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
   si_min_address :: !Word64,
   si_max_address :: !Word64
  }
  deriving (Show,Generic,Eq)
 
+instance Cereal.Serialize SectionFlag
 instance Cereal.Serialize SectionsInfo
 
 
@@ -131,14 +146,14 @@ find_section_for_address ::
   BinaryClass bin => 
      bin     -- ^ The binary
   -> Word64 -- ^ An address
-  -> Maybe (String, String, Word64, Word64,Word64)
+  -> Maybe (String, String, Word64, Word64,Word64,[SectionFlag])
 find_section_for_address bin a =
   if is_roughly_an_address bin a then
     find (address_in_section a) (si_sections $ binary_get_sections_info bin)
   else
     Nothing
  where
-  address_in_section a (_,_,a0,si,_) = a0 <= a && a < a0 + si
+  address_in_section a (_,_,a0,si,_,_) = a0 <= a && a < a0 + si
 
 
 
@@ -162,10 +177,10 @@ find_section_ending_at ::
   BinaryClass bin => 
      bin           -- ^ The binary
    -> Word64       -- ^ An address
-   -> Maybe (String, String, Word64, Word64, Word64)
+   -> Maybe (String, String, Word64, Word64, Word64,[SectionFlag])
 find_section_ending_at bin a = find (address_ends_at_section a) (si_sections $ binary_get_sections_info bin)
  where
-  address_ends_at_section a (_,_,a0,si,_) = a == a0 + si
+  address_ends_at_section a (_,_,a0,si,_,_) = a == a0 + si
 
 
 
@@ -209,7 +224,7 @@ address_has_instruction ::
 address_has_instruction bin a = do
   case find_section_for_address bin a of
     Nothing                      -> False
-    Just (segment,section,_,_,_) -> 
+    Just (segment,section,_,_,_,_) -> 
       if (segment,section) `elem` sections_with_instructions then do
         case fetch_instruction bin a of
           Nothing -> False

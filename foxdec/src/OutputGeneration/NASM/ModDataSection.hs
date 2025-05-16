@@ -47,26 +47,26 @@ split_data_section l@(bin,config,l0,_) (NASM externals globals sections footer) 
   split_section s@(NASM_Section_Text _)  = s
   split_section s@(NASM_Section_Data ds) = NASM_Section_Data $ concatMap split_data_section ds
 
-  split_data_section ds@(NASM_DataSection (seg,sec,a0) align entries) 
-    | is_data_section (seg,sec,0,0,0) || is_bss_data_section (seg,sec,0,0,0) =  -- mk_analyzable_section ds
+  split_data_section ds@(NASM_DataSection (seg,sec,a0) align flags entries) 
+    | is_data_section (seg,sec,0,0,0,[]) || is_bss_data_section (seg,sec,0,0,0,[]) =  -- mk_analyzable_section ds
       let ds' = mk_analyzable_section ds
           split = 18 in
         reverse (take split ds') ++ drop split ds'
     | otherwise = [ds]
 
-  mk_analyzable_section ds@(NASM_DataSection (seg,sec,a0) align entries) = 
+  mk_analyzable_section ds@(NASM_DataSection (seg,sec,a0) align flags entries) = 
     case find_section_for_address bin a0 of
       Nothing -> [ds]
-      Just (_,_,_,si0,_) ->
+      Just (_,_,_,si0,_,_) ->
         let regions = analyze_gmem l a0 (fromIntegral si0) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0 
             regions' = concat_regions $ IM.assocs regions
             tr = trace (seg ++ sec ++ "\nRegions:\n" ++ (intercalate "\n" (map show_region_info regions')))
             tr' = trace (seg ++ sec ++ "\nRegions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))) in
 
-          tr' $ tr $ map (region_to_data_section seg sec align entries) regions'
+          tr' $ tr $ map (region_to_data_section seg sec align flags entries) regions'
 
-  region_to_data_section seg sec align entries (a,Variable si)       = NASM_DataSection (seg,sec,fromIntegral a) 0 $ filter (is_within_region a si) entries
-  region_to_data_section seg sec align entries (a,RegionInfo _ si _) = NASM_DataSection (seg,sec,fromIntegral a) 0 $ filter (is_within_region a si) entries
+  region_to_data_section seg sec align flags entries (a,Variable si)       = NASM_DataSection (seg,sec,fromIntegral a) 0 flags $ filter (is_within_region a si) entries
+  region_to_data_section seg sec align flags entries (a,RegionInfo _ si _) = NASM_DataSection (seg,sec,fromIntegral a) 0 flags $ filter (is_within_region a si) entries
 
   is_within_region a si (a0,_) = a <= fromIntegral a0 && fromIntegral a0 < a + fromIntegral si
             

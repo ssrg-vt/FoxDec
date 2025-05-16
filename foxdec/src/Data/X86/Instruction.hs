@@ -387,7 +387,6 @@ mnemonic_reads_from_all_operands mnemonic = mnemonic
          , PCMPGTD
          , PCMPEQB
          , PCMPEQD
-         , PCMPEQW
          , PCMPGTB
          , PCMPGTD
          , PCMPEQW

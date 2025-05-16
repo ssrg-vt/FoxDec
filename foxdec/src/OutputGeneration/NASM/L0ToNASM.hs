@@ -110,7 +110,7 @@ resolved_relocs_section l@(bin,_,l0) =
   is_relocation _ = False
 
   mk_reloc (a0,Relocated_ResolvedObject str a1) =
-    NASM_DataSection ("",".data",fromIntegral a0) 0 [(fromIntegral a0, DataEntry_Label $ Label (fromIntegral a0) $ strip_GLIBC str), (fromIntegral a0, DataEntry_Pointer (try_symbolize_imm l a1)) ]
+    NASM_DataSection ("",".data",fromIntegral a0) 0 [SectionIsWritable,SectionIsAllocated] [(fromIntegral a0, DataEntry_Label $ Label (fromIntegral a0) $ strip_GLIBC str), (fromIntegral a0, DataEntry_Pointer (try_symbolize_imm l a1)) ]
 
 
 undefined_internal_global_labels l@(bin,_,l0) =
@@ -123,14 +123,14 @@ undefined_internal_global_labels l@(bin,_,l0) =
     , symbol_to_name sym `S.member` binary_get_global_symbols bin
     , is_not_defined_elsewhere a ]
 
-  mk_datasection (a,sym) = NASM_Section_Data [ NASM_DataSection ("",".bss",fromIntegral a) 8 $ mk_entries (fromIntegral a) sym ]
+  mk_datasection (a,sym) = NASM_Section_Data [ NASM_DataSection ("",".bss",fromIntegral a) 8 [SectionIsWritable] $ mk_entries (fromIntegral a) sym ]
   mk_entries a sym =
     [ (a,DataEntry_Label $ Label a (symbol_to_name sym) )
     , (a,DataEntry_BSS 1) ]
 
   is_not_defined_elsewhere a = (find (is_section_for a) $ si_sections $ binary_get_sections_info bin) == Nothing
 
-  is_section_for a (segment,section,a0,sz,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
+  is_section_for a (segment,section,a0,sz,_,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
 
 
 -- | Rendering NASM to a String
@@ -254,7 +254,7 @@ section_label l@(bin,_,l0) segment section a0 addr = try_symbol `orElse` (Label 
 
 -- Make a label for the end of a section
 -- TODO: should be same as section_label (i.e., lookup symbol first)?
-end_of_section_label l@(bin,_,l0) (segment,section,a0,sz,_) = try_symbol `orElse` (Label (a0+sz) $ "L" ++ segment ++ "_" ++ section ++ "_END")
+end_of_section_label l@(bin,_,l0) (segment,section,a0,sz,_,_) = try_symbol `orElse` (Label (a0+sz) $ "L" ++ segment ++ "_" ++ section ++ "_END")
  where
   try_symbol
     | find_section_for_address bin (a0+sz) == Nothing = do
@@ -336,7 +336,7 @@ mk_annots l@(bin,_,l0) sections = M.fromListWith S.union $ map (\(a,l) -> (a,S.s
   get_annots_line (NASM_Line (NASM_Instruction _ _ _ _ annot _)) = annot
   get_annots_line _ = []
 
-  get_annots_datasection (NASM_DataSection _ _ es) = concat $ mapMaybe get_annot_from_data_entry es
+  get_annots_datasection (NASM_DataSection _ _ _ es) = concat $ mapMaybe get_annot_from_data_entry es
 
   get_annot_from_data_entry (a,DataEntry_Pointer (_,annot)) = Just annot
   get_annot_from_data_entry _ = Nothing
@@ -801,7 +801,7 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
  where
   within_section    = show_section_relative imm <$> find_section_for_address bin imm
 
-  show_section_relative a sec@(segment,section,a0,_,_) = (NASM_Addr_Label label,[(a, label)])
+  show_section_relative a sec@(segment,section,a0,_,_,_) = (NASM_Addr_Label label,[(a, label)])
    where
     label = section_label l segment section a0 a
 
@@ -809,7 +809,7 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
 
   try_at_end_of_section a = end_of_section_label l <$> (find (is_end_of_section a) $ si_sections $ binary_get_sections_info bin)
 
-  is_end_of_section a (_,_,a0,sz,_) = a0 + sz == a
+  is_end_of_section a (_,_,a0,sz,_,_) = a0 + sz == a
 
   add_annot str = (NASM_Addr_Label str,[(imm,str)])
 
@@ -893,7 +893,7 @@ add_labels_to_data_sections annots externals (NASM_Section_Data ds)   = NASM_Sec
   annots' = M.filter (not . S.null) $ M.map (S.filter (not . isExternalLabel)) annots
   isExternalLabel (Label _ str) = str `S.member` externals
 
-  add_labels_to_datasection annots (NASM_DataSection n@(seg,sec,a0) align es) = NASM_DataSection n align $ nub_data_section_entries $ insert_annots annots $ splits_where_needed es
+  add_labels_to_datasection annots (NASM_DataSection n@(seg,sec,a0) align flags es) = NASM_DataSection n align flags $ nub_data_section_entries $ insert_annots annots $ splits_where_needed es
 
 
   splits_where_needed es = M.foldrWithKey split_where_needed es annots
@@ -925,12 +925,12 @@ add_labels_to_data_sections annots externals (NASM_Section_Data ds)   = NASM_Sec
 generic_data_section l@(bin,_,l0) pick_section read_from =
   map mk_data_section $ filter pick_section $ si_sections $ binary_get_sections_info bin
  where
-  mk_data_section s@(segment,section,a0,sz,align) =
+  mk_data_section s@(segment,section,a0,sz,align,flags) =
     let entries  = mk_data_entries 0 s
         entries' = (a0,DataEntry_Label $ section_label l segment section a0 a0) : entries in
-      NASM_DataSection (segment,section,a0) (fromIntegral align) $ nub_data_section_entries entries'
+      NASM_DataSection (segment,section,a0) (fromIntegral align) flags $ nub_data_section_entries entries'
 
-  mk_data_entries offset s@(segment,section,a0,sz,align)
+  mk_data_entries offset s@(segment,section,a0,sz,align,flags)
     | offset > sz  = []
     | offset == sz = [(a0+sz, DataEntry_Label $ end_of_section_label l s)]
     | otherwise    =
@@ -942,7 +942,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
                  else
                    mk_data_entries_no_string offset s
 
-  mk_data_entries_no_string offset s@(segment,section,a0,sz,align) =
+  mk_data_entries_no_string offset s@(segment,section,a0,sz,align,flags) =
     case find_reloc offset a0 of
       Just (Relocation _ a1) ->
         [ (a0+offset, DataEntry_Label $ mk_reloc_label (a0 + offset))
@@ -984,16 +984,16 @@ try_symbolize_imm l@(bin,_,l0) a1 =
 bss_data_section l@(bin,_,l0) =
   map mk_bss_data_section $ filter is_bss_data_section $ si_sections $ binary_get_sections_info bin
  where
-  mk_bss_data_section (segment,section,a0,sz,align) =
+  mk_bss_data_section (segment,section,a0,sz,align,flags) =
     let entries  = mk_bss segment section a0 sz
         entries' = (a0,DataEntry_Label $ section_label l segment section a0 a0) : entries in
-      NASM_DataSection (segment,section,a0) (fromIntegral align) $ nub_data_section_entries entries'
+      NASM_DataSection (segment,section,a0) (fromIntegral align) flags (nub_data_section_entries entries')
 
 
   mk_bss segment section a0 sz =
     case sort $ map get_addr $ filter (was_relocated_and_in a0 sz) $ S.toList $ binary_get_relocations bin of
       [] -> [ (a0,      DataEntry_BSS $ fromIntegral sz)
-            , (a0 + sz, DataEntry_Label $ end_of_section_label l (segment,section,0,0,0)) ]
+            , (a0 + sz, DataEntry_Label $ end_of_section_label l (segment,section,0,0,0,[])) ]
       (a:_) -> [ (a0, DataEntry_BSS $ fromIntegral $ a - a0)
                , (a,  DataEntry_Label $ mk_reloc_label a) ]
                ++

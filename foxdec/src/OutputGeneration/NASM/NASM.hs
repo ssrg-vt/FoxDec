@@ -147,10 +147,12 @@ instance Show NASM_DataEntry where
   show (DataEntry_BSS sz)              = ".space " ++ show sz
   show (DataEntry_Label l)             = show l ++ ":"
 
+
 -- | A data section then consists of:
 data NASM_DataSection = NASM_DataSection {
-  nasm_data_section :: (String,String,Word64),        -- ^ (segment,section,address)
-  nasm_data_section_align :: Int,                     -- ^ The alignment (0 if unknown)
+  nasm_data_section :: (String,String,Word64),         -- ^ (segment,section,address)
+  nasm_data_section_align :: Int,                      -- ^ The alignment (0 if unknown)
+  nasm_data_section_flags :: [SectionFlag],            -- ^ A possibly empty set of flags assoicated with the section
   nasm_data_section_data :: [(Word64, NASM_DataEntry)] -- ^ A list of DataEntries
 }
  deriving (Generic)
@@ -194,7 +196,16 @@ empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
 
 -- Pretty printing
 instance Show NASM_DataSection where
-  show (NASM_DataSection (seg,sec,a0) align entries) = ".section " ++ sec ++ show_align align ++ " # @" ++ showHex a0 ++ "\n"  ++ (intercalate "\n" $ map show_entry entries)
+  show (NASM_DataSection (seg,sec,a0) align flags entries) = concat
+    [ ".section "
+    , sec
+    , show_align align
+    , " # @"
+    , showHex a0
+    , "\n# flags: "
+    , intercalate "," (map show flags) 
+    , "\n"
+    , intercalate "\n" $ map show_entry entries ]
    where
     show_entry (a,e@(DataEntry_String _ _)) = show e ++ " # @ " ++ showHex a
     show_entry (a,e) = show e

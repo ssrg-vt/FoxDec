@@ -310,7 +310,12 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
 
 elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevantElfSection $ elfSections elf) (elf_min_address elf) (elf_max_address elf)
  where
-  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section, elfSectionAddrAlign section)
+  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section, elfSectionAddrAlign section, map mk_flag $ elfSectionFlags section)
+
+  mk_flag SHF_WRITE     = SectionIsWritable
+  mk_flag SHF_ALLOC     = SectionIsAllocated
+  mk_flag SHF_EXECINSTR = SectionIsExecutable
+  mk_flag (SHF_EXT i)   = (SectionHasFlag i)
 
 
 
@@ -346,22 +351,22 @@ instance BinaryClass NamedElf
 
 -- | Information on sections
 -- TODO: get from Binary interface
-is_ro_data_section ("",".rodata",_,_,_) = True
-is_ro_data_section ("",".got",_,_,_) = True
-is_ro_data_section ("",".init_array",_,_,_) = True
-is_ro_data_section ("",".fini_array",_,_,_) = True
-is_ro_data_section ("",".data.rel.ro",_,_,_) = True
-is_ro_data_section ("","__sancov_guards",_,_,_) = True
-is_ro_data_section ("__DATA","__const",_,_,_) = True
+is_ro_data_section ("",".rodata",_,_,_,_) = True
+is_ro_data_section ("",".got",_,_,_,_) = True
+is_ro_data_section ("",".init_array",_,_,_,_) = True
+is_ro_data_section ("",".fini_array",_,_,_,_) = True
+is_ro_data_section ("",".data.rel.ro",_,_,_,_) = True
+is_ro_data_section ("","__sancov_guards",_,_,_,_) = True
+is_ro_data_section ("__DATA","__const",_,_,_,_) = True
 is_ro_data_section _ = False
 
-is_data_section ("__DATA","__data",_,_,_) = True
-is_data_section ("",".data",_,_,_) = True
+is_data_section ("__DATA","__data",_,_,_,_) = True
+is_data_section ("",".data",_,_,_,_) = True
 is_data_section _ = False
 
-is_bss_data_section ("__DATA","__bss",_,_,_) = True
-is_bss_data_section ("__DATA","__common",_,_,_) = True
-is_bss_data_section ("",".bss",_,_,_) = True
+is_bss_data_section ("__DATA","__bss",_,_,_,_) = True
+is_bss_data_section ("__DATA","__common",_,_,_,_) = True
+is_bss_data_section ("",".bss",_,_,_,_) = True
 is_bss_data_section _ = False
 
 

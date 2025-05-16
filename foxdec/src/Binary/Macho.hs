@@ -63,8 +63,8 @@ macho_pp _ = ""
 
 macho_text_section_size = sum . map size_of_section . filter is_text_section . si_sections . macho_sections
  where
-  is_text_section (seg,sec,_,_,_) = (seg,sec) `elem` [("__TEXT","__text")]
-  size_of_section (_,_,_,si,_) = fromIntegral $ si
+  is_text_section (seg,sec,_,_,_,_) = (seg,sec) `elem` [("__TEXT","__text")]
+  size_of_section (_,_,_,si,_,_) = fromIntegral $ si
 
 
 
