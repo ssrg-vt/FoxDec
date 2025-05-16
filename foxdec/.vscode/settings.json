@@ -28,5 +28,7 @@
     ],
     "haskell.formattingProvider": "floskell",
     "editor.formatOnSave": false,
-    "editor.fontSize": 15
+    "editor.fontSize": 15,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false
 }

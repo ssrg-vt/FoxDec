@@ -78,10 +78,10 @@ show_bytestring = showHex_list . B.unpack
 
 
 disassemble0 :: Word64 -> ByteString -> Maybe (Instruction)
-disassemble0 a s = 
-  case parse (disassemble1 a) s of 
+disassemble0 a s =
+  case parse (disassemble1 a) s of
     Fail _ _ _   -> Nothing  -- trace ("Fail@ " ++ showHex a ++ ": " ++ show_bytestring s) $ Nothing
-    Done r (b,i) -> -- trace ("Disassembled: " ++ show (i {inAddress = a, inSize = BS.length b})) $ 
+    Done r (b,i) -> -- trace ("Disassembled: " ++ show (i {inAddress = a, inSize = BS.length b})) $
                     Just $ i {inAddress = a, inSize = BS.length b}
 
 
@@ -144,7 +144,7 @@ disassemble1' = choice [
 endbr64 = do
   bs <- readBytes 4
   if B.unpack bs == [0xf3,0x0f,0x1e,0xfa] then -- TODO MOVE
-    instr "endbr64" [] 
+    instr "endbr64" []
   else
     fail "endbr64"
 
@@ -534,7 +534,7 @@ prefixSet 0xf3 = whenM (not <$> gets dsRep) $ fail "prefixNotSet"
 prefixSet 0x66 = whenM (not <$> gets dsOpWidthOverride) $ fail "prefixNotSet"
 prefixSet 0x67 = whenM (not <$> gets dsAdWidthOverride) $ fail "prefixNotSet"
 prefixSet _    = fail "prefixSet"
-  
+
 noPrefix (Instruction a _ op dst srcs si) = Instruction a [] op dst srcs si
 
 -- http://ref.x86asm.net/coder64.html#modrm_byte_32_64
@@ -692,7 +692,10 @@ mmx_sse = choice
   , opcode 0x0f >> opcode 0x7f >> modrm >> noPrefix <$> forkPrefixes [ (0xf3, instr "movdqu" [opWidthF 128 >> modrm_xmm_m, modrm_xmm])
                                                                      , (0x66, instr "movdqa" [opWidthF 128 >> modrm_xmm_m, modrm_xmm]) ]
                                                                      (        instr "movq" [pure $ Op_Reg RegNone, pure $ Op_Reg RegNone] ) -- TODO ST register
-
+  , opcode 0x0f >> opcode 0xa4 >> modrm >> immB >> instr "shld" [modrm_rm, modrm_reg, immed]
+  , opcode 0x0f >> opcode 0xa5 >> modrm >> instr "shld" [modrm_rm, modrm_reg, pure (Op_Reg (Reg8 RCX HalfL))]
+  , opcode 0x0f >> opcode 0xac >> modrm >> immB >> instr "shrd" [modrm_rm, modrm_reg, immed]
+  , opcode 0x0f >> opcode 0xad >> modrm >> instr "shrd" [modrm_rm, modrm_reg, pure (Op_Reg (Reg8 RCX HalfL))]
 
 
   , opcode 0x0f >> opcode 0xc2 >> modrm >> immB >> noPrefix <$> forkPrefixes [ (0xf3, instr "cmpss" [modrm_xmm, opWidthF 32 >> modrm_xmm_m, immed])
@@ -894,9 +897,9 @@ opWidthF n = opWidthX n n n
 forkPrefixes [] a' = a'
 forkPrefixes ((p,a):ps) a' = choice [prefixSet p >> a, forkPrefixes ps a']
 
-  
 
-  
+
+
 
 forkX q d w = do o16 <- dsO16
                  rexW <- dsRexW
