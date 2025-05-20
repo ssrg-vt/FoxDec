@@ -134,11 +134,12 @@ undefined_internal_global_labels l@(bin,_,l0) =
 
 
 -- | Rendering NASM to a String
-render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
+render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" ([
     render_externals,
     render_globals]
     ++ render_sections
-    ++ footer
+    ++ footer)
+    ++ "\n.section .note.GNU-stack,\"\",@progbits\n"
     -- ++ [ render_annots ]
  where
   render_annots = intercalate "\n" $

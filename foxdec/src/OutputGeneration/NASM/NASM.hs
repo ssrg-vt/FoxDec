@@ -203,7 +203,7 @@ instance Show NASM_DataSection where
     , " # @"
     , showHex a0
     , "\n# flags: "
-    , intercalate "," (map show flags) 
+    , intercalate "," (map show flags)
     , "\n"
     , intercalate "\n" $ map show_entry entries ]
    where
@@ -223,8 +223,10 @@ word8s_to_string = concatMap (escape . w2c)
   escape c    = [c]
 
 instance Show NASM_TextSection where
-  show (NASM_TextSection f blocks _) = comment_block ["Function: " ++ f] ++ intercalate "\n\n" (map render_block blocks) ++ "\n\n"
+  show (NASM_TextSection f blocks _) = header ++ comment_block ["Function: " ++ f] ++ intercalate "\n\n" (map render_block blocks) ++ footer
    where
+    header = "\t.text\n\t.p2align 4\n" ++ "\t.type " ++ f ++ ", @function\n"
+    footer = "\n.size " ++ f ++ ", .-" ++ f ++ "\n"
     render_block (blockID,lines) = intercalate "\n" $ map show lines
 
     comment str = "# " ++ str
@@ -237,7 +239,7 @@ instance Show NASM_TextSection where
 
 
 instance Show NASM_Line where
-  show (NASM_Line i) = "  " ++ show i
+  show (NASM_Line i) = "\t" ++ show i
   show (NASM_Label str) = show str ++ ":"
   show (NASM_Comment indent str) = replicate indent ' ' ++ "# " ++ str
 

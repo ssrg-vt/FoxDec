@@ -4,7 +4,7 @@
 DIR="${1:-.}"
 
 # Find executable files and run the command
-find "$DIR" -maxdepth 1 -type f -executable ! -name "dcgen" ! -name "du-tests" | while read -r filepath; do
+find "$DIR" -maxdepth 1 -type f -executable ! -name "dcgen" ! -name "du-tests" ! -name "libstdbuf.so" ! -name "wc" ! -name "cksum"| while read -r filepath; do
     filename=$(basename "$filepath")
     basepath=$(dirname "$filepath")
     echo "Processing $filename"

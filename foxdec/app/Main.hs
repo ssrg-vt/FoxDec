@@ -45,9 +45,9 @@ import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
-import qualified Data.ByteString as BS (readFile,writeFile) 
+import qualified Data.ByteString as BS (readFile,writeFile)
 import qualified Data.Serialize as Cereal hiding (get,put)
-import Data.List 
+import Data.List
 import Data.Word
 import Data.Function ((&))
 import qualified Data.ByteString.Lazy as B
@@ -74,7 +74,7 @@ import System.Console.GetOpt
 
 -- | The command-line arguments
 data CommandLineArgs = CommandLineArgs
-  { 
+  {
     args_config             :: FilePath,   -- ^ The .config file
     args_dirname            :: FilePath,   -- ^ The directory where results are stored
     args_filename           :: FilePath,   -- ^ The name of the binary
@@ -119,19 +119,19 @@ args =
   set_args_help               args = args { args_help = True }
   set_args_verbose            args = args { args_verbose = True }
 
--- | Parse argv into a CommandLineArgs 
+-- | Parse argv into a CommandLineArgs
 parseCommandLineArgs :: [String] -> IO CommandLineArgs
 parseCommandLineArgs argv =
   case getOpt Permute args argv of
     (o,[],[])  -> inputChecking $ foldl (flip id) defaultArgs o
     (o,n,[])   -> err $ "ERROR: invalid argument(s) " ++ show n
-    (_,_,errs) -> err $ "ERROR: " ++ concat errs 
+    (_,_,errs) -> err $ "ERROR: " ++ concat errs
  where
   -- check validity of command-line arguments
   inputChecking args = do
     -- when help is requested, output usage message and exit
     when (args_help args) $ err ""
-    -- check if arguments make sense 
+    -- check if arguments make sense
     when (args_config args    == "") $ err "ERROR: No config file specified (missing -c)"
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
     when (args_filename args  == "") $ err "ERROR: No name of binary specified (missing -n)"
@@ -158,7 +158,7 @@ usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
     ]
   -- footer
   usageMsgFooter = intercalate "\n"
-    [ "Example usage:" 
+    [ "Example usage:"
     , "    foxdec-exe " ++ exampleArgs
     , ""
     , "When using stack, provide command-line arguments after -- :"
@@ -245,21 +245,21 @@ obtain_L0 config "BINARY" verbose dirname name = do
 serialize_l0 bin l0 = do
   let dirname  = binary_dir_name bin
   let name     = binary_file_name bin
-  let fname    = dirname ++ name ++ ".L0" 
+  let fname    = dirname ++ name ++ ".L0"
   BS.writeFile fname $ Cereal.encode l0
-  putStrLn $ "Generated L0: " ++ fname 
+  putStrLn $ "Generated L0: " ++ fname
 
 
 -- | Generate metrics
 generate_metrics bin l0 = do
   let dirname    = binary_dir_name bin
   let name       = binary_file_name bin
-  let fname      = dirname ++ name ++ ".metrics.txt" 
+  let fname      = dirname ++ name ++ ".metrics.txt"
 
   let metrics = mk_metrics bin l0
   putStrLn $ metrics
   writeFile fname $ metrics
-  putStrLn $ "Generated metrics in plain-text file: " ++ fname 
+  putStrLn $ "Generated metrics in plain-text file: " ++ fname
 
 -- | Generate information per function
 generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
@@ -272,20 +272,20 @@ generate_per_function bin config l0 = do
 
 
   --let regions = analyze_gmem (bin,config,l0,0::Word64) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0
-  --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
+  --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure
   --putStrLn $ "Regions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))
  where
   write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa))) = do
     let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
     createDirectoryIfMissing False $ dirname ++ "functions/"
-    createDirectoryIfMissing False $ fdirname      
+    createDirectoryIfMissing False $ fdirname
 
     let fname  = fdirname ++ name ++ ".dot"
     writeFile fname $ cfg_to_dot bin r
 
     let fname2 = fdirname ++ name ++ ".txt"
     writeFile fname2 $ show_report entry finit r
-  show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 
+  show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n"
     [ "Function: " ++ showHex entry
     , mk_function_boundary entry cfg
     , if show finit == "" then "" else "Precondition:\n" ++ pp_finitC finit ++ "\n"
@@ -319,8 +319,8 @@ generate_call_graph bin config l0 = do
   let dirname   = binary_dir_name bin
   let name      = binary_file_name bin
   let do_pdfs   = generate_pdfs config
-  let fname     = dirname ++ name ++ ".callgraph.dot" 
-  let pdfname   = dirname ++ name ++ ".callgraph.pdf" 
+  let fname     = dirname ++ name ++ ".callgraph.dot"
+  let pdfname   = dirname ++ name ++ ".callgraph.pdf"
   let (g,fptrs) = mk_callgraph (bin,config,l0)
   let dot       = callgraph_to_dot (bin,config,l0) pp_finitC g fptrs
 
@@ -329,7 +329,7 @@ generate_call_graph bin config l0 = do
     callCommand $ "dot -Tpdf " ++ fname ++ " -o " ++ pdfname
     putStrLn $ "Generated call graph, exported to files: " ++ fname ++ " and " ++ pdfname
   else do
-    putStrLn $ "Generated call graph, exported to file: " ++ fname 
+    putStrLn $ "Generated call graph, exported to file: " ++ fname
 
   --let g'     = graph_mk_subgraph (graph_traverse_upwards g 0x31be0) g
   --let fptrs' = graph_mk_subgraph (graph_traverse_upwards fptrs 0x31be0) fptrs
@@ -343,11 +343,11 @@ generate_NASM :: Lifted -> IO ()
 generate_NASM l@(bin,config,l0) = do
   let dirname  = binary_dir_name bin ++ "nasm/"
   let name     = binary_file_name bin
-  let fname    = dirname ++ name ++ ".asm" 
-  let fname1   = dirname ++ "__gmon_start__.c" 
-  let fname2   = dirname ++ name ++ ".abstract.asm" 
+  let fname    = dirname ++ name ++ ".s"
+  let fname1   = dirname ++ "__gmon_start__.c"
+  let fname2   = dirname ++ name ++ ".abstract.s"
 
-  createDirectoryIfMissing False dirname      
+  createDirectoryIfMissing False dirname
 
   let nasm' = lift_L0_to_NASM l
 
@@ -362,7 +362,7 @@ generate_NASM l@(bin,config,l0) = do
 
   putStrLn $ "Generated NASM, exported to files: " ++ fname
 
-  
+
 
 
 
@@ -372,11 +372,11 @@ generate_NASM l@(bin,config,l0) = do
   -- TODO MAKE C OPTION
   let dirname  = binary_dir_name ctxt ++ "C/"
   let name     = binary_file_name ctxt
-  let fname1   = dirname ++ name ++ ".c" 
-  let fname2   = dirname ++ name ++ ".h" 
+  let fname1   = dirname ++ name ++ ".c"
+  let fname2   = dirname ++ name ++ ".h"
   let (ts,ds)  = C.render_NASM ctxt nasm
 
-  createDirectoryIfMissing False dirname      
+  createDirectoryIfMissing False dirname
 
   writeFile fname1 ts
   writeFile fname2 ds
@@ -387,9 +387,5 @@ generate_reconstruction :: Context -> IO ()
 generate_reconstruction ctxt = do
   let name     = binary_file_name ctxt
 
-  reconstruct ctxt 
+  reconstruct ctxt
 --}
-
-
-
-
