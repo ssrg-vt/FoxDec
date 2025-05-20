@@ -16,12 +16,12 @@ if [ ! -d "$directory" ]; then
 fi
 
 # Assemble all .asm files in the specified directory
-for asm_file in "$directory"/*.asm; do
+for asm_file in "$directory"/*.s; do
     # Skip if no .asm files are found
     [ -e "$asm_file" ] || continue
 
     # Get the base filename without extension
-    base_name="${asm_file%.asm}"
+    base_name="${asm_file%.s}"
 
     # Assemble the file
     echo "Assembling $asm_file -> ${base_name}.o"
