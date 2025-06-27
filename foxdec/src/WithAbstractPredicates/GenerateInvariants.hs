@@ -142,17 +142,14 @@ invs_to_joined_post l@(bin,config,l0,entry) cfg invs =
 
 -- TODO CALLS
 add_to_gmem_structure :: Instruction -> GMemStructure -> GMemStructure
-add_to_gmem_structure i@(Instruction _ _ _ maybe_dst srcs _) gmem_structure = foldr add gmem_structure (get_dst maybe_dst ++ srcs)
+add_to_gmem_structure i@(Instruction _ _ _ ops _ _) gmem_structure = foldr add gmem_structure ops
  where
-  get_dst Nothing = []
-  get_dst (Just dst) = [dst]
-
-  add (Op_Mem si aSi (Reg64 RIP) RegNone 0 displ Nothing) gmem_structure =
+  add (Op_Mem si (Reg64 RIP) RegNone 0 displ Nothing _) gmem_structure =
     let rip   = inAddress i + (fromIntegral $ inSize i)
         a     = rip + fromIntegral displ
         dirty = inOperation i == LEA  in
       IM.insertWith (||) (fromIntegral a) dirty gmem_structure
-  add (Op_Mem si aSi (Reg64 RIP) _ _ _ _) gmem_structure = error "todo"
+  add (Op_Mem si (Reg64 RIP) _ _ _ _ _) gmem_structure = error "todo"
   add _ gmem_structure = gmem_structure
 
 

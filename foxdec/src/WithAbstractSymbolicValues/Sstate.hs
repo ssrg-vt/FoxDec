@@ -268,11 +268,11 @@ clean_flgs sp = concatMap clean_flg
     case flg of
       (FS_CMP b op1 op2) -> if is_tainted op1 || is_tainted op2 then [] else [FS_CMP b op1 op2]
       (FS_EQ op1 op2)    -> if is_tainted op1 || is_tainted op2 then [] else [FS_EQ op1 op2]
-  is_tainted (Op_Reg r)             = 
+  is_tainted (Op_Imm _) = False
+  is_tainted (Op_Reg r _) = 
     case sp of
       SSP_Reg r' -> real_reg r' == real_reg r
       _          -> False
-  is_tainted (Op_Imm _)             = False
   is_tainted (Op_Mem _ _ _ _ _ _ _) =
     case sp of
       SSP_Mem _ _ -> True

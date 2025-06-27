@@ -392,7 +392,7 @@ srcs_of_expr ctxt e@(SE_Immediate i)
     S.singleton $ Src_ImmediateAddress i
   | otherwise =
     case find_section_for_address ctxt $ fromIntegral i of
-      Just (_,_,a0,_,_) -> S.singleton $ Src_ImmediateAddress a0
+      Just (_,_,a0,_,_,_) -> S.singleton $ Src_ImmediateAddress a0
       Nothing  -> S.empty
 
 -- | Returns the set of sources of the bottom type

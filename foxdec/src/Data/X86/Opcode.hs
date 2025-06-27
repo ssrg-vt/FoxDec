@@ -9,7 +9,7 @@ import           Control.DeepSeq
 
 -- | Opcodes / mnemonics
 data Opcode =
-    InvalidOpcode
+    InvalidOpcode String
   | AAA
   | AAD
   | AAM
@@ -97,6 +97,8 @@ data Opcode =
   | COMISS
   | CPUID
   | CQO
+  | CVTPI2PS
+  | CVTTPS2PI
   | CVTDQ2PD
   | CVTSD2SS
   | CVTSI2SD
@@ -143,6 +145,7 @@ data Opcode =
   | FCOMPI
   | FCOMPP
   | FCOS
+  | FDECSTP
   | FDIV
   | FDIVP
   | FDIVR
@@ -177,7 +180,10 @@ data Opcode =
   | FMULP
   | FNOP
   | FNINIT
+  | FNSAVE
   | FNSTCW
+  | FNSTENV
+  | FPREM
   | FPREM1
   | FRSTOR
   | FSAVE
@@ -201,6 +207,7 @@ data Opcode =
   | FUCOMP
   | FUCOMPI
   | FUCOMPP
+  | FWAIT
   | FXAM
   | FXCH
   | FXRSTOR
@@ -221,8 +228,10 @@ data Opcode =
   | IN
   | INC
   | INS
+  | INSB
   | INSD
   | INT
+  | INT1
   | INT3
   | INTO
   | INVD
@@ -359,6 +368,9 @@ data Opcode =
   | ORPS
   | OUT
   | OUTS
+  | OUTSB
+  | OUTSD
+  | OUTSW
   | PALIGNR
   | PACKSSDW
   | PACKSSWB
@@ -417,6 +429,7 @@ data Opcode =
   | POPFD
   | POPFQ
   | POR
+  | PREFETCH
   | PREFETCHNTA
   | PREFETCHT0
   | PREFETCHT1
@@ -424,6 +437,7 @@ data Opcode =
   | PSADBW
   | PSHUFB
   | PSHUFD
+  | PSHUFW
   | PSHUFLW
   | PSLLD
   | PSLLDQ
@@ -550,6 +564,7 @@ data Opcode =
   | TEST
   | UCOMISD
   | UCOMISS
+  | UD0
   | UD2
   | UNPCKHPD
   | UNPCKHPS
@@ -560,6 +575,7 @@ data Opcode =
   | VADDPD
   | VADDPS
   | VBLENDPS
+  | VCMPPD
   | VERR
   | VERW
   | VEXTRACTI128
@@ -575,6 +591,7 @@ data Opcode =
   | VMOVDQA
   | VMOVDQU
   | VMOVLHPS
+  | VMOVSS
   | VMPTRLD
   | VMPTRST
   | VMREAD
@@ -595,7 +612,9 @@ data Opcode =
   | VPOR
   | VPSHUFB
   | VPSHUFD
+  | VPSHUFW
   | VPSLLW
+  | VPSRLW
   | VSHUFPS
   | VSHUFPD
   | VPXOR
@@ -613,6 +632,7 @@ data Opcode =
   | WRFSBASE
   | WRGSBASE
   | WRMSR
+  | XABORT
   | XADD
   | XCHG
   | XGETBV
@@ -671,7 +691,7 @@ isCondJump m = m
 
 -- | Returns true iff m is the mnemonic of a halting instruction
 isHalt :: Opcode -> Bool
-isHalt m = m `elem` [HLT, UD2]
+isHalt m = m `elem` [HLT, UD0, UD2]
 
 -- | Returns true iff m is the mnemonic of a jump
 isJump :: Opcode -> Bool
@@ -774,6 +794,8 @@ read_opcode "COMISD" = COMISD
 read_opcode "COMISS" = COMISS
 read_opcode "CPUID" = CPUID
 read_opcode "CQO" = CQO
+read_opcode "CVTPI2PS" = CVTPI2PS
+read_opcode "CVTTPS2PI" = CVTTPS2PI
 read_opcode "CVTDQ2PD" = CVTDQ2PD
 read_opcode "CVTSD2SS" = CVTSD2SS
 read_opcode "CVTSI2SD" = CVTSI2SD
@@ -818,6 +840,7 @@ read_opcode "FCOMP" = FCOMP
 read_opcode "FCOMPI" = FCOMPI
 read_opcode "FCOMPP" = FCOMPP
 read_opcode "FCOS" = FCOS
+read_opcode "FDECSTP" = FDECSTP
 read_opcode "FDIV" = FDIV
 read_opcode "FDIVP" = FDIVP
 read_opcode "FDIVR" = FDIVR
@@ -851,8 +874,11 @@ read_opcode "FLDZ" = FLDZ
 read_opcode "FMUL" = FMUL
 read_opcode "FMULP" = FMULP
 read_opcode "FNOP" = FNOP
+read_opcode "FNSAVE" = FNSAVE
 read_opcode "FNINIT" = FNINIT
 read_opcode "FNSTCW" = FNSTCW
+read_opcode "FNSTENV" = FNSTENV
+read_opcode "FPREM" = FPREM
 read_opcode "FPREM1" = FPREM1
 read_opcode "FRSTOR" = FRSTOR
 read_opcode "FSAVE" = FSAVE
@@ -877,6 +903,7 @@ read_opcode "FUCOMP" = FUCOMP
 read_opcode "FUCOMPI" = FUCOMPI
 read_opcode "FUCOMPP" = FUCOMPP
 read_opcode "FXAM" = FXAM
+read_opcode "FWAIT" = FWAIT
 read_opcode "FXCH" = FXCH
 read_opcode "FXRSTOR" = FXRSTOR
 read_opcode "FXSAVE" = FXSAVE
@@ -892,8 +919,10 @@ read_opcode "BSWAP" = BSWAP
 read_opcode "IN" = IN
 read_opcode "INC" = INC
 read_opcode "INS" = INS
+read_opcode "INSB" = INSB
 read_opcode "INSD" = INSD
 read_opcode "INT" = INT
+read_opcode "INT1" = INT1
 read_opcode "INT3" = INT3
 read_opcode "INTO" = INTO
 read_opcode "INVD" = INVD
@@ -1028,6 +1057,9 @@ read_opcode "ORPD" = ORPD
 read_opcode "ORPS" = ORPS
 read_opcode "OUT" = OUT
 read_opcode "OUTS" = OUTS
+read_opcode "OUTSB" = OUTSB
+read_opcode "OUTSD" = OUTSD
+read_opcode "OUTSW" = OUTSW
 read_opcode "PALIGNR" = PALIGNR
 read_opcode "PACKSSDW" = PACKSSDW
 read_opcode "PACKSSWB" = PACKSSWB
@@ -1086,6 +1118,7 @@ read_opcode "POPF" = POPF
 read_opcode "POPFD" = POPFD
 read_opcode "POPFQ" = POPFQ
 read_opcode "POR" = POR
+read_opcode "PREFETCH" = PREFETCH
 read_opcode "PREFETCHNTA" = PREFETCHNTA
 read_opcode "PREFETCHT0" = PREFETCHT0
 read_opcode "PREFETCHT1" = PREFETCHT1
@@ -1093,6 +1126,7 @@ read_opcode "PREFETCHT2" = PREFETCHT2
 read_opcode "PSADBW" = PSADBW
 read_opcode "PSHUFB" = PSHUFB
 read_opcode "PSHUFD" = PSHUFD
+read_opcode "PSHUFW" = PSHUFW
 read_opcode "PSHUFLW" = PSHUFLW
 read_opcode "PSLLD" = PSLLD
 read_opcode "PSLLDQ" = PSLLDQ
@@ -1219,6 +1253,7 @@ read_opcode "SYSRET" = SYSRET
 read_opcode "TEST" = TEST
 read_opcode "UCOMISD" = UCOMISD
 read_opcode "UCOMISS" = UCOMISS
+read_opcode "UD0" = UD0
 read_opcode "UD2" = UD2
 read_opcode "UNPCKHPD" = UNPCKHPD
 read_opcode "UNPCKHPS" = UNPCKHPS
@@ -1229,6 +1264,7 @@ read_opcode "VANDPS" = VANDPS
 read_opcode "VADDPD" = VADDPD
 read_opcode "VADDPS" = VADDPS
 read_opcode "VBLENDPS" = VBLENDPS
+read_opcode "VCMPPD" = VCMPPD
 read_opcode "VERR" = VERR
 read_opcode "VERW" = VERW
 read_opcode "VEXTRACTI128" = VEXTRACTI128
@@ -1244,6 +1280,7 @@ read_opcode "VMOVD" = VMOVD
 read_opcode "VMOVDQA" = VMOVDQA
 read_opcode "VMOVDQU" = VMOVDQU
 read_opcode "VMOVLHPS" = VMOVLHPS
+read_opcode "VMOVSS" = VMOVSS
 read_opcode "VMPTRLD" = VMPTRLD
 read_opcode "VMPTRST" = VMPTRST
 read_opcode "VMREAD" = VMREAD
@@ -1264,7 +1301,9 @@ read_opcode "VPERMILPS" = VPERMILPS
 read_opcode "VPOR" = VPOR
 read_opcode "VPSHUFB" = VPSHUFB
 read_opcode "VPSHUFD" = VPSHUFD
+read_opcode "VPSHUFW" = VPSHUFW
 read_opcode "VPSLLW" = VPSLLW
+read_opcode "VPSRLW" = VPSRLW
 read_opcode "VSHUFPS" = VSHUFPS
 read_opcode "VSHUFPD" = VSHUFPD
 read_opcode "VPXOR" = VPXOR
@@ -1282,6 +1321,7 @@ read_opcode "WBINVD" = WBINVD
 read_opcode "WRFSBASE" = WRFSBASE
 read_opcode "WRGSBASE" = WRGSBASE
 read_opcode "WRMSR" = WRMSR
+read_opcode "XABORT" = XABORT
 read_opcode "XADD" = XADD
 read_opcode "XCHG" = XCHG
 read_opcode "XGETBV" = XGETBV
@@ -1293,4 +1333,4 @@ read_opcode "XRSTOR" = XRSTOR
 read_opcode "XOR" = XOR
 read_opcode "XORPD" = XORPD
 read_opcode "XORPS" = XORPS
-read_opcode op = error $ "UNKOWN OPCODE: " ++ op -- InvalidOpcode
+read_opcode op = InvalidOpcode op -- error $ "UNKOWN OPCODE: " ++ op -- InvalidOpcode

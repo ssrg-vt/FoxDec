@@ -24,6 +24,8 @@ import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
+import Data.X86.Instruction
+
 
 import Debug.Trace
 
@@ -64,7 +66,8 @@ data NamedElf = NamedElf {
   elf_file_name :: !String,
   elf_sections_info :: !SectionsInfo,
   elf_symbol_table :: !SymbolTable,
-  elf_relocs :: !(S.Set Relocation)
+  elf_relocs :: !(S.Set Relocation),
+  elf_instructions :: !(IM.IntMap Instruction)
  }
 
 
@@ -166,7 +169,7 @@ elf_get_relocs elf = S.fromList $ mk_relocs
   mk_reloc sec = concatMap (try_mk_reloc sec) (elfRelSectRelocations sec)
 
   try_mk_reloc sec reloc
-   | elfRelType reloc == 8 =
+   | elfRelType reloc `elem` [8,37] =
      -- R_X86_64_RELATIVE
      -- The SymAddend provides the relocation address
      case elfRelSymAddend reloc of
@@ -231,7 +234,7 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
         if symb_type_of_reloc_trgt == STTFunc then
           [(reloc_address, (uncurry PointerToLabel) name_of_reloc_trgt)]
         else
-          error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6
+          [] -- error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
    | otherwise = []
 
 
@@ -310,7 +313,12 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
 
 elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevantElfSection $ elfSections elf) (elf_min_address elf) (elf_max_address elf)
  where
-  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section, elfSectionAddrAlign section)
+  mk_section_info section = ("",elfSectionName section,elfSectionAddr section,elfSectionSize section, elfSectionAddrAlign section, map mk_flag $ elfSectionFlags section)
+
+  mk_flag SHF_WRITE     = SectionIsWritable
+  mk_flag SHF_ALLOC     = SectionIsAllocated
+  mk_flag SHF_EXECINSTR = SectionIsExecutable
+  mk_flag (SHF_EXT i)   = (SectionHasFlag i)
 
 
 
@@ -328,40 +336,40 @@ elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".
 
 instance BinaryClass NamedElf 
   where
-    binary_read_bytestring = \(NamedElf elf _ _ _ _ _) -> elf_read_bytestring elf
-    binary_read_ro_data = \(NamedElf elf _ _ _ _ _) -> elf_read_ro_data elf
-    binary_read_data = \(NamedElf elf _ _ _ _ _) -> elf_read_data elf
-    binary_get_sections_info = \(NamedElf elf _ _ si _ _) -> si
-    binary_get_symbols = \(NamedElf elf _ _ _ t _) -> t
-    binary_get_relocations = \(NamedElf elf _ _ _ _ r) -> r
-    binary_pp = \(NamedElf elf _ _ _ _ _) -> pp_elf elf
-    binary_entry = \(NamedElf elf _ _ _ _ _) -> elf_get_entry_points elf
-    binary_text_section_size = \(NamedElf elf _ _ _ _ _) -> elf_text_section_size elf
-    binary_dir_name = \(NamedElf _ d _ _ _ _) -> d
-    binary_file_name = \(NamedElf _ _ n _ _ _) -> n
-
+    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _) -> elf_read_bytestring elf
+    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_ro_data elf
+    binary_read_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_data elf
+    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _) -> si
+    binary_get_symbols = \(NamedElf elf _ _ _ t _ _) -> t
+    binary_get_relocations = \(NamedElf elf _ _ _ _ r _) -> r
+    binary_pp = \(NamedElf elf _ _ _ _ _ _) -> pp_elf elf
+    binary_entry = \(NamedElf elf _ _ _ _ _ _) -> elf_get_entry_points elf
+    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _) -> elf_text_section_size elf
+    binary_dir_name = \(NamedElf _ d _ _ _ _ _) -> d
+    binary_file_name = \(NamedElf _ _ n _ _ _ _) -> n
+    fetch_instruction = \(NamedElf _ _ _ _ _ _ is) a -> IM.lookup (fromIntegral a) is
 
 
 
 
 -- | Information on sections
 -- TODO: get from Binary interface
-is_ro_data_section ("",".rodata",_,_,_) = True
-is_ro_data_section ("",".got",_,_,_) = True
-is_ro_data_section ("",".init_array",_,_,_) = True
-is_ro_data_section ("",".fini_array",_,_,_) = True
-is_ro_data_section ("",".data.rel.ro",_,_,_) = True
-is_ro_data_section ("","__sancov_guards",_,_,_) = True
-is_ro_data_section ("__DATA","__const",_,_,_) = True
+is_ro_data_section ("",".rodata",_,_,_,_) = True
+--is_ro_data_section ("",".got",_,_,_) = True
+is_ro_data_section ("",".init_array",_,_,_,_) = True
+is_ro_data_section ("",".fini_array",_,_,_,_) = True
+is_ro_data_section ("",".data.rel.ro",_,_,_,_) = True
+is_ro_data_section ("","__sancov_guards",_,_,_,_) = True
+is_ro_data_section ("__DATA","__const",_,_,_,_) = True
 is_ro_data_section _ = False
 
-is_data_section ("__DATA","__data",_,_,_) = True
-is_data_section ("",".data",_,_,_) = True
+is_data_section ("__DATA","__data",_,_,_,_) = True
+is_data_section ("",".data",_,_,_,_) = True
 is_data_section _ = False
 
-is_bss_data_section ("__DATA","__bss",_,_,_) = True
-is_bss_data_section ("__DATA","__common",_,_,_) = True
-is_bss_data_section ("",".bss",_,_,_) = True
+is_bss_data_section ("__DATA","__bss",_,_,_,_) = True
+is_bss_data_section ("__DATA","__common",_,_,_,_) = True
+is_bss_data_section ("",".bss",_,_,_,_) = True
 is_bss_data_section _ = False
 
 

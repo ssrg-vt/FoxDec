@@ -1,3 +1,4 @@
+*.xed
 *.aux
 .stack-work/
 dist-newstyle/

@@ -70,21 +70,21 @@ ai_show_NASM_Line (NASM_Label str) = show str ++ ":"
 ai_show_NASM_Line (NASM_Comment indent str) = replicate indent ' ' ++ "; " ++ str
 
 
-ai_show_NASM_Instruction i@(NASM_Instruction pre m ops comment annot Nothing)     = ai_show_instruction i
+ai_show_NASM_Instruction i@(NASM_Instruction pre m ops info comment annot) = ai_show_instruction i
+{--
 ai_show_NASM_Instruction i@(NASM_Instruction pre (Just m) ops comment annot (Just orig))
     | isRelevant m = ai_show_instruction i
     | otherwise =
-      case canonicalize orig of
-        [ Instruction _ _ _ Nothing _ _ ] -> "NOP ;" ++ show m
-        [ Instruction _ _ _ (Just dst) _ _ ] -> show dst ++ " <- Top ;" ++ show m
-        _ -> error $ show i
+      case orig of
+        ( Instruction _ _ _ Nothing _ _) -> "NOP ;" ++ show m
+        ( Instruction _ _ _ (Just dst) _ _) -> show dst ++ " <- Top ;" ++ show m
  where
   isRelevant m = isJump m || isCall m || isCondJump m || m `S.member` relevantMnemonics || take 3 (show m) == "MOV" || take 3 (show m) == "CMOV"
   relevantMnemonics = S.fromList [PUSH,POP,MOV,ADD,MOV,LEA,LEAVE,CMP,TEST,SUB,RET] 
+--}
 
 
-
-ai_show_instruction (NASM_Instruction pre m ops comment annot _) = concat
+ai_show_instruction (NASM_Instruction pre m ops _ comment annot) = concat
   [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
   , mk_comment ]
  where

@@ -41,67 +41,41 @@ import Debug.Trace
 
 
 
--- | Add a function_pointer_intro to the given symbolic predicate
-add_function_pointer a ptr (s,vcs) = 
-  let (match,remainder) = S.partition belongs_to_a vcs in
-    case S.toList match of
-      []                         -> (s,S.insert (FunctionPointers a $ IS.singleton ptr) remainder)
-      [FunctionPointers _ ptrs'] -> (s,S.insert (FunctionPointers a $ IS.insert ptr ptrs') remainder)
- where
-  belongs_to_a (FunctionPointers a' _) = a == a'
-  belongs_to_a _ = False
-
-
-add_pa_result a par (s,vcs) = (s,S.insert (PointerAnalysis a par) vcs)
-
-
-
-
-
-
-
-
-
-
-
 -- | Given the address of an operand of an instruction, resolve it given the current state.
 sresolve_address :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Operand -> State (Sstate v p,VCS v) v
-sresolve_address ctxt (Op_Mem si aSi reg idx scale displ (Just seg)) =  do
-  ra0 <- sresolve_address ctxt (Op_Mem si (BitSize 64) reg idx scale displ Nothing)
+sresolve_address ctxt (Op_Mem si reg idx scale displ (Just seg) _) = do
+  ra0 <- sresolve_address ctxt (Op_Mem si reg idx scale displ Nothing [])
   ra1 <- sread_reg ctxt $ RegSeg seg
   return $ ssemantics ctxt "plus" $ SO_Plus ra0 ra1
-sresolve_address ctxt (Op_Mem si (BitSize 64) reg idx scale displ Nothing)
+sresolve_address ctxt (Op_Mem si reg idx scale displ Nothing _)
   | scale /= 0 && idx /= RegNone = do
     idx_val <- sread_reg ctxt idx
     let ra1 = ssemantics ctxt "times" $ SO_Times idx_val (simmediate ctxt scale)
     ra0 <- add_base_displ ctxt reg displ
     return $ ssemantics ctxt "plus" $ SO_Plus ra0 ra1
   | otherwise = add_base_displ ctxt reg displ
-
-add_base_displ ctxt RegNone displ = return $ simmediate ctxt (fromIntegral displ :: Word64)
-add_base_displ ctxt reg displ = do
-  ra0 <- sread_reg ctxt reg
-  return $ ssemantics ctxt "plus" $ SO_Plus ra0 $ simmediate ctxt (fromIntegral displ :: Word64) 
+ where
+  add_base_displ ctxt RegNone displ = return $ simmediate ctxt (fromIntegral displ :: Word64)
+  add_base_displ ctxt reg displ = do
+    ra0 <- sread_reg ctxt reg
+    return $ ssemantics ctxt "plus" $ SO_Plus ra0 $ simmediate ctxt (fromIntegral displ :: Word64) 
 
 
 
 sread_operand :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Operand -> State (Sstate v p,VCS v) v
---sread_operand ctxt msg op | trace ("sgeneric_cinstr: "++ show op) False = error "trace"
+--sread_operand ctxt msg op | trace ("sread_operand: "++ show op) False = error "trace"
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 64) a))  = return $ simmediate ctxt a
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 32) a))  = return $ simmediate ctxt $ sextend_32_64 a
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 16) a))  = return $ simmediate ctxt $ sextend_16_64 a
 sread_operand ctxt msg    (Op_Imm (Immediate (BitSize 8) a))   = return $ simmediate ctxt $ sextend_8_64 a
-sread_operand ctxt msg    (Op_Const c)                         = return $ simmediate ctxt $ c
-sread_operand ctxt msg    (Op_Reg r)                           = sread_reg ctxt r
-sread_operand ctxt msg    (Op_Near op)                         = sread_operand ctxt msg op
-sread_operand ctxt msg op@(Op_Mem (BitSize si) _ _ _ _ _ _) = do
+sread_operand ctxt msg    (Op_Reg r _)                         = sread_reg ctxt r
+sread_operand ctxt msg op@(Op_Mem (BitSize si) _ _ _ _ _ _)  = do
   resolved_address <- sresolve_address ctxt op
   sread_mem ctxt msg resolved_address (Just $ ByteSize (si `div` 8))
-
 sread_operand ctxt msg    op  = error $ show (msg,op)
 
 swrite_operand :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> Bool -> Operand -> v -> State (Sstate v p,VCS v) ()
-swrite_operand ctxt i use_existing_value    (Op_Reg r)   v = soverwrite_reg ctxt (show i) use_existing_value r v
+swrite_operand ctxt i use_existing_value    (Op_Reg r _)   v = soverwrite_reg ctxt (show i) use_existing_value r v
 swrite_operand ctxt i use_existing_value op@(Op_Mem (BitSize si) _ _ _ _ _ _) v = do
   resolved_address <- sresolve_address ctxt op
   swrite_mem ctxt use_existing_value resolved_address (Just $ ByteSize (si `div` 8)) v
@@ -114,9 +88,9 @@ swrite_operand ctxt i _ op v = error $ show (i,op)
 -- TODO JE, other JMP aboves and JUMP lesses
 add_jump_to_pred :: Instruction -> Instruction -> [FlagStatus] -> [FlagStatus]
 add_jump_to_pred i0 i1 flgs
-  | inOperation i0 `elem` [JA,JBE] =
+  | inOperation i0 `elem` [JA,JNBE,JBE] =
     case inOperands i0 of
-      [Op_Jmp (Immediate _ trgt)] -> map (mod_FS_CMP trgt) flgs
+      [Op_Imm (Immediate _ trgt)] -> map (mod_FS_CMP trgt) flgs
   | otherwise = flgs
  where
   -- FC_CMP b o1 o2
@@ -129,26 +103,30 @@ add_jump_to_pred i0 i1 flgs
   mod_FS_CMP trgt flg = flg
 
   jumped_to_target
-    | inOperation i0 == JA  = Just False
-    | inOperation i0 == JBE = Just True
+    | inOperation i0 == JA   = Just False
+    | inOperation i0 == JNBE = Just False
+    | inOperation i0 == JBE  = Just True
   fall_through_case
-    | inOperation i0 == JA  = Just True
-    | inOperation i0 == JBE = Just False
+    | inOperation i0 == JA   = Just True
+    | inOperation i0 == JNBE = Just True
+    | inOperation i0 == JBE  = Just False
 
 
-
+-- RETURN
 sreturn :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 sreturn ctxt i = do
+  -- RIP := *[RSP,8]
+  ret_addr <- sread_operand ctxt "return" $ mk_RSP_mem_operand (ByteSize 8) [Read]
+  swrite_reg ctxt "sret1" (Reg64 RIP) ret_addr
+  -- RSP += 8
   rsp_value <- sread_reg ctxt (Reg64 RSP)
-  ret_addr <- sread_operand ctxt "return" $ mk_RSP_mem_operand (ByteSize 8)
   let rsp8 = ssemantics ctxt "plus" $ SO_Plus rsp_value $ simmediate ctxt 8
-  swrite_reg ctxt "sret1" (Reg64 RSP) rsp8
-  swrite_reg ctxt "sret2" (Reg64 RIP) ret_addr
+  swrite_reg ctxt "sret2" (Reg64 RSP) rsp8
 
 
 -- LEA
-slea :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> Operand -> Operand -> State (Sstate v p,VCS v) ()
-slea ctxt i dst op = do
+slea :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
+slea ctxt i@(Instruction label prefix LEA [dst,op] _ _) = do
   e <- sresolve_address ctxt op
   swrite_operand ctxt i True dst e
   if rip_relative op then do
@@ -161,20 +139,82 @@ slea ctxt i dst op = do
   else
     return ()
  where
-  rip_relative (Op_Mem _ _ r0 r1 _ _ _) = Reg64 RIP `elem` [r0,r1]
+  rip_relative (Op_Mem _ r0 r1 _ _ _ _) = Reg64 RIP `elem` [r0,r1]
+
+-- PUSH
+spush ctxt i@(Instruction label prefix mnemonic [op1] _ _) = do
+  let (ByteSize si) = push_pop_operand_size op1
+  -- RSP -= si
+  rsp_value <- sread_reg ctxt (Reg64 RSP)
+  let rsp8 = ssemantics ctxt "spush0" $ SO_Minus rsp_value $ simmediate ctxt si
+  swrite_reg ctxt "spush1" (Reg64 RSP) rsp8
+  -- *[RSP,si] := op1
+  let rsp_op = mk_RSP_mem_operand (ByteSize si) [Write]
+  v <- sread_operand ctxt "spush2" op1
+  swrite_operand ctxt i True rsp_op v  
+
+
+-- POP
+spop ctxt i@(Instruction label prefix mnemonic [dst] _ _) = do
+  let (ByteSize si) = push_pop_operand_size dst
+  -- dst := *[RSP,si]
+  let rsp_op = mk_RSP_mem_operand (ByteSize si) [Read]
+  v <- sread_operand ctxt "spop1" rsp_op
+  swrite_operand ctxt i True dst v  
+
+  -- RSP += operand_size
+  rsp_value <- sread_reg ctxt (Reg64 RSP)
+  let rsp8 = ssemantics ctxt "spop2" $ SO_Plus rsp_value $ simmediate ctxt si
+  swrite_reg ctxt "spop3" (Reg64 RSP) rsp8
+
+
+-- Pushing an operand takes 8 bytes, regardless of its size
+push_pop_operand_size (Op_Imm _) = ByteSize 8
+push_pop_operand_size op = operand_size op
+
+-- LEAVE
+sleave ctxt i@(Instruction label prefix mnemonic [] _ _) = do
+  -- RSP := RBP
+  rbp_value <- sread_reg ctxt (Reg64 RBP)
+  swrite_reg ctxt "sleave" (Reg64 RSP) rbp_value
+  -- POP RBP
+  -- RBP := *[RSP,8]
+  let rsp_op = mk_RSP_mem_operand (ByteSize 8) [Read]
+  v <- sread_operand ctxt "sleave" rsp_op
+  swrite_reg ctxt "sleave" (Reg64 RBP) v  
+  -- RSP += 8
+  rsp_value <- sread_reg ctxt (Reg64 RSP)
+  let rsp8 = ssemantics ctxt "sleave" $ SO_Plus rsp_value $ simmediate ctxt 8
+  swrite_reg ctxt "sleave" (Reg64 RSP) rsp8
+
+
+
+-- XOR
+sxor ctxt i@(Instruction label prefix mnemonic [dst,src] _ _) 
+  | dst == src = swrite_operand ctxt i False dst $ simmediate ctxt 0
+  | otherwise  = sgeneric_cinstr ctxt i
 
 
 
 sgeneric_cinstr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 --sgeneric_cinstr ctxt i | trace ("sgeneric_cinstr: "++ show i) False = error "trace"
-sgeneric_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot) = do
-  ops <- mapM (sread_operand ctxt (show i)) srcs
-  swrite_operand ctxt i True dst $ ssemantics ctxt (show i) $ SO_Op mnemonic (byteSize $ operand_size dst) (byteSize <$> maybe_operand_size srcs) ops
+sgeneric_cinstr ctxt i@(Instruction label prefix mnemonic ops _ _) =
+  case inDests i of
+    [] -> return ()
+    [dst] -> do
+      let srcs = inSrcs i
+      srcs_values <- mapM (sread_operand ctxt (show i)) srcs
+      let srcs_size = byteSize <$> maybe_operand_size srcs
+      let dst_value = ssemantics ctxt (show i) $ SO_Op mnemonic (byteSize $ operand_size dst) srcs_size srcs_values
+      swrite_operand ctxt i True dst dst_value
+    _ -> error $ "Currently unsupported: instructions with multiple writes such as " ++ show i
+
+
 
 
 maybe_operand_size []   = Nothing
 maybe_operand_size srcs
-  | any is_immediate srcs = Nothing
+  -- | any is_immediate srcs = Nothing
   | otherwise =
     let sizes = map operand_size srcs in
       if all ((==) (head sizes)) (tail sizes) then
@@ -185,19 +225,21 @@ maybe_operand_size srcs
   is_immediate (Op_Imm _) = True
   is_immediate _          = False
 
+
+
 sexec_cinstr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Instruction -> State (Sstate v p,VCS v) ()
 --sexec_cinstr ctxt i | trace ("sexec_cinstr: "++ show i) False = error "trace"
-sexec_cinstr ctxt i@(Instruction label prefix mnemonic (Just dst) srcs annot)
-  | mnemonic == LEA                          = slea ctxt i dst $ head srcs
-  | mnemonic `elem` xors && dst == head srcs = swrite_operand ctxt i False dst $ simmediate ctxt 0
-  | otherwise                                = sgeneric_cinstr ctxt i
- where
-  xors = [XOR,PXOR]
-sexec_cinstr ctxt i@(Instruction label prefix mnemonic Nothing srcs _)
+sexec_cinstr ctxt i@(Instruction label prefix LEA    _ _ _) = slea ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix PUSH   _ _ _) = spush ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix POP    _ _ _) = spop ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix LEAVE  _ _ _) = sleave ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix XOR    _ _ _) = sxor ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix PXOR   _ _ _) = sxor ctxt i
+sexec_cinstr ctxt i@(Instruction label prefix mnemonic _ _ _)
   | isRet mnemonic        = sreturn ctxt i
   | isJump mnemonic       = sjump ctxt i
   | isCall mnemonic       = scall ctxt i
-  | otherwise             = return ()
+  | otherwise             = sgeneric_cinstr ctxt i
 
 
 
@@ -213,33 +255,33 @@ sexec_instr ctxt store_pointer_analysis i = do
   sset_rip ctxt i
 
   let i_c = canonicalize i
-  maybe_store_pointer_analysis_result i_c
+  maybe_store_pointer_analysis_result i
   mapM_ (sexec_cinstr ctxt) i_c
   swrite_flags ctxt (top ctxt "") i 
  where
-  maybe_store_pointer_analysis_result i_c
+  maybe_store_pointer_analysis_result i
     | inOperation i == LEA = return ()
     | store_pointer_analysis = do
-      par <- gets $ mk_pointer_analysis_result i_c
+      par <- gets $ mk_pointer_analysis_result i
       case par of
         Nothing  -> return ()
         Just par -> modify $ add_pa_result (inAddress i) par
     | otherwise = return ()
 
-  mk_pointer_analysis_result i_c (p,_) = 
-    let (dst,srcs)   = (inDest $ head i_c, inOperands $ head i_c)
-        resolved_w   = dst >>= resolve_mem_operand p 
+  mk_pointer_analysis_result i (p,_) = 
+    let (dsts,srcs)  = (inDests i, inSrcs i)
+        resolved_ws  = map (resolve_mem_operand p) dsts
         resolved_rs  = map (resolve_mem_operand p) srcs in
       --if any ((==) (Just $ top ctxt "")) (resolved_w:resolved_rs) then
       --  traceShow ("TOP PTR: " ++ show i_c ++ "\n" ++ show p) $ Just $ PointerAnalysisResult resolved_w resolved_rs
       --else
-      if any ((/=) Nothing) (resolved_w:resolved_rs) then
-        Just $ PointerAnalysisResult resolved_w resolved_rs
+      if any ((/=) Nothing) (resolved_ws ++ resolved_rs) then
+        Just $ PointerAnalysisResult resolved_ws resolved_rs
       else
         Nothing
 
 
-  resolve_mem_operand p op@(Op_Mem si _ base idx scale displ seg) = Just $ evalSstate (sresolve_address ctxt op) p
+  resolve_mem_operand p op@(Op_Mem si base idx scale displ seg _) = Just $ evalSstate (sresolve_address ctxt op) p
   resolve_mem_operand p _ = Nothing 
 
 
@@ -332,6 +374,20 @@ sverify_postcondition ctxt = evalSstate check
 
 
 
+
+
+-- | Add a function_pointer_intro to the given symbolic predicate
+add_function_pointer a ptr (s,vcs) = 
+  let (match,remainder) = S.partition belongs_to_a vcs in
+    case S.toList match of
+      []                         -> (s,S.insert (FunctionPointers a $ IS.singleton ptr) remainder)
+      [FunctionPointers _ ptrs'] -> (s,S.insert (FunctionPointers a $ IS.insert ptr ptrs') remainder)
+ where
+  belongs_to_a (FunctionPointers a' _) = a == a'
+  belongs_to_a _ = False
+
+
+add_pa_result a par (s,vcs) = (s,S.insert (PointerAnalysis a par) vcs)
 
 
 

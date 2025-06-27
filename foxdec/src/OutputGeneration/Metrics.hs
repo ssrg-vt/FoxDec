@@ -107,7 +107,7 @@ mk_metric_pointerDesignations bin = foldr (M.adjust ((+) 1)) init_m . concatMap 
  where
   init_m = M.fromList [("U",0), ("CL",0),("CG",0),("CH",0),("CLG",0),("CLH",0),("CGH",0),("CLHG",0), ("AL",0),("AG",0),("AH",0),("ALG",0),("ALH",0),("AGH",0),("ALHG",0)]
 
-  get_specifity_per_instruction (entry,PointerAnalysisResult w rs) = map (get_domains entry) [w] -- (w:rs) IF ALSO PRODUCING DATA OVER READS
+  get_specifity_per_instruction (entry,PointerAnalysisResult ws rs) = map (get_domains entry) ws -- (w:rs) IF ALSO PRODUCING DATA OVER READS
 
   get_domains entry Nothing  = "Nothing"
   get_domains entry (Just e) = get_pointer_specifity_cpointer bin e

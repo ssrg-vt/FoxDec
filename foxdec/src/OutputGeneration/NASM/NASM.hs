@@ -87,9 +87,9 @@ data NASM_Instruction = NASM_Instruction
     nasm_prefix   :: Maybe Prefix
   , nasm_mnemonic :: Maybe Opcode
   , nasm_operands :: [NASM_Operand]
+  , nasm_operand_info :: [[OperandAccessInfo]]
   , nasm_comment  :: String
   , nasm_annot    :: Annot
-  , nasm_orig     :: Maybe Instruction
   }
  deriving (Eq,Generic)
 
@@ -174,7 +174,7 @@ label_to_mem_operand sizedir l = NASM_Operand_Memory sizedir $ NASM_Addr_Label l
 label_to_eff_operand l = NASM_Operand_EffectiveAddress $ NASM_Addr_Label l
 
 
-mk_nasm_instr m ops = NASM_Instruction Nothing (Just m) ops "" [] Nothing
+mk_nasm_instr m ops = NASM_Instruction Nothing (Just m) ops [] "" [] 
 
 
 empty_address =  NASM_Address_Computation Nothing Nothing 1 Nothing Nothing
@@ -224,9 +224,16 @@ instance Show NASM_Line where
   show (NASM_Label str) = show str ++ ":"
   show (NASM_Comment indent str) = replicate indent ' ' ++ "; " ++ str
 
+with_size si (NASM_Operand_Memory _ a) = NASM_Operand_Memory (si,True) a
+with_size si op = op
 
 instance Show NASM_Instruction where
-  show (NASM_Instruction pre m ops comment annot orig) = concat
+  show (NASM_Instruction pre (Just FSTP)  [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FSTP)  [with_size 10 op0] info comment annot)
+  show (NASM_Instruction pre (Just FISTP) [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FISTP) [with_size 2 op0]  info comment annot)
+  show (NASM_Instruction pre (Just FLD)   [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FLD)   [with_size 10 op1] info comment annot)
+  show (NASM_Instruction pre (Just FILD)  [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FILD)  [with_size 2 op1]  info comment annot)
+
+  show (NASM_Instruction pre m ops info comment annot) = concat
     [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
     , mk_comment
     ]
@@ -238,6 +245,7 @@ instance Show NASM_Instruction where
     show_prefix (Just p) = show p
 
     show_mnemonic Nothing  = ""
+    show_mnemonic (Just (InvalidOpcode name)) = name
     show_mnemonic (Just p) = show p
  
     show_ops = intercalate ", " . map show_op

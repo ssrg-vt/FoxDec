@@ -16,14 +16,16 @@ import GHC.Generics
 
 
 data PointerAnalysisResult v = PointerAnalysisResult {
-  pa_mem_write :: Maybe v,
+  pa_mem_write :: [Maybe v],
   pa_mem_reads :: [Maybe v]
  }
   deriving (Generic,Eq,Ord)
 
 instance Show v => Show (PointerAnalysisResult v) where
-  show (PointerAnalysisResult Nothing  rs) = show_pars rs
-  show (PointerAnalysisResult (Just w) rs) = show w ++ " <-- " ++ show_pars rs
+  show (PointerAnalysisResult []        rs) = show_pars rs
+  show (PointerAnalysisResult [Nothing] rs) = "_ <-- " ++ show_pars rs
+  show (PointerAnalysisResult [Just w]  rs) = show w ++ " <-- " ++ show_pars rs
+  show (PointerAnalysisResult ws rs)        = show_pars ws ++ " <-- " ++ show_pars rs
 
 
 show_pars pars = "[" ++ intercalate "," (map show_pa pars) ++ "]"

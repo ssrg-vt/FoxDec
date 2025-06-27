@@ -48,7 +48,7 @@ split_data_section l@(bin,config,l0,_) (NASM externals globals sections footer) 
   split_section s@(NASM_Section_Data ds) = NASM_Section_Data $ concatMap split_data_section ds
 
   split_data_section ds@(NASM_DataSection (seg,sec,a0) align entries) 
-    | is_data_section (seg,sec,0,0,0) || is_bss_data_section (seg,sec,0,0,0) =  -- mk_analyzable_section ds
+    | is_data_section (seg,sec,0,0,0,[]) || is_bss_data_section (seg,sec,0,0,0,[]) =  -- mk_analyzable_section ds
       let ds' = mk_analyzable_section ds
           split = 18 in
         reverse (take split ds') ++ drop split ds'
@@ -57,7 +57,7 @@ split_data_section l@(bin,config,l0,_) (NASM externals globals sections footer) 
   mk_analyzable_section ds@(NASM_DataSection (seg,sec,a0) align entries) = 
     case find_section_for_address bin a0 of
       Nothing -> [ds]
-      Just (_,_,_,si0,_) ->
+      Just (_,_,_,si0,_,_) ->
         let regions = analyze_gmem l a0 (fromIntegral si0) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0 
             regions' = concat_regions $ IM.assocs regions
             tr = trace (seg ++ sec ++ "\nRegions:\n" ++ (intercalate "\n" (map show_region_info regions')))

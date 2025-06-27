@@ -8,8 +8,6 @@ import Data.X86.Instruction
 
 import Conventions
 
-import Disassembler.Disassembler
-
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -24,14 +22,29 @@ import Debug.Trace
 import GHC.Generics
 
 
+-- | Section Flags
+data SectionFlag
+    = SectionIsWritable     -- ^ Section contains writable data
+    | SectionIsAllocated    -- ^ Section is allocated in memory image of program
+    | SectionIsExecutable   -- ^ Section contains executable instructions
+    | SectionHasFlag Int    -- ^ Processor- or environment-specific flag
+    deriving (Generic,Eq)
+
+instance Show SectionFlag where
+  show SectionIsWritable    = "W"
+  show SectionIsAllocated   = "A"
+  show SectionIsExecutable  = "X"
+  show (SectionHasFlag i)   = "EXT(" ++ show i ++ ")"
+
 -- |  Information on the sections in the binary
 data SectionsInfo = SectionsInfo {
-  si_sections    :: ![(String,String,Word64,Word64,Word64)], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
+  si_sections    :: ![(String,String,Word64,Word64,Word64,[SectionFlag])], -- ^ Sections: segment names, section names, addresses, sizes, and alignment.
   si_min_address :: !Word64,
   si_max_address :: !Word64
  }
  deriving (Show,Generic,Eq)
 
+instance Cereal.Serialize SectionFlag
 instance Cereal.Serialize SectionsInfo
 
 
@@ -81,6 +94,7 @@ class BinaryClass a where
   binary_text_section_size :: a -> Int
   binary_dir_name :: a -> String
   binary_file_name :: a -> String
+  fetch_instruction :: a -> Word64 -> Maybe Instruction
 
 
 data Binary = forall b . BinaryClass b => Binary b
@@ -98,6 +112,7 @@ instance BinaryClass Binary where
   binary_text_section_size (Binary b) = binary_text_section_size b
   binary_dir_name (Binary b) = binary_dir_name b
   binary_file_name (Binary b) = binary_file_name b
+  fetch_instruction (Binary b) = fetch_instruction b
 
 binary_get_symbol_table bin =
   case binary_get_symbols bin of
@@ -131,14 +146,14 @@ find_section_for_address ::
   BinaryClass bin => 
      bin     -- ^ The binary
   -> Word64 -- ^ An address
-  -> Maybe (String, String, Word64, Word64,Word64)
+  -> Maybe (String, String, Word64, Word64,Word64,[SectionFlag])
 find_section_for_address bin a =
   if is_roughly_an_address bin a then
     find (address_in_section a) (si_sections $ binary_get_sections_info bin)
   else
     Nothing
  where
-  address_in_section a (_,_,a0,si,_) = a0 <= a && a < a0 + si
+  address_in_section a (_,_,a0,si,_,_) = a0 <= a && a < a0 + si
 
 
 
@@ -162,16 +177,15 @@ find_section_ending_at ::
   BinaryClass bin => 
      bin           -- ^ The binary
    -> Word64       -- ^ An address
-   -> Maybe (String, String, Word64, Word64, Word64)
+   -> Maybe (String, String, Word64, Word64, Word64,[SectionFlag])
 find_section_ending_at bin a = find (address_ends_at_section a) (si_sections $ binary_get_sections_info bin)
  where
-  address_ends_at_section a (_,_,a0,si,_) = a == a0 + si
+  address_ends_at_section a (_,_,a0,si,_,_) = a == a0 + si
 
 
 
 
-
-
+{--
 
 -- TODO
 -- | Fetching an instruction
@@ -218,4 +232,14 @@ address_has_instruction bin a = do
         False
 
 
+--}
 
+address_has_instruction ::
+  BinaryClass bin => 
+     bin
+  -> Word64  -- ^ An address
+  -> Bool 
+address_has_instruction bin a =
+  case fetch_instruction bin a of
+    Nothing -> False
+    _ -> True

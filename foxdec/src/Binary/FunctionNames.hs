@@ -53,7 +53,7 @@ try_plt_target_for_entry ::
      bin
   -> Word64 -- ^ The entry address
   -> Maybe ResolvedJumpTarget
-try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmps_to_external_function a
+try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmps_to_external_function a `orTry` nop_jmps_to_external_function a
   --firstJusts [ {--is_external_function a,--} jmps_to_external_function a, endbr64_jmps_to_external_function a ]
  where
 {--
@@ -66,13 +66,19 @@ try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmp
 --}
   jmps_to_external_function a =
     case fetch_instruction bin a of
-      Just i@(Instruction _ _  JMP Nothing [op1] _) -> resolve_operand i op1
-      _                                             -> Nothing
+      Just i@(Instruction _ _  JMP [op1] _ _) -> resolve_operand i op1
+      _                                               -> Nothing
 
   endbr64_jmps_to_external_function a =
     case fetch_instruction bin a of
-      Just (Instruction _ _ ENDBR64 Nothing _ si) -> jmps_to_external_function (a + fromIntegral si)
-      _                                           -> Nothing
+      Just (Instruction _ _ ENDBR64 _ _ si) -> jmps_to_external_function (a + fromIntegral si)
+      _                                             -> Nothing
+
+  nop_jmps_to_external_function a =
+    case fetch_instruction bin a of
+      Just (Instruction _ _ NOP _ _ si) -> jmps_to_external_function (a + fromIntegral si)
+      _                                   -> Nothing
+
 
   resolve_operand i op1 =
     case operand_static_resolve bin i op1 of
@@ -88,7 +94,7 @@ jump_target_for_instruction ::
      bin
   -> Instruction -- ^ The instruction
   -> ResolvedJumpTarget
-jump_target_for_instruction bin i@(Instruction _ _ _ _ ops _) =
+jump_target_for_instruction bin i@(Instruction _ _ _ ops _ _) =
   case operand_static_resolve bin i (head ops) of
     External sym       -> External sym
     ExternalDeref sym  -> ExternalDeref sym
@@ -112,13 +118,9 @@ operand_static_resolve ::
   -> Instruction    -- ^ The instruction
   -> Operand        -- ^ The operand of the instruction to be resolved
   -> ResolvedJumpTarget
-operand_static_resolve bin i (Op_Imm _)   = error "todo"
-operand_static_resolve bin i (Op_Jmp (Immediate _ v)) = ImmediateAddress v
-operand_static_resolve bin i (Op_Const _) = error "todo"
-operand_static_resolve bin i (Op_Near op) = operand_static_resolve bin i op
-operand_static_resolve bin i (Op_Far  op) = error "todo"
-operand_static_resolve bin i (Op_Mem _ _ (Reg64 RIP) RegNone 0 displ Nothing) = try_read_function_pointer bin i $ fromIntegral (fromIntegral (inAddress i) + fromIntegral (inSize i) + displ)
-operand_static_resolve bin i (Op_Mem _ _ (Reg64 RIP) RegNone scale displ Nothing) = error $ show (i,fromIntegral (fromIntegral (inAddress i) + fromIntegral (inSize i) + displ))
+operand_static_resolve bin i (Op_Imm (Immediate _ v)) = ImmediateAddress (inAddress i + v)
+operand_static_resolve bin i (Op_Mem _ (Reg64 RIP) RegNone 0 displ Nothing _) = try_read_function_pointer bin i $ fromIntegral (fromIntegral (inAddress i) + fromIntegral (inSize i) + displ)
+operand_static_resolve bin i (Op_Mem _ (Reg64 RIP) RegNone scale displ Nothing _) = error $ show (i,fromIntegral (fromIntegral (inAddress i) + fromIntegral (inSize i) + displ))
 operand_static_resolve bin i _            = Unresolved
 
 
@@ -184,7 +186,7 @@ function_name_of_instruction ::
      bin
   -> Instruction -- ^ The instruction
   -> String
-function_name_of_instruction bin i@(Instruction _ _ _ _ ops _)
+function_name_of_instruction bin i@(Instruction _ _ _ ops _ _)
   |  isCall (inOperation i) || isJump (inOperation i) =
     case jump_target_for_instruction bin i of
       External sym       -> sym

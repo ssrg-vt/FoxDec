@@ -20,6 +20,7 @@ import Data.CFG
 import Data.Size
 import Data.SPointer
 import Data.SValue
+import Data.Int
 
 import Binary.FunctionNames
 import Binary.Elf
@@ -130,7 +131,7 @@ undefined_internal_global_labels l@(bin,_,l0) =
 
   is_not_defined_elsewhere a = (find (is_section_for a) $ si_sections $ binary_get_sections_info bin) == Nothing
 
-  is_section_for a (segment,section,a0,sz,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
+  is_section_for a (segment,section,a0,sz,_,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
 
 
 -- | Rendering NASM to a String
@@ -255,7 +256,7 @@ section_label l@(bin,_,l0) segment section a0 addr = try_symbol `orElse` (Label 
  
 -- Make a label for the end of a section
 -- TODO: should be same as section_label (i.e., lookup symbol first)?
-end_of_section_label l@(bin,_,l0) (segment,section,a0,sz,_) = try_symbol `orElse` (Label (a0+sz) $ "L" ++ segment ++ "_" ++ section ++ "_END")
+end_of_section_label l@(bin,_,l0) (segment,section,a0,sz,_,_) = try_symbol `orElse` (Label (a0+sz) $ "L" ++ segment ++ "_" ++ section ++ "_END")
  where
   try_symbol
     | find_section_for_address bin (a0+sz) == Nothing = do
@@ -334,7 +335,7 @@ mk_annots l@(bin,_,l0) sections = M.fromListWith S.union $ map (\(a,l) -> (a,S.s
 
   get_annots_textsection (NASM_TextSection _ blocks _) = concatMap get_annots_line $ concat $ map snd blocks
 
-  get_annots_line (NASM_Line (NASM_Instruction _ _ _ _ annot _)) = annot
+  get_annots_line (NASM_Line (NASM_Instruction _ _ _ _ _ annot)) = annot
   get_annots_line _ = []
 
   get_annots_datasection (NASM_DataSection _ _ es) = concat $ mapMaybe get_annot_from_data_entry es
@@ -455,20 +456,18 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
       mk_jmp_call_instr l entry cfg blockID last_instr
 
   isMemory (Op_Mem _ _ _ _ _ _ _) = True
-  isMemory (Op_Near op) = isMemory op
-  isMemory (Op_Far op) = isMemory op
   isMemory _ = False
 
 
   -- A resolved jump to a single known target
-  resolved_jump [External f] i@(Instruction addr pre op Nothing ops annot) =
+  resolved_jump [External f] i@(Instruction addr pre op ops info annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
-    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] "" [] (Just i)]
-  resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op Nothing ops annot) = 
+    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] [[Read]] "" []]
+  resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op ops info annot) = 
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ showHex imm ]
     ++
     mk_jmp_call_instr l entry cfg blockID i
-  resolved_jump trgts i@(Instruction addr pre op Nothing ops annot) =
+  resolved_jump trgts i@(Instruction addr pre op ops info annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ show trgts ]
     ++
     instr_to_NASM l entry cfg blockID i
@@ -485,7 +484,7 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
   Just block_instrs = IM.lookup blockID $ cfg_instrs cfg
 
   empty_instr :: Instruction
-  empty_instr = Instruction 0 [] NOP Nothing [] 0
+  empty_instr = Instruction 0 [] NOP [] [] 0
 
   mk_extra_jmp =
     case next_rips l (Just $ last block_instrs) of -- TODO assumes fall through is last/second
@@ -529,10 +528,10 @@ is_start_of_block_anywhere l@(bin,_,l0) a =
 
 
 -- | convert an instruction to a NASM instruction
-instr_to_NASM l entry cfg blockID i@(Instruction addr pre op Nothing ops annot)
+instr_to_NASM l entry cfg blockID i@(Instruction addr pre op ops info annot)
  | op == NOP                             = []
  | op == ENDBR64                         = []
- | no_ops pre op                         = [NASM_Line $ mk_normal_instr l entry cfg $ Instruction addr pre op Nothing [] annot]
+ | no_ops pre op                         = [NASM_Line $ mk_normal_instr l entry cfg $ Instruction addr pre op [] info annot]
  | is_cf op                              = mk_jmp_call_instr l entry cfg blockID i
  | some_operand_reads_GOT_entry l i ops  && op /= LEA = map NASM_Line $ mk_GOT_entry_instr l entry cfg i
  | otherwise                             = [NASM_Line $ mk_normal_instr l entry cfg i]
@@ -551,31 +550,37 @@ instr_to_NASM l entry cfg blockID i@(Instruction addr pre op Nothing ops annot)
 
 
 -- Make a normal instruction
-mk_normal_instr l entry cfg i@(Instruction addr pre op Nothing ops annot) = mk_instr
+mk_normal_instr l entry cfg i@(Instruction addr pre op ops info annot) = mk_instr
  where
-  mk_instr = NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) (map fst mk_ops) "" mk_annot (Just i)
+  mk_instr = NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) (map fst mk_ops) (get_operand_info i) "" mk_annot
   mk_ops = map (operand_to_NASM l entry cfg i False) ops
   mk_annot = concat $ filter ((/=) []) $ map snd mk_ops
 
 -- Make a JUMP/CALL instruction
 mk_jmp_call_instr :: BinaryClass bin => LiftedC bin -> Word64 -> CFG -> Int -> Instruction -> [NASM_Line]
-mk_jmp_call_instr l@(bin,_,l0) entry cfg blockID i@(Instruction addr pre op Nothing [op1] annot) =
+mk_jmp_call_instr l@(bin,_,l0) entry cfg blockID i@(Instruction addr pre op [op1] info annot) =
   add_label_if_terminating $ use_jump_target $ jump_target_for_instruction bin i
  where
-  use_jump_target j@(External sym)      = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "" []  (Just i)
-  use_jump_target j@(ExternalDeref sym) = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] "PointerToObject" [] (Just i)
+  use_jump_target j@(External sym)      = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] [[Read]] "" []
+  use_jump_target j@(ExternalDeref sym) = NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [NASM_Operand_Address $ NASM_JumpTarget $ j] [[Read]] "PointerToObject" []
   use_jump_target (ImmediateAddress a') = 
-        let (op1_str,annot) = operand_to_NASM l entry cfg i True (Op_Jmp $ Immediate (BitSize 64) a') in
-          NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot (Just i)
+        let (op1_str,annot) = operand_to_NASM l entry cfg i True (Op_Imm $ Immediate (BitSize 64) a') in
+          NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] [[Read]] "" annot
   use_jump_target Unresolved            =
     let (op1_str,annot) = operand_to_NASM l entry cfg i True op1 in
-      NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] "" annot (Just i)
+      NASM_Line $ NASM_Instruction Nothing (opcode_to_NASM op) [op1_str] [[Read]] "" annot
 
 
   add_label_if_terminating label
     | is_terminal_call l i = [NASM_Line $ mk_nasm_instr NOP [], NASM_Label $ terminating_label l entry i blockID, label]
     | otherwise            = [label]
 
+
+get_operand_info (Instruction _ _ _ ops _ _) = map get_info ops
+ where
+  get_info (Op_Mem _ _ _ _ _ _ info) = info
+  get_info (Op_Reg _ info) = info
+  get_info (Op_Imm _) = []
 
 is_terminal_call l i
   | isCall (inOperation i) || isJump (inOperation i) = 
@@ -586,7 +591,7 @@ is_terminal_call l i
 
 -- Make an instruction with an operand reading a GOT entry
 -- TODO MOV reg, [rip+imm] can be more efficient
-mk_GOT_entry_instr l entry cfg i@(Instruction addr pre op Nothing ops annot) = 
+mk_GOT_entry_instr l entry cfg i@(Instruction addr pre op ops info annot) = 
   let [f] = name_of_external_function
       r   = find_unused_register register_set [i] in
     [ mov_reg_to_temp r
@@ -594,15 +599,15 @@ mk_GOT_entry_instr l entry cfg i@(Instruction addr pre op Nothing ops annot) =
     , the_actual_instr r
     , mov_temp_to_reg r ]
  where
-  mov_reg_to_temp r = mk_nasm_instr MOV [ label_to_mem_operand (8,True) $ Label 0 "Ltemp_storage_foxdec", fst $ operand_to_NASM l entry cfg i True $ Op_Reg r ] `withComment` "inserted"
+  mov_reg_to_temp r = mk_nasm_instr MOV [ label_to_mem_operand (8,True) $ Label 0 "Ltemp_storage_foxdec", fst $ operand_to_NASM l entry cfg i True $ Op_Reg r [Read]] `withComment` "inserted"
 
-  lea_external_function r f = mk_nasm_instr LEA [ fst $ operand_to_NASM l entry cfg i True $ Op_Reg r,  NASM_Operand_EffectiveAddress $ NASM_Addr_Symbol f ]
+  lea_external_function r f = mk_nasm_instr LEA [ fst $ operand_to_NASM l entry cfg i True $ Op_Reg r [Write],  NASM_Operand_EffectiveAddress $ NASM_Addr_Symbol f ]
 
-  the_actual_instr r = mk_normal_instr l entry cfg (Instruction addr pre op Nothing (replace_mem_op r ops) annot)
+  the_actual_instr r = mk_normal_instr l entry cfg (Instruction addr pre op (replace_mem_op r ops) info annot)
 
-  mov_temp_to_reg r = mk_nasm_instr MOV [ fst $ operand_to_NASM l entry cfg i True $ Op_Reg r, label_to_mem_operand (8,True) $ Label 0 "Ltemp_storage_foxdec"] `withComment` "inserted"
+  mov_temp_to_reg r = mk_nasm_instr MOV [ fst $ operand_to_NASM l entry cfg i True $ Op_Reg r [Write], label_to_mem_operand (8,True) $ Label 0 "Ltemp_storage_foxdec"] `withComment` "inserted"
 
-  replace_mem_op r (Op_Mem _ _ _ _ _ _ _: ops) = Op_Reg r : ops
+  replace_mem_op r (Op_Mem _ _ _ _ _ _ info: ops) = Op_Reg r info : ops
   replace_mem_op r (op:ops)       = op:replace_mem_op r ops
 
   name_of_external_function = mapMaybe (try_operand_reads_GOT_entry l i) ops
@@ -689,17 +694,13 @@ mk_fake_lea ctxt entry cfg i@(Instruction addr pre op@MOV Nothing ops@[dst@(Memo
 
 -- | convert an operand to a NASM operand
 -- Return both the translation (a String) as well as an optional annotation
-operand_to_NASM l entry cfg i is_addr (Op_Reg r)               = (NASM_Operand_Reg r,[])
+operand_to_NASM l entry cfg i is_addr (Op_Reg r _)               = (NASM_Operand_Reg r,[])
 operand_to_NASM l entry cfg i is_addr a@(Op_Mem _ _ _ _ _ _ _) = mem_operand_to_NASM l entry cfg i a
-operand_to_NASM l entry cfg i is_addr a@(Op_Const imm)         = (NASM_Operand_Immediate $ Immediate (BitSize 64) $ fromIntegral imm, [])
-operand_to_NASM l entry cfg i is_addr a@(Op_Near op)           = operand_to_NASM l entry cfg i is_addr op
-operand_to_NASM l entry cfg i is_addr a@(Op_Imm imm)           = operand_to_NASM l entry cfg i is_addr (Op_Jmp imm)
-operand_to_NASM l entry cfg i is_addr a@(Op_Jmp imm) 
+operand_to_NASM l entry cfg i is_addr a@(Op_Imm imm) 
   | is_addr   = 
     let (address,annot) = symbolize_address l entry cfg i a in
       (NASM_Operand_Address address, annot)
   | otherwise = (NASM_Operand_Immediate imm, [])
-operand_to_NASM l entry cfg i is_addr op = error $ show op
 
 mem_operand_to_NASM l entry cfg i a@(Op_Mem (BitSize si) _ _ _ _ _ _) =
   let (address,annot) = symbolize_address l entry cfg i a in
@@ -711,7 +712,7 @@ mem_operand_to_NASM l entry cfg i a@(Op_Mem (BitSize si) _ _ _ _ _ _) =
 
 -- | convert the address of an operand to a NASM address
 -- -- TODO remove this
-address_to_NASM (Op_Mem _ _ reg idx scale displ seg) = NASM_Address_Computation (RegSeg <$> seg) (mk idx) (fromIntegral scale) (mk reg) (mk' displ)
+address_to_NASM (Op_Mem _ reg idx scale displ seg _) = NASM_Address_Computation (RegSeg <$> seg) (mk idx) (fromIntegral scale) (mk reg) (mk' displ)
  where
   mk RegNone = Nothing 
   mk r = Just r
@@ -726,6 +727,7 @@ address_to_NASM (Op_Mem _ _ reg idx scale displ seg) = NASM_Address_Computation 
 
 -- | convert size directive of an operand to a NASM size directive
 size_directive_to_NASM :: Instruction -> Int -> (Int,Bool) 
+size_directive_to_NASM _ 0  = (0,False)
 size_directive_to_NASM _ 1  = (1,True) -- "byte"
 size_directive_to_NASM _ 2  = (2,True) -- "word"
 size_directive_to_NASM _ 4  = (4,True) -- "dword"
@@ -802,7 +804,7 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
  where
   within_section    = show_section_relative imm <$> find_section_for_address bin imm
 
-  show_section_relative a sec@(segment,section,a0,_,_) = (NASM_Addr_Label label,[(a, label)])
+  show_section_relative a sec@(segment,section,a0,_,_,_) = (NASM_Addr_Label label,[(a, label)])
    where
     label = section_label l segment section a0 a
 
@@ -810,7 +812,7 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
 
   try_at_end_of_section a = end_of_section_label l <$> (find (is_end_of_section a) $ si_sections $ binary_get_sections_info bin)
 
-  is_end_of_section a (_,_,a0,sz,_) = a0 + sz == a
+  is_end_of_section a (_,_,a0,sz,_,_) = a0 + sz == a
 
   add_annot str = (NASM_Addr_Label str,[(imm,str)])
 
@@ -833,17 +835,12 @@ relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symb
 reloc_for a (Relocation a0 a1) = a == a0
 
 
-rip_relative_to_immediate i (Op_Mem _ _ (Reg64 RIP) RegNone _ displ Nothing) = Just $ fromIntegral (inAddress i) + inSize i + displ
-rip_relative_to_immediate i (Op_Mem _ _ RegNone RegNone 0 displ Nothing) = Just $ displ
-rip_relative_to_immediate i (Op_Mem _ _ (Reg64 RIP) _ _ _ _) = error (show i)
-rip_relative_to_immediate i (Op_Reg (Reg64 RIP)) = error (show i)
+rip_relative_to_immediate i (Op_Mem _ (Reg64 RIP) RegNone _ displ Nothing _) = Just $ fromIntegral (inAddress i) + fromIntegral (inSize i) + displ
+rip_relative_to_immediate i (Op_Mem _ RegNone RegNone 0 displ Nothing _) = Just $ displ
+rip_relative_to_immediate i (Op_Mem _ (Reg64 RIP) _ _ _ _ _) = error (show i)
+rip_relative_to_immediate i (Op_Reg (Reg64 RIP) _) = error (show i)
 rip_relative_to_immediate i (Op_Imm (Immediate _ imm)) = Just $ fromIntegral imm
-rip_relative_to_immediate i (Op_Jmp (Immediate _ imm)) = Just $ fromIntegral imm
-rip_relative_to_immediate i (Op_Const c) = Just $ c
-rip_relative_to_immediate i (Op_Near op) = rip_relative_to_immediate i op
-rip_relative_to_immediate i (Op_Far op) = rip_relative_to_immediate i op
-
-rip_relative_to_immediate i (Op_Reg _) = Nothing
+rip_relative_to_immediate i (Op_Reg _ _) = Nothing
 rip_relative_to_immediate i (Op_Mem _ _ _ _ _ _ _) = Nothing
 
 
@@ -926,12 +923,12 @@ add_labels_to_data_sections annots externals (NASM_Section_Data ds)   = NASM_Sec
 generic_data_section l@(bin,_,l0) pick_section read_from = 
   map mk_data_section $ filter pick_section $ si_sections $ binary_get_sections_info bin
  where
-  mk_data_section s@(segment,section,a0,sz,align) =
+  mk_data_section s@(segment,section,a0,sz,align,_) =
     let entries  = mk_data_entries 0 s
         entries' = (a0,DataEntry_Label $ section_label l segment section a0 a0) : entries in
       NASM_DataSection (segment,section,a0) (fromIntegral align) $ nub_data_section_entries entries'
 
-  mk_data_entries offset s@(segment,section,a0,sz,align) 
+  mk_data_entries offset s@(segment,section,a0,sz,align,_) 
     | offset > sz  = []
     | offset == sz = [(a0+sz, DataEntry_Label $ end_of_section_label l s)]
     | otherwise    = 
@@ -943,7 +940,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
                  else
                    mk_data_entries_no_string offset s
 
-  mk_data_entries_no_string offset s@(segment,section,a0,sz,align) =
+  mk_data_entries_no_string offset s@(segment,section,a0,sz,align,_) =
     case find_reloc offset a0 of
       Just (Relocation _ a1) ->
         [ (a0+offset, DataEntry_Label $ mk_reloc_label (a0 + offset))
@@ -985,7 +982,7 @@ try_symbolize_imm l@(bin,_,l0) a1 =
 bss_data_section l@(bin,_,l0) = 
   map mk_bss_data_section $ filter is_bss_data_section $ si_sections $ binary_get_sections_info bin
  where
-  mk_bss_data_section (segment,section,a0,sz,align) = 
+  mk_bss_data_section (segment,section,a0,sz,align,_) = 
     let entries  = mk_bss segment section a0 sz
         entries' = (a0,DataEntry_Label $ section_label l segment section a0 a0) : entries in
       NASM_DataSection (segment,section,a0) (fromIntegral align) $ nub_data_section_entries entries'
@@ -994,7 +991,7 @@ bss_data_section l@(bin,_,l0) =
   mk_bss segment section a0 sz =
     case sort $ map get_addr $ filter (was_relocated_and_in a0 sz) $ S.toList $ binary_get_relocations bin of
       [] -> [ (a0,      DataEntry_BSS $ fromIntegral sz)
-            , (a0 + sz, DataEntry_Label $ end_of_section_label l (segment,section,0,0,0)) ]
+            , (a0 + sz, DataEntry_Label $ end_of_section_label l (segment,section,0,0,0,[])) ]
       (a:_) -> [ (a0, DataEntry_BSS $ fromIntegral $ a - a0)
                , (a,  DataEntry_Label $ mk_reloc_label a) ]
                ++
@@ -1049,11 +1046,9 @@ mk_jump_table l (entry,cfg,(a,inds)) = concatMap mk $ S.toList inds
 
 regs_of_ops = concatMap regs_of_op
 
-regs_of_op (Op_Mem _ _ reg idx _ _ Nothing) = [reg,idx]
-regs_of_op (Op_Mem _ _ reg idx _ _ (Just seg)) = [reg,idx,RegSeg seg]
-regs_of_op (Op_Reg r) = [r]
-regs_of_op (Op_Near op) = regs_of_op op
-regs_of_op (Op_Far op) = regs_of_op op
+regs_of_op (Op_Mem _ reg idx _ _ Nothing _) = [reg,idx]
+regs_of_op (Op_Mem _ reg idx _ _ (Just seg) _) = [reg,idx,RegSeg seg]
+regs_of_op (Op_Reg r _) = [r]
 regs_of_op _ = []
 
 
@@ -1076,7 +1071,7 @@ find_unused_register regs instrs =
   let used_regs = concatMap (map real_reg . regs_of_ops . get_ops) instrs in
     find_element_not_in regs used_regs
  where
-  get_ops i@(Instruction addr pre op Nothing ops annot) = ops
+  get_ops i@(Instruction addr pre op ops info annot) = ops
 
 
 

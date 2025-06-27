@@ -65,7 +65,7 @@ section_info = do
   whitespaces
   size <- hexnum_with_0x
   many newline
-  return $ (segname,sectname,addr,size,16)
+  return $ (segname,sectname,addr,size,16,[])
 
 sections_info = do
   sis <- many section_info
@@ -74,8 +74,8 @@ sections_info = do
   let max = maximum $ map get_max_address sis
   return $ SectionsInfo sis min max
  where
-  get_min_address (_,_,a,_,_)  = a
-  get_max_address (_,_,a,si,_) = a + si - 1
+  get_min_address (_,_,a,_,_,_)  = a
+  get_max_address (_,_,a,si,_,_) = a + si - 1
 
 -- The parse function.
 -- Takes as input a filename f and produces a list of instructions

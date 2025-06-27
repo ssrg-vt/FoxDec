@@ -10,7 +10,6 @@ import Base
 import Config
 
 
-
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
 import OutputGeneration.NASM.ModDataSection
@@ -149,7 +148,7 @@ usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
   -- header
   usageMsgHeader = intercalate "\n"
     [ "The FoxDec Decompiler"
-    , "USAGE: foxdec-exe -c CONFIGFILE -d DIRNAME -n FILENAME -i INPUTTYPE [OUTPUTTYPES ...]"
+    , "USAGE: ./run_foxdec -c CONFIGFILE -d DIRNAME -n FILENAME -i INPUTTYPE [OUTPUTTYPES ...]"
     , ""
     , "Provide the configuration file, the directory where the input is located, the name of the binary, and the type of desired input and output(s)."
     , "The input can be a binary, or if the binary has already been lifted, its L0 representation. stored in a .L0 file."
@@ -159,10 +158,7 @@ usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
   -- footer
   usageMsgFooter = intercalate "\n"
     [ "Example usage:" 
-    , "    foxdec-exe " ++ exampleArgs
-    , ""
-    , "When using stack, provide command-line arguments after -- :"
-    , "    stack exec foxdec-exe -- " ++ exampleArgs
+    , "    ./run_foxdec " ++ exampleArgs
     ]
   exampleArgs = "-c ./config/config.dhall -d examples/wc_small/ -n wc -i BINARY --Gmetrics"
 

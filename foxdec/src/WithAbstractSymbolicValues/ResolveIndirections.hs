@@ -37,7 +37,7 @@ import Control.DeepSeq
 
 stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Sstate v p -> [Instruction] -> Indirections
 stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
-  let [trgt] = srcs $ last instrs in
+  let [trgt] = inSrcs $ last instrs in
     case flagstatus_to_tries 10000 flgs of -- TODO
       Nothing -> try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
       Just (op1,n) -> try_to_resolve_error_call `orTry` try_to_resolve_using_bound (head instrs) op1 n trgt `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved

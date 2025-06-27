@@ -275,7 +275,7 @@ data CSemantics = ApplyPlus Int | ApplyMinus Int | ApplyNeg Int | ApplyDec Int |
 
 
 csemantics :: BinaryClass bin => Static bin v -> String -> SymbolicOperation SValue -> SValue
----csemantics fctxt msg _ | trace ("csemantics: "++ msg) False = error "trace"
+--csemantics fctxt msg _ | trace ("csemantics: "++ msg) False = error "trace"
 csemantics fctxt msg (SO_Plus  a b)         = svalue_plus fctxt 64 a b
 csemantics fctxt msg (SO_Minus a b)         = svalue_minus fctxt 64 a b
 csemantics fctxt msg (SO_Times a b)         = svalue_apply fctxt "times" (mk_expr fctxt . SE_Op Times 64) [a,b]
@@ -449,119 +449,24 @@ mnemonic_to_semantics _      _ _  = NoSemantics
 
 
 
-replace_rip_in_operand rip op@(Op_Mem si aSi (Reg64 RIP) RegNone 0 displ Nothing) = Op_Mem si aSi RegNone RegNone 0 (fromIntegral $ fromIntegral rip + displ) Nothing
-replace_rip_in_operand rip op@(Op_Mem si aSi (Reg64 RIP) _ _ displ _) = error $ "TODO: " ++ show op
+replace_rip_in_operand rip op@(Op_Mem si (Reg64 RIP) RegNone 0 displ Nothing info) = Op_Mem si RegNone RegNone 0 (fromIntegral $ fromIntegral rip + displ) Nothing info
+replace_rip_in_operand rip op@(Op_Mem si (Reg64 RIP) _ _ displ _ _) = error $ "TODO: " ++ show op
 replace_rip_in_operand rip op = op
 
 
 
 cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> [FlagStatus] -> [FlagStatus]
-cflg_semantics fctxt _ i@(Instruction label prefix mnemonic dst srcs annot) flgs = flg mnemonic
+cflg_semantics fctxt _ i@(Instruction label prefix mnemonic ops info annot) flgs = flg mnemonic
  where
   mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
 
-  flg CMP      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
-  flg SUB      = [FS_CMP Nothing (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ filter (not . is_FS_CMP) flgs
-  flg MOV      = [FS_EQ (mk_operand $ srcs!!0) (mk_operand $ srcs!!1)] ++ flgs
+  flg CMP      = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg SUB      = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg MOV      = [FS_EQ (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ flgs
 
-
-  flg PUSH     = flgs
-  flg POP      = flgs
-  flg LEA      = flgs
-  flg LEAVE    = flgs
-  flg NOP      = flgs
-  flg UD2      = flgs
-  flg ENDBR64  = flgs
-  flg WAIT     = flgs
-  flg MFENCE   = flgs
-  flg CLFLUSH  = flgs
-  flg MOVSD    = flgs
-  flg MOVSS    = flgs
-  flg MOVAPS   = flgs
-  flg MOVAPD   = flgs
-  flg MOVUPS   = flgs
-  flg MOVUPD   = flgs
-  flg MOVABS   = flgs
-  flg MOVDQU   = flgs
-  flg MOVDQA   = flgs
-  flg MOVLPD   = flgs
-  flg MOVD     = flgs
-  flg VMOVD    = flgs
-  flg VMOVAPD  = flgs
-  flg VMOVAPS  = flgs
-  flg MOVZX    = flgs
-  flg MOVSX    = flgs
-  flg MOVSXD   = flgs
-  flg CMOVO    = flgs
-  flg CMOVNO   = flgs
-  flg CMOVS    = flgs
-  flg CMOVNS   = flgs
-  flg CMOVE    = flgs
-  flg CMOVZ    = flgs
-  flg CMOVNE   = flgs
-  flg CMOVNZ   = flgs
-  flg CMOVB    = flgs
-  flg CMOVNAE  = flgs
-  flg CMOVC    = flgs
-  flg CMOVNB   = flgs
-  flg CMOVAE   = flgs
-  flg CMOVNC   = flgs
-  flg CMOVBE   = flgs
-  flg CMOVNA   = flgs
-  flg CMOVA    = flgs
-  flg CMOVNBE  = flgs
-  flg CMOVL    = flgs
-  flg CMOVNGE  = flgs
-  flg CMOVG    = flgs
-  flg CMOVGE   = flgs
-  flg CMOVNL   = flgs
-  flg CMOVLE   = flgs
-  flg CMOVNG   = flgs
-  flg CMOVNLE  = flgs
-  flg CMOVP    = flgs
-  flg CMOVPE   = flgs
-  flg CMOVNP   = flgs
-  flg CMOVPO   = flgs
-  flg SETO     = flgs
-  flg SETNO    = flgs
-  flg SETS     = flgs
-  flg SETNS    = flgs
-  flg SETE     = flgs
-  flg SETZ     = flgs
-  flg SETNE    = flgs
-  flg SETNZ    = flgs
-  flg SETB     = flgs
-  flg SETNAE   = flgs
-  flg SETC     = flgs
-  flg SETNB    = flgs
-  flg SETAE    = flgs
-  flg SETNC    = flgs
-  flg SETBE    = flgs
-  flg SETNA    = flgs
-  flg SETA     = flgs
-  flg SETNBE   = flgs
-  flg SETL     = flgs
-  flg SETNGE   = flgs
-  flg SETG     = flgs
-  flg SETGE    = flgs
-  flg SETNL    = flgs
-  flg SETLE    = flgs
-  flg SETNG    = flgs
-  flg SETNLE   = flgs
-  flg SETP     = flgs
-  flg SETPE    = flgs
-  flg SETNP    = flgs
-  flg SETPO    = flgs
-  flg CBW      = flgs
-  flg CWDE     = flgs
-  flg CDQE     = flgs
-  flg CWD      = flgs
-  flg CDQ      = flgs
-  flg CQO      = flgs
-  flg XCHG     = flgs
-  flg mnemonic = if isJump mnemonic || isCondJump mnemonic then flgs else [] -- TODO
-
-
+  flg _
+    | WritesToFlags `elem` info = []
+    | otherwise                 = flgs
 
 
 -- MAKING POINTERS FROM EXPRESSIONS
@@ -591,7 +496,7 @@ try_get_base (bin,_,l0,entry) strict a = (mk_base $ get_pointer_base_set bin get
 
 
 
-base_to_expr (StackPointer)        = SE_Var$ SP_Reg (Reg64 RSP)
+base_to_expr (StackPointer)        = SE_Var $ SP_Reg (Reg64 RSP)
 base_to_expr (Malloc id hash)      = SE_Malloc id hash
 base_to_expr (GlobalAddress a)     = SE_Immediate a
 base_to_expr ThreadLocalStorage    = SE_Var (SP_Reg $ RegSeg FS)
@@ -1190,9 +1095,9 @@ call fctxt@(bin,_,l0,entry) i = do
     --else
     --  swrite_reg fctxt "wo4" (Reg64 RAX) input
 
-  incr_rsp = sexec_instr fctxt False (Instruction 0 [] ADD Nothing [Op_Reg $ Reg64 RSP, Op_Imm $ Immediate (BitSize 64) 8] 1)
+  incr_rsp = sexec_instr fctxt False (Instruction 0 [] ADD [Op_Reg (Reg64 RSP) [Read,Write], Op_Imm $ Immediate (BitSize 64) 8] [] 1)
 
-  decr_rsp = sexec_instr fctxt False (Instruction 0 [] SUB Nothing [Op_Reg $ Reg64 RSP, Op_Imm $ Immediate (BitSize 64) 8] 1)
+  decr_rsp = sexec_instr fctxt False (Instruction 0 [] SUB [Op_Reg (Reg64 RSP) [Read,Write], Op_Imm $ Immediate (BitSize 64) 8] [] 1)
 
 
   internal_function :: Sstate SValue SPointer -> State (Sstate SValue SPointer,VCS SValue) ()
