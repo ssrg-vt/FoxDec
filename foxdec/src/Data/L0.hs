@@ -59,7 +59,10 @@ data L0 pred finit v = L0 {
  }
  deriving Generic
 
-l0_insert_new_entry entry finit (L0 fs inds gmem_structure time) = L0 (IM.insert entry (finit,Nothing) fs) inds gmem_structure time
+l0_insert_new_entry entry finit (L0 fs inds gmem_structure time) = L0 (IM.alter alter entry fs) inds gmem_structure time
+ where
+  alter Nothing           = Just (finit,Nothing)
+  alter (Just (_,result)) = Just (finit,result)
 
 l0_adjust_result entry result (L0 fs inds gmem_structure time) = L0 (IM.adjust (\(finit,_) -> (finit,result)) (fromIntegral entry) fs) inds gmem_structure time
 

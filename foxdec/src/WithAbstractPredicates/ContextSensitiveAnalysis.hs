@@ -192,21 +192,16 @@ exploreFunctionEntry :: WithAbstractPredicates bin pred finit v => Graph -> Recu
 exploreFunctionEntry entries recursions entry = do
   (bin,_)        <- ask
   let valid_entry = address_has_instruction bin entry
-  has_been_done  <- entry_has_been_done recursions entry
-  explore has_been_done valid_entry 
+  explore valid_entry 
  where
-  explore _ False = do
+  explore False = do
     -- Entry is not within a text section of the binary, delete it and continue
     liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " ignored."
     modify $ l0_adjust_result entry (Just empty_result) 
 
     let entries' = graph_delete entries $ fromIntegral entry
     exploreFunctionEntries entries' recursions    
-  explore True _  = do
-    -- Entry is already done, delete it and continue
-    let entries' = graph_delete entries $ fromIntegral entry
-    exploreFunctionEntries entries' recursions
-  explore _ _     = do
+  explore True = do
     -- Entry is to be explored
     l0 <- get
     liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " (#entries explored/to be explored: " ++ show (IM.size $ l0_functions l0) ++ "/" ++ show (IS.size $ intgraph_V entries) ++ ")"
@@ -214,6 +209,7 @@ exploreFunctionEntry entries recursions entry = do
     case result of
       FoundNewCalls m -> do
         -- Found calls to unexplored functions, or functions called with a new FInit
+        -- technically we should remove the old result here, in case of mutual recursion but that also leads to unreachable instructions
         let new_calls = IM.toList m
         let entries' = foldr (\(trgt,finit) entries -> graph_add_edges entries (fromIntegral entry) (IS.singleton trgt)) entries new_calls
         mapM_ (\(trgt,finit) -> modify $ l0_insert_new_entry trgt finit) new_calls

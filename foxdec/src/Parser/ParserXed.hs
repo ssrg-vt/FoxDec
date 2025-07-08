@@ -256,9 +256,9 @@ mem_operand = do
   si <- size_directive 
   whitespaces
   op <- ptr_operand
-  return $ withSize si op
- where
-  withSize si (Op_Mem _ reg idx scale displ seg ai) = Op_Mem (BitSize si) reg idx scale displ seg ai
+  return $ mem_operand_with_size op si
+
+mem_operand_with_size (Op_Mem _ reg idx scale displ seg ai) si = Op_Mem (BitSize si) reg idx scale displ seg ai
 
 
 operand_mask_info = do
@@ -334,7 +334,7 @@ instruction = do
   let writesFlags = any writesToFlag ois
 
   let i = Instruction address (catMaybes prefixes) m ops [] si
-  let ops' = mk_operands i 0 ops (take (length ops) ois)
+  let ops' = mk_operands i m 0 ops (take (length ops) ois)
   return $ Instruction address (catMaybes prefixes) m ops' (if writesFlags then [WritesToFlags] else []) si 
  where
   isRead  (Explicit,   ais) = any ((==) Read) ais
@@ -348,15 +348,22 @@ instruction = do
   writesToFlag _ = False
 
 
-  mk_operands i numWrites [] [] = []
-  mk_operands i numWrites (op0:ops') (i0:is')
-    | isWrite i0 && numWrites < 2 = add_info op0 i0 : mk_operands i (numWrites+1) ops' is'
-    | isRead i0 && all (not . isWrite) is' && all isRead is' = add_info op0 i0 : mk_operands i numWrites ops' is'
+  mk_operands i m numWrites [] [] = []
+  mk_operands i m numWrites (op0:ops') (i0:is')
+    | is_zero_mem_operand op0 && m `elem` fpu_instructions = mk_operands i m numWrites (mem_operand_with_size op0 10:ops') (i0:is')
+    | is_zero_mem_operand op0 && m /= LEA = error $ show i
+    | isWrite i0 && numWrites < 2 = add_info op0 i0 : mk_operands i m (numWrites+1) ops' is'
+    | isRead i0 && all (not . isWrite) is' && all isRead is' = add_info op0 i0 : mk_operands i m numWrites ops' is'
     | otherwise = error $ "Instruction has unknown operand types: " ++ show i
 
   add_info (Op_Reg r []) (_,i) = Op_Reg r i
   add_info (Op_Mem si reg idx scale displ seg []) (_,i) = Op_Mem si reg idx scale displ seg i
   add_info (Op_Imm i) _ = Op_Imm i
+
+  is_zero_mem_operand (Op_Mem (BitSize 0) reg idx scale displ seg []) = True
+  is_zero_mem_operand _ = False
+
+  fpu_instructions = [FSTP,FLD]
 
 
 disasm = do

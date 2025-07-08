@@ -43,7 +43,7 @@ read_binary dirname name = do
           Right is -> {--trace (show_is is) $--} return $ Just $ Binary $ NamedElf elf dirname name (elf_get_sections_info elf) (elf_get_symbol_table elf) (elf_get_relocs elf) is
           Left err -> die $ "Error reading " ++ filename ++ ".xed\n" ++ show err
       else
-        die $ filename ++ ".xed" ++ " does not exist." -- TODO error msg
+        die $ filename ++ ".xed" ++ " does not exist. Please run the ./run_xed.sh script first."
 
     else
       return Nothing

@@ -207,15 +207,6 @@ external_objects l@(bin,_,l0) = map (strip_GLIBC . symbol_to_name) $ filter is_r
 
 
 
-
-is_address_of_symbol (AddressOfObject str ex) = str /= ""
-is_address_of_symbol (AddressOfLabel str ex)  = str /= ""
-is_address_of_symbol _                        = False
-
-is_address_of_internal_symbol (AddressOfObject str ex) = str /= "" && not ex
-is_address_of_internal_symbol (AddressOfLabel str ex)  = str /= "" && not ex
-is_address_of_internal_symbol _                        = False
-
 -- | Creating labels
 -- Given the entry address of the current function, the blockID of the current basic block,
 -- map an address to a label.

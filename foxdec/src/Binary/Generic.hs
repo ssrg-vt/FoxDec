@@ -185,54 +185,6 @@ find_section_ending_at bin a = find (address_ends_at_section a) (si_sections $ b
 
 
 
-{--
-
--- TODO
--- | Fetching an instruction
--- Returns @Nothing@ if the given address is out-of-range.
-fetch_instruction ::
-  BinaryClass bin => 
-     bin
-  -> Word64  -- ^ An address
-  -> Maybe Instruction
-fetch_instruction bin a =
-  case binary_read_bytestring bin a 20 of
-     Nothing -> Nothing
-     Just bytes -> disassemble0 a bytes {--
-  --case IM.lookup (fromIntegral a) instructions of
-  --  Just i -> return $ Just i -- memoized
-  --  Nothing -> case binary_read_bytestring bin a 20 of -- maximum instruction length == 15
- --                Nothing -> Nothing
-   --              Just bytes -> (disassemble0 a bytes) -- >>= memoize_instr 
- where
-  memoize_instr Nothing = return Nothing
-  memoize_instr (Just instr) = do
-    modifyIORef' ioref (IM.insert (fromIntegral a) instr)
-    return $ Just instr--}
-
-
-
-
-
--- | Returns true iff an instruction can be fetched from the address.
-address_has_instruction ::
-  BinaryClass bin => 
-     bin
-  -> Word64  -- ^ An address
-  -> Bool
-address_has_instruction bin a = do
-  case find_section_for_address bin a of
-    Nothing                      -> False
-    Just (segment,section,_,_,_) -> 
-      if (segment,section) `elem` sections_with_instructions then do
-        case fetch_instruction bin a of
-          Nothing -> False
-          _       -> True
-      else
-        False
-
-
---}
 
 address_has_instruction ::
   BinaryClass bin => 

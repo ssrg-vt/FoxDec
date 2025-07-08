@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, Strict #-}
+{-# LANGUAGE PartialTypeSignatures, StrictData #-}
 
 {-|
 Module      : FunctionNames
@@ -167,13 +167,28 @@ function_name_of_entry ::
      bin
   -> Word64 -- ^ The entry address
   -> String
-function_name_of_entry bin a =
-  case try_plt_target_for_entry bin a of
-    Nothing                    -> "0x" ++ showHex a
-    Just (External sym)        -> sym
-    Just (ExternalDeref  sym)  -> "*" ++ sym
-    Just (ImmediateAddress a') -> "0x" ++ showHex a'
+function_name_of_entry bin a = try_symbol a `orElse` try_plt a
+ where
+  -- Try if the address matches a known symbol
+  try_symbol a = do
+    sym  <- (IM.lookup (fromIntegral a) $ IM.filter is_address_of_symbol $ binary_get_symbol_table bin)
+    return $ symbol_to_name sym
 
+  try_plt a =
+    case try_plt_target_for_entry bin a of
+      Nothing                    -> "0x" ++ showHex a
+      Just (External sym)        -> sym
+      Just (ExternalDeref  sym)  -> "*" ++ sym
+      Just (ImmediateAddress a') -> "0x" ++ showHex a'
+
+
+is_address_of_symbol (AddressOfObject str ex) = str /= ""
+is_address_of_symbol (AddressOfLabel str ex)  = str /= ""
+is_address_of_symbol _                        = False
+
+is_address_of_internal_symbol (AddressOfObject str ex) = str /= "" && not ex
+is_address_of_internal_symbol (AddressOfLabel str ex)  = str /= "" && not ex
+is_address_of_internal_symbol _                        = False
 
 
 

@@ -29,6 +29,8 @@ import WithAbstractSymbolicValues.GMem
 import WithAbstractPredicates.ContextSensitiveAnalysis
 import WithAbstractSymbolicValues.InstanceOfAbstractPredicates
 import WithNoAbstraction.SymbolicExecution
+import WithNoAbstraction.SymbolicExecutionPath
+import WithNoAbstraction.Lifted
 import WithAbstractSymbolicValues.SymbolicExecution
 
 import Binary.Generic
@@ -187,9 +189,9 @@ start args = do
   when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
   when (args_generate_functions args) $ generate_per_function bin config l0
 
+  --symbolically_execute_paths bin config l0
 
 
-type Lifted = Lifting Binary (Sstate SValue SPointer) (FInit SValue SPointer) SValue
 
 
 
@@ -377,14 +379,11 @@ generate_NASM l@(bin,config,l0) = do
   writeFile fname1 ts
   writeFile fname2 ds
   putStrLn $ "Generated NASM, exported to directory: " ++ dirname
-
-
-generate_reconstruction :: Context -> IO ()
-generate_reconstruction ctxt = do
-  let name     = binary_file_name ctxt
-
-  reconstruct ctxt 
 --}
+
+
+symbolically_execute_paths bin config l0 = do
+  symb_exec_all_entries bin config l0
 
 
 

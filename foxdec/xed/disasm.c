@@ -223,9 +223,9 @@ int main(int argc, char** argv) {
                         fprintf(stderr, "elf_getdata failed for %s: %s\n", argv[n],elf_errmsg(-1));
                     }
 
-                    uint64_t base_vaddr = (ehdr.e_type == ET_EXEC) ? shdr.sh_addr : 0;
+                    uint64_t base_vaddr = (ehdr.e_type == ET_EXEC) ? shdr.sh_addr : shdr.sh_addr ;
 
-                    disassemble_buffer((unsigned char*)data->d_buf, data->d_size, &dstate, shdr.sh_offset + base_vaddr);
+                    disassemble_buffer((unsigned char*)data->d_buf, data->d_size, &dstate, base_vaddr);
                 }
             }
         }

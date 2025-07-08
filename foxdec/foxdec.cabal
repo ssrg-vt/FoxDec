@@ -56,7 +56,6 @@ library
       OutputGeneration.NASM.ModDataSection
       OutputGeneration.NASM.NASM
       OutputGeneration.NASM.NASMToC
-      OutputGeneration.Reconstruction
       Parser.ParserCalls
       Parser.ParserDump
       Parser.ParserIndirections
@@ -76,8 +75,10 @@ library
       WithAbstractSymbolicValues.ResolveIndirections
       WithAbstractSymbolicValues.Sstate
       WithAbstractSymbolicValues.SymbolicExecution
+      WithNoAbstraction.Lifted
       WithNoAbstraction.Pointers
       WithNoAbstraction.SymbolicExecution
+      WithNoAbstraction.SymbolicExecutionPath
   other-modules:
       Paths_foxdec
   hs-source-dirs:
