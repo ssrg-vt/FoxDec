@@ -21,7 +21,8 @@ data ResolvedJumpTarget =
  | External String          -- ^ A call to external function f
  | ExternalDeref String     -- ^ A call to external function whose entry address is stored at the label: *[l,8] = fptr
  | ImmediateAddress Word64  -- ^ An internal call to the given address
- | Returns Bool             -- ^ The function returns (treat as a nop) or terminates
+ | Returns Bool             -- ^ The function returns or terminates
+ | Syscall Int              -- ^ A syscall
  deriving (Eq,Generic,Ord)
 
 
@@ -33,6 +34,7 @@ instance Show ResolvedJumpTarget
   show (ImmediateAddress imm) = "0x" ++ showHex imm
   show (Returns True)         = "returns"
   show (Returns False)        = "terminates"
+  show (Syscall i)            = "syscall(" ++ show i ++ ")"
 
 instance Cereal.Serialize ResolvedJumpTarget
 

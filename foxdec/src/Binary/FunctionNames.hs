@@ -94,6 +94,7 @@ jump_target_for_instruction ::
      bin
   -> Instruction -- ^ The instruction
   -> ResolvedJumpTarget
+jump_target_for_instruction bin i@(Instruction _ _ SYSCALL _ _ _) = Unresolved
 jump_target_for_instruction bin i@(Instruction _ _ _ ops _ _) =
   case operand_static_resolve bin i (head ops) of
     External sym       -> External sym
@@ -202,6 +203,7 @@ function_name_of_instruction ::
   -> Instruction -- ^ The instruction
   -> String
 function_name_of_instruction bin i@(Instruction _ _ _ ops _ _)
+  | isSyscall (inOperation i) = "syscall@" ++ showHex (inAddress i)
   |  isCall (inOperation i) || isJump (inOperation i) =
     case jump_target_for_instruction bin i of
       External sym       -> sym

@@ -58,14 +58,16 @@ sread_reg ctxt   (Reg16 r)       = (ssemantics ctxt "read_reg 16" . SO_Bit 16) <
 sread_reg ctxt   (Reg32 r)       = (ssemantics ctxt "read_reg 32" . SO_Bit 32) <$> (gets $ sread_rreg ctxt $ Reg64 r)
 sread_reg ctxt r@(Reg64 _)       = gets $ sread_rreg ctxt r
 sread_reg ctxt r@(Reg128 _)      = gets $ sread_rreg ctxt r
+sread_reg ctxt r@(Reg256 _)      = return $ top ctxt "YMM"
+sread_reg ctxt r@(Reg512 _)      = return $ top ctxt "ZMM"
 sread_reg ctxt r@(RegSeg _)      = gets $ sread_rreg ctxt r
 sread_reg ctxt r@(RegTemp)       = gets $ sread_rreg ctxt r
 sread_reg ctxt r@(RegFPU _)      = return $ top ctxt "read_reg ST(_)"
-sread_reg ctxt r                 = error $ "READING REG " ++ show r
+sread_reg ctxt r                 = return $ top ctxt $ "READING REG " ++ show r
 
 
 
-
+-- TODO YMM and ZMM registers
 
 
 -- | Write to a register
@@ -92,10 +94,12 @@ soverwrite_reg ctxt i use_existing_value r@(Reg16 _)      v = do
 soverwrite_reg ctxt i use_existing_value r@(Reg32 _)      v = swrite_rreg ctxt i (real_reg r) (ssemantics ctxt "overreg 32" $ SO_Bit 32 v)
 soverwrite_reg ctxt i use_existing_value r@(Reg64 _)      v = swrite_rreg ctxt i r v
 soverwrite_reg ctxt i use_existing_value r@(Reg128 _)     v = swrite_rreg ctxt i r v
+soverwrite_reg ctxt i use_existing_value r@(Reg256 _)     v = return () -- swrite_rreg ctxt i r v
+soverwrite_reg ctxt i use_existing_value r@(Reg512 _)     v = return () -- swrite_rreg ctxt i r v
 soverwrite_reg ctxt i use_existing_value r@(RegSeg _)     v = swrite_rreg ctxt i r v
 soverwrite_reg ctxt i use_existing_value r@(RegTemp)      v = swrite_rreg ctxt i r v
 soverwrite_reg ctxt i use_existing_value r@(RegFPU _)     v = return ()
-soverwrite_reg ctxt i use_existing_value r                v = error $ show r
+soverwrite_reg ctxt i use_existing_value r                v = return () -- error $ show r
 
 
 swrite_reg :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> String -> Register -> v -> State (Sstate v p,VCS v) ()

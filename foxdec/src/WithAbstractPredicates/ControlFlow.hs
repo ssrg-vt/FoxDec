@@ -73,12 +73,22 @@ next_rips l@(bin,_,_) (Just i) = next_rip_based_on_opcode i $ inOperation i
           UnresolvedTarget
         else
           JustRips $ (concatMap mk_jmp_trgt trgts) ++ [inAddress i + fromIntegral (inSize i)]
+    | isSyscall op = resolve_syscall l i
     | isCall op = resolve_call l i
     | isRet op  = JustRips $ []
     | otherwise = JustRips $ [inAddress i + fromIntegral (inSize i)]
 
   mk_jmp_trgt (ImmediateAddress a) = [a]
   mk_jmp_trgt (Unresolved) = []
+
+resolve_syscall l@(bin,_,l0) i =
+  case S.toList <$> l0_lookup_indirection (inAddress i) l0 of
+    Just [Indirection_Resolved (Syscall int)] -> 
+      if is_terminal_syscall int then
+        Terminal
+      else
+        JustRips $ [inAddress i + fromIntegral (inSize i)]
+    _ -> UnresolvedTarget
 
 
 resolve_call :: (BinaryClass bin, Eq pred) => Lifting bin pred finit v -> Instruction -> NextRips

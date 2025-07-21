@@ -280,7 +280,7 @@ operand imm_bitwidth = parse_operand <?> "operand"
 
 
 data OperandInfo = Explicit | Implicit | Suppressed | SuppressedFlags
-
+  deriving Show
 
 
 access_info = try cwrite <|> try cread <|> read <|> write
@@ -350,11 +350,13 @@ instruction = do
 
   mk_operands i m numWrites [] [] = []
   mk_operands i m numWrites (op0:ops') (i0:is')
-    | is_zero_mem_operand op0 && m `elem` fpu_instructions = mk_operands i m numWrites (mem_operand_with_size op0 10:ops') (i0:is')
-    | is_zero_mem_operand op0 && m /= LEA = error $ show i
+    | is_zero_mem_operand op0 && m `elem` [FSTP,FLD]              = mk_operands i m numWrites (mem_operand_with_size op0 80:ops') (i0:is')
+    | is_zero_mem_operand op0 && m `elem` [FSTENV,FNSTENV,FLDENV] = mk_operands i m numWrites (mem_operand_with_size op0 28:ops') (i0:is')
+    | is_zero_mem_operand op0 && m `elem` prefetches              = mk_operands i m numWrites (mem_operand_with_size op0 8:ops') (i0:is')
+    | is_zero_mem_operand op0 && m /= LEA                         = error $ show i
     | isWrite i0 && numWrites < 2 = add_info op0 i0 : mk_operands i m (numWrites+1) ops' is'
     | isRead i0 && all (not . isWrite) is' && all isRead is' = add_info op0 i0 : mk_operands i m numWrites ops' is'
-    | otherwise = error $ "Instruction has unknown operand types: " ++ show i
+    | otherwise = error $ "Instruction has unknown operand types: " ++ show i ++ "\n" ++ show (zip (op0:ops') (i0:is'))
 
   add_info (Op_Reg r []) (_,i) = Op_Reg r i
   add_info (Op_Mem si reg idx scale displ seg []) (_,i) = Op_Mem si reg idx scale displ seg i
@@ -363,8 +365,7 @@ instruction = do
   is_zero_mem_operand (Op_Mem (BitSize 0) reg idx scale displ seg []) = True
   is_zero_mem_operand _ = False
 
-  fpu_instructions = [FSTP,FLD]
-
+  prefetches = [PREFETCHT0,PREFETCHT1,PREFETCHT2,PREFETCHNTA]
 
 disasm = do
   instructions <- many instruction

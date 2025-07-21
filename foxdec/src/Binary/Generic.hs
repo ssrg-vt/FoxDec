@@ -51,12 +51,12 @@ instance Cereal.Serialize SectionsInfo
 
 data SymbolTable = SymbolTable {
   symboltable_symbols :: !(IM.IntMap Symbol),
-  symboltable_exterbals :: !(S.Set String)
+  symboltable_globals :: !(IM.IntMap String)
   }
   deriving (Generic,Eq)
 
 instance Show SymbolTable where
-  show (SymbolTable tbl globals) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_global $ S.toList globals)
+  show (SymbolTable tbl globals) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_global $ IM.toList globals)
    where
     show_entry (a0,PointerToLabel f b)           = showHex a0 ++ " --> " ++ f ++ show_in_ex b "label"
     show_entry (a0,PointerToObject l b)          = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
@@ -64,7 +64,7 @@ instance Show SymbolTable where
     show_entry (a0,AddressOfLabel f b)           = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
     show_entry (a0,Relocated_ResolvedObject l a) = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
 
-    show_global f = f ++ " (global)"
+    show_global (a,f) = showHex a ++ ": " ++ f ++ " (global)"
 
     show_in_ex True  ty = " (external " ++ ty ++ ")" 
     show_in_ex False ty = " (internal " ++ ty ++ ")" 

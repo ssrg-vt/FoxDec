@@ -40,6 +40,7 @@ At 0x151b, address RBP-24 resolves to RSP_0-32 and the memory operand resolved t
 
 import Base hiding (show_set)
 import Config
+import Conventions
 
 
 import WithAbstractPredicates.ControlFlow
@@ -93,12 +94,24 @@ import Debug.Trace
 
 -- For each entry: produce a set of paths and symbolically execute
 symb_exec_all_entries bin config l0 = do
-  let entries = IM.keys $ l0_functions l0 
-  mapM_ (symb_exec_entry (bin,config,l0)) entries
+  let l       = (bin,config,l0)
+  let entries = S.fromList $ IM.keys $ l0_functions l0 
+  let funcs   = exported_functions l
+  mapM_ (symb_exec_entry l) $ [0xa81d0] -- S.intersection entries funcs
   -- mems <- mapM (symb_exec_entry (bin,config,l0)) entries
   --putStrLn $ "Overall joined result:"
   --putStrLn $ show_smemory_html (bin,config,l0,0) $ join_mems mems
 
+
+
+exported_functions l@(bin,config,l0) = S.difference (S.fromList $ IM.keys $ binary_get_global_symbols bin) $ externals bin l0
+ where
+  externals bin l0 = S.fromList $ IM.keys $ IM.filter is_relocation $ binary_get_symbol_table bin
+  is_relocation (PointerToLabel str ex)  = ex && str /= ""
+  is_relocation (PointerToObject str ex) = ex && str /= ""
+  is_relocation (AddressOfObject str ex) = ex && str /= ""
+  is_relocation (AddressOfLabel str ex) = ex && str /= ""
+  is_relocation _ = False
 
 
 
@@ -110,7 +123,7 @@ symb_exec_entry (bin,config,l0) entry = do
 
   let inputs = S.unions $ map (\(_,_,_,ins) -> ins) results
   putStrLn $ "0x" ++ showHex entry ++ ": " ++ (function_name_of_entry bin $ fromIntegral entry)
-  putStrLn $ show $ S.toList $ S.filter isReg $ inputs
+  putStrLn $ show $ S.toList $ S.unions $ S.map toInputRegs $ inputs
 
   --let mems = map (\(_,_,SymState mem _) -> mem) results
   --let mem' = join_mems mems
@@ -120,8 +133,10 @@ symb_exec_entry (bin,config,l0) entry = do
   return ()
 
  where
-  isReg (SP_Reg _) = True
-  isReg _ = False
+  toInputRegs (SP_Reg r)
+    | real_reg r `notElem` [Reg64 RSP,RegSeg FS] = S.singleton r
+    | otherwise = S.empty
+  toInputRegs (SP_Mem a si) = S.unions $ map (toInputRegs . SP_Reg) $ regs_of_expr a
 
 -- For the given entry: produce a set of paths
 -- We compute the spanning tree thorugh a depth-first-search.
@@ -131,8 +146,8 @@ produce_set_of_paths ctxt@(bin,config,l0,entry) = do
   let Just (_,Just result) = IM.lookup (fromIntegral entry) (l0_functions l0)
   let cfg = result_cfg result
   let tree = evalState (dfs_spanning_tree cfg 0) IS.empty
-  --putStrLn $ "Entry: 0x" ++ showHex entry
-  --TV.drawTree $ fmap show tree
+  putStrLn $ "Entry: 0x" ++ showHex entry
+  TV.drawTree $ fmap show tree
   let paths  = spanning_tree_to_cycles tree
   let paths' = map (finish_path cfg) paths
   return paths'
@@ -160,8 +175,8 @@ symbolically_execute_path ctxt@(bin,config,l0,entry) path = do
 
   --let inv'       = widen_repeated_accesses l0 asemantics ras inv
 
-  --putStrLn $ show_result path asemantics ras inv inputs
-  --putStrLn $ "\n\n"
+  putStrLn $ show_result path asemantics ras inv inputs
+  putStrLn $ "\n\n"
   return (asemantics,ras,inv,inputs)
  where
   show_result path sems ras inv inputs = intercalate "\n"
@@ -867,8 +882,8 @@ get_pointer_domain l0@(bin,_,_,_) a' =
       let srcs = get_pointer_sources a' in
         if not $ S.null srcs then
           Sources srcs
-        else if is_immediate a' then -- TODO remove this
-          Bases $ S.singleton $ GlobalAddress $ from_immediate a'
+        --else if is_immediate a' then -- TODO remove this
+        --  Bases $ S.singleton $ GlobalAddress $ from_immediate a'
         else
           NoDomain
  where
@@ -1257,6 +1272,7 @@ regs_of_expr (SE_Bit n e)                   = regs_of_expr e
 regs_of_expr (SE_SExtend l h e)             = regs_of_expr e
 regs_of_expr (SE_Overwrite n e0 e1)         = concat [regs_of_expr e0,regs_of_expr e1]
 regs_of_expr (Bottom _)                     = []
+regs_of_expr (SE_Malloc _ _)                = []
 
 
 

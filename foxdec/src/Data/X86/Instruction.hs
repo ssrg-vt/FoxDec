@@ -106,7 +106,7 @@ instance Show Operand where
     show_size_directive 16 = "WORD PTR "
     show_size_directive 8 = "BYTE PTR "
     show_size_directive 0 = ""
-    show_size_directive n = error $ show n
+    show_size_directive n = "[" ++ show n ++ "] PTR"
 
 
 instance Show Instruction where
@@ -181,8 +181,8 @@ canonicalize (Instruction label prefix XADD [dst,src] info annot) =
 -- CMPXCHG
 canonicalize (Instruction label prefix CMPXCHG [dst,src] info annot) =
   [
-    Instruction label prefix CMPXCHG [Op_Reg (Reg64 RAX) [Write], dst,src] info annot,
-    Instruction label prefix CMPXCHG [dst,dst,src] info annot
+    Instruction label prefix CMPXCHG [Op_Reg (Reg64 RAX) [Write], withoutWrite dst,withoutWrite src] info annot,
+    Instruction label prefix CMPXCHG [dst,withoutWrite dst,withoutWrite src] info annot
   ]
 -- XGETBV
 canonicalize (Instruction label prefix XGETBV [] info annot) =

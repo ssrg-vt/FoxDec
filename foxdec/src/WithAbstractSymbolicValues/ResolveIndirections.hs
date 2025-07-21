@@ -39,8 +39,8 @@ stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S
 stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   let [trgt] = inSrcs $ last instrs in
     case flagstatus_to_tries 10000 flgs of -- TODO
-      Nothing -> try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
-      Just (op1,n) -> try_to_resolve_error_call `orTry` try_to_resolve_using_bound (head instrs) op1 n trgt `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
+      Nothing -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
+      Just (op1,n) -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_using_bound (head instrs) op1 n trgt `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
 
  where
   try_to_resolve_using_bound i op1 n trgt =
@@ -88,6 +88,20 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
       [FS_CMP (Just True) op1 (Op_Imm (Immediate _ n))] -> if n <= fromIntegral max_tries then Just (op1,n) else Nothing
       [FS_CMP _ _ _] -> Nothing
       _ -> error $ show flgs
+
+
+  try_to_resolve_syscall :: Instruction -> Maybe Indirections
+  try_to_resolve_syscall i
+    | isSyscall (inOperation i) =  S.singleton <$> evalSstate evaluate_syscall_after_block p
+    | otherwise = Nothing
+
+  evaluate_syscall_after_block  = do
+    sexec_block ctxt False (init instrs) Nothing
+    sset_rip ctxt (last instrs)
+    rax <- sread_reg ctxt (Reg64 RAX)
+    case stry_immediate ctxt rax of
+      Just i -> return $ Just $ Indirection_Resolved $ Syscall $ fromIntegral i
+      Nothing -> return $ Just $ Indirection_Unresolved --  error $ show (last instrs, rax)
 
   
   try_to_resolve_error_call = S.singleton <$> evalSstate evaluate_error_call_after_block p

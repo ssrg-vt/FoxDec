@@ -80,7 +80,7 @@ lift_L0_to_NASM :: BinaryClass bin => LiftedC bin -> NASM
 lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_jump_tables ++ [mk_temp_storage] 
  where
   mk_externals        = externals l
-  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ binary_get_global_symbols bin) mk_externals
+  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ S.fromList $ IM.elems $ binary_get_global_symbols bin) mk_externals
 
   mk_text_sections    = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
   mk_ro_data_section  = NASM_Section_Data $ ro_data_section l
@@ -121,7 +121,7 @@ undefined_internal_global_labels l@(bin,_,l0) =
  where
   is_global_and_internal_and_outside_of_any_section (a,sym) = and
     [ is_internal_symbol sym
-    , symbol_to_name sym `S.member` binary_get_global_symbols bin
+    , symbol_to_name sym `elem` IM.elems (binary_get_global_symbols bin)
     , is_not_defined_elsewhere a ]
 
   mk_datasection (a,sym) = NASM_Section_Data [ NASM_DataSection ("",".bss",fromIntegral a) 8 $ mk_entries (fromIntegral a) sym ]
@@ -189,7 +189,7 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
 
 
 -- | get the external functions and objects 
-externals l@(bin,_,l0) = S.insert "exit" $ S.fromList $ map (strip_GLIBC . symbol_to_name) $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
+externals l@(bin,_,l0) = S.fromList $ map (strip_GLIBC . symbol_to_name) $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
   is_relocation (PointerToLabel str ex)  = ex && str /= ""
   is_relocation (PointerToObject str ex) = ex && str /= ""
@@ -451,6 +451,9 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
 
 
   -- A resolved jump to a single known target
+  resolved_jump trgts i@(Instruction addr pre SYSCALL _ _ annot) = 
+    [ NASM_Comment 2 $ "Syscall to : " ++ show trgts
+    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (Just SYSCALL) [] [] "" []]
   resolved_jump [External f] i@(Instruction addr pre op ops info annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
     , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] [[Read]] "" []]
@@ -472,7 +475,10 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
     | otherwise    = (filter (not . isJump . inOperation) $ init instrs) ++ [last instrs]
   is_proper_block_end_instruction i = isRet i || isJump i || isHalt i
 
-  Just block_instrs = IM.lookup blockID $ cfg_instrs cfg
+  block_instrs = 
+    case IM.lookup blockID $ cfg_instrs cfg of
+      Just is  -> is
+      Nothing  -> error $ "Entry: " ++ showHex entry ++ ", blockID: " ++ show blockID
 
   empty_instr :: Instruction
   empty_instr = Instruction 0 [] NOP [] [] 0

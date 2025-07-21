@@ -184,7 +184,7 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
  where
   mk_symbols = IM.fromList $ filter ((/=) "" . symbol_to_name . snd) $ symbols_from_ELF_symbol_tables ++ symbols_from_relocations
 
-  mk_globals = S.fromList $ filter ((/=) "") $ map (get_string_from_steName . steName) $ filter isGlobalAndInternallyDefined $ concat $ parseSymbolTables elf
+  mk_globals = IM.fromList $ filter ((/=) "" . snd) $ map (\sym_entry -> (fromIntegral $ steValue sym_entry, get_string_from_steName $ steName sym_entry)) $ filter isGlobalAndInternallyDefined $ concat $ parseSymbolTables elf
 
   isGlobalAndInternallyDefined sym_entry = steIndex sym_entry /= SHNUndef && steBind sym_entry == STBGlobal
 

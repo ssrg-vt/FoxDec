@@ -691,7 +691,7 @@ isCondJump m = m
 
 -- | Returns true iff m is the mnemonic of a halting instruction
 isHalt :: Opcode -> Bool
-isHalt m = m `elem` [HLT, UD0, UD2]
+isHalt m = m `elem` [HLT, UD0, UD2, INT3]
 
 -- | Returns true iff m is the mnemonic of a jump
 isJump :: Opcode -> Bool
@@ -705,7 +705,9 @@ isCall m = m `elem` [CALL, CALLF]
 isRet :: Opcode -> Bool
 isRet m = m `elem` [RET, RETF, RET, RETN, IRET, IRETD, IRETQ]
 
-
+-- | Returns true iff m is the mnemonic of a call
+isSyscall :: Opcode -> Bool
+isSyscall m = m `elem` [SYSCALL]
 
 read_opcode "AAA" = AAA
 read_opcode "AAD" = AAD

@@ -112,7 +112,6 @@ lift_to_L0 config bin finit = do
   read_line = readHex' . tail . tail
 
 
-
 exploreFunctionEntries :: WithAbstractPredicates bin pred finit v => Graph -> Recursions -> WithLifting bin pred finit v ()
 exploreFunctionEntries entries recursions = do
   -- Check if a (mutually) recursive function must be reconsidered as all its calls are done.
@@ -129,7 +128,7 @@ exploreFunctionEntries entries recursions = do
     Nothing -> do
       -- If not, find next entry to consider
       case next_entry of
-        Nothing -> exploreDanglingFunctionPointers
+        Nothing -> exploreDanglingFunctionPointers 
         Just a  -> exploreFunctionEntry entries recursions $ fromIntegral a
  where
   next_entry = try_end_node_from_node_to_be_reconsidered `orTry` graph_find_next entries
@@ -240,6 +239,12 @@ entry_has_been_done recursions entry = do
     _               -> return $ False
 
 
+error_if_open_mutual_recursions :: Graph -> Recursions -> WithLifting bin pred finit v ()
+error_if_open_mutual_recursions entries recursions
+  | IM.null recursions = return ()
+  | otherwise = error $ (intercalate "\n" $ map show_entry $ IM.assocs recursions) ++ "Entries:\n" ++ show entries
+ where
+  show_entry (entry,trgts) = "0x" ++ showHex entry ++ ": " ++ showHex_set trgts
 
 reconsider_mutual_recursive_call :: Recursions -> WithLifting bin pred finit v (Maybe (Int,IS.IntSet))
 reconsider_mutual_recursive_call recursions = findM to_be_reconsidered $ IM.toList recursions
@@ -263,8 +268,9 @@ mark_mutual_recursive_calls entry result recursions = do
   is_recursive entry = do
     result <- gets $ l0_lookup_entry entry
     case result of
+      Nothing          -> return $ True
       Just (_,Nothing) -> return $ True
-      _                -> return $ fromIntegral entry `IM.member` recursions -- False
+      _                -> return $ False --  fromIntegral entry `IM.member` recursions -- False
 
 
 
@@ -359,7 +365,7 @@ analyze_entry entry = do
 
   is_to_be_resolved_block :: WithAbstractPredicates bin pred finit v => (Int,[Instruction]) -> WithLifting bin pred finit v Bool
   is_to_be_resolved_block (blockID,instrs)
-    | isJump (inOperation $ last instrs) || isCall (inOperation $ last instrs) = is_to_be_resolved_indirection (last instrs)
+    | isJump (inOperation $ last instrs) || isCall (inOperation $ last instrs) || isSyscall (inOperation $ last instrs) = is_to_be_resolved_indirection (last instrs)
     | otherwise = return False
 
   is_to_be_resolved_indirection :: WithAbstractPredicates bin pred finit v => Instruction -> WithLifting bin pred finit v Bool

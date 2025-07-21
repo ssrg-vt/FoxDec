@@ -1182,7 +1182,7 @@ ctry_jump_targets l@(bin,_,_,_) v@(SConcrete es) =
       Just $ ImmediateAddress a
     else case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
       Just (AddressOfLabel f True)  -> Just $ External f
-      Just s                        -> error $ show (a, s) -- Just $ External f
+      Just s                        -> Nothing-- error $ show (a, s) -- Just $ External f
       _                             -> Nothing
 
   try_symbol a =

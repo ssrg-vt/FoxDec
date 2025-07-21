@@ -228,15 +228,29 @@ with_size si (NASM_Operand_Memory _ a) = NASM_Operand_Memory (si,True) a
 with_size si op = op
 
 instance Show NASM_Instruction where
-  show (NASM_Instruction pre (Just FSTP)  [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FSTP)  [with_size 10 op0] info comment annot)
-  show (NASM_Instruction pre (Just FISTP) [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FISTP) [with_size 2 op0]  info comment annot)
-  show (NASM_Instruction pre (Just FLD)   [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FLD)   [with_size 10 op1] info comment annot)
-  show (NASM_Instruction pre (Just FILD)  [op0,op1] info comment annot) = show (NASM_Instruction pre (Just FILD)  [with_size 2 op1]  info comment annot)
+  -- TODO: do this more structurally
+  show i@(NASM_Instruction pre (Just FSTP)  [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FSTP)  [with_size 10 op0] info comment annot)
+  show i@(NASM_Instruction pre (Just FISTP) [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FISTP) [with_size 2 op0]  info comment annot)
+  show i@(NASM_Instruction pre (Just FLD)   [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FLD)   [with_size 10 op1] info comment annot)
+  show i@(NASM_Instruction pre (Just FILD)  [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FILD)  [with_size 2 op1]  info comment annot)
+  show i@(NASM_Instruction pre (Just FMUL)  [op0,op1] info comment annot) 
+    | isMem op1 = show' (NASM_Instruction pre (Just FMUL) [op1] info comment annot)
+    | otherwise = show' i
+  show i@(NASM_Instruction pre (Just FDIV)  [op0,op1] info comment annot) 
+    | isMem op1 = show' (NASM_Instruction pre (Just FDIV) [op1] info comment annot)
+    | otherwise = show' i
+  show i = show' i
 
-  show (NASM_Instruction pre m ops info comment annot) = concat
-    [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
-    , mk_comment
-    ]
+isImmediate (NASM_Operand_Immediate _) = True
+isImmediate _                          = False
+
+isMem (NASM_Operand_Memory _ _) = True
+isMem _                         = False
+
+show' (NASM_Instruction pre m ops info comment annot) = concat
+  [ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show_ops ops]
+  , mk_comment
+  ]
    where
     show_prefix Nothing  = ""
     show_prefix (Just PrefixRep) = "REPZ"
@@ -262,8 +276,7 @@ instance Show NASM_Instruction where
         (_,(op:_))  -> operand_size op
         ([imm],[])  -> operand_size imm
 
-    isImmediate (NASM_Operand_Immediate _) = True
-    isImmediate _                          = False
+
 
     show_op (NASM_Operand_Reg r)              = show r
     show_op (NASM_Operand_Address a)          = show a

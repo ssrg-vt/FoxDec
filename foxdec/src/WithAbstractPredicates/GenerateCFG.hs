@@ -61,8 +61,9 @@ mk_graph l@(bin,_,_) entry bag g =
             _           -> mk_graph l entry bag g'
  where
   is_call a =
-    let i = fetch_instruction bin a in
-      isCall $ inOperation $ fromJust i
+    let i = fetch_instruction bin a 
+        op = inOperation $ fromJust i in
+      isCall op || isSyscall op
 
 
 

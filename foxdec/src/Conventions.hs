@@ -34,6 +34,16 @@ is_exiting_function_call f =
 strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"
 
 
+-- TODO syscalls differ per OS
+is_terminal_syscall i = i `elem`
+  [ --   1 -- exit (FREEBSD)
+    -- , 431 -- thr_exit (FREEBSD)
+    15 -- rt_sigreturn
+  , 60 -- exit
+  , 231 -- exit_group
+  ]
+
+
 
 -- | Overview of sections with instructions.
 sections_with_instructions = [
@@ -47,6 +57,7 @@ sections_with_instructions = [
    ("",".text"),
    ("",".init"),
    ("",".plt"),
+   ("",".iplt"),
    ("",".plt.got"),
    ("",".plt.sec"),
    ("",".fini")
