@@ -7,6 +7,7 @@
 module OutputGeneration.CallGraph where
 
 import Base
+import Algorithm.Graph
 
 import WithAbstractPredicates.ControlFlow
 import Binary.FunctionNames

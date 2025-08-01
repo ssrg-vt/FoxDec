@@ -15,11 +15,20 @@ import OutputGeneration.CallGraph
 import OutputGeneration.NASM.ModDataSection
 import OutputGeneration.GlobalMemAnalysis
 import OutputGeneration.NASM.Abstract_ASM
+import OutputGeneration.PathGeneration
+
 
 import Data.CFG
 import Data.SValue
 import Data.SPointer
 import Data.GlobalMem
+import Data.Indirection
+
+import Binary.FunctionNames
+import Data.X86.Opcode
+import Data.X86.Instruction
+import Data.JumpTarget
+import Data.X86.Register
 
 
 import WithAbstractPredicates.ControlFlow
@@ -46,10 +55,12 @@ import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Set as S
+import qualified Data.Set.NonEmpty as NES
 import qualified Data.ByteString as BS (readFile,writeFile) 
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Data.List 
 import Data.Word
+import Data.Maybe (catMaybes)
 import Data.Function ((&))
 import qualified Data.ByteString.Lazy as B
 
@@ -66,6 +77,8 @@ import Data.Int (Int64)
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.State.Strict
+import Control.Monad.Reader
+import Control.Monad.Extra
 
 import System.Environment
 import System.Console.GetOpt
@@ -181,16 +194,85 @@ start args = do
 
   config <- parse_config $ args_config args
   -- 1.)
-  (bin,l0) <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
+  (bin,l0') <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
+
+  --l0 <- return l0'
+        -- >>= try_resolve_indirections_underapproximatively bin config
+        -- >>= lift_to_L0 config bin empty_finit . l0_indirections
+        -- >>= try_resolve_indirections_underapproximatively bin config
+ -- get_function_signatures bin config l0
+
   -- 2.)
   when (args_generate_metrics args)   $ generate_metrics bin l0
   when (args_generate_L0 args)        $ serialize_l0 bin l0
   when (args_generate_callgraph args) $ generate_call_graph bin config l0
   when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
   when (args_generate_functions args) $ generate_per_function bin config l0
-
   --symbolically_execute_paths bin config l0
 
+
+
+
+
+get_function_signatures bin config l0 = do
+  let l = (bin,config,l0)
+  let entries = S.fromList $ IM.keys $ l0_functions l0 
+  let funcs   = exported_functions l
+  mapM_ get_function_signature entries
+ where
+  get_function_signature entry =  do
+    putStrLn $ "0x" ++ showHex entry ++ ": " ++ (function_name_of_entry bin $ fromIntegral entry)
+    let l = (bin,config,l0)
+    let path = evalState (function_call_to_nested_path l entry) IS.empty
+
+    --putStrLn $ show path 
+    (sems,ras,symstate,inputs) <- symb_exec_nested_path l path init_symstate
+    putStrLn $ show $ S.toList $ S.unions $ S.map toInputRegs $ inputs
+  toInputRegs (SP_Reg r)
+    | real_reg r `notElem` [Reg64 RSP,RegSeg FS] = S.singleton r
+    | otherwise = S.empty
+  toInputRegs (SP_Mem a si) = S.unions $ map (toInputRegs . SP_Reg) $ regs_of_expr a
+
+
+
+-- TODO: move to own file
+try_resolve_indirections_underapproximatively bin config l0 = do
+  let unresolved_indirections = IM.keys $ IM.filter isUnresolved $ l0_indirections l0
+  foldM try_resolve_underapproximatively l0 unresolved_indirections
+ where
+  isUnresolved inds = all ((==) Indirection_Unresolved) inds
+
+  try_resolve_underapproximatively l0 a = do
+    let l = (bin,config,l0)
+    let (entry,paths) = generate_paths_to_address l a
+    let paths' = S.toList $ S.map (unfold_nested_path l) $ S.fromList $ take 1 $ S.toList paths
+
+    symstates <- mapM (\path -> get_symstate <$> symb_exec_nested_path l path init_symstate) paths'
+    trgts <- mapM (do_path l0 entry a) $ zip paths' symstates
+
+    case S.toList $ S.unions $ catMaybes trgts of
+      [] -> return l0
+      inds -> do
+        let ind = S.fromList $ map Indirection_Resolved inds
+        runReaderT (execStateT (add_newly_resolved_indirection ind a) l0) (bin,config)
+
+  do_path l0 entry a (path,symstate) = do
+    let l = (bin,config,l0,fromIntegral entry)
+    let Just i = fetch_instruction bin $ fromIntegral a
+    let sem    = instr_to_semantics l i
+    let ras    = resolve_operands l sem symstate
+    let [SE_StatePart op Nothing] = operands_of sem
+    let trgts  = (ctry_jump_targets l . SConcrete . neFromList) $ (ras M.! op)
+
+   -- let ind    = S.map Indirection_Resolved <$> trgts
+    --putStrLn $ show path
+    putStrLn $ show sem
+    putStrLn $ show op ++ " == " ++ show (ras M.! op)
+    putStrLn $ show trgts
+
+
+
+    return trgts
 
 
 
@@ -227,7 +309,7 @@ obtain_L0 config "BINARY" verbose dirname name = do
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
     --die $ "END"
 
-    l0 <- lift_to_L0 config bin empty_finit
+    l0 <- lift_to_L0 config bin empty_finit IM.empty
     putStrLn $ "Obtained L0 by lifting " ++ dirname ++ name
     endTime <- l0 `deepseq` timeCurrent
     let runningTime = fromIntegral $ timeDiff endTime startTime

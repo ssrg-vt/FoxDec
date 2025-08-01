@@ -33,9 +33,10 @@ import Data.Serialize.Put (putSetOf)
 import qualified Data.Set.NonEmpty as NES
 
 class IntGraph g where
-  intgraph_post :: g -> Int -> IS.IntSet
-  intgraph_V    :: g -> IS.IntSet
-
+  intgraph_post    :: g -> Int -> IS.IntSet -- ^ Set of children of given vertex
+  intgraph_pre     :: g -> Int -> IS.IntSet -- ^ Set of parents of given vertex
+  intgraph_V       :: g -> IS.IntSet        -- ^ All vertices
+  intgraph_sources :: g -> IS.IntSet        -- ^ All sources (nodes with no parent)
 
 
 
@@ -206,6 +207,13 @@ round2dp :: Double -> Double
 round2dp x = fromIntegral (round $ x * 1e2) / 1e2
 
 
+skipUntil a [] = []
+skipUntil a l@(b:bs)
+  | a == b    = l
+  | otherwise = skipUntil a bs
+
+
+
 --------------------------------------------
 -- | Generic graph with ints as vertices.
 --------------------------------------------
@@ -239,13 +247,18 @@ graph_is_edge (Edges es) v0 v1  =
     Nothing -> False
     Just vs -> IS.member v1 vs
 
--- | Find source nodes (nodes not reachable from any other node)
-find_source_nodes g@(Edges es) = 
-  let all_parents = IM.keys es in
-    IS.filter (is_root all_parents) $ IS.fromList all_parents
- where
-  is_root all_parents v = all (\v' -> not (graph_is_edge g v' v)) all_parents
 
+instance IntGraph Graph where
+  intgraph_post    g@(Edges es) v = fromMaybe IS.empty (IM.lookup v es)
+  intgraph_pre     g@(Edges es) v = IS.filter (\p -> graph_is_edge g p v) $ IM.keysSet es
+  intgraph_V       g@(Edges es)   = IS.unions $ IM.keysSet es : IM.elems es
+  intgraph_sources g@(Edges es)   = find_source_nodes g
+
+
+-- | Find source nodes (nodes not reachable from any other node)
+find_source_nodes (Edges es) = 
+  let all_children = IS.unions $ IM.elems es in
+    IS.filter (\v -> not $ v `IS.member` all_children) $ IM.keysSet es
 
 
 -- | Find an end (terminal node) reachable from the given node v0
@@ -265,28 +278,10 @@ try_find_end_node_from_node (Edges es) v0 = evalState (go v0) IS.empty
           modify $ IS.insert v
           firstJustM go $ IS.toList vs
 
--- | Traverse graph upwards from a node
-graph_traverse_upwards :: Graph -> Int -> IS.IntSet
-graph_traverse_upwards g@(Edges es) v0 = execState (go v0) IS.empty
- where
-  go :: Int -> State IS.IntSet ()
-  go v = do
-    visited <- get
-    if v `IS.member` visited then
-      return ()
-    else do
-      modify $ IS.insert v
-      let parents = filter (\p -> graph_is_edge g p v) $ IM.keys es
-      mapM_ go parents
-
 
 graph_mk_subgraph :: IS.IntSet -> Graph -> Graph
 graph_mk_subgraph subgraph (Edges es) = Edges $ IM.map (\s -> s `IS.intersection` subgraph) $ IM.filterWithKey (\v _ -> v `IS.member` subgraph) es
 
-instance IntGraph Graph where
-  intgraph_post (Edges es) v =
-    fromMaybe IS.empty (IM.lookup v es)
-  intgraph_V (Edges es) = IS.unions $ IM.keysSet es : IM.elems es
 
 
 

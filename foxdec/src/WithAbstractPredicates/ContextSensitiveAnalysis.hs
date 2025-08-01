@@ -84,16 +84,16 @@ data AnalysisResult pred finit v = FoundNewCalls (IM.IntMap finit) | AnalyzedWit
 
 
 -- Lift the binary to the L0 representation
-lift_to_L0 :: WithAbstractPredicates bin pred finit v => Config -> bin -> finit -> IO (L0 pred finit v)
-lift_to_L0 config bin finit = do
+lift_to_L0 :: WithAbstractPredicates bin pred finit v => Config -> bin -> finit -> IM.IntMap Indirections -> IO (L0 pred finit v)
+lift_to_L0 config bin finit inds = do
   entries <- get_entries
 
-  let empty_L0 = L0 IM.empty IM.empty IM.empty ""
-  let init_L0 = foldr (\entry -> l0_insert_new_entry entry finit) empty_L0 entries
+  let l0  = L0 IM.empty inds IM.empty ""
+  let l0' = foldr (\entry -> l0_insert_new_entry entry finit) l0 entries
 
   let recs = IM.empty
   let entry_graph = Edges $ IM.fromList (zip entries $ repeat IS.empty)
-  runReaderT (execStateT (exploreFunctionEntries entry_graph recs) init_L0) (bin,config)
+  runReaderT (execStateT (exploreFunctionEntries entry_graph recs) l0') (bin,config)
  where
   get_entries = do
     let dirname  = binary_dir_name bin
@@ -392,16 +392,16 @@ analyze_entry entry = do
         liftIO $ putStrLn $ intercalate ", " $ map show $ S.toList inds
         add_newly_resolved_indirection inds (inAddress $ last instrs) 
 
-  add_newly_resolved_indirection inds a' = do
-    curr_inds <- gets $ l0_lookup_indirection a'
-    case curr_inds of
-      Nothing -> modify (l0_insert_indirection a' inds) >> return True
-      Just inds' -> if inds `S.isSubsetOf` inds' then 
-                      return False
-                    else do
-                      liftIO $ putStrLn $ "Extending previous indirection resolving @ " ++ showHex a' ++ ": " ++ show inds' ++ " with new resolving: " ++ show inds
-                      modify $ l0_insert_indirection a' (S.union inds inds')
-                      return True
+add_newly_resolved_indirection inds a' = do
+  curr_inds <- gets $ l0_lookup_indirection a'
+  case curr_inds of
+    Nothing -> modify (l0_insert_indirection a' inds) >> return True
+    Just inds' -> if inds `S.isSubsetOf` inds' then 
+                    return False
+                  else do
+                    liftIO $ putStrLn $ "Extending previous indirection resolving @ " ++ showHex a' ++ ": " ++ show (S.toList inds') ++ " with new resolving: " ++ show (S.toList inds)
+                    modify $ l0_insert_indirection a' (S.union inds inds')
+                    return True
 
 
 
@@ -413,10 +413,6 @@ analyze_entry entry = do
 
 finishExploration :: WithAbstractPredicates bin pred finit v => WithLifting bin pred finit v ()
 finishExploration = return () 
-
-
-
-
 
 
 

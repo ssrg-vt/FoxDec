@@ -176,12 +176,9 @@ get_known_jump_targets l@(bin,_,l0) i =
 
 
 
-instance IntGraph CFG where
-  intgraph_V    = IM.keysSet . cfg_blocks
-  intgraph_post = post
-   where
-    post :: CFG -> IS.Key -> IS.IntSet
-    post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
+
+
+
 -- | Export a CFG to .dot file
 --
 -- Strongly connected components get the same color.

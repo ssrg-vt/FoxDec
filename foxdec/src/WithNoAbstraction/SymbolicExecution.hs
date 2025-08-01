@@ -1167,7 +1167,7 @@ jump l@(bin,config,l0,_) i = do
 
 ctry_jump_targets :: BinaryClass bin => Static bin v -> SValue -> Maybe (S.Set ResolvedJumpTarget)
 ctry_jump_targets l@(bin,_,_,_) v@(SConcrete es) =
-  let tries = mapMaybe try $ S.toList $ NES.toSet es in
+  let tries = mapMaybe try $ concatMap unfold_cmovs $ S.toList $ NES.toSet es in
     case tries of
       [] -> Nothing -- trace ("Cannot resolve indirection: " ++ show v) Nothing      
       _  -> Just $ S.fromList tries

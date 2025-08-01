@@ -77,6 +77,8 @@ l0_insert_indirection a ind (L0 fs inds gmem_structure time) = L0 fs (IM.insert 
 
 l0_lookup_join (L0 fs inds gmem_structure time) entry = fromJust $ result_join $ fromJust $ snd $ fs IM.! entry 
 
+l0_lookup_finit (L0 fs inds gmem_structure time) entry = fst $ fs IM.! entry
+
 empty_result :: FResult pred v
 empty_result = FResult (init_cfg 0) TimeOut Nothing S.empty S.empty IM.empty
 

@@ -32,7 +32,7 @@ import Control.Monad.Extra
 import Control.Monad.State.Strict hiding (join)
 import Control.DeepSeq
 
-
+import Debug.Trace
 
 
 stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Sstate v p -> [Instruction] -> Indirections

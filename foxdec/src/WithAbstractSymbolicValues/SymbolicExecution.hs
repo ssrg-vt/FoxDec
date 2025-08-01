@@ -90,7 +90,7 @@ add_jump_to_pred :: Instruction -> Instruction -> [FlagStatus] -> [FlagStatus]
 add_jump_to_pred i0 i1 flgs
   | inOperation i0 `elem` [JA,JNBE,JBE] =
     case inOperands i0 of
-      [Op_Imm (Immediate _ trgt)] -> map (mod_FS_CMP trgt) flgs
+      [Op_Imm (Immediate _ trgt)] -> map (mod_FS_CMP $ inAddress i0 + trgt) flgs
   | otherwise = flgs
  where
   -- FC_CMP b o1 o2

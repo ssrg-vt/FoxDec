@@ -279,7 +279,7 @@ clean_flgs sp = concatMap clean_flg
       _          -> False
   is_tainted (Op_Mem _ _ _ _ _ _ _) =
     case sp of
-      SSP_Mem _ _ -> True
+      SSP_Mem _ _ -> False -- True TODO check for separation or if register is written to
       _          -> False
 
 

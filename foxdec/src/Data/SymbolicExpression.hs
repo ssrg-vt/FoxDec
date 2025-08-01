@@ -279,6 +279,14 @@ expr_size_bottyp (FromUninitializedMemory srcs) = NES.size srcs
 expr_size_bottyp (FromCall _)                   = 1
 
 
+unfold_cmovs :: SimpleExpr -> [SimpleExpr]
+unfold_cmovs (SE_Op Cmov si es)     = map simp $ concatMap unfold_cmovs es
+unfold_cmovs (SE_Op op si es)       = map (SE_Op op si)    $ crossProduct (map unfold_cmovs es)
+unfold_cmovs (SE_Bit n e)           = map (SE_Bit n)       $ unfold_cmovs e
+unfold_cmovs (SE_SExtend l h e)     = map (SE_SExtend l h) $ unfold_cmovs e
+unfold_cmovs (SE_Overwrite n e0 e1) = map (\[e0',e1'] -> SE_Overwrite n e0' e1') $ crossProduct (map unfold_cmovs [e0,e1])
+unfold_cmovs e                      = [e]
+
 
 
 -- | Simplification of symbolic expressions. 
@@ -317,6 +325,10 @@ simp' (SE_Op Sdiv  si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Shl   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Shr   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
 simp' (SE_Op Sar   si0 [SE_Immediate 0, e1]) = SE_Immediate 0
+simp' (SE_Op And   si0 [SE_Immediate 0, e1]) = SE_Immediate 0 -- 0 & e1 = 0
+simp' (SE_Op And   si0 [e0, SE_Immediate 0]) = SE_Immediate 0 -- e0 & 0 = 0
+simp' (SE_Op Or    si0 [SE_Immediate 0, e1]) = simp' e1 -- 0 | e1 = e1
+simp' (SE_Op Or    si0 [e0, SE_Immediate 0]) = simp' e0 -- e0 | 0 = e0
 simp' (SE_Overwrite i (SE_Immediate 0) e)    = simp' $ SE_Bit i e
 
 
@@ -345,6 +357,7 @@ simp' e@(SE_Bit si0 e1@(SE_StatePart (SP_Mem _ si) _)) = if si*8 == si0 then sim
 simp' e@(SE_Bit si0 e1@(SE_Var (SP_Reg r)))            = if byteSize (regSize r) * 8 == si0 then e1 else e
 simp' e@(SE_Bit si0 e1@(SE_Var (SP_Mem _ si)))         = if si*8 == si0 then simp' e1 else SE_Bit si0 $ simp' e1
 simp' e@(SE_Bit si0 e1@(SE_Op (SExtHi b) _ [_]))       = if b==si0 then simp' e1 else SE_Bit si0 $ simp' e1
+simp' e@(SE_Bit si0 e1@(SE_Op Cmov si1 es))            = SE_Op Cmov si1 $ map (simp' . SE_Bit si0) es
 
 
 simp' (SE_Op SdivLo si0 es@[SE_Op (SExtHi b) _ [e0], e1,e2]) = if e0==e1 then simp' $ SE_Op Sdiv si0 [e0,e2] else SE_Op SdivLo si0 $ map simp' es

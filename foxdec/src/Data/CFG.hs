@@ -3,7 +3,7 @@
 
 module Data.CFG where
 
-
+import Base
 import Data.X86.Instruction
 
 import qualified Data.IntMap as IM
@@ -60,3 +60,13 @@ fetch_block g blockId =
 
 instance Cereal.Serialize CFG
 instance NFData CFG
+
+
+
+instance IntGraph CFG where
+  intgraph_post    = post
+  intgraph_sources = \_ -> IS.singleton 0
+  intgraph_V       = IM.keysSet . cfg_blocks -- IS.unions $ IM.keysSet (cfg_edges g) : IM.elems (cfg_edges g)
+   where
+    post :: CFG -> IS.Key -> IS.IntSet
+    post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))

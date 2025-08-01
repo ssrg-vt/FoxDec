@@ -8,7 +8,7 @@ Description : Symbolic execution of paths ina control flow graph
 
 
 
-module WithNoAbstraction.SymbolicExecutionPath (symb_exec_all_entries) where
+module WithNoAbstraction.SymbolicExecutionPath where
 
 
 {--
@@ -42,12 +42,14 @@ import Base hiding (show_set)
 import Config
 import Conventions
 
+import Algorithm.Graph
+import OutputGeneration.PathGeneration 
 
 import WithAbstractPredicates.ControlFlow
 import Binary.FunctionNames
 import WithNoAbstraction.Pointers hiding (PointerDomain,get_pointer_domain)
-import WithNoAbstraction.SymbolicExecution hiding (CSemantics(..),scall)
-import WithAbstractSymbolicValues.Class hiding (scall)
+import WithNoAbstraction.SymbolicExecution hiding (CSemantics(..),scall,sjump)
+import WithAbstractSymbolicValues.Class hiding (scall,sjump)
 import WithNoAbstraction.Lifted
 
 import Data.SymbolicExpression hiding (show_srcs,swrite_mem)
@@ -62,6 +64,8 @@ import Data.CFG
 import Data.Size
 import Data.SValue hiding (Top)
 import Data.SPointer
+import Data.JumpTarget
+
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -77,7 +81,7 @@ import Data.Char (chr)
 import Data.Functor ((<&>))
 import Data.Bits (testBit)
 import Data.Int (Int64)
-import Data.Foldable (foldr')
+import Data.Foldable (foldr',foldlM,foldrM)
 
 import Control.Monad.State
 import Control.Monad (forM_)
@@ -97,10 +101,10 @@ symb_exec_all_entries bin config l0 = do
   let l       = (bin,config,l0)
   let entries = S.fromList $ IM.keys $ l0_functions l0 
   let funcs   = exported_functions l
-  mapM_ (symb_exec_entry l) $ [0xa81d0] -- S.intersection entries funcs
+  mapM_ (symb_exec_entry l) $ entries -- S.intersection entries funcs
   -- mems <- mapM (symb_exec_entry (bin,config,l0)) entries
   --putStrLn $ "Overall joined result:"
-  --putStrLn $ show_smemory_html (bin,config,l0,0) $ join_mems mems
+  --putStrLn $ show_smemory_html (bin,config,l0) $ join_mems mems
 
 
 
@@ -118,8 +122,8 @@ exported_functions l@(bin,config,l0) = S.difference (S.fromList $ IM.keys $ bina
 -- For the given entry: produce a set of paths and symbolically execute
 symb_exec_entry (bin,config,l0) entry = do
   let ctxt = (bin,config,l0,fromIntegral entry)
-  paths   <- produce_set_of_paths ctxt
-  results <- mapM (symbolically_execute_path ctxt) paths
+  paths   <- produce_set_of_paths' ctxt 4
+  results <- mapM (\path -> symbolically_execute_path ctxt path Nothing init_symstate) $ catMaybes paths
 
   let inputs = S.unions $ map (\(_,_,_,ins) -> ins) results
   putStrLn $ "0x" ++ showHex entry ++ ": " ++ (function_name_of_entry bin $ fromIntegral entry)
@@ -142,15 +146,42 @@ symb_exec_entry (bin,config,l0) entry = do
 -- We compute the spanning tree thorugh a depth-first-search.
 -- Given that spanning tree, we repeat some cycles a couple of times.
 -- Then we finish the path to some exit-point.
-produce_set_of_paths ctxt@(bin,config,l0,entry) = do
+-- TODO use produce_set_of_paths from Algorithm.Graph
+produce_set_of_paths' ctxt@(bin,config,l0,entry) repetition = do
   let Just (_,Just result) = IM.lookup (fromIntegral entry) (l0_functions l0)
   let cfg = result_cfg result
   let tree = evalState (dfs_spanning_tree cfg 0) IS.empty
   putStrLn $ "Entry: 0x" ++ showHex entry
   TV.drawTree $ fmap show tree
-  let paths  = spanning_tree_to_cycles tree
+  let paths  = spanning_tree_to_cycles repetition tree
   let paths' = map (finish_path cfg) paths
   return paths'
+
+
+
+
+init_symstate = SymState (SMemory M.empty) M.empty
+
+get_symstate (_,_,symstate,_) = symstate
+
+symb_exec_nested_path :: Lifted -> NestedPath -> SymState -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart)
+symb_exec_nested_path l (NestedPath p) symstate = foldlM go ([],[],symstate,S.empty) p
+ where
+  go (sems0,ras0,symstate0,inputs0) npe = do
+    (sems1,ras1,symstate1,inputs1) <- symb_exec_nested_path_element l symstate0 npe
+    return $ (sems0 ++ sems1,ras0 ++ ras1,symstate1,S.union inputs0 inputs1)
+    
+
+
+symb_exec_nested_path_element :: Lifted -> SymState -> NestedPathElement -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart)
+symb_exec_nested_path_element l@(bin,config,l0) symstate (CallReturn entry0 entry1 np) = do
+  let l' = (bin,config,l0,fromIntegral entry1)
+  (sems,ras,symstate1,inputs) <- symb_exec_nested_path l np symstate
+  let sysmstate2 = clean_below_current_stackframe l' symstate1
+  return (sems,ras,sysmstate2,inputs)
+symb_exec_nested_path_element l@(bin,config,l0) symstate (PathWithinFunction entry [] Nothing False) = return $ ([],[],symstate,S.empty)
+symb_exec_nested_path_element l@(bin,config,l0) symstate (PathWithinFunction entry p n True) = symbolically_execute_path (bin,config,l0,fromIntegral entry) p n symstate
+symb_exec_nested_path_element l symstate p = error $ show $ NestedPath [p]
 
 
 
@@ -164,19 +195,19 @@ produce_set_of_paths ctxt@(bin,config,l0,entry) = do
 -- 1.) the abstract semantics of the path
 -- 2.) per instruction, the resolved operands
 -- 3.) the final symbolic state, after symbolically executing the entire path
-symbolically_execute_path :: LiftedWithEntry -> [Int] -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart)
-symbolically_execute_path ctxt@(bin,config,l0,entry) path = do
+symbolically_execute_path :: LiftedWithEntry -> [Int] -> Maybe Int -> SymState -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart)
+symbolically_execute_path ctxt@(bin,config,l0,entry) path n symstate = do
   let Just (_,Just result) = IM.lookup (fromIntegral entry) (l0_functions l0)
   let cfg = result_cfg result
 
-  let asemantics = path_to_asemantics ctxt cfg path
-  let (ras,inv)  = tau_path ctxt asemantics
+  let asemantics = path_to_asemantics ctxt cfg n path
+  let (ras,inv)  = tau_path ctxt asemantics symstate
   let inputs     = S.unions $ map resolved_operands_to_inputs $ zip asemantics ras
 
   --let inv'       = widen_repeated_accesses l0 asemantics ras inv
 
-  putStrLn $ show_result path asemantics ras inv inputs
-  putStrLn $ "\n\n"
+  --putStrLn $ show_result path asemantics ras inv inputs
+  --putStrLn $ "\n\n"
   return (asemantics,ras,inv,inputs)
  where
   show_result path sems ras inv inputs = intercalate "\n"
@@ -185,9 +216,6 @@ symbolically_execute_path ctxt@(bin,config,l0,entry) path = do
     , show_symstate ctxt inv
     , "INPUTS:"
     , show $ S.toList inputs ]
-
-
-
 
 
 show_results :: [ASemantics] -> [(ASemantics,ResolvedOperands)] -> String
@@ -249,9 +277,9 @@ state_parts_of_expr (SE_Overwrite _ a b) = S.union (state_parts_of_expr a) (stat
 -- For operations with a destination and one or more sources, the destination is the first SimpleExpr, the source(s) follow second.
 -- The last two words for each are the instruction address and the size of the instruction.
 data ASemantics =
-    Call String Word64 Word64  -- ^ A call to a function
+    Call SimpleExpr Instruction Word64 Word64  -- ^ A call to a function
   | Ret Word64 Word64 -- ^ Return
-  | Jump Word64 Word64 -- ^ A jump
+  | Jump Word64 SimpleExpr Instruction Word64 -- ^ A jump
   | Nop Word64 Word64 -- ^ A NOP
   | Lea SimpleExpr SimpleExpr Word64 Word64 -- ^ Load Effective Addresss
   | Push SimpleExpr Int Word64 Word64 -- ^ Push
@@ -269,9 +297,9 @@ data ASemantics =
 
 
 instance Show ASemantics where
-  show (Call f rip _)                         = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "CALL") ++ f
+  show (Call src _ rip _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "CALL") ++ show_srcs [src]
+  show (Jump rip src i _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "JUMP") ++ show_srcs [src]
   show (Ret rip _)                            = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "RET")
-  show (Jump rip _)                           = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "JUMP")
   show (Nop rip _)                            = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "NOP")
   show (Push src _ rip _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "PUSH") ++ show_srcs [src]
   show (Pop dst _ rip _)                      = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "POP") ++ show_dst_srcs dst []
@@ -459,8 +487,8 @@ instr_to_semantics l0 i@(Instruction _ _ mnemonic [] _ _)
 
 
 instr_to_semantics (bin,_,_,_) i@(Instruction _ _ mnemonic ops _ _)
-  | isCall mnemonic           = Call (function_name_of_instruction bin i) (inAddress i) (fromIntegral $ inSize i)
-  | isJump mnemonic           = Jump (inAddress i) (fromIntegral $ inSize i)
+  | isCall mnemonic           = Call (operand_to_expr $ ops!!0) i (inAddress i) (fromIntegral $ inSize i)
+  | isJump mnemonic           = Jump (inAddress i) (operand_to_expr $ ops!!0) i (fromIntegral $ inSize i)
   | mnemonic == PUSH          = Push (operand_to_expr $ ops!!0) (operand_size_bits $ ops!!0) (inAddress i) (fromIntegral $ inSize i)
   | mnemonic == POP           = Pop (operand_to_expr $ ops!!0) (operand_size_bits $ ops!!0) (inAddress i) (fromIntegral $ inSize i)
   | mnemonic `elem` nops      = Nop (inAddress i) (fromIntegral $ inSize i)
@@ -501,11 +529,14 @@ operand_size_bits op =
 --
 
 -- | Turn a path in the CFG to a list of abstract semantics
-path_to_asemantics :: LiftedWithEntry -> CFG -> [Int] -> [ASemantics]
-path_to_asemantics l0 cfg = map (instr_to_semantics l0) . concatMap canonicalize . concatMap toInstrs
+path_to_asemantics :: LiftedWithEntry -> CFG -> Maybe Int -> [Int] -> [ASemantics]
+path_to_asemantics l0 cfg n = map (instr_to_semantics l0) . concatMap canonicalize . concat . cut_last_block n . map toInstrs
  where
   toInstrs :: Int -> [Instruction]
   toInstrs blockID = fromJust $ IM.lookup blockID (cfg_instrs cfg)
+
+  cut_last_block Nothing  p = p
+  cut_last_block (Just n) p = init p ++ [ take n $ last p ]
 
 
 
@@ -654,6 +685,7 @@ partition_domain_touched_by l0 a' si = do
   is_dirty l0 a = prune l0 a /= a
 
 
+distance :: SimpleExpr -> Int -> SimpleExpr -> Maybe Word64
 distance a si a' = 
   case simp $ SE_Op Minus 64 [a',SE_Op Plus 64 [a,SE_Immediate $ fromIntegral si]] of
     SE_Immediate imm -> Just imm
@@ -882,8 +914,6 @@ get_pointer_domain l0@(bin,_,_,_) a' =
       let srcs = get_pointer_sources a' in
         if not $ S.null srcs then
           Sources srcs
-        --else if is_immediate a' then -- TODO remove this
-        --  Bases $ S.singleton $ GlobalAddress $ from_immediate a'
         else
           NoDomain
  where
@@ -944,6 +974,48 @@ prune'' ctxt@(bin,config,l0,entry) subst e =
   prune_keep_only_imms _                  = subst
 
 
+
+clean_below_current_stackframe :: LiftedWithEntry -> SymState -> SymState
+clean_below_current_stackframe l (SymState (SMemory m) regs) = 
+  let rsp_value = read_rsp regs
+      new_mem   = M.mapWithKey (clean_local_and_below_stackframe rsp_value) m in
+    SymState (SMemory new_mem) regs
+ where
+  read_rsp regs =
+    case M.lookup (Reg64 RSP) regs of
+      Just (Just v) -> v
+
+  clean_local_and_below_stackframe :: SimpleExpr -> PointerDomain -> SDomain -> SDomain
+  clean_local_and_below_stackframe rsp_value dom v@(SDomain accs)
+    | is_local_domain dom = SDomain $ filter (access_is_local_and_above_stackframe rsp_value) accs
+    | otherwise = v
+
+  is_local_domain (Bases bs) = StackPointer `S.member` bs
+  is_local_domain (Sources srcs) = (SP_Reg $ Reg64 RSP) `S.member` srcs 
+  is_local_domain NoDomain = False
+
+  access_is_local_and_above_stackframe :: SimpleExpr -> SAccess -> Bool
+  access_is_local_and_above_stackframe rsp_value (SStorage a si v touched) =
+    case distance (prune l a) si rsp_value of
+      -- compute rsp - (a+si)
+      Just d -> (fromIntegral d :: Int64) < -8
+      _ -> False --TODO!!! error $ show (a,prune l a, si,rsp_value) We should implement more rigid pruning here
+
+{--
+--
+-- An access of the form "SRef a" says that pointer $a$ was computed (e.g., through an LEA).
+data SAccess = SStorage SimpleExpr Int SStoredVal Bool | SRef SimpleExpr
+  deriving (Eq)
+
+-- A value stored in memory is either some value, an indication that the region has not been written to yet, or unknown.
+data SStoredVal = Written SimpleExpr | Initial | Top 
+  deriving (Eq,Ord)
+
+-- Per domain, we keep track of a list of accesses.
+data SDomain = SDomain [SAccess]
+
+data SMemory = SMemory (M.Map PointerDomain SDomain)
+--}
 
 
 
@@ -1088,14 +1160,6 @@ operand_address_to_resolved_exprs l0 a = do
 
 
 
-  unfold_cmovs :: SimpleExpr -> [SimpleExpr]
-  unfold_cmovs (SE_Op Cmov si es)     = concatMap unfold_cmovs es
-  unfold_cmovs (SE_Op op si es)       = map (SE_Op op si)    $ crossProduct (map unfold_cmovs es)
-  unfold_cmovs (SE_Bit n e)           = map (SE_Bit n)       $ unfold_cmovs e
-  unfold_cmovs (SE_SExtend l h e)     = map (SE_SExtend l h) $ unfold_cmovs e
-  unfold_cmovs (SE_Overwrite n e0 e1) = map (\[e0',e1'] -> SE_Overwrite n e0' e1') $ crossProduct (map unfold_cmovs [e0,e1])
-  unfold_cmovs e                      = [e]
-
 
 
 
@@ -1172,38 +1236,43 @@ smallerDistance a0 a1 =
 
 type ResolvedOperands = M.Map StatePart [SimpleExpr]
 
-tau_path :: LiftedWithEntry -> [ASemantics] -> ([ResolvedOperands], SymState)
-tau_path l0 p =
-  let init_symstate = SymState (SMemory M.empty) M.empty in
-    runState (traverse 0 p) init_symstate
+tau_path :: LiftedWithEntry -> [ASemantics] -> SymState -> ([ResolvedOperands], SymState)
+tau_path l@(_,_,_,entry) p symstate = runState (traverse 0 p) symstate
  where
   traverse :: Int -> [ASemantics] -> State SymState [ResolvedOperands]
   traverse n []      = return []
   traverse n (sem:p) = do
     set_rip (size_of sem + rip_of sem)
 
-    resolved_ops <- gets $ resolved_operands sem
+    resolved_ops <- gets $ resolve_operands l sem
 
     -- regs <- get_regs
-    tau l0 n sem
+    tau l n sem
     resolved_ops' <- traverse (n+1) p
     return $ resolved_ops : resolved_ops'
     -- return (prune_symstate_for_instruction sem regs:regs')
     -- return (M.empty:regs')
 
 
-  resolved_operands sem inv = M.map nub $ M.unionsWith (++) $ map (resolve_operand inv sem) $ operands_of sem
 
+
+resolve_operands :: LiftedWithEntry -> ASemantics -> SymState -> ResolvedOperands
+resolve_operands l (Call _ _ _ _) inv = M.empty
+resolve_operands l (Jump _ _ _ _) inv = M.empty
+resolve_operands l sem inv = 
+  let inv' = execState (set_rip (size_of sem + rip_of sem)) inv in
+    M.map nub $ M.unionsWith (++) $ map (resolve_operand inv' sem) $ operands_of sem
+ where
   resolve_operand inv sem (SE_StatePart (SP_Mem a 0) Nothing) = 
-    case evalState (operand_address_to_resolved_exprs l0 a) inv of
+    case evalState (operand_address_to_resolved_exprs l a) inv of
       Just as' -> M.singleton (SP_Mem a 0) as'
       Nothing  -> M.empty
   resolve_operand inv sem (SE_StatePart (SP_Mem a si) Nothing) = 
-    case evalState (operand_address_to_resolved_exprs l0 a) inv of
-      Just as' -> let v = evalState (sread_statepart l0 (SP_Mem a si)) inv in
+    case evalState (operand_address_to_resolved_exprs l a) inv of
+      Just as' -> let v = evalState (sread_statepart l (SP_Mem a si)) inv in
                     M.fromList [(SP_Mem a 0, as'), (SP_Mem a si, [v])]
-      Nothing -> let a' = evalState (sresolve_expr l0 a) inv
-                     v = evalState (sread_statepart l0 (SP_Mem a si)) inv in
+      Nothing -> let a' = evalState (sresolve_expr l a) inv
+                     v = evalState (sread_statepart l (SP_Mem a si)) inv in
                     M.fromList [(SP_Mem a 0, [a']), (SP_Mem a si, [v])]
   resolve_operand inv sem (SE_StatePart (SP_Reg r) Nothing) =
     let v = evalState (sread_reg r) inv in
@@ -1211,26 +1280,26 @@ tau_path l0 p =
   resolve_operand inv sem (SE_Immediate _) = M.empty
   resolve_operand inv sem e = error $ show e
 
-  operands_of :: ASemantics -> [SimpleExpr]
-  operands_of (Apply op op_si dst srcs rip si)          = operands_of_dst dst ++ srcs
-  operands_of (ApplyWhenImm op op_si dst srcs rip si)   = operands_of_dst dst ++ srcs
-  operands_of (Mov dst src rip si)                      = operands_of_dst dst ++ [src]
-  operands_of (MovZX dst src op_si rip si)              = operands_of_dst dst ++ [src]
-  operands_of (SExtend dst h src l rip si)              = operands_of_dst dst ++ [src]
-  operands_of (Lea dst src rip si)                      = operands_of_dst dst ++ [src]
-  operands_of (Nop  _ _)                                = []
-  operands_of (Push src _ _ _)                          = [src]
-  operands_of (Pop dst _ _ _)                           = []
-  operands_of (Leave _ _)                               = []
-  operands_of (NoSemantics op Nothing srcs rip si)      = srcs
-  operands_of (NoSemantics op (Just dst) srcs rip si)   = operands_of_dst dst ++ srcs
-  operands_of (SetXX dst rip si)                        = operands_of_dst dst
-  operands_of (Call f rip si)                           = []
-  operands_of (Jump rip si)                             = []
-  operands_of (Ret rip si)                              = [ SE_StatePart (SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8) Nothing ]
+operands_of :: ASemantics -> [SimpleExpr]
+operands_of (Apply op op_si dst srcs rip si)          = operands_of_dst dst ++ srcs
+operands_of (ApplyWhenImm op op_si dst srcs rip si)   = operands_of_dst dst ++ srcs
+operands_of (Mov dst src rip si)                      = operands_of_dst dst ++ [src]
+operands_of (MovZX dst src op_si rip si)              = operands_of_dst dst ++ [src]
+operands_of (SExtend dst h src l rip si)              = operands_of_dst dst ++ [src]
+operands_of (Lea dst src rip si)                      = operands_of_dst dst ++ [src]
+operands_of (Nop  _ _)                                = []
+operands_of (Push src _ _ _)                          = [src]
+operands_of (Pop dst _ _ _)                           = []
+operands_of (Leave _ _)                               = []
+operands_of (NoSemantics op Nothing srcs rip si)      = srcs
+operands_of (NoSemantics op (Just dst) srcs rip si)   = operands_of_dst dst ++ srcs
+operands_of (SetXX dst rip si)                        = operands_of_dst dst
+operands_of (Call src _ rip si)                       = [src]
+operands_of (Jump rip src _ si)                       = [src]
+operands_of (Ret rip si)                              = [ SE_StatePart (SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8) Nothing ]
 
-  operands_of_dst dst@(SE_StatePart (SP_Mem a si) Nothing) = [SE_StatePart (SP_Mem a 0) Nothing]
-  operands_of_dst _ = []
+operands_of_dst dst@(SE_StatePart (SP_Mem a si) Nothing) = [SE_StatePart (SP_Mem a 0) Nothing]
+operands_of_dst _ = []
 
 
 
@@ -1252,8 +1321,8 @@ prune_symstate_for_instruction sem = M.filterWithKey is_relevant
   regs_of_sem (Push src _ _ _)                        = regs_of_op src ++ [Reg64 RSP]
   regs_of_sem (Pop dst _ _ _)                         = regs_of_op dst ++ [Reg64 RSP]
   regs_of_sem (Leave _ _)                             = [Reg64 RSP,Reg64 RBP]
-  regs_of_sem (Call f rip si)                         = []
-  regs_of_sem (Jump rip si)                           = []
+  regs_of_sem (Call _ _ rip si)                       = []
+  regs_of_sem (Jump rip _ _ si)                       = []
   regs_of_sem (Ret rip si)                            = [Reg64 RSP]
 
   regs_of_op (SE_StatePart (SP_Mem a si) _) = regs_of_expr a
@@ -1281,9 +1350,9 @@ set_rip :: Word64 -> State SymState ()
 set_rip rip = swrite_reg (Reg64 RIP) (Just $ SE_Immediate rip)
 
 
-size_of (Call f rip si)                        = si
+size_of (Call _ i rip si)                      = si
 size_of (Ret rip si)                           = si
-size_of (Jump rip si)                          = si
+size_of (Jump rip _ _ si)                      = si
 size_of (Lea  dst src rip si)                  = si
 size_of (Nop rip si)                           = si
 size_of (Push _ _ rip si)                      = si
@@ -1297,9 +1366,9 @@ size_of (Apply op op_si dst src rip si)        = si
 size_of (ApplyWhenImm op op_si dst src rip si) = si
 size_of (NoSemantics op dst srcs rip si)       = si
 
-rip_of (Call f rip si)                        = rip
+rip_of (Call _ i rip si)                      = rip
 rip_of (Ret rip si)                           = rip
-rip_of (Jump rip si)                          = rip
+rip_of (Jump rip _ _ si)                      = rip
 rip_of (Lea  dst src rip si)                  = rip
 rip_of (Nop rip si)                           = rip
 rip_of (Push _ _ rip si)                      = rip
@@ -1355,7 +1424,7 @@ sleave l0 = do
   spop l0 (SE_StatePart (SP_Reg rbp) Nothing) 64
 
 
-sret l0 = do
+sret l0@(_,_,_,entry) = do
   -- RIP := *[RSP,8]
   v' <- sread_statepart l0 $ SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8
   swrite_reg (Reg64 RIP) (Just v') 
@@ -1363,14 +1432,56 @@ sret l0 = do
   let rsp = Reg64 RSP
   rsp_value <- sread_reg rsp
   let new_rsp_value = simp $ SE_Op Plus 64 [rsp_value, SE_Immediate 8]
+  --traceShow ("RET:", showHex entry, new_rsp_value) $
   swrite_reg rsp $ Just new_rsp_value
 
-scall n f rip = external_behavior $ external_function_behavior f
+
+
+-- TODO refactor code of sjump and scall, also when partially unresolved
+sjump l@(bin,config,l0,_) n rip i
+  | jump_is_actually_a_call (bin,config,l0) i = call_then_return $ get_known_jump_targets (bin,config,l0) i
+  | otherwise = return ()
  where
-  external_behavior (ExternalFunctionBehavior _ (Input reg)) = do
+  call_then_return trgts
+    | any is_internal trgts = return ()
+    | all isExternal trgts = do
+      let f = function_name_of_instruction bin i
+      if isPrefixOf "0x" f then
+        error $ show i
+      else do
+        scall l n i rip
+        sret l
+    | otherwise = error $ show (i,trgts)
+
+  isExternal (External _) = True
+  isExternal (ExternalDeref _) = True
+  isExternal (Returns True) = True
+  isExternal (Unresolved) = True
+  isExternal _ = False
+
+  is_internal (ImmediateAddress _) = True
+  is_internal _ = False
+
+scall_internal l@(_,_,_,entry) = do
+  {--let rsp = Reg64 RSP
+  rsp_value <- sread_reg rsp
+  traceShow ("CALL:", showHex entry, f, rsp_value) $--}
+  spush l (SE_StatePart (SP_Reg $ Reg64 RIP) Nothing) 64
+
+
+scall l@(bin,config,l0,entry) n i rip = call $ get_known_jump_targets (bin,config,l0) i
+ where
+  call trgts
+    | any is_internal trgts = scall_internal l
+    | otherwise             = let f = function_name_of_instruction bin i in external_behavior f $ external_function_behavior f
+
+  is_internal (ImmediateAddress _) = True
+  is_internal _ = False
+
+  external_behavior f (ExternalFunctionBehavior _ (Input reg)) = do
     ret_val <- sread_reg reg
     swrite_reg (Reg64 RAX) (Just ret_val)
-  external_behavior _ = do
+  external_behavior f _ = do
     let retval = SE_Malloc (Just rip) (Just $ f ++ "_" ++ show n)
     swrite_reg (Reg64 RAX) (Just retval) -- TODO and XMM0?
 
@@ -1379,6 +1490,8 @@ scall n f rip = external_behavior $ external_function_behavior f
     swrite_reg (Reg64 RAX) (Just fresh)
   external_call n rip f (ExternalFunctionBehavior _ UnknownReturnValue) = do
     swrite_reg (Reg64 RAX) Nothing
+
+
 
 
 cap_expr e (SE_StatePart sp _)
@@ -1419,8 +1532,8 @@ tau l0 n (NoSemantics op dst srcs rip si)    = do
     Nothing  -> return ()
     Just dst -> swrite_dst l0 dst Nothing  
 tau l0 n (SetXX dst rip si)                  = swrite_dst l0 dst $ Just $ SE_Op ZeroOne 8 []
-tau l0 n (Call f rip si)                     = scall n f rip 
-tau l0 n (Jump rip si)                       = return () -- TODO what if call to external function
+tau l0 n (Call op i rip si)                  = scall l0 n i rip 
+tau l0 n (Jump rip op i si)                  = sjump l0 n rip i
 tau l0 n (Nop rip si)                        = return ()
 tau l0 n (Push src op_si rip si)             = spush l0 src op_si
 tau l0 n (Pop dst op_si rip si)              = spop l0 dst op_si
@@ -1497,91 +1610,13 @@ dfs_spanning_forest g (v:vs) = do
 --}
 
 
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
--- Some graph related functions
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
 
-data NodeData = Unfinished Int | BlockIDs [Int]
-  deriving Eq
-
-instance Show NodeData where
-  show (Unfinished b)    = show b ++ " ..."
-  show (BlockIDs bs)     = show bs
-
-
--- Generate a spanning tree for the given CFG
-dfs_spanning_tree :: CFG -> Int -> State IS.IntSet (T.Tree NodeData)
-dfs_spanning_tree cfg blockID = do
-  let nexts        = IM.lookup blockID (cfg_edges cfg)
-  visited         <- get
-  let is_visited   = blockID `IS.member` visited
-  put $ IS.insert blockID visited
-  
-  if is_visited then
-    return $ T.Node (Unfinished blockID) []
-  else case IS.toList <$> nexts of
-    Nothing  -> return $ T.Node (BlockIDs [blockID]) []
-    Just []  -> return $ T.Node (BlockIDs [blockID]) []
-    Just [b] -> add_to_root blockID <$> dfs_spanning_tree cfg b
-    Just bs  -> T.Node (BlockIDs [blockID]) <$> (mapM (dfs_spanning_tree cfg) bs)
-
- where
-  add_to_root blockID (T.Node (BlockIDs bs) t)        = T.Node (BlockIDs $ blockID:bs) t
-  add_to_root blockID n@(T.Node (Unfinished _) [])    = T.Node (BlockIDs [blockID]) [n]
-
--- Given a spanning tree, generate paths that repeat cycles a certain number of times
-spanning_tree_to_cycles :: T.Tree NodeData -> [[Int]]
-spanning_tree_to_cycles = mk_paths []
- where
-  mk_paths path (T.Node (Unfinished b) [])
-    | b `elem` path = [path ++ (concat $ replicate 4 $ skipUntil b path)]
-    | otherwise     = [path]
-
-  mk_paths path (T.Node (BlockIDs bs) [])   = [path ++ bs]
-  mk_paths path (T.Node (BlockIDs bs) nxts) = concatMap (mk_paths (path ++ bs)) nxts
-
--- Given a path, extend the path so that it reaches an end node
-finish_path :: CFG -> [Int] -> [Int]
-finish_path cfg p = 
-  let finish = evalState (path_from_node_to_finish cfg $ last p) IS.empty in
-    case finish of
-      Nothing -> p -- error $ "Cannot find path to finish."
-      Just p' -> p ++ tail p'
- where
-  path_from_node_to_finish :: CFG -> Int -> State IS.IntSet (Maybe [Int])
-  path_from_node_to_finish cfg blockID = do
-    let nexts        = IM.lookup blockID (cfg_edges cfg)
-    visited         <- get
-    let is_visited   = blockID `IS.member` visited
-    put $ IS.insert blockID visited
-
-    if is_visited then
-      return Nothing
-    else case IS.toList <$> nexts of
-      Nothing -> return $ Just [blockID]
-      Just [] -> return $ Just [blockID]
-      Just bs -> do
-        path <- find_path_from_blocks bs 
-        return $ ((:) blockID) <$> path
-
-  find_path_from_blocks []     = return Nothing
-  find_path_from_blocks (b:bs) = do
-    path <- path_from_node_to_finish cfg b
-    case path of
-      Nothing -> find_path_from_blocks bs
-      Just p  -> return $ Just p
       
                   
 
 
 
--- TODO: move to base
-skipUntil a [] = []
-skipUntil a l@(b:bs)
-  | a == b    = l
-  | otherwise = skipUntil a bs
+
 
 
 
