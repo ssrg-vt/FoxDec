@@ -196,7 +196,7 @@ start args = do
   -- 1.)
   (bin,l0') <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
 
-  --l0 <- return l0'
+  l0 <- return l0'
         -- >>= try_resolve_indirections_underapproximatively bin config
         -- >>= lift_to_L0 config bin empty_finit . l0_indirections
         -- >>= try_resolve_indirections_underapproximatively bin config
