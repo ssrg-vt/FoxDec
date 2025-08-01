@@ -1,0 +1,6 @@
+Run XED disassembler on a binary to disassemble all possible instructions in the binary.
+
+Example usage:
+  ./docker-run.sh "BINARY" .text .plt .init .fini .plt.sec .plt.got
+
+This disassembles the given section (.text, .plt., etc.) in BINARY (use quotes to use relative paths).
