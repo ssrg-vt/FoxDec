@@ -39,12 +39,34 @@ stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S
 stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   let [trgt] = inSrcs $ last instrs in
     case flagstatus_to_tries 10000 flgs of -- TODO
-      Nothing -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
-      Just (op1,n) -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_using_bound (head instrs) op1 n trgt `orTry` try_to_resolve_from_pre trgt p `orElse` S.singleton Indirection_Unresolved
-
+      Nothing -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p  `orTry` try_to_resolve_AND trgt `orElse` S.singleton Indirection_Unresolved
+      Just (op1,n) ->
+        try_to_resolve_syscall (last instrs)
+        `orTry` try_to_resolve_error_call
+        `orTry` try_to_resolve_using_bound instrs op1 n trgt
+        `orTry` try_to_resolve_from_pre trgt p
+        `orTry` try_to_resolve_AND trgt
+        `orElse` S.singleton Indirection_Unresolved
  where
-  try_to_resolve_using_bound i op1 n trgt =
-    let values1 = map (\n -> evalState (evaluate_target_after_setting_value_and_block i op1 n trgt) (clean_sstate p, S.empty)) [0..n] in
+  -- INDIRECTION RESOLVING TACTIC:
+  -- if there is an AND with an immediate $imm$ of the form 2^n-1, then that induces a bound of $imm+1$
+  try_to_resolve_AND trgt = 
+    case break is_bounding_AND instrs of
+      (_,[]) -> Nothing
+      (is0,(i:is1)) ->
+        let op1 = head $ inDests i
+            n   = get_bound_from_AND i in
+          try_to_resolve_using_bound is1 op1 (n-1) trgt
+
+  is_bounding_AND (Instruction _ _ AND [op1,Op_Imm (Immediate _ imm)] _ _) = isPower2Minus1 imm
+  is_bounding_AND _ = False
+  get_bound_from_AND (Instruction _ _ AND [op1,Op_Imm (Immediate _ imm)] _ _) = imm+1
+
+
+  -- INDIRECTION RESOLVING TACTIC:
+  -- If a flg was set y a CMP (or similar), then that induces a bound
+  try_to_resolve_using_bound instrs op1 n trgt =
+    let values1 = map (\n -> evalState (evaluate_target_after_setting_value_and_block instrs op1 n trgt) (clean_sstate p, S.empty)) [0..n] in
       if values1 == [] then
         Nothing
       else if all is_jump_table_entry values1 then do
@@ -54,16 +76,31 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
       else
         Nothing
 
+  -- INDIRECTION RESOLVING TACTIC:
+  -- Simply try to run the block from the currently known precondition
   try_to_resolve_from_pre trgt p =
-    let trgts = evalState (evaluate_target_after_block trgt) (p,S.empty) in
+    let trgts = evalState (evaluate_target_after_block instrs trgt) (p,S.empty) in
       S.map Indirection_Resolved <$> trgts
 
+  -- INDIRECTION RESOLVING TACTIC:
+  -- If the block ends in a syscall, run the block and evaluate RAX
+  try_to_resolve_syscall :: Instruction -> Maybe Indirections
+  try_to_resolve_syscall i
+    | isSyscall (inOperation i) =  S.singleton <$> evalSstate evaluate_syscall_after_block p
+    | otherwise = Nothing
 
-  evaluate_target_after_setting_value_and_block i op1 n trgt = do
+
+  -- INDIRECTION RESOLVING TACTIC:
+  -- If the block ends in a call to "error", run the block and evlauate "RDI"
+  try_to_resolve_error_call = S.singleton <$> evalSstate evaluate_error_call_after_block p
+
+
+  -- Set the given operand $op1$ to the given value $n$ and run the block to evaluate the value of $trgt$ after execution of the block
+  evaluate_target_after_setting_value_and_block instrs op1 n trgt = do
     sset_rip ctxt (head instrs)
     let ops = get_equivalent_ops flgs [op1]
-    mapM_ (\op1 -> swrite_operand ctxt i False op1 (simmediate ctxt n)) ops
-    evaluate_target_after_block trgt
+    mapM_ (\op1 -> swrite_operand ctxt (head instrs) False op1 (simmediate ctxt n)) ops
+    evaluate_target_after_block instrs trgt
 
   get_equivalent_ops flgs ops = 
     case find (is_FS_EQ_to ops) flgs of
@@ -73,13 +110,15 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   is_FS_EQ_to ops (FS_EQ op0 op1) = (op0 `notElem` ops && op1 `elem` ops) || (op0 `elem` ops && op1 `notElem` ops)
   is_FS_EQ_to _ _ = False
 
-  evaluate_target_after_block trgt = do
+
+  -- Evaluate $trgt$ after running the block (ignore the last instruction)
+  evaluate_target_after_block instrs trgt = do
     (p,_) <- get
     sexec_block ctxt False (init instrs) Nothing
     (q,_) <- get
     sset_rip ctxt (last instrs)
     val <- sread_operand ctxt "indirection resolving" trgt
-    return $ stry_jump_targets ctxt val -- $ trace ("is = " ++ show (instrs) ++ "P:\n" ++ show p ++ "\nQ:\n" ++ show q ++ "\nval,trgt: " ++ show (val,trgt)) $ 
+    return $ stry_jump_targets ctxt (last instrs) val -- $  trace ("is = " ++ show (instrs) ++ "P:\n" ++ show p ++ "\nQ:\n" ++ show q ++ "\nval,trgt: " ++ show (val,trgt)) $ 
 
 
   flagstatus_to_tries max_tries flgs =
@@ -89,12 +128,7 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
       [FS_CMP _ _ _] -> Nothing
       _ -> error $ show flgs
 
-
-  try_to_resolve_syscall :: Instruction -> Maybe Indirections
-  try_to_resolve_syscall i
-    | isSyscall (inOperation i) =  S.singleton <$> evalSstate evaluate_syscall_after_block p
-    | otherwise = Nothing
-
+  -- Evaluate RAX after running the block, and try to produce an immediate value
   evaluate_syscall_after_block  = do
     sexec_block ctxt False (init instrs) Nothing
     sset_rip ctxt (last instrs)
@@ -104,13 +138,14 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
       Nothing -> return $ Just $ Indirection_Unresolved --  error $ show (last instrs, rax)
 
   
-  try_to_resolve_error_call = S.singleton <$> evalSstate evaluate_error_call_after_block p
-
+  -- Evaluate RDI after running the block, and try to produce a decision on whether it terminates or not
   evaluate_error_call_after_block = do
     sexec_block ctxt False (init instrs) Nothing
     sset_rip ctxt (last instrs)
     rdi <- sread_reg ctxt (Reg64 RDI)
     return $ stry_resolve_error_call ctxt (last instrs) rdi
+
+
 
   is_jump_table_entry Nothing      = False
   is_jump_table_entry (Just trgts) = S.size trgts == 1 && all is_immediate trgts

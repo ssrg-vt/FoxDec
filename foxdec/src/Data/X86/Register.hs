@@ -247,9 +247,12 @@ regSize (Reg16 _) = ByteSize 2
 regSize (Reg32 _) = ByteSize 4
 regSize (Reg64 _) = ByteSize 8
 regSize (Reg128 _) = ByteSize 16
+regSize (Reg256 _) = ByteSize 32
+regSize (Reg512 _) = ByteSize 64
 regSize (RegSeg _) = ByteSize 8
 regSize (RegTemp) = ByteSize 8
 regSize (RegFPU _) = ByteSize 10
+regSize (RegMask _) = ByteSize 8
 regSize r = error $ show r
 
 

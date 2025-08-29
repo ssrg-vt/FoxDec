@@ -55,6 +55,8 @@ import Data.Foldable (toList)
 import Data.Bits (testBit, (.|.), (.&.), xor, complement)
 import Control.Applicative (liftA2)
 
+import Numeric
+
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Control.DeepSeq
 import GHC.Generics
@@ -456,15 +458,19 @@ replace_rip_in_operand rip op = op
 
 
 cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> [FlagStatus] -> [FlagStatus]
-cflg_semantics fctxt _ i@(Instruction label prefix mnemonic ops info annot) flgs = flg mnemonic
+cflg_semantics fctxt _ i@(Instruction label prefix mnemonic ops info annot) flgs = flg mnemonic ops
  where
   mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
 
-  flg CMP      = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
-  flg SUB      = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
-  flg MOV      = [FS_EQ (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ flgs
+  flg CMP ops = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg SUB ops = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg MOV ops = [FS_EQ (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ flgs
 
-  flg _
+  flg AND [dst,Op_Imm (Immediate si imm)]
+    | isPower2Minus1 imm = flg CMP [dst,Op_Imm (Immediate si $ imm+1)]
+    | otherwise = []
+
+  flg _ _
     | WritesToFlags `elem` info = []
     | otherwise                 = flgs
 
@@ -1165,11 +1171,11 @@ jump l@(bin,config,l0,_) i = do
 
 
 
-ctry_jump_targets :: BinaryClass bin => Static bin v -> SValue -> Maybe (S.Set ResolvedJumpTarget)
-ctry_jump_targets l@(bin,_,_,_) v@(SConcrete es) =
+ctry_jump_targets :: BinaryClass bin => Static bin v -> Instruction -> SValue -> Maybe (S.Set ResolvedJumpTarget)
+ctry_jump_targets l@(bin,_,_,_) i v@(SConcrete es) =
   let tries = mapMaybe try $ concatMap unfold_cmovs $ S.toList $ NES.toSet es in
     case tries of
-      [] -> Nothing -- trace ("Cannot resolve indirection: " ++ show v) Nothing      
+      [] -> Nothing -- trace (show i ++ "\nCannot resolve indirection: " ++ show v) Nothing      
       _  -> Just $ S.fromList tries
  where
   try (SE_Immediate imm)                     = try_immediate_address imm 
@@ -1187,7 +1193,8 @@ ctry_jump_targets l@(bin,_,_,_) v@(SConcrete es) =
 
   try_symbol a =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (PointerToLabel f True)  -> Just $ External f
+      Just (PointerToExternalFunction f)  -> Just $ External f
+      Just (PointerToInternalFunction f a)  -> Just $ ImmediateAddress a
       Just (AddressOfLabel f True)  -> Just $ ExternalDeref f -- an external variable contains a pointer to a function
       Just (AddressOfObject f True) -> Just $ ExternalDeref f      -- an external variable contains a pointer to a function
       Just s                        -> error $ show (a, s) -- Just $ External f
@@ -1201,7 +1208,7 @@ ctry_jump_targets l@(bin,_,_,_) v@(SConcrete es) =
 
   is_reloc_for a (Relocation a' _) = a == a'
 
-ctry_jump_targets fctxt _ = Nothing 
+ctry_jump_targets fctxt _  _ = Nothing 
 
 
 

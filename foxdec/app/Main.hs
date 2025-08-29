@@ -23,6 +23,7 @@ import Data.SValue
 import Data.SPointer
 import Data.GlobalMem
 import Data.Indirection
+import Data.X86.Register
 
 import Binary.FunctionNames
 import Data.X86.Opcode
@@ -83,8 +84,7 @@ import Control.Monad.Extra
 import System.Environment
 import System.Console.GetOpt
 
-
-
+import Debug.Trace
 
 -- | The command-line arguments
 data CommandLineArgs = CommandLineArgs
@@ -200,7 +200,7 @@ start args = do
         -- >>= try_resolve_indirections_underapproximatively bin config
         -- >>= lift_to_L0 config bin empty_finit . l0_indirections
         -- >>= try_resolve_indirections_underapproximatively bin config
- -- get_function_signatures bin config l0
+  --get_function_signatures bin config l0
 
   -- 2.)
   when (args_generate_metrics args)   $ generate_metrics bin l0
@@ -215,38 +215,58 @@ start args = do
 
 
 get_function_signatures bin config l0 = do
-  let l = (bin,config,l0)
-  let entries = S.fromList $ IM.keys $ l0_functions l0 
-  let funcs   = exported_functions l
-  mapM_ get_function_signature entries
- where
-  get_function_signature entry =  do
-    putStrLn $ "0x" ++ showHex entry ++ ": " ++ (function_name_of_entry bin $ fromIntegral entry)
-    let l = (bin,config,l0)
-    let path = evalState (function_call_to_nested_path l entry) IS.empty
+  let l       = (bin,config,l0)
+  let dirname = binary_dir_name bin
+  let name    = binary_file_name bin
+  let entries = intersect (IM.keys $ l0_functions l0) (IM.keys $ binary_get_exported_functions bin) -- $ IM.keys $ l0_functions l0
 
-    --putStrLn $ show path 
-    (sems,ras,symstate,inputs) <- symb_exec_nested_path l path init_symstate
-    putStrLn $ show $ S.toList $ S.unions $ S.map toInputRegs $ inputs
+  let fname   = dirname ++ name ++ ".signs"
+
+
+  signs <- mapM (get_function_signature) entries
+  writeFile fname $ intercalate "\n" signs
+  putStrLn $ "Exported function signatures to plain-text file: " ++ fname
+ where
+  get_function_signature entry = do
+    putStrLn $ "Entry: " ++ showHex entry
+    let l = (bin,config,l0)
+    let name = function_name_of_entry bin $ fromIntegral entry
+    let paths = evalState (function_call_to_nested_paths l 10 entry False) IS.empty
+
+    -- putStrLn $ "Num of paths: " ++ show (length paths) ++ "\n" ++ intercalate "\n" (map show paths)
+
+    results <- mapM (\path -> symb_exec_nested_path l path init_symstate) paths
+    let inputs = S.unions $ map (\(sems,ras,symstate,inputs) -> inputs) results
+    let regs = S.toList $ S.unions $ S.map toInputRegs $ inputs
+    let str0 = "0x" ++ showHex entry ++ ": " ++ name ++ "\n  Exploring " ++ show (length paths) ++ " paths" -- ++ (total length: " ++ show (sum (map nested_path_size paths)) ++ ")"
+    let str1 = "  Read registers: " ++ show regs
+    let str2 = "  System V ABI:   " ++ show (match_with_systemV_ABI regs)
+
+    --putStrLn $ intercalate "\n" [str0,str1,str2]
+    return $ intercalate "\n" [str0,str1,str2]
   toInputRegs (SP_Reg r)
     | real_reg r `notElem` [Reg64 RSP,RegSeg FS] = S.singleton r
     | otherwise = S.empty
   toInputRegs (SP_Mem a si) = S.unions $ map (toInputRegs . SP_Reg) $ regs_of_expr a
 
 
+match_with_systemV_ABI regs = takeWhile (\r -> r `elem` regs) systemV_ABI_regs
+ where
+  systemV_ABI_regs = map Reg64 [ RDI, RSI, RDX, RCX, R8, R9] ++ map Reg128 [0..7]
+
 
 -- TODO: move to own file
 try_resolve_indirections_underapproximatively bin config l0 = do
-  let unresolved_indirections = IM.keys $ IM.filter isUnresolved $ l0_indirections l0
-  foldM try_resolve_underapproximatively l0 unresolved_indirections
+  let unresolved_indirections = zip [0 ..] $ IM.keys $ IM.filter isUnresolved $ l0_indirections l0
+  foldM (try_resolve_underapproximatively (length unresolved_indirections)) l0 unresolved_indirections
  where
   isUnresolved inds = all ((==) Indirection_Unresolved) inds
 
-  try_resolve_underapproximatively l0 a = do
+  try_resolve_underapproximatively total_num l0 (curr,a) = do
+    putStrLn $ "Address: " ++ showHex a ++ " (" ++ show (curr+1)++ "/" ++ show total_num ++ ")"
     let l = (bin,config,l0)
-    let (entry,paths) = generate_paths_to_address l a
-    let paths' = S.toList $ S.map (unfold_nested_path l) $ S.fromList $ take 1 $ S.toList paths
-
+    let (entry,paths) = generate_paths_to_address l (Just 2) a
+    let paths' = S.toList $ S.map (unfold_nested_path l) $ S.fromList $ S.toList paths
     symstates <- mapM (\path -> get_symstate <$> symb_exec_nested_path l path init_symstate) paths'
     trgts <- mapM (do_path l0 entry a) $ zip paths' symstates
 
@@ -262,16 +282,11 @@ try_resolve_indirections_underapproximatively bin config l0 = do
     let sem    = instr_to_semantics l i
     let ras    = resolve_operands l sem symstate
     let [SE_StatePart op Nothing] = operands_of sem
-    let trgts  = (ctry_jump_targets l . SConcrete . neFromList) $ (ras M.! op)
-
-   -- let ind    = S.map Indirection_Resolved <$> trgts
+    let trgts  = (ctry_jump_targets l i . SConcrete . neFromList) $ (ras M.! op)
     --putStrLn $ show path
-    putStrLn $ show sem
-    putStrLn $ show op ++ " == " ++ show (ras M.! op)
-    putStrLn $ show trgts
-
-
-
+    --putStrLn $ show sem
+    --putStrLn $ show op ++ " == " ++ show (ras M.! op)
+    --putStrLn $ show trgts
     return trgts
 
 

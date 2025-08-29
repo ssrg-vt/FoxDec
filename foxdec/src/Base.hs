@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, StrictData, FlexibleInstances #-}
 
 {-|
 Module      : Base
@@ -32,7 +32,7 @@ import Data.Serialize.Get (getSetOf)
 import Data.Serialize.Put (putSetOf)
 import qualified Data.Set.NonEmpty as NES
 
-class IntGraph g where
+class Show g => IntGraph g where
   intgraph_post    :: g -> Int -> IS.IntSet -- ^ Set of children of given vertex
   intgraph_pre     :: g -> Int -> IS.IntSet -- ^ Set of parents of given vertex
   intgraph_V       :: g -> IS.IntSet        -- ^ All vertices
@@ -201,7 +201,9 @@ sextend_8_32  w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0x00000000
 sextend_8_16 w = if testBit w 7  then (w .&. 0x00000000000000FF) .|. 0x000000000000FF00 else (w .&. 0x00000000000000FF)
 
 
-
+ -- checks if imm = 2^n-1 for some n
+isPower2Minus1 :: Word64 -> Bool
+isPower2Minus1 imm = imm /= 0 && imm /= 0-1 && imm .&. (imm+1) == 0
 
 round2dp :: Double -> Double
 round2dp x = fromIntegral (round $ x * 1e2) / 1e2
@@ -234,6 +236,10 @@ graph_add_edges (Edges es) v vs = Edges $ IM.unionWith IS.union (IM.alter alter 
 
 -- | delete all edges with v as parent or child
 graph_delete (Edges es) v = Edges $ IM.delete v $ IM.map (IS.delete v) es
+
+-- | delete all edges with v as parent 
+graph_delete_from v (Edges es) = Edges $ IM.adjust (\_ -> IS.empty) v es
+
 
 -- | is v parent of an edge?
 graph_is_parent (Edges es) v = IM.member v es

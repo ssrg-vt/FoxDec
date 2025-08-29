@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures , DeriveGeneric, BangPatterns, StrictData, ScopedTypeVariables, FunctionalDependencies, FlexibleInstances, UndecidableInstances, FlexibleContexts#-}
+{-# LANGUAGE PartialTypeSignatures , DeriveGeneric, BangPatterns, StrictData, FunctionalDependencies, FlexibleInstances, UndecidableInstances, FlexibleContexts#-}
 
 module WithAbstractPredicates.ContextSensitiveAnalysis where
 
@@ -9,6 +9,7 @@ import WithAbstractPredicates.Class
 import WithAbstractPredicates.GenerateCFG
 import WithAbstractPredicates.GenerateInvariants
 import WithAbstractPredicates.ControlFlow
+import OutputGeneration.CallGraph
 
 import Data.JumpTarget
 import Data.Symbol
@@ -157,9 +158,17 @@ exploreDanglingFunctionPointers = do
 
   isDangling l0 ptr = 
     case IM.lookup ptr l0 of
-      Nothing -> [ptr] 
+      Nothing -> if isVisited l0 ptr then [] else [ptr] 
       Just _  -> []
 
+  isVisited l0 ptr = any (function_contains_address ptr) l0
+
+  function_contains_address a (_,Nothing) = False
+  function_contains_address a (_,Just (FResult cfg _ _ _ _ _)) = cfg_contains_address a cfg
+
+  cfg_contains_address a cfg = any (block_contains_address a) $ cfg_instrs cfg
+
+  block_contains_address a b = any (\i -> inAddress i == fromIntegral a) b
 
 exploreDanglingRelocations :: WithAbstractPredicates bin pred finit v => WithLifting bin pred finit v ()
 exploreDanglingRelocations = do
@@ -193,6 +202,7 @@ exploreFunctionEntry entries recursions entry = do
   let valid_entry = address_has_instruction bin entry
   explore valid_entry 
  where
+  explore :: WithAbstractPredicates bin pred finit v => Bool ->  WithLifting bin pred finit v ()
   explore False = do
     -- Entry is not within a text section of the binary, delete it and continue
     liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " ignored."
@@ -215,8 +225,15 @@ exploreFunctionEntry entries recursions entry = do
         exploreFunctionEntries entries' recursions
       AnalyzedWithResult result -> do
         -- Finished analysis of the function entry
+        curr_result <- gets $ l0_lookup_result entry
+        let curr_post = result_post <$> curr_result
+        entries'' <- if curr_post /= Just Terminates && result_post result == Terminates then do
+                       mark_callers_of_newly_terminating_callee entries recursions entry
+                     else
+                       return entries
+
         modify $ l0_adjust_result entry (Just result) 
-        let entries' = graph_delete entries (fromIntegral entry)
+        let entries' = graph_delete entries'' (fromIntegral entry)
         recursions' <- mark_mutual_recursive_calls entry result recursions
         report_result result
         exploreFunctionEntries entries' recursions'
@@ -230,6 +247,24 @@ exploreFunctionEntry entries recursions entry = do
       liftIO $ putStrLn $ "Function precondition:\n" ++ pp_finit static finit
     liftIO $ putStrLn $ "Function postcondition: " ++ (show $ result_post result)
     liftIO $ putStrLn $ (intercalate "\n" $ map show $ S.toList $ result_vcs result)
+
+
+mark_callers_of_newly_terminating_callee :: WithAbstractPredicates bin pred finit v => Graph -> Recursions -> Word64 -> WithLifting bin pred finit v Graph
+mark_callers_of_newly_terminating_callee entries recursions entry = do
+  static <- mk_static
+  funcs <- gets l0_functions
+  let callers  = IM.keysSet $ IM.filter (calls_entry static) funcs
+  let not_already_reconsidered = IS.filter (\caller -> caller `IM.notMember` recursions && not (graph_is_parent entries caller)) callers
+  if IS.null not_already_reconsidered then
+    return entries
+  else do
+    liftIO $ putStrLn $ "Reconsidering (due to callee " ++ showHex entry ++ " being a terminating function) entries " ++ showHex_set not_already_reconsidered
+    let entries' = foldr (\caller entries -> graph_add_edges entries (fromIntegral caller) IS.empty) entries $ IS.toList not_already_reconsidered
+    mapM (\caller -> modify $ l0_adjust_result caller Nothing) $ IS.toList not_already_reconsidered
+    return entries'
+ where
+  calls_entry static (_,Just (FResult cfg _ _ _ _ _)) = fromIntegral entry `IS.member` calls_of_cfg static cfg
+  calls_entry _ _ = False
 
 entry_has_been_done :: Recursions -> Word64 -> WithLifting bin pred finit v Bool
 entry_has_been_done recursions entry = do
@@ -384,7 +419,7 @@ analyze_entry entry = do
     let inds = resolve_indirection (withEntry entry static) pre instrs
     case Indirection_Unresolved `S.member` inds of
       True -> do
-        liftIO $ putStrLn $ "Unresolved indirection: " ++ show (last instrs)
+        liftIO $ putStrLn $ "Unresolved indirection: " ++ show (last instrs) ++ "\n" ++ show inds
         liftIO $ putStrLn $ show pre
         add_newly_resolved_indirection inds (inAddress $ last instrs)
       _ -> do

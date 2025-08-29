@@ -3,6 +3,7 @@
 
 module Data.Symbol where
 
+import Base
 import Data.Word 
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
@@ -30,7 +31,8 @@ import qualified Numeric (showHex)
 -- Symbol "environ" now no longer is an external symbol.
 -- Instead, we have *environ = &object, where "object" is the object that 0xc1340 is relocated to.
 data Symbol = 
-    PointerToLabel            String Bool -- ^ Address a0 is a pointer to memory storing the entry of a function
+    PointerToExternalFunction String -- ^ Address a0 is a pointer to memory storing the entry of a function
+  | PointerToInternalFunction String Word64 -- ^ Address a0 is a pointer to memory storing the entry of a function
   | PointerToObject           String Bool -- ^ Address a0 can be replaced by the GOT entry of the string, e.g., "stdout wrt ..got" or "optind wrt ..got"
   | AddressOfObject           String Bool -- ^ Address a0 can be replaced by the string, e.g., "stdout" or "optind"
   | AddressOfLabel            String Bool -- ^ Address a0 can be replaced by the string.
@@ -38,11 +40,12 @@ data Symbol =
   deriving (Generic,Eq,Ord)
 
 instance Show Symbol where
-  show (PointerToLabel  l ex)         = "&" ++ l ++ "_" ++ show_ex ex
-  show (PointerToObject o ex)         = "&" ++ o ++ "_" ++ show_ex ex
-  show (AddressOfObject o ex)         = o ++ "_" ++ show_ex ex
-  show (AddressOfLabel  l ex)         = l ++ "_" ++ show_ex ex
-  show (Relocated_ResolvedObject o a) = o ++ "@0x" ++ (if a < 0 then Numeric.showHex (fromIntegral a :: Word64) "" else Numeric.showHex a "")
+  show (PointerToExternalFunction l)   = "&" ++ l
+  show (PointerToInternalFunction l a) = "&" ++ l ++ "@0x" ++ showHex a
+  show (PointerToObject o ex)          = "&" ++ o ++ "_" ++ show_ex ex
+  show (AddressOfObject o ex)          = o ++ "_" ++ show_ex ex
+  show (AddressOfLabel  l ex)          = l ++ "_" ++ show_ex ex
+  show (Relocated_ResolvedObject o a)  = o ++ "@0x" ++ (if a < 0 then Numeric.showHex (fromIntegral a :: Word64) "" else Numeric.showHex a "")
 
 show_ex True  = "ex"
 show_ex False = "in"

@@ -48,19 +48,19 @@ data PointerDomain =
 -- | Returns true iff a symbol is associated with the address.
 address_has_external_symbol bin a =
   case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-    Just (PointerToLabel _ ex)  -> ex
+    Just (PointerToExternalFunction _)  -> True
     Just (PointerToObject _ ex) -> ex
     Just (AddressOfObject _ ex) -> ex
     Just (AddressOfLabel _ ex)  -> ex
     _ -> False
 
 
-
+address_has_symbol bin a = IM.lookup (fromIntegral a) (binary_get_symbol_table bin) /= Nothing
 
 
 -- | Returns true iff the expression is an immediate address falling into the range of sections of the binary
 expr_is_global_immediate bin (SE_Immediate a)
-  | is_roughly_an_address bin (fromIntegral a) = address_has_external_symbol bin a || find_section_for_address bin (fromIntegral a) /= Nothing
+  | is_roughly_an_address bin (fromIntegral a) = address_has_symbol bin a || find_section_for_address bin (fromIntegral a) /= Nothing
   | otherwise = False
 expr_is_global_immediate ctxt _ = False
 

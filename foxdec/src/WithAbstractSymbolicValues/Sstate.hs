@@ -126,9 +126,11 @@ read_from_ro_data ctxt p (Just (ByteSize si)) =
 
   try_read_symbol a si = 
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (PointerToLabel f True)  -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
-      Just (PointerToObject f True) -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
-      Just (AddressOfObject f True) -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (PointerToExternalFunction f)   -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (PointerToInternalFunction f a) -> Just $ simmediate ctxt a
+      Just (PointerToObject f True)        -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (AddressOfObject f True)        -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (Relocated_ResolvedObject o a)  -> Just $ simmediate ctxt a
       -- Just s                        -> error $ show (a, s) 
       _                             -> Nothing
 read_from_ro_data _ _ _ = Nothing

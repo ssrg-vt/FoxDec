@@ -6,6 +6,8 @@ import Base
 
 import Binary.Generic
 
+import Data.Binary.Get as G
+
 import Data.Elf
 import Data.Symbol
 
@@ -26,6 +28,7 @@ import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 import Data.X86.Instruction
 
+import Control.Monad.State.Strict
 
 import Debug.Trace
 
@@ -77,6 +80,7 @@ sections_ro_data = [
    ("",".text"),
    ("",".rodata"),
    ("",".got"),
+   ("",".got.plt"),
    ("",".plt"),
    ("",".plt.got"),
    ("",".plt.sec"),
@@ -180,14 +184,22 @@ elf_get_relocs elf = S.fromList $ mk_relocs
    | otherwise = []
 
 
-elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
+
+elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
  where
   mk_symbols = IM.fromList $ filter ((/=) "" . symbol_to_name . snd) $ symbols_from_ELF_symbol_tables ++ symbols_from_relocations
 
-  mk_globals = IM.fromList $ filter ((/=) "" . snd) $ map (\sym_entry -> (fromIntegral $ steValue sym_entry, get_string_from_steName $ steName sym_entry)) $ filter isGlobalAndInternallyDefined $ concat $ parseSymbolTables elf
+  mk_exports = IM.fromList $ map mk_sym_entry $ filter isExportedAndInternallyDefined $ concat $ parseSymbolTables elf
+  mk_sym_entry sym_entry = (fromIntegral $ steValue sym_entry, get_string_from_steName $ steName sym_entry)
 
-  isGlobalAndInternallyDefined sym_entry = steIndex sym_entry /= SHNUndef && steBind sym_entry == STBGlobal
+  dynsym = parseDynSym elf
 
+  isExportedAndInternallyDefined sym_entry = and
+    [ steIndex sym_entry /= SHNUndef
+    , steBind sym_entry == STBGlobal
+    , get_string_from_steName (steName sym_entry) /= ""
+    , steType sym_entry /= STTLoOS
+    , M.lookup (steName sym_entry) dynsym /= Just (Just "GLIBC_PRIVATE") ]
 
 
 
@@ -197,30 +209,29 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
   mk_symbol_table_for_reloc_section sec = concatMap (try_mk_symbol_entry sec) (elfRelSectRelocations sec)
 
   try_mk_symbol_entry sec reloc
-    | elfRelType reloc == 7 =
+    | elfRelType reloc `elem` [6,7] =
+      -- R_X86_64_GLOB_DAT, objects
       -- R_X86_64_JUMP_SLOT
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
-      [(fromIntegral $ elfRelOffset reloc, (uncurry PointerToLabel) $ get_name_and_inex_from_reloc sec reloc)]
-    | elfRelType reloc == 6 =
-      -- R_X86_64_GLOB_DAT, objects
-      -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
       let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
-          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry $ symbol_table_entry
+          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc $ symbol_table_entry
           symb_type_of_reloc_trgt = steType $ symbol_table_entry
+          value                   = steValue symbol_table_entry 
           reloc_address           = fromIntegral $ elfRelOffset reloc in
         if symb_type_of_reloc_trgt `elem` [STTObject,STTCommon] then
           let symbol_table_entry = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
-              bind               = steBind symbol_table_entry
-              value              = steValue symbol_table_entry in
+              bind               = steBind symbol_table_entry in
             if any (\sec -> any (\reloc -> elfRelOffset reloc == value) $ elfRelSectRelocations sec) $ parseRelocations elf then
               [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]
             else if not (snd name_of_reloc_trgt) then -- internal object
-              case find (is_symbol_for (fst name_of_reloc_trgt)) $ concat $ parseSymbolTables elf of
-                Just sym -> [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) $ steValue sym))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
+              [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
             else
               [(reloc_address, (uncurry PointerToObject) name_of_reloc_trgt)]
         else 
-          [(reloc_address, (uncurry PointerToLabel) name_of_reloc_trgt)]
+          if not (snd name_of_reloc_trgt) then -- internal label 
+              [(reloc_address, PointerToInternalFunction (fst name_of_reloc_trgt) value)]
+          else
+            [(reloc_address, PointerToExternalFunction (fst name_of_reloc_trgt))]
    | elfRelType reloc == 5 =
       -- R_X86_64_COPY
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
@@ -230,11 +241,18 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
       -- RelSymAddend should be zero
       let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
-          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry symbol_table_entry
+          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
           symb_type_of_reloc_trgt = steType $ symbol_table_entry
+          value                   = steValue symbol_table_entry
           reloc_address           = fromIntegral $ elfRelOffset reloc in
         if symb_type_of_reloc_trgt == STTFunc then
-          [(reloc_address, (uncurry PointerToLabel) name_of_reloc_trgt)]
+          if not (snd name_of_reloc_trgt) then -- internal label 
+            if value == 0 then
+              error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
+            else 
+              [(reloc_address, PointerToInternalFunction (fst name_of_reloc_trgt) value)]
+          else
+            [(reloc_address, PointerToExternalFunction (fst name_of_reloc_trgt))]
         else
           [] -- error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
    | otherwise = []
@@ -263,9 +281,9 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_globals
 
   get_name_and_inex_from_reloc sec reloc =
     let sym_entry     = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc) in
-      get_name_and_inex_from_sym_entry sym_entry
+      get_name_and_inex_from_sym_entry reloc sym_entry
 
-  get_name_and_inex_from_sym_entry sym_entry =
+  get_name_and_inex_from_sym_entry reloc sym_entry =
     let name          = get_string_from_steName $ steName sym_entry
         where_defined = steIndex sym_entry
         is_external   = case where_defined of
@@ -296,7 +314,7 @@ elf_read_file = parseElf
 
 
 pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section), showHex (elfSectionAddrAlign section)] ++ "]" 
-pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry
+pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry 
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
@@ -305,9 +323,12 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
 
 
   pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
-  pp_all_symbols = "Complete symbol table:" : map show_symbol_entry (zip [0..] $ concat $ parseSymbolTables elf)
-  show_symbol_entry (ind,sym_entry) = intercalate "; " [ show ind, show (steName sym_entry), show (steType sym_entry) , showHex (steValue sym_entry), show $ steIndex sym_entry, show $ steBind sym_entry ]
+  pp_all_symbols = "Complete symbol table:" : map (show_symbol_entry parse_dynsym) (zip [0..] $ concat $ parseSymbolTables elf)
+  show_symbol_entry dynsym (ind,sym_entry) = intercalate "; " [ show ind, show (steName sym_entry), show (steType sym_entry) , show $ steBind sym_entry, show $ steOther sym_entry, showHex (steValue sym_entry), show $ steIndex sym_entry, show_dynsym $ M.lookup (steName sym_entry) dynsym]
 
+  parse_dynsym = parseDynSym elf
+  show_dynsym (Just (Just str)) = str
+  show_dynsym _ = ""
 
   pp_type = ["Type: " ++ (show $ elfType elf)]
   pp_entry = ["Entry: " ++ (showHex $ elfEntry elf)]
@@ -381,3 +402,112 @@ is_bss_data_section _ = False
 
 
 
+-- https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA.junk/symversion.html
+--
+data GNU_Version_d = GNU_Version_d {
+  vd_version :: [Word8],
+  vd_flags :: [Word8],
+  vd_ndx :: [Word8],
+  vd_cnt :: [Word8],
+  vd_hash :: [Word8],
+  vda_name :: [Word8],
+  vda_next :: [Word8]
+ }
+
+parse_gnu_version_d elf =
+  case filter (\s -> elfSectionName s == ".gnu.version_d") (elfSections elf) of
+    [] -> []
+    [sec] -> evalState get_symbols (elfSectionData sec)
+ where
+  get_symbols = do
+    bs <- get
+    if BS.length bs < entry_size then
+      return []
+    else do
+      vd_version <- consume 2
+      vd_flags <- consume 2
+      vd_ndx <- consume 2
+      vd_cnt <- consume 2
+      vd_hash <- consume 4
+      vd_aux <- consume 4
+
+      let vd_aux_value = fromIntegral $ bytes_to_word $ vd_aux
+      let vda_name = BS.unpack $ BS.take 4 $ BS.drop vd_aux_value bs
+      let vda_next = BS.unpack $ BS.take 4 $ BS.drop (vd_aux_value+4) bs
+
+      vd_next <- consume 4
+      let vd_next_value = fromIntegral $ bytes_to_word $ vd_next
+      rest <- if vd_next_value /= 0 then do
+                _ <- consume $ vd_next_value - 20
+                get_symbols
+              else
+                return []
+      return $ GNU_Version_d vd_version vd_flags vd_ndx vd_cnt vd_hash vda_name vda_next : rest
+      
+  consume n = do
+    (read,rest) <- gets $ BS.splitAt n
+    put rest
+    return $ BS.unpack read
+
+  -- TODO for 64 bit ELF only
+  entry_size = 2+2+2+2+4+4+4
+
+parse_gnu_version elf =
+  case filter (\s -> elfSectionName s == ".gnu.version") (elfSections elf) of
+    [] -> []
+    [gnu_version] -> split_bytestring (elfSectionData gnu_version) (fromIntegral $ elfSectionEntSize gnu_version)
+
+
+
+
+
+-- the .dynsym section contains entries of size $elfSectionEntSize dnysym$ (in bytes)
+-- the .gnu_version contains entries of size $elfSectionEntSize gnu_version$ (in bytes)
+--    gnu_version_entry == 0 --> The symbol is local, not available outside the object.
+--    gnu_version_entry == 1 --> The symbol is defined in this object and is globally available.
+--
+--    Result maps steName from symbols to version strings
+parseDynSym :: Elf -> M.Map (Word32,Maybe BS.ByteString) (Maybe String)
+parseDynSym elf =
+  let [dynsym]            = filter ((`elem` [SHT_DYNSYM]) . elfSectionType) (elfSections elf)
+      gnu_version_entries = parse_gnu_version elf
+      gnu_version_count   = length gnu_version_entries 
+      [dyn_sym_symbols]   = filter (\symbols -> length symbols == gnu_version_count) $ parseSymbolTables elf
+      gnu_version_d       = parse_gnu_version_d elf
+      symbols             = zip dyn_sym_symbols gnu_version_entries
+  in
+    M.fromList $ map (mk_symbol gnu_version_d) symbols
+    --error $ (intercalate "\n" $ map (show_symbol gnu_version_d) symbols) ++ "\n\n" ++ intercalate "\n"  (map show_gnu_version_d_entry gnu_version_d)
+ where
+  mk_symbol gnu_version_d (sym,gnu_version) = 
+    let gnu_version_value   = (fromIntegral $ bytes_to_word $ [BS.head $ gnu_version]) - 1
+        lookup_vda_name     = vda_name <$> (gnu_version_d !? gnu_version_value)
+        vda_name_index      = (fromIntegral . bytes_to_word) <$> lookup_vda_name
+        vda_symbol          = find_symbol_by_index elf =<< vda_name_index in
+      --if gnu_version_value == 1 then
+      --  error $ show (steName sym, steName <$> vda_symbol, BS.last $ gnu_version)
+      --else
+      (steName sym, (get_string_from_steName . steName) <$> vda_symbol)
+
+
+
+find_symbol_by_index elf index = find symbol_has_index $ concat $ parseSymbolTables elf
+ where
+  symbol_has_index sym = (fst $ steName sym) == index
+ 
+
+split_bytestring bs n
+  | BS.null bs = []
+  | otherwise = 
+    case BS.splitAt n bs of
+      (bs0,bs1) -> bs0 : split_bytestring bs1 n
+
+
+
+
+{-# INLINABLE (!?) #-}
+xs !? n
+  | n < 0     = Nothing
+  | otherwise = foldr (\x r k -> case k of
+                                   0 -> Just x
+                                   _ -> r (k-1)) (const Nothing) xs n

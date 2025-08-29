@@ -154,8 +154,7 @@ add_edge a0 a1 is_call_a0 g =
   split_calls a True  = split_graph' a
   split_calls a False = return
 
-fromJust' instrs as Nothing = error $ showHex_list as ++ show instrs
-fromJust' _ _ (Just a) = a
+
 
 cfg_add_instrs ::
   WithAbstractPredicates bin pred finit v =>
@@ -167,10 +166,13 @@ cfg_add_instrs l@(bin,_,_) g =
     g { cfg_instrs = IM.fromList instrs }
  where
   block_to_instrs (a,as) =
-    let instrs = map (fetch_instruction bin . fromIntegral) as in
+    let instrs = zip as $ map (fetch_instruction bin . fromIntegral) as in
       (a, map (fromJust' instrs as) instrs)
 
+  fromJust' instrs as (a,Nothing) = mk_HLT a -- error $ showHex_list as ++ show instrs
+  fromJust' _ _ (a,Just i) = i
 
+  mk_HLT a = Instruction (fromIntegral a) [] HLT [] [] 1
 
 is_consecutive a b []      = False
 is_consecutive a b [_]     = False

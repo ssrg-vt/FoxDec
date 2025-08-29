@@ -51,20 +51,21 @@ instance Cereal.Serialize SectionsInfo
 
 data SymbolTable = SymbolTable {
   symboltable_symbols :: !(IM.IntMap Symbol),
-  symboltable_globals :: !(IM.IntMap String)
+  symboltable_exports :: !(IM.IntMap String)
   }
   deriving (Generic,Eq)
 
 instance Show SymbolTable where
-  show (SymbolTable tbl globals) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_global $ IM.toList globals)
+  show (SymbolTable tbl exports) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_export $ IM.toList exports)
    where
-    show_entry (a0,PointerToLabel f b)           = showHex a0 ++ " --> " ++ f ++ show_in_ex b "label"
-    show_entry (a0,PointerToObject l b)          = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
-    show_entry (a0,AddressOfObject l b)          = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
-    show_entry (a0,AddressOfLabel f b)           = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
-    show_entry (a0,Relocated_ResolvedObject l a) = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
+    show_entry (a0,PointerToExternalFunction f)    = showHex a0 ++ " --> " ++ f
+    show_entry (a0,PointerToInternalFunction f a1) = showHex a0 ++ " --> " ++ f ++ "@0x" ++ showHex a1
+    show_entry (a0,PointerToObject l b)            = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfObject l b)            = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
+    show_entry (a0,AddressOfLabel f b)             = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
+    show_entry (a0,Relocated_ResolvedObject l a)   = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
 
-    show_global (a,f) = showHex a ++ ": " ++ f ++ " (global)"
+    show_export (a,f) = showHex a ++ ": " ++ f ++ " (exported)"
 
     show_in_ex True  ty = " (external " ++ ty ++ ")" 
     show_in_ex False ty = " (internal " ++ ty ++ ")" 
@@ -119,15 +120,16 @@ binary_get_symbol_table bin =
     (SymbolTable tbl globals) -> tbl
 
 
-binary_get_global_symbols bin =
+binary_get_exported_functions bin =
   case binary_get_symbols bin of
-    (SymbolTable tbl globals) -> globals
+    (SymbolTable tbl exports) -> exports
 
-symbol_to_name (PointerToLabel f b)           = f
-symbol_to_name (PointerToObject l b)          = l
-symbol_to_name (AddressOfObject l b)          = l
-symbol_to_name (AddressOfLabel f b)           = f
-symbol_to_name (Relocated_ResolvedObject l a) = l
+symbol_to_name (PointerToExternalFunction f)   = f
+symbol_to_name (PointerToInternalFunction f a) = f
+symbol_to_name (PointerToObject l b)           = l
+symbol_to_name (AddressOfObject l b)           = l
+symbol_to_name (AddressOfLabel f b)            = f
+symbol_to_name (Relocated_ResolvedObject l a)  = l
 
 
 
@@ -195,3 +197,20 @@ address_has_instruction bin a =
   case fetch_instruction bin a of
     Nothing -> False
     _ -> True
+
+
+
+undefined_internal_global_labels bin = filter is_global_and_internal_and_outside_of_any_section $ IM.assocs $ binary_get_symbol_table bin
+ where
+  is_global_and_internal_and_outside_of_any_section (a,sym) = and
+    [ is_internal_symbol sym
+    -- , symbol_to_name sym `elem` IM.elems (binary_get_global_symbols bin)
+    , is_not_defined_elsewhere a ]
+
+  is_not_defined_elsewhere a = (find (is_section_for a) $ si_sections $ binary_get_sections_info bin) == Nothing
+
+  is_section_for a (segment,section,a0,sz,_,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
+
+  is_internal_symbol (AddressOfLabel _ False) = True
+  is_internal_symbol _                        = False
+

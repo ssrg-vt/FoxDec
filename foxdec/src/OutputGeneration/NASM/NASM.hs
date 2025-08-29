@@ -233,6 +233,8 @@ instance Show NASM_Instruction where
   show i@(NASM_Instruction pre (Just FISTP) [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FISTP) [with_size 2 op0]  info comment annot)
   show i@(NASM_Instruction pre (Just FLD)   [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FLD)   [with_size 10 op1] info comment annot)
   show i@(NASM_Instruction pre (Just FILD)  [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FILD)  [with_size 2 op1]  info comment annot)
+  show i@(NASM_Instruction pre (Just FCOM)  [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FCOM)  [op1] info comment annot)
+  show i@(NASM_Instruction pre (Just FCOMP) [op0,op1] info comment annot) = show' (NASM_Instruction pre (Just FCOMP) [op1] info comment annot)
   show i@(NASM_Instruction pre (Just FMUL)  [op0,op1] info comment annot) 
     | isMem op1 = show' (NASM_Instruction pre (Just FMUL) [op1] info comment annot)
     | otherwise = show' i
@@ -272,9 +274,11 @@ show' (NASM_Instruction pre m ops info comment annot) = concat
         else " ; " ++ comment
 
     instr_op_size =
-      case partition isImmediate ops of
-        (_,(op:_))  -> operand_size op
-        ([imm],[])  -> operand_size imm
+      case (partition isImmediate ops,m) of
+        ((_,(op:_)),_) -> operand_size op
+        (([imm],[]),_)  -> operand_size imm
+        (([imm0,imm1],[]),Just ENTER) -> ByteSize 2
+        _ -> error $ intercalate " " $ filter ((/=) "") [ show_prefix pre, show_mnemonic m, show ops]
 
 
 
@@ -284,6 +288,8 @@ show' (NASM_Instruction pre m ops info comment annot) = concat
     show_op (NASM_Operand_Memory sizedir a)   = show_nasm_sizedir sizedir ++ " [" ++ show a ++ "]"
     show_op (NASM_Operand_Immediate (Immediate (BitSize si) imm)) = 
       case (instr_op_size,si) of
+        (ByteSize 32,8) -> "0x" ++ showHex (sextend_8_64 imm)
+
         (ByteSize 16,64) -> "0x" ++ showHex imm
         (ByteSize 16,32) -> "0x" ++ showHex imm
         (ByteSize 16,16) -> "0x" ++ showHex imm
@@ -346,6 +352,8 @@ show_nasm_sizedir (4,_) = "dword"
 show_nasm_sizedir (8,_) = "qword"
 show_nasm_sizedir (10,_) = "tword"
 show_nasm_sizedir (16,_) = "oword"
+show_nasm_sizedir (32,_) = "yword"
+show_nasm_sizedir (64,_) = "zword"
 
 instance Show NASM_Label where
   show (Label _ str) = str
@@ -391,12 +399,12 @@ instance Show NASM_Address where
   show (NASM_Addr_Label l)                    = show l 
 
 
-show_symbol (PointerToLabel  l True)       = l ++ " wrt ..plt"
-show_symbol (PointerToLabel  l False)      = l
-show_symbol (PointerToObject l True)       = l ++ " wrt ..got"
-show_symbol (PointerToObject l False)      = l ++ " wrt ..got"
-show_symbol (AddressOfLabel  l _)          = l
-show_symbol (AddressOfObject l _)          = l
-show_symbol (Relocated_ResolvedObject l _) = l
+show_symbol (PointerToExternalFunction  l)   = l ++ " wrt ..plt"
+show_symbol (PointerToInternalFunction  l a) = l
+show_symbol (PointerToObject l True)         = l ++ " wrt ..got"
+show_symbol (PointerToObject l False)        = l ++ " wrt ..got"
+show_symbol (AddressOfLabel  l _)            = l
+show_symbol (AddressOfObject l _)            = l
+show_symbol (Relocated_ResolvedObject l _)   = l
 
 

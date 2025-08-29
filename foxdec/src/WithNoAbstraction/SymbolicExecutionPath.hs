@@ -108,10 +108,10 @@ symb_exec_all_entries bin config l0 = do
 
 
 
-exported_functions l@(bin,config,l0) = S.difference (S.fromList $ IM.keys $ binary_get_global_symbols bin) $ externals bin l0
+exported_functions l@(bin,config,l0) = S.difference (S.fromList $ IM.keys $ binary_get_exported_functions bin) $ externals bin l0
  where
   externals bin l0 = S.fromList $ IM.keys $ IM.filter is_relocation $ binary_get_symbol_table bin
-  is_relocation (PointerToLabel str ex)  = ex && str /= ""
+  is_relocation (PointerToExternalFunction str)  = str /= ""
   is_relocation (PointerToObject str ex) = ex && str /= ""
   is_relocation (AddressOfObject str ex) = ex && str /= ""
   is_relocation (AddressOfLabel str ex) = ex && str /= ""
@@ -280,6 +280,7 @@ data ASemantics =
     Call SimpleExpr Instruction Word64 Word64  -- ^ A call to a function
   | Ret Word64 Word64 -- ^ Return
   | Jump Word64 SimpleExpr Instruction Word64 -- ^ A jump
+  | SysCall Word64 Word64
   | Nop Word64 Word64 -- ^ A NOP
   | Lea SimpleExpr SimpleExpr Word64 Word64 -- ^ Load Effective Addresss
   | Push SimpleExpr Int Word64 Word64 -- ^ Push
@@ -299,6 +300,7 @@ data ASemantics =
 instance Show ASemantics where
   show (Call src _ rip _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "CALL") ++ show_srcs [src]
   show (Jump rip src i _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "JUMP") ++ show_srcs [src]
+  show (SysCall rip si)                       = pad_to 10 ("0x" ++ showHex rip) ++ "Syscall"
   show (Ret rip _)                            = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "RET")
   show (Nop rip _)                            = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "NOP")
   show (Push src _ rip _)                     = pad_to 10 ("0x" ++ showHex rip) ++ (pad_to 11 $ delim "PUSH") ++ show_srcs [src]
@@ -481,6 +483,7 @@ instr_to_semantics l0 i@(Instruction _ _ MOVZX    [dst,src] _ _)       = MovZX (
 
 instr_to_semantics l0 i@(Instruction _ _ mnemonic [] _ _)
   | isRet mnemonic            = Ret (inAddress i) (fromIntegral $ inSize i)
+  | isSyscall mnemonic        = SysCall (inAddress i) (fromIntegral $ inSize i)
   | mnemonic == LEAVE         = Leave (inAddress i) (fromIntegral $ inSize i)
   | mnemonic `elem` nops      = Nop (inAddress i) (fromIntegral $ inSize i)
   | otherwise                 = NoSemantics mnemonic Nothing [] (inAddress i) (fromIntegral $ inSize i)
@@ -630,7 +633,8 @@ insert_storage_into_domain l0 a' si = do
 insert_storage_into_mem l0 a' si (SMemory mem) =
   let dom = get_pointer_domain l0 $ prune l0 a' in
     if dom == NoDomain then
-      error $ show (a',si) ++ "\n" ++ show_smemory l0 (SMemory mem)
+      (SStorage a' si Top False,SMemory mem)
+      --error $ show (a',si) ++ "\n" ++ show_smemory l0 (SMemory mem)
     else
       let SDomain accs = M.findWithDefault (SDomain []) dom mem
           (acc,accs')  = runState (insert_storage_into_domain l0 a' si) accs in
@@ -936,7 +940,7 @@ get_pointer_domain l0@(bin,_,_,_) a' =
   globals_to_section_starts (GlobalAddress a) =
     case find_section_for_address bin a of
       Just (_,_,a0,_,_,_) -> GlobalAddress a0
-      Nothing -> error $ "No section for: " ++ show a'
+      Nothing -> GlobalAddress a -- error $ "No section for: " ++ show a'
   globals_to_section_starts b = b
 
 
@@ -1038,6 +1042,7 @@ sread_reg r = do
   let ByteSize si = regSize r
   return $ do_read (real_reg r) si regs
  where
+  do_read rr 64 = get_value rr
   do_read rr 32 = get_value rr
   do_read rr 16 = simp . SE_Bit 128 . get_value rr
   do_read rr 10 = read_top_from_statepart (SP_Reg rr) -- ST registers not supported
@@ -1076,6 +1081,7 @@ swrite_reg r v' = do
   let ByteSize si = regSize r
   modify_regs $ do_write (real_reg r) si curr_v
  where
+  do_write rr 64 curr_v = M.insert rr v'
   do_write rr 32 curr_v = M.insert rr v'
   do_write rr 16 curr_v = M.insert rr (simp <$> SE_Bit 128 <$> v')
   do_write rr 10 curr_v = id -- ST registers not supported
@@ -1257,8 +1263,6 @@ tau_path l@(_,_,_,entry) p symstate = runState (traverse 0 p) symstate
 
 
 resolve_operands :: LiftedWithEntry -> ASemantics -> SymState -> ResolvedOperands
-resolve_operands l (Call _ _ _ _) inv = M.empty
-resolve_operands l (Jump _ _ _ _) inv = M.empty
 resolve_operands l sem inv = 
   let inv' = execState (set_rip (size_of sem + rip_of sem)) inv in
     M.map nub $ M.unionsWith (++) $ map (resolve_operand inv' sem) $ operands_of sem
@@ -1295,6 +1299,7 @@ operands_of (NoSemantics op Nothing srcs rip si)      = srcs
 operands_of (NoSemantics op (Just dst) srcs rip si)   = operands_of_dst dst ++ srcs
 operands_of (SetXX dst rip si)                        = operands_of_dst dst
 operands_of (Call src _ rip si)                       = [src]
+operands_of (SysCall rip si)                          = [ SE_StatePart (SP_Reg $ Reg64 RAX) Nothing ]
 operands_of (Jump rip src _ si)                       = [src]
 operands_of (Ret rip si)                              = [ SE_StatePart (SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8) Nothing ]
 
@@ -1324,6 +1329,7 @@ prune_symstate_for_instruction sem = M.filterWithKey is_relevant
   regs_of_sem (Call _ _ rip si)                       = []
   regs_of_sem (Jump rip _ _ si)                       = []
   regs_of_sem (Ret rip si)                            = [Reg64 RSP]
+  regs_of_sem (SysCall rip si)                        = [Reg64 RAX]
 
   regs_of_op (SE_StatePart (SP_Mem a si) _) = regs_of_expr a
   regs_of_op (SE_StatePart (SP_Reg r) _)    = [r]
@@ -1352,6 +1358,7 @@ set_rip rip = swrite_reg (Reg64 RIP) (Just $ SE_Immediate rip)
 
 size_of (Call _ i rip si)                      = si
 size_of (Ret rip si)                           = si
+size_of (SysCall rip si)                       = si
 size_of (Jump rip _ _ si)                      = si
 size_of (Lea  dst src rip si)                  = si
 size_of (Nop rip si)                           = si
@@ -1368,6 +1375,7 @@ size_of (NoSemantics op dst srcs rip si)       = si
 
 rip_of (Call _ i rip si)                      = rip
 rip_of (Ret rip si)                           = rip
+rip_of (SysCall rip si)                       = rip
 rip_of (Jump rip _ _ si)                      = rip
 rip_of (Lea  dst src rip si)                  = rip
 rip_of (Nop rip si)                           = rip
@@ -1531,10 +1539,16 @@ tau l0 n (NoSemantics op dst srcs rip si)    = do
   case dst of
     Nothing  -> return ()
     Just dst -> swrite_dst l0 dst Nothing  
+tau l0 n (SysCall rip si)                    = do
+  -- Note sources must be read, as reading can influence the memory model
+  let rax = Reg64 RAX
+  rax_value <- sread_reg rax
+  return ()
 tau l0 n (SetXX dst rip si)                  = swrite_dst l0 dst $ Just $ SE_Op ZeroOne 8 []
 tau l0 n (Call op i rip si)                  = scall l0 n i rip 
 tau l0 n (Jump rip op i si)                  = sjump l0 n rip i
 tau l0 n (Nop rip si)                        = return ()
+
 tau l0 n (Push src op_si rip si)             = spush l0 src op_si
 tau l0 n (Pop dst op_si rip si)              = spop l0 dst op_si
 tau l0 n (Leave rip si)                      = sleave l0

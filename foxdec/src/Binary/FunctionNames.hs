@@ -135,13 +135,13 @@ try_read_function_pointer bin i a' = try_symbol a' `orTry` try_relocation a' `or
       -- Example:
       --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
       --   Address *[1002000c0,8] is treated as an external function call       
-      Just (PointerToLabel s True)  -> Just $ External $ strip_GLIBC s
-      Just (PointerToLabel s False) -> find_address_of_label syms s
+      Just (PointerToExternalFunction s) -> Just $ External $ strip_GLIBC s
+      Just (PointerToInternalFunction s a1) -> Just $ ImmediateAddress a1
       Just (AddressOfLabel s True)  -> Just $ ExternalDeref $ strip_GLIBC s
       Just (AddressOfObject s True) -> Just $ ExternalDeref $ strip_GLIBC s
+      Just (Relocated_ResolvedObject f a1) -> Just $ ImmediateAddress a1
 
-
-      Just s -> error $ show (i,showHex a',s)
+      --Just s -> error $ show (i,showHex a',s)
       _ -> Nothing
 
   try_relocation a' =

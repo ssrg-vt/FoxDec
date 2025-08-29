@@ -126,7 +126,7 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p,BinaryClass bin) => WithAbstractSymb
   saddress_has_instruction :: ctxt -> Word64 -> Bool
 
   stry_global :: ctxt -> p -> Maybe (Int, Bool)
-  stry_jump_targets :: ctxt -> v -> Maybe (S.Set ResolvedJumpTarget)
+  stry_jump_targets :: ctxt -> Instruction -> v -> Maybe (S.Set ResolvedJumpTarget)
   stry_resolve_error_call :: ctxt -> Instruction -> v -> Maybe Indirection
 
   stry_immediate :: ctxt -> v -> Maybe Word64

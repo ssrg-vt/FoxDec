@@ -1,3 +1,6 @@
+{-# LANGUAGE StrictData #-}
+
+
 {-|
 Module      : Algorithm.Graph
 Description : Graph searching functions
@@ -12,6 +15,7 @@ import qualified Data.Set as S
 import qualified Data.Tree as T
 import qualified Data.Tree.View as TV
 import Data.Maybe
+import Data.Functor
 import Data.List.Extra (firstJust)
 
 import Base
@@ -106,19 +110,25 @@ finish_path g p =
 
 
 -- For the given graph: produce a set of paths towards end-points
--- We compute the spanning tree thorugh a depth-first-search.
+-- We compute the spanning tree through a depth-first-search.
 -- Given that spanning tree, we repeat some cycles a couple of times.
 -- Then we finish the path to some exit-point.
-produce_set_of_paths :: IntGraph g => g -> Int -> S.Set [Int]
-produce_set_of_paths g reptition = do
+produce_set_of_paths :: IntGraph g => g -> Maybe Int -> Int -> S.Set [Int]
+produce_set_of_paths g max_count reptition =
   let srcs = IS.toList $ intgraph_sources g in
-    S.unions $ map mk_paths srcs
+    foldr mk_path S.empty srcs
  where
-  mk_paths src =
-    let tree   = evalState (dfs_spanning_tree g src) IS.empty
-        paths  = spanning_tree_to_cycles reptition tree
-        paths' = catMaybes $ map (finish_path g) paths in
-      S.fromList paths'
+  mk_path src curr_paths
+    | max_count /= Nothing && S.size curr_paths >= fromJust max_count = curr_paths
+    | otherwise =
+      let tree   = evalState (dfs_spanning_tree g src) IS.empty
+          paths  = spanning_tree_to_cycles reptition tree
+          paths' = catMaybes $ map (finish_path g) paths in
+        S.union curr_paths $ S.fromList $ do_take curr_paths paths'
+  do_take curr_paths = 
+    case max_count of
+      Nothing -> id
+      Just c  -> take (c - S.size curr_paths)
 
 
 
@@ -205,34 +215,38 @@ find_path_visiting_resulting_in g p q =
       Just p  -> return $ Just p
 
 
--- find a path that:
+
+
+-- find paths that:
 -- 0.) start in v0
 -- 1.) does not contain nodes satisfying $p$
 -- 2.) ends in a nodes satisfying $q$
 -- The path is broken down in two parts: one ending in a $p$-vertex, the other starting after the first.
 -- The first part is thus always non-empty.
-find_path_satisfying_resulting_in :: IntGraph g => g -> Int -> (Int -> Bool) -> (Int -> Bool) -> Maybe [Int]
-find_path_satisfying_resulting_in g v0 p q = evalState (go v0) IS.empty
+find_paths_satisfying_resulting_in :: IntGraph g => g -> Int -> Int -> (Int -> Bool) -> (Int -> Bool) -> S.Set [Int]
+find_paths_satisfying_resulting_in g n v0 p q = snd $ execState (go [] v0) (IS.empty, S.empty)
  where
-  go :: Int -> State IS.IntSet (Maybe [Int])
-  go v = do
-    let nexts        = intgraph_post g v
-    visited         <- get
-    let is_visited   = v `IS.member` visited
-    put $ IS.insert v visited
+  go :: [Int] -> Int -> State (IS.IntSet,S.Set [Int]) ()
+  go curr_path v = do
+    (visited, paths) <- get
+    let is_visited = v `IS.member` visited
+    let si = S.size paths
 
-    if is_visited then
-      return Nothing
-    else if not $ p v then
-      return Nothing
-    else if q v then
-      return $ Just [v]
-    else case IS.toList nexts of
-      [] -> return Nothing
-      bs -> do
-        path <- firstJustM go bs 
-        return $ ((:) v) <$> path
+    if is_visited || si >= n || not (p v) then
+      return ()
+    else if q v then do
+      let p = curr_path ++ [v]
+      let paths' = S.insert p paths
+      put (visited, paths')
+    else do
+      let nexts = intgraph_post g v
+      let curr_path' = curr_path ++ [v]
+      put (IS.insert v visited,paths)
+      mapM_ (go curr_path') $ IS.toList nexts
 
-
-
+      (visited, paths') <- get
+      if S.size paths' < n && S.size paths' > S.size paths then
+        put (IS.delete v visited,paths')
+      else
+        return ()
 

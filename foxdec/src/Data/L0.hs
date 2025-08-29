@@ -79,6 +79,12 @@ l0_lookup_join (L0 fs inds gmem_structure time) entry = fromJust $ result_join $
 
 l0_lookup_finit (L0 fs inds gmem_structure time) entry = fst $ fs IM.! entry
 
+l0_lookup_result entry (L0 fs inds gmem_structure time) =
+  case IM.lookup (fromIntegral entry) fs of
+    Nothing -> Nothing
+    Just (_,r) -> r
+
+
 empty_result :: FResult pred v
 empty_result = FResult (init_cfg 0) TimeOut Nothing S.empty S.empty IM.empty
 

@@ -80,16 +80,16 @@ lift_L0_to_NASM :: BinaryClass bin => LiftedC bin -> NASM
 lift_L0_to_NASM l@(bin,_,l0) = NASM mk_externals mk_globals mk_sections' $ mk_jump_tables ++ [mk_temp_storage] 
  where
   mk_externals        = externals l
-  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ S.fromList $ IM.elems $ binary_get_global_symbols bin) mk_externals
+  mk_globals          = with_start_global bin $ S.difference (S.map strip_GLIBC $ S.fromList $ IM.elems $ binary_get_exported_functions bin) mk_externals
 
   mk_text_sections    = map (entry_to_NASM l) $ map fromIntegral $ S.toList $ l0_get_function_entries l0
   mk_ro_data_section  = NASM_Section_Data $ ro_data_section l
   mk_data_section     = NASM_Section_Data $ data_section l
   mk_bss_section      = NASM_Section_Data $ bss_data_section l
-  mk_resolved_relocs  = NASM_Section_Data $ resolved_relocs_section l
-  mk_undefined_labels = undefined_internal_global_labels l
+  -- mk_resolved_relocs  = NASM_Section_Data $ resolved_relocs_section l
+  mk_undefined_labels = mk_undefined_internal_global_labels l
 
-  mk_sections         = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section, mk_resolved_relocs] ++ mk_undefined_labels
+  mk_sections         = mk_text_sections ++ [mk_ro_data_section, mk_data_section, mk_bss_section] ++ mk_undefined_labels
   get_annots          = mk_annots l mk_sections
   mk_sections'        = map (add_labels_to_data_sections get_annots mk_externals) mk_sections
 
@@ -102,6 +102,7 @@ with_start_global bin =
     0     -> id
     entry -> S.insert "_start" 
 
+{--
 resolved_relocs_section l@(bin,_,l0) =
   case filter is_relocation $ IM.assocs $ binary_get_symbol_table bin of
     [] -> []
@@ -112,26 +113,17 @@ resolved_relocs_section l@(bin,_,l0) =
 
   mk_reloc (a0,Relocated_ResolvedObject str a1) = 
     NASM_DataSection ("",".data",fromIntegral a0) 0 [(fromIntegral a0, DataEntry_Label $ Label (fromIntegral a0) $ strip_GLIBC str), (fromIntegral a0, DataEntry_Pointer (try_symbolize_imm l a1)) ]
+--}
 
-
-undefined_internal_global_labels l@(bin,_,l0) =
-  case filter is_global_and_internal_and_outside_of_any_section $ IM.assocs $ binary_get_symbol_table bin of
+mk_undefined_internal_global_labels l@(bin,_,_) =
+  case undefined_internal_global_labels bin of
     [] -> []
     ls -> map mk_datasection ls
  where
-  is_global_and_internal_and_outside_of_any_section (a,sym) = and
-    [ is_internal_symbol sym
-    , symbol_to_name sym `elem` IM.elems (binary_get_global_symbols bin)
-    , is_not_defined_elsewhere a ]
-
   mk_datasection (a,sym) = NASM_Section_Data [ NASM_DataSection ("",".bss",fromIntegral a) 8 $ mk_entries (fromIntegral a) sym ]
   mk_entries a sym =
     [ (a,DataEntry_Label $ Label a (symbol_to_name sym) )
     , (a,DataEntry_BSS 1) ]
-
-  is_not_defined_elsewhere a = (find (is_section_for a) $ si_sections $ binary_get_sections_info bin) == Nothing
-
-  is_section_for a (segment,section,a0,sz,_,_) = a0 <= fromIntegral a && fromIntegral a <= a0+sz
 
 
 -- | Rendering NASM to a String
@@ -191,7 +183,7 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
 -- | get the external functions and objects 
 externals l@(bin,_,l0) = S.fromList $ map (strip_GLIBC . symbol_to_name) $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
-  is_relocation (PointerToLabel str ex)  = ex && str /= ""
+  is_relocation (PointerToExternalFunction str) = str /= ""
   is_relocation (PointerToObject str ex) = ex && str /= ""
   is_relocation (AddressOfObject str ex) = ex && str /= ""
   is_relocation (AddressOfLabel str ex) = ex && str /= ""
@@ -456,7 +448,7 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
     , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (Just SYSCALL) [] [] "" []]
   resolved_jump [External f] i@(Instruction addr pre op ops info annot) =
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ f 
-    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToLabel f True] [[Read]] "" []]
+    , NASM_Line $ NASM_Instruction (mk_NASM_prefix pre) (opcode_to_NASM op) [NASM_Operand_Address $ NASM_Addr_Symbol $ PointerToExternalFunction f] [[Read]] "" []]
   resolved_jump [ImmediateAddress imm] i@(Instruction addr pre op ops info annot) = 
     [ NASM_Comment 2 $ "Resolved indirection: " ++ show (head ops) ++ " --> " ++ showHex imm ]
     ++
@@ -634,11 +626,13 @@ try_operand_reads_GOT_entry l@(bin,_,l0) i addr =
  where
   find_relocated_function a = 
     case find (is_relocated_function $ fromIntegral a) $ IM.assocs $ binary_get_symbol_table bin of
-      Just (a',sym@(PointerToLabel _ _))  -> Just sym
+      Just (a',sym@(PointerToExternalFunction _))  -> Just sym
+      Just (a',sym@(PointerToInternalFunction _ _))  -> Just sym
       --Just (a',sym@(PointerToObject _ _)) -> Just sym
       _ -> Nothing
 
-  is_relocated_function a (a',PointerToLabel  str _) = a == a'
+  is_relocated_function a (a',PointerToExternalFunction str) = a == a'
+  is_relocated_function a (a',PointerToInternalFunction str _) = a == a'
   --is_relocated_function a (a',PointerToObject str _) = a == a'
   is_relocated_function a _                          = False
 
@@ -736,6 +730,11 @@ size_directive_to_NASM i 16
   | inOperation i == COMISD = (16,False)
   | inOperation i == COMISS = (16,False)
   | otherwise          = (16,True) --  "oword" -- BUG in Capstone
+size_directive_to_NASM _ 32 = (32,True) -- "yword"
+size_directive_to_NASM _ 64 = (64,True) -- "zword"
+
+size_directive_to_NASM _ 3  = (3,False) -- "FSTENV/FNSTENV"
+size_directive_to_NASM _ 28 = (28,False) -- "FSTENV/FNSTENV"
 size_directive_to_NASM i x  = error $ "Unknown size directive " ++ show x ++ " in instruction: " ++ show i
 
 -- | convert opcode to a NASM opcode
@@ -819,7 +818,8 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
 -- see if address matches an external symbol loaded at linking time
 relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symbol_table bin) >>= mk_symbol) `orTry` (find (reloc_for a) (binary_get_relocations bin) >>= mk_reloc)
  where
-  mk_symbol sym@(PointerToLabel  l _)             = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
+  mk_symbol sym@(PointerToExternalFunction  l)    = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
+  mk_symbol sym@(PointerToInternalFunction  l _)  = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
   mk_symbol sym@(PointerToObject o _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
   mk_symbol sym@(AddressOfLabel  l _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label l a)])
   mk_symbol sym@(AddressOfObject o _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
@@ -945,8 +945,15 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
         ++
         mk_data_entries (offset+8) s
       _ -> case IM.lookup (fromIntegral $ a0 + offset) $ binary_get_symbol_table bin of
-             Just (PointerToLabel sym _) -> 
-               let nasm_sym = (NASM_Addr_Symbol (PointerToLabel sym False),[]) in
+             Just sym@(PointerToExternalFunction f) -> 
+               let nasm_sym = (NASM_Addr_Symbol $ PointerToInternalFunction f 0,[]) in
+                 (a0+offset, DataEntry_Pointer nasm_sym) : mk_data_entries (offset+8) s
+             Just sym@(PointerToInternalFunction f _) -> 
+               let nasm_sym = (NASM_Addr_Symbol sym,[]) in
+                 (a0+offset, DataEntry_Pointer nasm_sym) : mk_data_entries (offset+8) s
+             Just sym@(Relocated_ResolvedObject f a1) ->  
+               let Just sym = IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
+                   nasm_sym = (NASM_Addr_Symbol $ AddressOfLabel (symbol_to_name sym) True,[]) in
                  (a0+offset, DataEntry_Pointer nasm_sym) : mk_data_entries (offset+8) s
              _ -> (a0+offset, DataEntry_Byte $ read_byte offset a0) : mk_data_entries (offset+1) s
 

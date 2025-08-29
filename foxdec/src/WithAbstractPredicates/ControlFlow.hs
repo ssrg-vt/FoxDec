@@ -62,6 +62,7 @@ next_rips l@(bin,_,_) (Just i) = next_rip_based_on_opcode i $ inOperation i
           JustRips _       -> JustRips []
           Terminal         -> Terminal
           UnresolvedTarget -> UnresolvedTarget
+          x -> error $ show (i,x,get_known_jump_targets l i)
       else let trgts = get_known_jump_targets l i in
         if all ((==) Unresolved) trgts then
           UnresolvedTarget
@@ -80,6 +81,7 @@ next_rips l@(bin,_,_) (Just i) = next_rip_based_on_opcode i $ inOperation i
 
   mk_jmp_trgt (ImmediateAddress a) = [a]
   mk_jmp_trgt (Unresolved) = []
+  mk_jmp_trgt x = error $ show (i,x,jump_is_actually_a_call l i)
 
 resolve_syscall l@(bin,_,l0) i =
   case S.toList <$> l0_lookup_indirection (inAddress i) l0 of
