@@ -1,7 +1,10 @@
-The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating [decompilation][decompile] of x86-64 binaries into C code that is _sound_ as well as fully _recompilable_. Soundness ensures that the decompiled C code is functionally equivalent to the input binary. Recompilability ensures that the decompiled C code can be successfully compiled to generate an executable binary. 
+The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating formally verified [decompilation][decompile] of x86-64 binaries that is _recompilable_, _patchable_, and _validatable_. A decompiler lifts higher-level code, e.g., intermediate representation (IR), from a binary, and is a critical tool for enhancing software security when source code is not available. Recompilability implies that the produced IR can be compiled back into a binary. Patchability means that it is possible to do transformations. This typically requires _symbolization_: instruction addresses as well as the addresses of global variables, external functions and data sections need to be replaced with labels. Validatability ensures that it is possible to check whether the produced IR is a _semantically sound_ representation of the original binary by applying formal (e.g., [theorem proving](https://en.wikipedia.org/wiki/Automated_theorem_proving)) and non-formal (e.g., [fuzzing](https://en.wikipedia.org/wiki/Fuzzing)) methods. 
 
-FoxDec is currently actively being developed. In its current stage, it does disassembly, control flow reconstruction and function boundary detection.
-Work-in-progress is variable analysis, decompilation to C, data flow analysis, and much more.
+The motivation behind decompilation with these three properties is multifold. First, it enables a decompile-patch-recompile workflow. Symbolization ensures that at recompile-time instructions and sections can be laid out by the recompiler, a prerequisite for making any modification such as inserting instructions or replacing functions. Second, it aids in the trustworthiness of the lifted IR. Recompilability allows obtaining an IR that is executable, and that can therefore be tested. We argue that even if an IR is formally proven to be a correct representation of the original binary, there still is significant value in testing. 
+
+FoxDec is currently actively being developed. The latest version uses [Netwide Assembler (NASM)](https://www.nasm.us/) as the IR, while a previous version lifted C code. 
+
+FoxDec enables multiple use cases for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and ii) enable trustworthy binary hardening. 
 
 
 <span style="font-size: 150%; color:darkblue">NEWS</span>
@@ -12,15 +15,30 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 * Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
 
 ## Table of Contents
-1. [Introduction](#intro)
-2. [How to build](#build)
-3. [How to use](#usage)
+1. [Verifiably correct lifting](#lift)
+2. [Decompilation-to-C](#decomp-to-C)
+3. [Security use cases](#sec-use)
+4. [Limitations](#limits)
+5. [How to build](#build)
+6. [How to use](#usage)
 3. [How to recompile](#recompile)
 5. [Papers](#papers)
 6. [Contact](#contact)
 
-## Introduction <a name="intro"></a>
-**Formally verified decompilation.**
+## Verifiably correct lifting <a name="lift"></a>
+
+The figure illustrates FoxDec’s design, which formally verifiably lifts a binary executable  B_0 to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, one applies the lifter to a binary producing some MIIR. That MIIR is recompiled back to a binary executable B_r. We now state that the lift is done trustworthily, if it can be proven that B_0 and B_r are semantically equivalent.  
+
+![Alt FoxDec's design](foxdec-design.png "FoxDec's design")
+
+The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like: as long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
+
+To prove that binary executables B_0 and B_r are semantically equivalent, we use one of the state-of-the-art binary lifters: Ghidra. Ghidra lifts both binaries B_0 and B_r to P-code, which is at the same level of abstraction as assembly code. During lifting, we keep track of various observations (called γ_0) made over the original binary executable B_0 that were used to generate MIIR. The combination of the produced P-codes with the observations γ_0 is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
+
+For establishing the proof, we use the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation as shown in the figure.
+
+## Decompilation-to-C <a name="decomp-to-C"></a>
+
 Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
 FoxDec's decompilation phases include disassembly; CFG recovery; extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). 
@@ -32,14 +50,29 @@ Sound, recompilable decompilation to C has a variety of use cases. For example, 
 
 Other use cases include binary analysis, binary porting (as an alternative to [software emulation][qemu]), and binary optimization, each of which can now be performed at the C level (e.g., using off-the-shelf C code analysis and optimization tools). 
 
+## Security use cases <a name="sec-use"></a>
 
+FoxDec enables enhancing software security in three different ways: i) verifying memory safety properties, ii) trustworthy binary patching, and ii) trustworthy binary hardening. 
+
+FoxDec can verify a class of memory safety properties including return address integrity, bounded control flow, and calling convention adherence. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of GNU CoreUtils and the Xen hypervisor (the industrial-strength virtualization software used in many production systems including Amazon’s AWS). The case study conducted on Xen (which has 450K instructions) is the largest such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind.
+
+FoxDec can be used for trustworthy binary patching such as replacing components of a binary with enhanced versions, which may be needed due to bug fixes, replace deprecated code/library, or fix vulnerabilities discovered in the original component. FoxDec’s trustworthy binary patching capabilities were demonstrated on the binary executable of the World Wide Web Get (wget) program, which is used in many systems to download files from the Internet, supporting the most widely used Internet protocols (e.g., HTTP and FTP). Currently, wget supports HTTP connections, even though they are considered unsafe. FoxDec was used to patch wget so that it only supports HTTPS (the secure variant of HTTP). In addition, FoxDec was demonstrated to replace the cryptography implementation that wget uses (i.e., OpenSSL) with a new version that is quantum safe. Moreover, FoxDec was demonstrated for rapid remediation: the CVE-2019-5953 states that the function do_conversion() of wget can cause a buffer overflow. For rapid remediation, FoxDec was used to patch wget so that it terminates whenever this security vulnerability occurs.
+
+FoxDec can be used for trustworthy binary hardening. Example use-cases include: i) enhancing binary with hardware-enabled control flow integrity, which prevents control flow hijack attacks, ii) enhance binary with read-only ELF sections for relocations, which prevents arbitrary code execution attacks, and iii) generate debugging information for binary (after recompilation) to aid vulnerability analysis after a crash. 
+
+## Limitations <a name="limits"></a>
+
+FoxDec’s current limitations include the following: 
+* Binaries must be compiled from, and adheres to the C standard (i.e., no C++).
+* Binaries must be compiled for the x86-64 architecture (i.e., no ARM, or RISC-V).
+* Only sequential code (i.e., no concurrency).
 
 
 
 ## How to build <a name="build"></a>
 Download FoxDec [here](https://github.com/ssrg-vt/FoxDec/blob/0abd8c85cda0ccf3da9ef6683acb77a99c04b8b6/foxdec/release/FoxDec.zip?raw=true). This will use [Docker](https://www.docker.com) to build and run FoxDec. Section [How to use](#usage) contains further instructions. The GitHub page is [here][git]. 
 
-***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developpers)*.
+***NOTE:*** instructions for building without Docker can be found [here](foxdec/docs/build.md) *(only relevant for developers)*.
 
 
 
