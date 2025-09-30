@@ -1,21 +1,21 @@
-The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating formally verified [decompilation][decompile] of x86-64 binaries that is _recompilable_, _patchable_, and _validatable_. A decompiler lifts higher-level code, such as an intermediate representation (IR), from a binary, and is a critical tool for enhancing software security when the source code is not available. Recompilability implies that the produced IR can be compiled back into a binary. Patchability refers to the ability to perform transformations. This typically requires _symbolization_: instruction addresses as well as the addresses of global variables, external functions, and data sections need to be replaced with labels. Validatability ensures that it is possible to check whether the produced IR is a _semantically sound_ representation of the original binary by applying formal (e.g., [theorem proving](https://en.wikipedia.org/wiki/Automated_theorem_proving)) and non-formal (e.g., [fuzzing](https://en.wikipedia.org/wiki/Fuzzing)) methods. 
+The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating formally verified [decompilation][decompile] of x86-64 binaries that is _recompilable_, _patchable_, and _validatable_. A decompiler extracts higher-level code, such as an intermediate representation (IR), from a binary, and is a critical tool for enhancing software security when the source code is unavailable. Recompilability implies that the produced IR can be compiled back into a binary. Patchability refers to the ability to perform transformations. This typically requires _symbolization_: instruction addresses as well as the addresses of global variables, external functions, and data sections need to be replaced with labels. Validatability ensures that it is possible to check whether the produced IR is a _semantically sound_ representation of the original binary by applying formal (e.g., [theorem proving](https://en.wikipedia.org/wiki/Automated_theorem_proving)) and non-formal (e.g., [fuzzing](https://en.wikipedia.org/wiki/Fuzzing)) methods. 
 
 The motivation behind decompilation with these three properties is multifold. First, it enables a decompile-patch-recompile workflow. Symbolization ensures that at recompile time, instructions and sections can be laid out by the recompiler, a prerequisite for making any modifications, such as inserting instructions or replacing functions. Second, it aids in the trustworthiness of the lifted IR. Recompilability enables the creation of an IR that is executable and can therefore be tested. We argue that even if an IR is formally proven to be a correct representation of the original binary, there is still significant value in testing. 
 
 FoxDec is currently actively being developed. The latest version uses [Netwide Assembler (NASM)](https://www.nasm.us/) as the IR, while a previous version lifted C code. 
 
-FoxDec enables multiple use cases for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and iii) enable trustworthy binary hardening. 
+FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and iii) enable trustworthy binary hardening. 
 
 
 
-<span style="font-size: 300%; color: darkblue">NEWS</span>
+<span style="font-size: 100%; color: darkblue">NEWS</span>
 
 
 
 * Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
 * Our [paper][ccs24-paper] on verified lifting and symbolization has been accepted at [CCS'24][ccs24]!
 * Our [paper][pldi22-paper] on verified lifting and verifying memory safety properties has been accepted at [PLDI'22][pldi22]!
-* Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
+* Our [decompilation-to-C paper][sefm20-paper] received the Best Paper award at [SEFM 2020][sefm20]!
 
 ## Table of Contents
 1. [Verifiably correct lifting](#lift)
@@ -30,21 +30,21 @@ FoxDec enables multiple use cases for enhancing software security: i) formally v
 
 ## Verifiably correct lifting <a name="lift"></a>
 
-The figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  B_0 to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, one applies the lifter to a binary producing some MIIR. The MIIR is recompiled into a binary executable, B_r. We now state that the lift is done trustworthily, if it can be proven that B_0 and B_r are semantically equivalent.  
+The following figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  B<sub>0</sub> to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, a lifter is used to produce an MIIR from a binary. The MIIR is recompiled into a binary executable, B<sub>r</sub>. We now state that the lift is done trustworthily, if it can be proven that B<sub>0</sub> and B<sub>r</sub> are semantically equivalent.  
 
 <p align="center">
 <img src="foxdec-jpeg.jpg" alt="FoxDec's design" style="width:75%; height:auto;">
 </p>
 
-The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like: as long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
+The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like. As long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
 
-To prove that binary executables B_0 and B_r are semantically equivalent, we use one of the state-of-the-art binary lifters: Ghidra. Ghidra lifts both binaries B_0 and B_r to P-code, which is at the same level of abstraction as assembly code. During lifting, we keep track of various observations (denoted as γ_0) made over the original binary executable B_0, which were used to generate MIIR. The combination of the produced P-codes with the observations γ_0 is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
+To prove that binary executables B<sub>0</sub> and B<sub>r</sub> are semantically equivalent, we use one of the state-of-the-art binary lifters: [Ghidra](https://github.com/NationalSecurityAgency/ghidra). Ghidra converts both binaries, B<sub>0</sub> and B<sub>r</sub>, to P-code, which operates at the same level of abstraction as assembly code. During lifting, we keep track of various observations (denoted as γ<sub>0</sub>) made over the original binary executable B<sub>0</sub>, which were used to generate the MIIR. The combination of the produced P-codes with the observations γ<sub>0</sub> is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
 
-To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation as shown in the figure.
+To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation.
 
 ## Decompilation-to-C <a name="decomp-to-C"></a>
 
-Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
+Decompilation to a high-level language involves multiple phases. At a high level, the phases typically include disassembly, which extracts assembly code from binaries, control flow graph (CFG) recovery that recovers the program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
 FoxDec's decompilation phases include disassembly, CFG recovery, extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). 
 
@@ -59,11 +59,11 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 FoxDec enables enhancing software security in three different ways: i) verifying memory safety properties, ii) trustworthy binary patching, and iii) trustworthy binary hardening. 
 
-FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of GNU CoreUtils and the Xen hypervisor (the industrial-strength virtualization software used in many production systems including Amazon’s AWS). The case study conducted on Xen (which has 450K instructions) is the most extensive such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind.
+FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of GNU CoreUtils and the [Xen hypervisor](https://xenproject.org/) (the industrial-strength virtualization software used in many production systems, including [Amazon AWS](https://aws.amazon.com/)). The case study conducted on Xen (which has 450K instructions) is the most extensive such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind.
 
-FoxDec can be used for trustworthy binary patching, such as replacing components of a binary with enhanced versions, which may be needed due to bug fixes, replacing deprecated code/library, or fixing vulnerabilities discovered in the original component. FoxDec’s trustworthy binary patching capabilities were demonstrated on the binary executable of the World Wide Web Get (wget) program, which is used in many systems to download files from the Internet, supporting the most widely used Internet protocols (e.g., HTTP and FTP). Currently, wget supports HTTP connections, despite them being considered insecure. FoxDec was used to patch wget so that it only supports HTTPS (the secure variant of HTTP). Additionally, FoxDec was demonstrated to replace the cryptography implementation that wget uses (i.e., OpenSSL) with a new version that is quantum-resistant. Moreover, FoxDec was demonstrated for rapid remediation: the CVE-2019-5953 states that the function do_conversion() of wget can cause a buffer overflow. For rapid remediation, FoxDec was used to patch wget so that it terminates whenever this security vulnerability occurs.
+FoxDec can be used for trustworthy binary patching, such as replacing components of a binary with enhanced versions, which may be needed due to bug fixes, replacing deprecated code/library, or fixing vulnerabilities discovered in the original component. FoxDec’s trustworthy binary patching capabilities were demonstrated on the binary executable of the [World Wide Web Get (wget)](https://www.gnu.org/software/wget/) program, which is used in many systems to download files from the Internet, supporting the most widely used Internet protocols (e.g., HTTP and FTP). Currently, wget supports HTTP connections, despite them being considered insecure. FoxDec was used to patch wget so that it only supports HTTPS (the secure variant of HTTP). Additionally, FoxDec was demonstrated to replace the cryptography implementation that wget uses (i.e., [OpenSSL](https://www.openssl.org/)) with a new version that is quantum-resistant. Moreover, FoxDec was demonstrated for rapid remediation: the [CVE-2019-5953](https://nvd.nist.gov/vuln/detail/CVE-2019-5953) states that wget's function do_conversion() can cause a buffer overflow. For rapid remediation, FoxDec was used to patch wget so that it terminates whenever this security vulnerability occurs.
 
-FoxDec can be used for trustworthy binary hardening. Example use-cases include: i) enhancing binary with hardware-enabled control flow integrity, which prevents control flow hijack attacks, ii) enhancing binary with read-only ELF sections for relocations, which prevents arbitrary code execution attacks, and iii) generating debugging information for binary (after recompilation) to aid vulnerability analysis after a crash. 
+FoxDec can be used for trustworthy binary hardening. Example use-cases include: i) enhancing binary with [hardware-enabled control flow integrity][intel-cet], which prevents control flow hijack attacks, ii) enhancing binary with [read-only ELF][ro-elf] sections for relocations, which prevents arbitrary code execution attacks, and iii) generating debugging information for binary (after recompilation) to aid vulnerability analysis after a crash. 
 
 ## Limitations <a name="limits"></a>
 
@@ -121,9 +121,11 @@ For the last compilation step, one must manually supply additional libraries as 
 
 
 ## Papers<a name="papers"></a>
-* [Verifiably Correct Lifting of Position-Independent x86-64 Binaries to Symbolized Assembly][ccs24-paper], Freek Verbeek, Nico Naus, Binoy Ravindran. Proceedings of the 2024 ACM SIGSAC Conference on Computer and Communications Security (CCS ’24).
-* [Formally Verified Lifting of C-compiled x86-64 Binaries][pldi22-paper],
-Freek Verbeek, Joshua A. Bockenek, Zhoulai Fu and Binoy Ravindran, 43rd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2022), June 13-17, 2022, San Diego, USA.
+* [_Formally Verified Binary-level Pointer Analysis_][icse25-paper],
+  Freek Verbeek, Ali Shokri, Daniel Engel, and Binoy Ravindran, 47th IEEE/ACM International Conference on Software Engineering (ICSE 2025), April 27-May 3, 2025, Ottawa, Canada.
+* [_Verifiably Correct Lifting of Position-Independent x86-64 Binaries to Symbolized Assembly_][ccs24-paper], Freek Verbeek, Nico Naus, and Binoy Ravindran, 31st ACM Conference on Computer and Communications Security (CCS 2024), October 14-18, 2024, Salt Lake City, USA.
+* [_Formally Verified Lifting of C-compiled x86-64 Binaries_][pldi22-paper],
+Freek Verbeek, Joshua A. Bockenek, Zhoulai Fu, and Binoy Ravindran, 43rd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2022), June 13-17, 2022, San Diego, USA.
 * [_Sound C Code Decompilation for a Subset of x86-64 Binaries_][sefm20-paper],
 Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conference on Software Engineering and Formal Methods (SEFM 2020), September 14-18, 2020, Amsterdam, The Netherlands.
 
@@ -174,6 +176,8 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [ccs24]: https://www.sigsac.org/ccs/CCS2024/
 [icse25]: https://conf.researchr.org/home/icse-2025
 [icse25-paper]: https://www.computer.org/csdl/proceedings-article/icse/2025/056900a767/251mHBq8DZu
+[intel-cet]: https://www.intel.com/content/www/us/en/developer/articles/technical/technical-look-control-flow-enforcement-technology.html
+[ro-elf]: https://www.redhat.com/en/blog/hardening-elf-binaries-using-relocation-read-only-relro
 
 
 
