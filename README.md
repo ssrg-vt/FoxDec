@@ -6,7 +6,7 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 
 <span style="font-size: 150%; color:darkblue">NEWS</span>
 
-* Our paper on binary-level ppointer analysis has been accepted at ICSE'25!
+* Our paper on binary-level pointer analysis has been accepted at ICSE'25!
 * Our [paper][ccs24-paper] on symbolization has been accepted at CCS'24!
 * Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
 
@@ -20,7 +20,7 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 
 ## Introduction <a name="intro"></a>
 **Formally verified decompilation.**
-Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the decompilation phases that are formally verified. 
+Decompilation to a high-level language involves multiple phases. At a high-level, the phases usually include disassembly that lifts assembly code from binary, control flow graph (CFG) recovery that extracts program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
 FoxDec's decompilation phases include disassembly; CFG recovery; extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). 
 
