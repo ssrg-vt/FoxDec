@@ -30,7 +30,7 @@ FoxDec enables multiple use cases for enhancing software security: i) formally v
 The figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  B_0 to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, one applies the lifter to a binary producing some MIIR. The MIIR is recompiled into a binary executable, B_r. We now state that the lift is done trustworthily, if it can be proven that B_0 and B_r are semantically equivalent.  
 
 <p align="center">
-<img src="foxdec-design.png" alt="FoxDec's design" style="width:55%; height:auto;">
+<img src="foxdec-jpeg.jpg" alt="FoxDec's design" style="width:55%; height:auto;">
 </p>
 
 The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like: as long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
