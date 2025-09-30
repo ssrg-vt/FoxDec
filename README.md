@@ -7,7 +7,9 @@ FoxDec is currently actively being developed. The latest version uses [Netwide A
 FoxDec enables multiple use cases for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and iii) enable trustworthy binary hardening. 
 
 
-<span style="color: darkblue;">NEWS</span>
+
+<span style="font-size: 300%; color: darkblue">NEWS</span>
+
 
 
 * Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
