@@ -6,8 +6,9 @@ Work-in-progress is variable analysis, decompilation to C, data flow analysis, a
 
 <span style="font-size: 150%; color:darkblue">NEWS</span>
 
-* Our paper on binary-level pointer analysis has been accepted at ICSE'25!
-* Our [paper][ccs24-paper] on symbolization has been accepted at CCS'24!
+* Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
+* Our [paper][ccs24-paper] on verified lifting and symbolization has been accepted at [CCS'24][ccs24]!
+* Our [paper][pldi22-paper] on verified lifting and verifying memory safety properties has been accepted at [PLDI'22][pldi22]!
 * Our [decompilation-to-C paper][sefm20-paper] has received the Best Paper award at [SEFM 2020][sefm20]!
 
 ## Table of Contents
@@ -98,8 +99,7 @@ Freek Verbeek, Pierre Olivier, and Binoy Ravindran, 18th International Conferenc
 
 
 FoxDec is an open-source project from the Systems Software Research Group ([SSRG][ssrg]) at [Virginia Tech][vt].
-It is supported by the Defense Advanced Research Projects Agency (DARPA) and Naval Information Warfare Center Pacific (NIWC Pacific) under Contract No. N66001-21-C-4028 and DARPA under Agreement No. HR.00112090028, by the US Office of Naval Research (ONR) under grant N00014-17-1-2297, and by the US Naval Surface Warfare Center Dahlgren Division/Naval Engineering Education Consortium (NEEC) under grants N00174-20-1-0009 and N00174-16-C-0018.
-
+It is supported by the Defense Advanced Research Projects Agency (DARPA) and Naval Information Warfare Center Pacific (NIWC Pacific) under Contract No. N66001-21-C-4028, DARPA under Agreement No. HR.00112090028, DARPA and the Army Contracting Command Aberdeen Proving Grounds (ACC-APG) under Prime Contract No. W912CG23C0024, DARPA under Prime Contract No. HR001124C0492, by the US Office of Naval Research (ONR) under grant N00014-17-1-2297, and by the US Naval Surface Warfare Center Dahlgren Division/Naval Engineering Education Consortium (NEEC) under grants N00174-20-1-0009 and N00174-16-C-0018.
 
 
 
@@ -132,3 +132,10 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [taxonomy]: https://ssrg-vt.github.io/FoxDec/foxdec/docs/haddock/Data-JSON_Taxonomy.html
 [pldi22-paper]: https://dl.acm.org/doi/10.1145/3519939.3523702
 [ccs24-paper]: https://dl.acm.org/doi/abs/10.1145/3658644.3690244
+[pldi22]: https://pldi22.sigplan.org/
+[ccs24]: https://www.sigsac.org/ccs/CCS2024/
+[icse25]: https://conf.researchr.org/home/icse-2025
+[icse25-paper]: https://www.computer.org/csdl/proceedings-article/icse/2025/056900a767/251mHBq8DZu
+
+
+
