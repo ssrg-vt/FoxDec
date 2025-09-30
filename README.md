@@ -1,13 +1,13 @@
-The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating formally verified [decompilation][decompile] of x86-64 binaries that is _recompilable_, _patchable_, and _validatable_. A decompiler lifts higher-level code, e.g., intermediate representation (IR), from a binary, and is a critical tool for enhancing software security when source code is not available. Recompilability implies that the produced IR can be compiled back into a binary. Patchability means that it is possible to do transformations. This typically requires _symbolization_: instruction addresses as well as the addresses of global variables, external functions and data sections need to be replaced with labels. Validatability ensures that it is possible to check whether the produced IR is a _semantically sound_ representation of the original binary by applying formal (e.g., [theorem proving](https://en.wikipedia.org/wiki/Automated_theorem_proving)) and non-formal (e.g., [fuzzing](https://en.wikipedia.org/wiki/Fuzzing)) methods. 
+The FoxDec (for **Fo**rmal **x**86-64 **Dec**ompilation) project is investigating formally verified [decompilation][decompile] of x86-64 binaries that is _recompilable_, _patchable_, and _validatable_. A decompiler lifts higher-level code, such as an intermediate representation (IR), from a binary, and is a critical tool for enhancing software security when the source code is not available. Recompilability implies that the produced IR can be compiled back into a binary. Patchability refers to the ability to perform transformations. This typically requires _symbolization_: instruction addresses as well as the addresses of global variables, external functions, and data sections need to be replaced with labels. Validatability ensures that it is possible to check whether the produced IR is a _semantically sound_ representation of the original binary by applying formal (e.g., [theorem proving](https://en.wikipedia.org/wiki/Automated_theorem_proving)) and non-formal (e.g., [fuzzing](https://en.wikipedia.org/wiki/Fuzzing)) methods. 
 
-The motivation behind decompilation with these three properties is multifold. First, it enables a decompile-patch-recompile workflow. Symbolization ensures that at recompile-time instructions and sections can be laid out by the recompiler, a prerequisite for making any modification such as inserting instructions or replacing functions. Second, it aids in the trustworthiness of the lifted IR. Recompilability allows obtaining an IR that is executable, and that can therefore be tested. We argue that even if an IR is formally proven to be a correct representation of the original binary, there still is significant value in testing. 
+The motivation behind decompilation with these three properties is multifold. First, it enables a decompile-patch-recompile workflow. Symbolization ensures that at recompile time, instructions and sections can be laid out by the recompiler, a prerequisite for making any modifications, such as inserting instructions or replacing functions. Second, it aids in the trustworthiness of the lifted IR. Recompilability enables the creation of an IR that is executable and can therefore be tested. We argue that even if an IR is formally proven to be a correct representation of the original binary, there is still significant value in testing. 
 
 FoxDec is currently actively being developed. The latest version uses [Netwide Assembler (NASM)](https://www.nasm.us/) as the IR, while a previous version lifted C code. 
 
-FoxDec enables multiple use cases for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and ii) enable trustworthy binary hardening. 
+FoxDec enables multiple use cases for enhancing software security: i) formally verify memory safety properties, ii) enable trustworthy binary patching, and iii) enable trustworthy binary hardening. 
 
 
-<span style="font-size: 150%; color:darkblue">NEWS</span>
+<span style="font-size: 300%; color:darkblue">NEWS</span>
 
 * Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
 * Our [paper][ccs24-paper] on verified lifting and symbolization has been accepted at [CCS'24][ccs24]!
@@ -27,9 +27,11 @@ FoxDec enables multiple use cases for enhancing software security: i) formally v
 
 ## Verifiably correct lifting <a name="lift"></a>
 
-The figure illustrates FoxDec’s design, which formally verifiably lifts a binary executable  B_0 to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, one applies the lifter to a binary producing some MIIR. That MIIR is recompiled back to a binary executable B_r. We now state that the lift is done trustworthily, if it can be proven that B_0 and B_r are semantically equivalent.  
+The figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  B_0 to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, one applies the lifter to a binary producing some MIIR. The MIIR is recompiled into a binary executable, B_r. We now state that the lift is done trustworthily, if it can be proven that B_0 and B_r are semantically equivalent.  
 
-![Alt FoxDec's design](foxdec-design.png "FoxDec's design")
+<p align="center">
+<img src="foxdec-design.png" alt="FoxDec's design" style="width:55%; height:auto;">
+</p>
 
 The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like: as long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
 
