@@ -67,7 +67,7 @@ FoxDec enables enhancing software security in three different ways:
 * Trustworthy binary patching
 * Trustworthy binary hardening
 
-FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of the following programs:
+FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). FoxDec was demonstrated to verify these properties of the following programs:
 * [GNU CoreUtils][coreutils]
 * [PARSEC benchmark suite](https://github.com/bamos/parsec-benchmark)
 * [FDLIBM math library](https://www.netlib.org/fdlibm)
