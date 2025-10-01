@@ -30,7 +30,7 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 
 ## Verifiably correct lifting <a name="lift"></a>
 
-The following figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  B<sub>0</sub> to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called translation validation. With this approach, a lifter is used to produce an MIIR from a binary. The MIIR is recompiled into a binary executable, B<sub>r</sub>. We now state that the lift is done trustworthily, if it can be proven that B<sub>0</sub> and B<sub>r</sub> are semantically equivalent.  
+The following figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  _B_<sub>0</sub> to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called [translation validation][pnueli98]. With this approach, a lifter is used to produce an MIIR from a binary. The MIIR is recompiled into a binary executable, B<sub>r</sub>. We now state that the lift is done trustworthily, if it can be proven that B<sub>0</sub> and B<sub>r</sub> are semantically equivalent.  
 
 <p align="center">
 <img src="foxdec-jpeg.jpg" alt="FoxDec's design" style="width:75%; height:auto;">
@@ -38,7 +38,7 @@ The following figure illustrates FoxDec’s design, which formally verifies the 
 
 The advantage of this approach is that it removes both the lifter and the compiler from the trusted code base. That means that we are free to implement both the lifter and the compiler in any way we like. As long as the two resulting binaries can be proven to be semantically equivalent, the MIIR is a correct higher-level representation of the original binary.
 
-To prove that binary executables B<sub>0</sub> and B<sub>r</sub> are semantically equivalent, we use one of the state-of-the-art binary lifters: [Ghidra](https://github.com/NationalSecurityAgency/ghidra). Ghidra converts both binaries, B<sub>0</sub> and B<sub>r</sub>, to P-code, which operates at the same level of abstraction as assembly code. During lifting, we keep track of various observations (denoted as γ<sub>0</sub>) made over the original binary executable B<sub>0</sub>, which were used to generate the MIIR. The combination of the produced P-codes with the observations γ<sub>0</sub> is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
+To prove that binary executables _B_<sub>0</sub> and B<sub>r</sub> are semantically equivalent, we use one of the state-of-the-art binary lifters: [Ghidra](https://github.com/NationalSecurityAgency/ghidra). Ghidra converts both binaries, _B_<sub>0</sub> and _B_<sub>r</sub>, to P-code, which operates at the same level of abstraction as assembly code. During lifting, we keep track of various observations (denoted as γ<sub>0</sub>) made over the original binary executable _B_<sub>0</sub>, which were used to generate the MIIR. The combination of the produced P-codes with the observations γ<sub>0</sub> is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
 
 To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation.
 
@@ -178,6 +178,7 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [icse25-paper]: https://www.computer.org/csdl/proceedings-article/icse/2025/056900a767/251mHBq8DZu
 [intel-cet]: https://www.intel.com/content/www/us/en/developer/articles/technical/technical-look-control-flow-enforcement-technology.html
 [ro-elf]: https://www.redhat.com/en/blog/hardening-elf-binaries-using-relocation-read-only-relro
+[pnueli98]: https://doi.org/10.1007/BFb0054170
 
 
 
