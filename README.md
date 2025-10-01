@@ -12,10 +12,15 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 
 
 
-* Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
-* Our [paper][ccs24-paper] on verified lifting and symbolization has been accepted at [CCS'24][ccs24]!
-* Our [paper][pldi22-paper] on verified lifting and verifying memory safety properties has been accepted at [PLDI'22][pldi22]!
-* Our [decompilation-to-C paper][sefm20-paper] received the Best Paper award at [SEFM 2020][sefm20]!
+* 01/19/25: Our [paper][icse25-paper] on binary-level pointer analysis has been accepted at [ICSE'25][icse25]!
+* 08/29/24: Our [poster][ccs24-poster] on verified lifting to P-Code has been accepted at [CCS'24][ccs24].
+* 07/05/24: Our [paper][ccs24-paper] on verified lifting and symbolization has been accepted at [CCS'24][ccs24]!
+* 02/02/24: Our [paper][dimva24-paper] on exceptional interprocedural CFGs has been accepted at [DIMVA'24][dimva24]!
+* 05/12/23: Our [paper][tap23-paper] on IRs for verified decompilation has been accepted at [TAP'23][tap23]!
+* 09/05/22: Our [paper][vstte22-paper] on formal semantics for P-Code has been accepted at [VSTTE'22][vstte22]!
+* 02/25/22: Our [paper][pldi22-paper] on verified lifting and verifying memory safety properties has been accepted at [PLDI'22][pldi22]!
+* 09/17/20: Our [decompilation-to-C paper][sefm20-paper] received the **Best Paper award** at [SEFM 2020][sefm20]!
+* 07/07/20: Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
 ## Table of Contents
 1. [Verifiably correct lifting](#lift)
@@ -123,7 +128,11 @@ For the last compilation step, one must manually supply additional libraries as 
 ## Papers<a name="papers"></a>
 * [_Formally Verified Binary-level Pointer Analysis_][icse25-paper],
   Freek Verbeek, Ali Shokri, Daniel Engel, and Binoy Ravindran, 47th IEEE/ACM International Conference on Software Engineering (ICSE 2025), April 27-May 3, 2025, Ottawa, Canada.
+* [_Exceptional Interprocedural Control Flow Graphs for x86-64 Binaries_][dimva24-paper], Joshua Bockenek, Freek Verbeek, and Binoy Ravindran, 21st Conference on Detection of Intrusions and Malware & Vulnerability Assessment (DIMVA 2024), July 17-19, 2024, Lausanne, Switzerland.
 * [_Verifiably Correct Lifting of Position-Independent x86-64 Binaries to Symbolized Assembly_][ccs24-paper], Freek Verbeek, Nico Naus, and Binoy Ravindran, 31st ACM Conference on Computer and Communications Security (CCS 2024), October 14-18, 2024, Salt Lake City, USA.
+* [_CCS Poster: Formally Verified Binary Lifting to P-Code_][ccs24-poster], Nico Naus, Freek Verbeek, Sagar Atla, and Binoy Ravindran, Poster paper, 31st ACM Conference on Computer and Communications Security (CCS 2024), October 14-18, 2024, Salt Lake City, USA.
+* [_BIRD: A Binary Intermediate Representation for Formally Verified Decompilation of x86-64 Binaries_][tap23-paper]. Daniel Engel, Freek Verbeek, and Binoy Ravindran, 17th International Conference on Tests and Proofs (TAP 2023), July 18-19, 2023, Leicester, United Kingdom.
+* [_A Formal Semantics for P-Code. Nico Naus, Freek Verbeek, and Binoy Ravindran_][vstte22-paper], 14th International Conference on Verified Software: Theories, Tools, and Experiments (VSTTE 2022), October 17-18, 2022, Trento, Italy.
 * [_Formally Verified Lifting of C-compiled x86-64 Binaries_][pldi22-paper],
 Freek Verbeek, Joshua A. Bockenek, Zhoulai Fu, and Binoy Ravindran, 43rd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2022), June 13-17, 2022, San Diego, USA.
 * [_Sound C Code Decompilation for a Subset of x86-64 Binaries_][sefm20-paper],
@@ -180,7 +189,13 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [ro-elf]: https://www.redhat.com/en/blog/hardening-elf-binaries-using-relocation-read-only-relro
 [pnueli98]: https://doi.org/10.1007/BFb0054170
 [coreutils]: https://www.gnu.org/software/coreutils/
-
+[dimva24-paper]: https://ssrg.ece.vt.edu/papers/dimva24.pdf
+[tap23-paper]: https://ssrg.ece.vt.edu/papers/tap23-bird.pdf
+[vstte22-paper]: https://ssrg.ece.vt.edu/papers/vstte22.pdf
+[ccs24-poster]: https://dl.acm.org/doi/abs/10.1145/3658644.3691386
+[dimva24]: https://www.dimva.org/dimva2024/
+[tap23]: https://conf.researchr.org/home/tap-2023
+[vstte22]: https://vstte22.fbk.eu/
 
 
 
