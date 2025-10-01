@@ -64,8 +64,8 @@ Other use cases include binary analysis, binary porting (as an alternative to [s
 
 FoxDec enables enhancing software security in three different ways: 
 * verifying memory safety properties
-* trustworthy binary patching, and
-* trustworthy binary hardening. 
+* trustworthy binary patching
+* trustworthy binary hardening
 
 FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of [GNU CoreUtils][coreutils] and the [Xen hypervisor](https://xenproject.org/) (the industrial-strength virtualization software used in many production systems, including [Amazon AWS](https://aws.amazon.com/)). The case study conducted on Xen (which has $\approx$450K instructions) is the most extensive such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind.
 
