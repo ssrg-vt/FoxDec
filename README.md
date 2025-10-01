@@ -18,7 +18,7 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 * 02/02/24: Our [paper][dimva24-paper] on exceptional interprocedural CFGs has been accepted at [DIMVA'24][dimva24]!
 * 05/12/23: Our [paper][tap23-paper] on IRs for verified decompilation has been accepted at [TAP'23][tap23]!
 * 09/05/22: Our [paper][vstte22-paper] on formal semantics for P-Code has been accepted at [VSTTE'22][vstte22]!
-* 02/25/22: Our [paper][pldi22-paper] on verified lifting and verifying memory safety properties has been accepted at [PLDI'22][pldi22]!
+* 02/25/22: Our [paper][pldi22-paper] on verifying lifting and memory safety properties has been accepted at [PLDI'22][pldi22]!
 * 09/17/20: Our [decompilation-to-C paper][sefm20-paper] received the **Best Paper award** at [SEFM 2020][sefm20]!
 * 07/07/20: Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
