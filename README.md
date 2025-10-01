@@ -8,7 +8,7 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 
 
 
-<span style="font-size: 100%; color: darkblue">NEWS</span>
+<span style="font-size: 100%; color: darkblue"><b>NEWS</b></span>
 
 
 
