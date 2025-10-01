@@ -51,9 +51,9 @@ To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isa
 
 Decompilation to a high-level language involves multiple phases. At a high level, the phases typically include disassembly, which extracts assembly code from binaries; control flow graph (CFG) recovery, which recovers the program CFG from assembly; extraction of high-level program constructs (e.g., statements, variables, references) from assembly; and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
-FoxDec's decompilation phases include disassembly, CFG recovery, extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). Our projects [Chum](https://ssrg-vt.github.io/Chum/) and [libLISA](https://github.com/liblisa) are investigating the formalization of instruction semantics. 
+FoxDec's decompilation phases include disassembly, CFG recovery, extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). Our projects [Chum][chum] and [libLISA][liblisa] are investigating the formalization of instruction semantics. 
 
-Central to formally verified decompilation is the concept of _sound decompilation_. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in a different project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
+Central to formally verified decompilation is the concept of _sound decompilation_. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in our project [DSV][dsv]) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
 
 **Use cases.**
 Sound, recompilable decompilation to C has a variety of use cases. For example, patching a binary to fix errors or potential security exploits is highly complex in settings where the source code or third-party libraries are no longer available, or the build processes or tools have become outdated. Patching at the C-level is relatively more straightforward and a compelling alternative when the decompiled C code is formally proven to be functionally equivalent to the binary. 
@@ -199,6 +199,10 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [dimva24]: https://www.dimva.org/dimva2024/
 [tap23]: https://conf.researchr.org/home/tap-2023
 [vstte22]: https://vstte22.fbk.eu/
+[dsv]: https://ssrg-vt.github.io/DSV/
+[chum]: https://ssrg-vt.github.io/Chum/
+[liblisa]: https://github.com/liblisa
+
 
 
 
