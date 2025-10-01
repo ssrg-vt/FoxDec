@@ -67,7 +67,14 @@ FoxDec enables enhancing software security in three different ways:
 * Trustworthy binary patching
 * Trustworthy binary hardening
 
-FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of [GNU CoreUtils][coreutils] and the [Xen hypervisor](https://xenproject.org/) (the industrial-strength virtualization software used in many production systems, including [Amazon AWS](https://aws.amazon.com/)). The case study conducted on Xen (which has \~450K instructions) is the most extensive such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind.
+FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to calling conventions. These properties are also established through formal proofs using the Isabelle/HOL theorem prover. FoxDec was demonstrated to verify these memory safety properties of the following programs:
+* [GNU CoreUtils][coreutils]
+* [PARSEC Benchmark Suite](https://github.com/bamos/parsec-benchmark)
+* [FDLIBM Math Library](https://www.netlib.org/fdlibm)
+* [OpenSSL](https://www.openssl.org/)
+* [OpenSC](https://github.com/OpenSC/OpenSC)
+* [seL4 microkernel operating system](https://sel4.systems/) (x86-64 port)
+* [Xen hypervisor](https://xenproject.org/), the industrial-strength virtualization software used in many production systems, including [Amazon AWS](https://aws.amazon.com/). (This case study is the most extensive such memory safety verification conducted on an industrial-strength, off-the-shelf software system that was not written with formal verification in mind. Xen has \~450K instructions.)
 
 FoxDec can be used for trustworthy binary patching, such as replacing components of a binary with enhanced versions, which may be needed due to bug fixes, replacing deprecated code/library, or fixing vulnerabilities discovered in the original component. FoxDec’s trustworthy binary patching capabilities were demonstrated on the binary executable of the [World Wide Web Get (wget)](https://www.gnu.org/software/wget/) program, which is used in many systems to download files from the Internet, supporting the most widely used Internet protocols (e.g., HTTP and FTP). The capabilities were demonstrated in the following ways:
 * Currently, wget supports HTTP connections, despite them being considered insecure. FoxDec was used to patch wget so that it only supports HTTPS, the secure variant of HTTP.
