@@ -24,7 +24,7 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 
 ## Table of Contents
 1. [Verifiably correct lifting](#lift)
-2. [Decompilation-to-C](#decomp-to-C)
+2. [Decompilation to C](#decomp-to-C)
 3. [Security use cases](#sec-use)
 4. [Limitations](#limits)
 5. [How to build](#build)
@@ -47,9 +47,9 @@ To prove that binary executables _B_<sub>0</sub> and _B_<sub>r</sub> are semanti
 
 To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation.
 
-## Decompilation-to-C <a name="decomp-to-C"></a>
+## Decompilation to C <a name="decomp-to-C"></a>
 
-Decompilation to a high-level language involves multiple phases. At a high level, the phases typically include disassembly, which extracts assembly code from binaries, control flow graph (CFG) recovery that recovers the program CFG from assembly, extraction of high-level program constructs (e.g., statements, variables, references) from assembly, and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
+Decompilation to a high-level language involves multiple phases. At a high level, the phases typically include disassembly, which extracts assembly code from binaries; control flow graph (CFG) recovery, which recovers the program CFG from assembly; extraction of high-level program constructs (e.g., statements, variables, references) from assembly; and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
 FoxDec's decompilation phases include disassembly, CFG recovery, extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). 
 
