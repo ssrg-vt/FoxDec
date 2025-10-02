@@ -78,7 +78,7 @@ FoxDec can verify a class of memory safety properties, including return address 
 
 FoxDec can be used for trustworthy binary patching, such as replacing components of a binary with enhanced versions, which may be needed due to bug fixes, replacing deprecated code/library, or fixing vulnerabilities discovered in the original component. FoxDec’s trustworthy binary patching capabilities were demonstrated on the binary executable of the [World Wide Web Get (wget)](https://www.gnu.org/software/wget/) program, which is used in many systems to download files from the Internet, supporting the most widely used Internet protocols (e.g., HTTP and FTP). The capabilities were demonstrated in the following ways:
 * Currently, `wget` supports HTTP connections, despite them being considered insecure. FoxDec was used to patch `wget` so that it only supports HTTPS, the secure variant of HTTP.
-* FoxDec was demonstrated to replace the cryptography implementation that `wget` uses (i.e., [OpenSSL](https://www.openssl.org/)) with a new version that is quantum-resistant.
+* FoxDec was demonstrated to replace the cryptography implementation that `wget` uses (i.e., [OpenSSL](https://www.openssl.org/)) with a new version ([oqsprovider][oqsprovider]) that uses quantum-safe cryptography.
 * FoxDec was demonstrated for rapid remediation: the [CVE-2019-5953](https://nvd.nist.gov/vuln/detail/CVE-2019-5953) states that `wget`'s function `do_conversion()` can cause a buffer overflow. For rapid remediation, FoxDec was used to patch `wget` so that it terminates whenever this security vulnerability occurs.
 
 FoxDec can be used for trustworthy binary hardening. Example use-cases include:
@@ -216,6 +216,7 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [chum]: https://ssrg-vt.github.io/Chum/
 [liblisa]: https://github.com/liblisa
 
+[oqsprovider]: https://github.com/open-quantum-safe/oqs-provider
 
 
 
