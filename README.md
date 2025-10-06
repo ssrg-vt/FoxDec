@@ -56,7 +56,7 @@ FoxDec's approach for verifying a program's memory safety properties involves re
 FoxDec disassembles binary code and constructs a state machine-like abstraction that enables such reasoning. A state represents a program state in the form of invariants and an abstract model of memory that must hold after an instruction is executed. The transitions model control-flow. The invariants thus naturally form an instruction's pre- and post-conditions, and each transition therefore becomes a [Hoare triple][hoare-triple]. The abstraction is consequently called a _Hoare Graph_, whose  transitions represent all possible instruction executions and control flow transfers. The graph is constructed by symbolically executing each instruction using formal instruction semantics --- our projects [Chum][chum] and [libLISA][liblisa] are investigating the formalization of instruction semantics --- and keeping track of, and updating the invariants and the memory model. A _join operator_ merges states of the same instruction (e.g., due to loops) by constructing least upper bounds, constituting a join semi-lattice. 
 
 <p align="center">
-<img src="hoare-graph.jpg" alt="Hoare Graph" style="width:35%; height:auto;">
+<img src="hoare-graph.jpg" alt="Hoare Graph" style="width:45%; height:auto;">
 </p>
 
 The Hoare Graph's correctness, i.e., it is _provably overapproximative_ in that it represents all possible instruction executions and control flow transfers, is formally proven in a theorem prover (i.e., [Isabelle/HOL theorem prover][isabelle]) by proving each Hoare triple. This removes the graph construction algorithm and its implementation from the trust base.
@@ -71,7 +71,7 @@ Decompilation to a high-level language involves multiple phases. At a high level
 FoxDec's decompilation phases include disassembly, CFG recovery, extraction of an abstract code that models a program as a CFG of basic blocks; converting basic blocks into sequential code that models the program's corresponding state changes over memory, registers, and flags; variable analysis that maps memory regions to variables and references; and type analysis that assigns types. Converting basic blocks into sequential code that captures program state changes requires a formal model of the underlying machine (i.e., formal semantics of x86-64 instructions). Our projects [Chum][chum] and [libLISA][liblisa] are investigating the formalization of instruction semantics. 
 
 <p align="center">
-<img src="foxdec-c-decompiler.jpg" alt="FoxDec's decompilation phases" style="width:50%; height:auto;">
+<img src="foxdec-c-decompiler.jpg" alt="FoxDec's decompilation phases" style="width:60%; height:auto;">
 </p>
 
 Central to formally verified decompilation is the concept of _sound decompilation_. FoxDec defines soundness for each of these decompilation phases (sound disassembly is explored in our [DSV][dsv] project) and formally verifies them: algorithms for each phase are formalized in the [Isabelle/HOL theorem prover][isabelle] and proven correct. 
