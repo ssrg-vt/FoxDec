@@ -25,7 +25,7 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 
 ## Table of Contents
 1. [FoxDec 3.0: Verifiably correct lifting](#lift)
-2. [FoxDec 2.0: Verifying memory safety](verify-mem-safety)
+2. [FoxDec 2.0: Verifying memory safety](#verify-mem-safety)
 3. [FoxDec 1.0: Decompilation to C](#decomp-to-C)
 4. [Security use cases](#sec-use)
 5. [Limitations](#limits)
