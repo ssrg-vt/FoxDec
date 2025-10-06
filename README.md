@@ -22,18 +22,20 @@ FoxDec enables multiple [use cases](#sec-use) for enhancing software security: i
 * 09/17/20: Our [decompilation-to-C paper][sefm20-paper] received the **Best Paper award** at [SEFM 2020][sefm20]!
 * 07/07/20: Our [decompilation-to-C paper][sefm20-paper] has been accepted at [SEFM 2020][sefm20]!
 
+
 ## Table of Contents
-1. [Verifiably correct lifting](#lift)
-2. [Decompilation to C](#decomp-to-C)
-3. [Security use cases](#sec-use)
-4. [Limitations](#limits)
-5. [How to build](#build)
-6. [How to use](#usage)
+1. [FoxDec 3.0: Verifiably correct lifting](#lift)
+2. [FoxDec 2.0: Verifying memory safety](verify-mem-safety)
+3. [FoxDec 1.0: Decompilation to C](#decomp-to-C)
+4. [Security use cases](#sec-use)
+5. [Limitations](#limits)
+6. [How to build](#build)
+7. [How to use](#usage)
 3. [How to recompile](#recompile)
 5. [Papers](#papers)
 6. [Contact](#contact)
 
-## Verifiably correct lifting <a name="lift"></a>
+## FoxDec 3.0: Verifiably correct lifting <a name="lift"></a>
 
 The following figure illustrates FoxDec’s design, which formally verifies the lifting of a binary executable  _B_<sub>0</sub> to a machine-independent intermediate representation (MIIR). A key element of this design is that it enables a formal proof of correctness of the lifted MIIR. The formal verification approach is called [translation validation][pnueli98]. With this approach, a lifter is used to produce an MIIR from a binary. The MIIR is recompiled into a binary executable, _B_<sub>r</sub>. We now state that the lift is done trustworthily, if it can be proven that _B_<sub>0</sub> and _B_<sub>r</sub> are semantically equivalent.  
 
@@ -45,9 +47,18 @@ The advantage of this approach is that it removes both the lifter and the compil
 
 To prove that binary executables _B_<sub>0</sub> and _B_<sub>r</sub> are semantically equivalent, we use one of the state-of-the-art binary lifters: [Ghidra](https://github.com/NationalSecurityAgency/ghidra). Ghidra converts both binaries, _B_<sub>0</sub> and _B_<sub>r</sub>, to P-code, which operates at the same level of abstraction as assembly code. During lifting, we keep track of various observations (denoted as γ<sub>0</sub>) made over the original binary executable _B_<sub>0</sub>, which were used to generate the MIIR. The combination of the produced P-codes with the observations γ<sub>0</sub> is used to build a certificate. That certificate contains a series of propositions, such that if all these propositions are true, then the two binaries are semantically equivalent. Note that this approach does not rely on Ghidra as a decompiler to produce source code but uses it solely as a disassembler.
 
-To establish the proof, we utilize the [Isabelle/HOL theorem prover](https://isabelle.in.tum.de/). Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation.
+To establish the proof, we utilize the [Isabelle/HOL theorem prover][isabelle]. Isabelle/HOL takes propositions as input and attempts to prove that they are true by breaking down the proof into elementary reasoning steps that abide by the fundamental rules of mathematical logic. FoxDec generates the certificate in such a way that i) it is readable by Isabelle/HOL, and ii)  all its true propositions can be proven fully automatically.  A false proposition is unprovable and would indicate that something went wrong during lifting. A proven certificate completes the translation validation.
 
-## Decompilation to C <a name="decomp-to-C"></a>
+## FoxDec 2.0: Verifying memory safety <a name="verify-mem-safety"></a>
+
+FoxDec's approach for verifying a program's memory safety properties involves reasoning about all possible control flow transitions of the program, including dynamically computed control flow transitions (e.g., indirect branches), invariants that must hold for those transitions to occur (e.g., bounds for register values), and how memory is modified during instruction execution (e.g., changes in the relationships between memory regions). FoxDec disassembles binary code and constructs a state machine-like abstraction that enables such reasoning. A state represents a program state in the form of invariants and an abstract model of memory that must hold after an instruction is executed. The transitions model control-flow. The invariants thus naturally form an instruction's pre- and post-conditions, and each transition therefore becomes a [Hoare triple][hoare-triple]. The abstraction is consequently called a _Hoare Graph_, whose  transitions represent all possible instruction executions and control flow transfers. The graph is constructed by symbolically executing each instruction using formal instruction semantics --- our projects [Chum][chum] and [libLISA][liblisa] are investigating the formalization of instruction semantics --- and keeping track of, and updating the invariants and the memory model. A _join operator_ merges states of the same instruction (e.g., due to loops) by constructing least upper bounds, constituting a join semi-lattice. 
+
+The Hoare Graph's correctness, i.e., it is _provably overapproximative_ in that it represents all possible instruction executions and control flow transfers, is formally proven in a theorem prover (i.e., [Isabelle/HOL theorem prover][isabelle]) by proving each Hoare triple. This removes the graph construction algorithm and its implementation from the trust base.
+
+FoxDec can verify a class of memory safety properties, including return address integrity, bounded control flow, and adherence to the [x86-64 System V ABI][x86abi] calling conventions. The verification approach is highly scalable, with an almost linear relationship between the number of states constructed (which approximates the number of computational steps) and the number of instructions in a binary, primarily due to the join operator, which prevents reasoning about the same instruction multiple times. 
+
+
+## FoxDec 1.0: Decompilation to C <a name="decomp-to-C"></a>
 
 Decompilation to a high-level language involves multiple phases. At a high level, the phases typically include disassembly, which extracts assembly code from binaries; control flow graph (CFG) recovery, which recovers the program CFG from assembly; extraction of high-level program constructs (e.g., statements, variables, references) from assembly; and type assignment. FoxDec is investigating techniques for the formally verified decompilation phases. 
 
@@ -215,6 +226,10 @@ It is supported by the Defense Advanced Research Projects Agency (DARPA) and Nav
 [dsv]: https://ssrg-vt.github.io/DSV/
 [chum]: https://ssrg-vt.github.io/Chum/
 [liblisa]: https://github.com/liblisa
+[hoare-triple]: https://en.wikipedia.org/wiki/Hoare_logic
+[x86abi]: https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf
+
+
 
 [oqsprovider]: https://github.com/open-quantum-safe/oqs-provider
 
