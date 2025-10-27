@@ -174,7 +174,7 @@ mk_compilation_instructions bin =
  where
   show_needed lib
     | any (\p -> p `isPrefixOf` lib) ["libc.", "libgcc", "libstdc++."] = []
-    | otherwise = ["-l:" ++ lib]
+    | otherwise = ["-l" ++ (takeWhile ((/=) '.') $ drop 3 lib)]
 
 
 
