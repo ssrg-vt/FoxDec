@@ -107,6 +107,7 @@ class BinaryClass a where
   binary_text_section_size :: a -> Int
   binary_dir_name :: a -> String
   binary_file_name :: a -> String
+  binary_get_needed_libs :: a -> S.Set String
   fetch_instruction :: a -> Word64 -> Maybe Instruction
   function_signatures :: a -> M.Map String FunctionSignature
   get_elf :: a -> Maybe Elf
@@ -126,6 +127,7 @@ instance BinaryClass Binary where
   binary_text_section_size (Binary b) = binary_text_section_size b
   binary_dir_name (Binary b) = binary_dir_name b
   binary_file_name (Binary b) = binary_file_name b
+  binary_get_needed_libs (Binary b) = binary_get_needed_libs b
   fetch_instruction (Binary b) = fetch_instruction b
   function_signatures (Binary b) = function_signatures b
   get_elf (Binary b) = get_elf b

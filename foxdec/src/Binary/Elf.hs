@@ -316,7 +316,7 @@ elf_read_file = parseElf
 
 
 pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section), showHex (elfSectionAddrAlign section)] ++ "]" 
-pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry
+pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry ++ [show (parseDynamicNeeded elf)]
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
@@ -372,6 +372,7 @@ instance BinaryClass NamedElf
     binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _) -> elf_text_section_size elf
     binary_dir_name = \(NamedElf _ d _ _ _ _ _ _) -> d
     binary_file_name = \(NamedElf _ _ n _ _ _ _ _) -> n
+    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _ _) -> parseDynamicNeeded elf
     fetch_instruction = \(NamedElf _ _ _ _ _ _ is _) a -> IM.lookup (fromIntegral a) is
     function_signatures = \(NamedElf _ _ _ _ _ _ _ signs) -> signs
     get_elf = \(NamedElf elf _ _ _ _ _ _ _) -> Just elf
@@ -451,14 +452,15 @@ parse_gnu_version_d elf =
               else
                 return []
       return $ GNU_Version_d vd_version vd_flags vd_ndx vd_cnt vd_hash vda_name vda_next : rest
-      
-  consume n = do
-    (read,rest) <- gets $ BS.splitAt n
-    put rest
-    return $ BS.unpack read
-
   -- TODO for 64 bit ELF only
-  entry_size = 2+2+2+2+4+4+4
+  entry_size = 2+2+2+2+4+4+4    
+
+consume n = do
+  (read,rest) <- gets $ BS.splitAt n
+  put rest
+  return $ BS.unpack read
+
+
 
 parse_gnu_version elf =
   case filter (\s -> elfSectionName s == ".gnu.version") (elfSections elf) of
@@ -467,6 +469,29 @@ parse_gnu_version elf =
 
 
 
+
+parseDynamicNeeded :: Elf -> S.Set String
+parseDynamicNeeded elf =
+  let [dynstr] = filter (\s -> elfSectionName s == ".dynstr") (elfSections elf) in
+    S.unions $ map (evalState (get_needed dynstr) . elfSectionData) $ filter (\s -> elfSectionType s == SHT_DYNAMIC) (elfSections elf) 
+ where
+  get_needed dynstr = do
+    bs <- get
+    if BS.length bs < 8 then
+      return S.empty
+    else do
+      d_tag <- bytes_to_word <$> consume 8
+      d_union <- bytes_to_word <$> consume 8
+      if d_tag == 0 then -- DT_NULL
+        return S.empty
+      else if d_tag == 1 then do -- DT_NEEDED
+        let n = T.unpack $ T.decodeUtf8 $ read_string dynstr $ (fromIntegral d_union::Word64)
+        ns <- get_needed dynstr
+        return $ S.insert n ns
+      else
+        get_needed dynstr
+
+  read_string dynstr idx = BS.takeWhile ((/=) 0) $ BS.drop (fromIntegral idx) $ elfSectionData dynstr
 
 
 -- the .dynsym section contains entries of size $elfSectionEntSize dnysym$ (in bytes)

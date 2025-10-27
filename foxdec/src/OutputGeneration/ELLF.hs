@@ -131,7 +131,7 @@ render_ellf bin elf ellf cfi =
     else let txt'    = render_ellf' bin elf ellf cfi undefs
              undefs' = find_undefined_labels txt' 
              txt''   = subst_undefs undefs' txt'
-             header  = BLU.fromString (mk_undefs_header undefs') in
+             header  = BLU.fromString (mk_compilation_instructions bin ++ mk_undefs_header undefs') in
            mappend header txt''
  where
   subst_undefs undefs bs
@@ -164,6 +164,18 @@ render_ellf bin elf ellf cfi =
   undef_msg = "# The following functions should exist within this binary and are called or referenced, but are undefined as they are not in the metadata:"
 
   mk_undef_extern undef = ".extern " ++ undef_to_symbol undef
+
+
+mk_compilation_instructions bin =
+  let needed = binary_get_needed_libs bin
+      is_cpp = any (isInfixOf "libstdc++") needed
+      name   = binary_file_name bin in
+    "# " ++ (if is_cpp then "g++" else "gcc") ++ " -o " ++ name ++ "_ " ++ name ++ ".S " ++ intercalate " " (concatMap show_needed $ S.toList needed) ++ "\n\n"
+ where
+  show_needed lib
+    | any (\p -> p `isPrefixOf` lib) ["libc.", "libgcc", "libstdc++."] = []
+    | otherwise = ["-l:" ++ lib]
+
 
 
 
