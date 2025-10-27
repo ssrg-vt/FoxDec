@@ -1,4 +1,4 @@
-# Manually supplied (becasue they are defined indirectly in libc)
+# Manually supplied (because they are defined indirectly in libc)
 # libm
 manual	__acos_finite	1
 manual	__asin_finite	1
