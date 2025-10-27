@@ -55,6 +55,7 @@ WORKDIR /app
 COPY --from=build-foxdec /foxdec/bin/foxdec-exe /app/foxdec
 COPY --from=build-xed    /xed/disasm/disasm     /app/disasm
 COPY foxdec/ehframe_reader/ellf_cfi_patch.py    /app/ellf_cfi_patch
+COPY foxdec/config/config.dhall                 /app/config.dhall
 
 RUN chmod +x /app/ellf_cfi_patch
 ENV PATH="/app:${PATH}"
