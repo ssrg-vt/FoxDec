@@ -1,13 +1,15 @@
+#include "xed-interface.h"
+
+#include <assert.h>
+#include <fcntl.h>
+#include <gelf.h>
+#include <libelf.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <fcntl.h>
 #include <unistd.h>
-#include <libelf.h>
-#include <gelf.h>
-#include "xed-interface.h"
-#include <assert.h>
 
 
 void print_operand_info(const xed_decoded_inst_t* xedd) {
@@ -131,6 +133,11 @@ void disassemble_buffer(unsigned char* buffer, size_t size, xed_state_t* dstate,
     }
 }
 
+static void print_help(const char* argv0) {
+    fprintf(stderr, "Usage: %s <EXECUTABLE>\n", argv0);
+    fprintf(stderr, "Example: %s /usr/bin/ssh\n", argv0);
+}
+
 int main(int argc, char** argv) {
     /*
     int i;
@@ -141,28 +148,36 @@ int main(int argc, char** argv) {
     }
     puts("");
     */
+
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <EXECUTABLE>\n", argv[0]);
-        fprintf(stderr, "Example: %s /usr/bin/ssh\n", argv[0]);
-        return 1;
+        print_help(argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    for (size_t i = 1; i < argc; ++i) {
+        const char* const arg = argv[i];
+        if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            print_help(argv[0]);
+            return EXIT_SUCCESS;
+        }
     }
 
     if (elf_version(EV_CURRENT) == EV_NONE) {
         fprintf(stderr, "ELF library initialization failed\n");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     int fd = open(argv[1], O_RDONLY);
     if (fd < 0) {
         perror("open");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     Elf* e = elf_begin(fd, ELF_C_READ, NULL);
     if (!e) {
         fprintf(stderr, "elf_begin failed: %s\n", elf_errmsg(-1));
         close(fd);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     GElf_Ehdr ehdr;
@@ -170,7 +185,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "gelf_getehdr failed: %s\n", elf_errmsg(-1));
         elf_end(e);
         close(fd);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     xed_tables_init();
@@ -188,7 +203,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Unsupported architecture (machine type: %u)\n", ehdr.e_machine);
         elf_end(e);
         close(fd);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     size_t shstrndx;
@@ -196,7 +211,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "elf_getshdrstrndx failed: %s\n", elf_errmsg(-1));
         elf_end(e);
         close(fd);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     Elf_Scn* scn = NULL;
@@ -228,6 +243,6 @@ int main(int argc, char** argv) {
 
     elf_end(e);
     close(fd);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
