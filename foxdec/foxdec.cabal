@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.2.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -88,7 +88,7 @@ library
       Paths_foxdec
   hs-source-dirs:
       src
-  ghc-options: -O2 -threaded
+  ghc-options: -O2 -threaded -Wno-x-partial
   build-depends:
       aeson
     , attoparsec >=0.14.4
@@ -124,7 +124,7 @@ executable foxdec-exe
       Paths_foxdec
   hs-source-dirs:
       app
-  ghc-options: -O2 -threaded
+  ghc-options: -O2 -threaded -Wno-x-partial
   build-depends:
       aeson
     , attoparsec >=0.14.4

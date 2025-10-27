@@ -60,8 +60,8 @@ read_binary dirname name = do
 read_signs filename = do
   exists <- doesFileExist filename
   if not exists then
-    die "./signatures/foxdec.signs.tsv does not exist."
-    -- return M.empty
+    --die "./signatures/foxdec.signs.tsv does not exist."
+    return M.empty
   else do
     filecontent <- readFile filename
     return $ M.fromList $ concatMap parseLine $ lines filecontent
