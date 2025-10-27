@@ -1,0 +1,40 @@
+stages:
+  - deploy
+  - integration
+
+## =============================================================================
+## == DEPLOY ===================================================================
+## =============================================================================
+
+deploy-docker:
+  stage: deploy
+  image: 
+    name: ${CI_REGISTRY}/general/docker-images/docker-builder:latest
+  script:
+    - TAGS=git-${CI_COMMIT_SHORT_SHA} NAME=foxdec DOCKERFILE=ci/Dockerfile /build.sh
+
+## =============================================================================
+## == INTEGRATION ==============================================================
+## =============================================================================
+
+.integration_template:
+  stage: integration
+  needs: [deploy-docker]
+  trigger:
+    branch: ellf-2
+
+trigger-analyze-image:
+  extends: .integration_template
+  trigger:
+    project: vatech/integration-2/analyze-image
+
+trigger-lamartine:
+  extends: .integration_template
+  trigger:
+    project: vatech/integration-2/lamartine
+
+trigger-openalpr:
+  extends: .integration_template
+  trigger:
+    project: vatech/integration-2/openalpr
+

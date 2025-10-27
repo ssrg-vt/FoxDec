@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 reconstruct_cfi_to_asm.py
 

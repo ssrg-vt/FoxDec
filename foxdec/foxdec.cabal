@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.38.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -92,7 +92,7 @@ library
   build-depends:
       aeson
     , attoparsec >=0.14.4
-    , base ==4.18.3.0
+    , base ==4.21.*
     , binary >=0.8.9.1
     , blaze-builder
     , bytestring
@@ -128,7 +128,7 @@ executable foxdec-exe
   build-depends:
       aeson
     , attoparsec >=0.14.4
-    , base ==4.18.3.0
+    , base ==4.21.*
     , binary >=0.8.9.1
     , blaze-builder
     , bytestring
