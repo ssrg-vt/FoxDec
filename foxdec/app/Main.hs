@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, StrictData, BangPatterns #-}
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, BangPatterns #-}
 
 
 module Main where
@@ -16,6 +16,7 @@ import OutputGeneration.NASM.ModDataSection
 import OutputGeneration.GlobalMemAnalysis
 import OutputGeneration.NASM.Abstract_ASM
 import OutputGeneration.PathGeneration
+import OutputGeneration.ELLF
 
 
 import Data.CFG
@@ -50,6 +51,8 @@ import Data.SymbolicExpression
 
 import OutputGeneration.NASM.L0ToNASM
 import OutputGeneration.NASM.NASM
+
+import Algorithm.Graph
 
 
 import qualified Data.Map as M
@@ -98,13 +101,14 @@ data CommandLineArgs = CommandLineArgs
     args_generate_functions :: Bool,       -- ^ Shall we generate CGs?
     args_generate_metrics   :: Bool,       -- ^ Shall we generate a .metrics file?
     args_generate_callgraph :: Bool,       -- ^ Shall we generate an annotated call graph?
+    args_generate_ellf      :: Bool,       -- ^ Shall we generate a lifted ELLF?
     args_help               :: Bool,       -- ^ Shall we output a help message?
     args_verbose            :: Bool        -- ^ Shall we produce verbose output?
   }
  deriving Show
 
 -- | Default values for command-line arguments
-defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False
+defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False False
 
 -- | The command-line arguments and their types
 args =
@@ -119,6 +123,7 @@ args =
     , Option []        ["GNASM"]      (NoArg  set_args_generate_NASM)               "Generate NASM"
     , Option []        ["Gfuncs"]     (NoArg  set_args_generate_functions)          "Generate per function a control flow graph (CFG) and information."
     , Option []        ["Gmetrics"]   (NoArg  set_args_generate_metrics)            "Generate metrics in .metrics.txt file."
+    , Option []        ["Gellf"]      (NoArg  set_args_generate_ellf)               "Generate a lifted representation of an ELLF in .S file."
     ]
  where
   set_args_config    str      args = args { args_config = str }
@@ -130,6 +135,7 @@ args =
   set_args_generate_functions args = args { args_generate_functions = True }
   set_args_generate_metrics   args = args { args_generate_metrics = True }
   set_args_generate_callgraph args = args { args_generate_callgraph = True }
+  set_args_generate_ellf      args = args { args_generate_ellf = True }
   set_args_help               args = args { args_help = True }
   set_args_verbose            args = args { args_verbose = True }
 
@@ -150,12 +156,17 @@ parseCommandLineArgs argv =
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
     when (args_filename args  == "") $ err "ERROR: No name of binary specified (missing -n)"
     when (args_inputtype args == "") $ err "ERROR: No input type specified (missing -i)"
-    when (args_inputtype args `notElem` ["BINARY","L0"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string L0."
-    when (args_generate_L0 args && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output an L0 when input is set to L0."
-    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GL0, --Gfuncs, --Gmetrics, --Gcallgraph, --GNASM]"
+    when (args_inputtype args `notElem` ["BINARY","L0", "ELLF"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string L0 or the string ELLF."
+    when (args_generate_L0 args   && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output an L0 when input is set to L0."
+    when (args_generate_ellf args && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output a lifted ELLF when input is set to L0."
+    
+    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GL0, --Gfuncs, --Gmetrics, --Gcallgraph, --GNASM, --Gellf]"
+    when (not $ validate_ellf args) $ err "ERROR: for reading and lifting an ELLF, set input type to ELLF and enable only the -G option -Gellf"
+    
     return args
 
-  no_output args = all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM]
+  no_output args = all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM,args_generate_ellf]
+  validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM] else True
 
 -- | The full usage message
 usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
@@ -208,7 +219,9 @@ start args = do
   when (args_generate_callgraph args) $ generate_call_graph bin config l0
   when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
   when (args_generate_functions args) $ generate_per_function bin config l0
-  --symbolically_execute_paths bin config l0
+  when (args_generate_ellf args)      $ read_and_lift_ellf bin
+
+
 
 
 
@@ -218,41 +231,83 @@ get_function_signatures bin config l0 = do
   let l       = (bin,config,l0)
   let dirname = binary_dir_name bin
   let name    = binary_file_name bin
-  let entries = intersect (IM.keys $ l0_functions l0) (IM.keys $ binary_get_exported_functions bin) -- $ IM.keys $ l0_functions l0
-
+  let entries = IS.toList $ IS.fromList $ map fst $ filter (\(entry,name) -> entry `elem` (IM.keys $ l0_functions l0)) $ binary_get_exported_functions bin 
+  --let entries = map (\entry -> (entry, function_name_of_entry bin $ fromIntegral entry)) $ IM.keys $ l0_functions l0
   let fname   = dirname ++ name ++ ".signs"
+  let fname2  = dirname ++ name ++ ".signs.tsv"
 
 
   signs <- mapM (get_function_signature) entries
-  writeFile fname $ intercalate "\n" signs
+  writeFile fname  $ intercalate "\n" $ map fst signs
+  writeFile fname2 $ intercalate "\n" $ map snd signs
   putStrLn $ "Exported function signatures to plain-text file: " ++ fname
  where
   get_function_signature entry = do
     putStrLn $ "Entry: " ++ showHex entry
+    
     let l = (bin,config,l0)
-    let name = function_name_of_entry bin $ fromIntegral entry
-    let paths = evalState (function_call_to_nested_paths l 10 entry False) IS.empty
+    let paths = S.toList $ function_to_paths l entry
 
-    -- putStrLn $ "Num of paths: " ++ show (length paths) ++ "\n" ++ intercalate "\n" (map show paths)
+    --putStrLn $ "Number of paths: " ++ show (length paths)
 
-    results <- mapM (\path -> symb_exec_nested_path l path init_symstate) paths
-    let inputs = S.unions $ map (\(sems,ras,symstate,inputs) -> inputs) results
-    let regs = S.toList $ S.unions $ S.map toInputRegs $ inputs
-    let str0 = "0x" ++ showHex entry ++ ": " ++ name ++ "\n  Exploring " ++ show (length paths) ++ " paths" -- ++ (total length: " ++ show (sum (map nested_path_size paths)) ++ ")"
-    let str1 = "  Read registers: " ++ show regs
-    let str2 = "  System V ABI:   " ++ show (match_with_systemV_ABI regs)
+    results <- mapM (\path -> runStateT (symb_exec_transiting_path l path) init_symstate) paths
+    let inputs = S.unions $ map (\((sems,ras,inputs),symstate) -> inputs) results
+    let input_stateparts = S.toList $ S.unions [S.unions $ S.map toInputRegs inputs, toInputMem inputs 8]
+    let (systemV_ABI_params,systemV_ABI_count) = match_with_systemV_ABI input_stateparts
+    let aliasses = map snd $ filter (\(a,f) -> a == entry) $ binary_get_exported_functions bin
 
-    --putStrLn $ intercalate "\n" [str0,str1,str2]
-    return $ intercalate "\n" [str0,str1,str2]
+    let str0  = "0x" ++ showHex entry ++ ": " ++ intercalate "," aliasses
+    let str1  = "  Exploring " ++ show (length paths) ++ " paths"
+    let str2  = "  Read state parts:              " ++ show input_stateparts
+    let str3  = "  System V ABI read state parts: " ++ show systemV_ABI_params
+    let str4  = "  System V ABI argcount:         " ++ show systemV_ABI_count
+    let signs = intercalate "\n" [str0,str1,str2,str3,str4]
+
+    let str0   = binary_file_name bin
+    let str1   = intercalate "," aliasses
+    let str2   = show systemV_ABI_count
+    let signs2 = intercalate "\t" [str0,str1,str2]   
+    
+    --mapM_ (\(path,((sems,ras,inputs),symstate)) -> putStrLn $ show path ++ "\n" ++ show inputs ++ "\n\n") $ zip paths results
+    return (signs,signs2)
+
   toInputRegs (SP_Reg r)
-    | real_reg r `notElem` [Reg64 RSP,RegSeg FS] = S.singleton r
+    | real_reg r `notElem` [Reg64 RSP,RegSeg FS] = S.singleton $ SP_Reg r
     | otherwise = S.empty
   toInputRegs (SP_Mem a si) = S.unions $ map (toInputRegs . SP_Reg) $ regs_of_expr a
 
 
-match_with_systemV_ABI regs = takeWhile (\r -> r `elem` regs) systemV_ABI_regs
+  toInputMem inputs offset =
+    case find (isAboveStackFrame offset) inputs of
+      Nothing -> S.empty
+      Just sp -> S.insert sp $ toInputMem inputs $ offset + fromIntegral (size_of_mem_statepart sp)
+
+  isAboveStackFrame offset (SP_Mem (SE_Op Plus _ [SE_Var (SP_Reg (Reg64 RSP)), SE_Immediate imm]) _) = offset == imm
+  isAboveStackFrame offset _ = False
+
+  size_of_mem_statepart (SP_Mem a si) = si
+
+
+match_with_systemV_ABI input_stateparts = 
+  let params = reg_inputs ++ mem_inputs in
+    (params, count params)
  where
-  systemV_ABI_regs = map Reg64 [ RDI, RSI, RDX, RCX, R8, R9] ++ map Reg128 [0..7]
+  reg_inputs = takeWhile (\sp -> sp `elem` input_stateparts) systemV_ABI_regs
+  mem_inputs 
+    | SP_Reg (Reg64 R9) `elem` input_stateparts = filter isMem input_stateparts
+    | otherwise = []
+
+  systemV_ABI_regs = map SP_Reg $ map Reg64 [ RDI, RSI, RDX, RCX, R8, R9] ++ map Reg128 [0..7]
+  isMem (SP_Mem _ _) = True
+  isMem sp = False
+
+  isReg (SP_Reg _) = True
+  isReg _ = False
+
+  count params
+    | SP_Reg (Reg64 R9) `elem` params && all (\i -> SP_Reg (Reg128 i) `elem` params) [0..7] = Variadic
+    | SP_Reg (Reg64 R9) `elem` params = Argcount $ 6 + length (filter isMem params)
+    | otherwise = Argcount $ length (filter isReg params)
 
 
 -- TODO: move to own file
@@ -265,10 +320,12 @@ try_resolve_indirections_underapproximatively bin config l0 = do
   try_resolve_underapproximatively total_num l0 (curr,a) = do
     putStrLn $ "Address: " ++ showHex a ++ " (" ++ show (curr+1)++ "/" ++ show total_num ++ ")"
     let l = (bin,config,l0)
-    let (entry,paths) = generate_paths_to_address l (Just 2) a
-    let paths' = S.toList $ S.map (unfold_nested_path l) $ S.fromList $ S.toList paths
-    symstates <- mapM (\path -> get_symstate <$> symb_exec_nested_path l path init_symstate) paths'
-    trgts <- mapM (do_path l0 entry a) $ zip paths' symstates
+    let (entry,paths') = generate_transiting_paths_to_address l (Just 2) a
+    let paths = S.toList paths'
+
+    --putStrLn $ "Length paths: " ++ show (sum $ map transiting_path_length paths)
+    symstates <- mapM (\path -> execStateT (symb_exec_transiting_path l $ transiting_path_take_last 50 path) init_symstate) paths
+    trgts <- mapM (do_path l0 entry a) $ zip paths symstates
 
     case S.toList $ S.unions $ catMaybes trgts of
       [] -> return l0
@@ -321,15 +378,27 @@ obtain_L0 config "BINARY" verbose dirname name = do
   lift !config !bin = do
     startTime <- timeCurrent
     when (startTime `deepseq` verbose) $ putStrLn $ binary_pp bin
+
+ 
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
-    --die $ "END"
 
     l0 <- lift_to_L0 config bin empty_finit IM.empty
     putStrLn $ "Obtained L0 by lifting " ++ dirname ++ name
     endTime <- l0 `deepseq` timeCurrent
     let runningTime = fromIntegral $ timeDiff endTime startTime
     return (bin,l0 {l0_time = showDuration runningTime})
-
+-- ... by reading ELLF metafata
+obtain_L0 config "ELLF" verbose dirname name = do
+  binary <- read_binary dirname name
+  case binary of
+    Nothing -> die $ "Cannot read binary file: " ++ dirname ++ name
+    Just b  -> lift config b
+ where
+  lift !config !bin = do
+    putStrLn $ binary_pp bin
+    putStrLn $ "Obtained L0 by reading ELLF metadata " ++ dirname ++ name
+    let empty_l0 = L0 IM.empty IM.empty empty_gmem_structure ""
+    return (bin,empty_l0)
 
 
 

@@ -27,7 +27,7 @@ data CFG = CFG {
   cfg_fresh :: Int,                         -- ^ A fresh blockID
   cfg_instrs :: IM.IntMap [Instruction]     -- ^ A mapping of blockIDs to instructions
  }
- deriving (Show,Generic,Eq)
+ deriving (Show,Generic,Eq,Ord)
 
 
 num_of_instructions = IM.foldr (+) 0 . IM.map length . cfg_blocks

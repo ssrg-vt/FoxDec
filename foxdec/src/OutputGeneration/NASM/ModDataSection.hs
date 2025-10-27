@@ -48,7 +48,7 @@ split_data_section l@(bin,config,l0,_) (NASM externals globals sections footer) 
   split_section s@(NASM_Section_Data ds) = NASM_Section_Data $ concatMap split_data_section ds
 
   split_data_section ds@(NASM_DataSection (seg,sec,a0) align entries) 
-    | is_data_section (seg,sec,0,0,0,[]) || is_bss_data_section (seg,sec,0,0,0,[]) =  -- mk_analyzable_section ds
+    | is_data_section (seg,sec) || is_bss_data_section (seg,sec,0,0,0,[]) =  -- mk_analyzable_section ds
       let ds' = mk_analyzable_section ds
           split = 18 in
         reverse (take split ds') ++ drop split ds'

@@ -5,6 +5,7 @@ module Binary.Elf where
 import Base
 
 import Binary.Generic
+import qualified Binary.ELLF as ELLF
 
 import Data.Binary.Get as G
 
@@ -22,6 +23,8 @@ import Data.Maybe (fromJust)
 import Data.List.Extra (firstJust)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.UTF8 as LBS (fromString)
+
 import GHC.Generics
 import qualified Data.Serialize as Cereal hiding (get,put)
 import qualified Data.Text                  as T
@@ -70,12 +73,14 @@ data NamedElf = NamedElf {
   elf_sections_info :: !SectionsInfo,
   elf_symbol_table :: !SymbolTable,
   elf_relocs :: !(S.Set Relocation),
-  elf_instructions :: !(IM.IntMap Instruction)
+  elf_instructions :: !(IM.IntMap Instruction),
+  elf_signs :: M.Map String FunctionSignature
  }
 
 
 
 -- | Overview of sections with read only data.
+{--
 sections_ro_data = [
    ("",".text"),
    ("",".rodata"),
@@ -89,12 +94,11 @@ sections_ro_data = [
    ("",".fini_array"),
    ("",".ctors"),
    ("",".dtors"),
-   ("","__sancov_guards")
- ]
+   ("","__sancov_guards"),
+   ("","__libc_IO_vtables")
+ ]--}
 
-sections_data = [
-   ("",".data")
- ]
+
 
 sections_bss = [
    ("",".bss")
@@ -104,12 +108,13 @@ sections_bss = [
 sections_text = [
    ("",".text"),
    ("",".init"),
-   ("",".fini")
+   ("",".fini"),
+   ("","__libc_freeres_fn")
  ]
 
 
 
-isRelevantElfSection section = ("",elfSectionName section) `elem` sections_ro_data ++ sections_data ++ sections_bss ++ sections_text
+isRelevantElfSection section = is_ro_data_section ("",elfSectionName section) || is_data_section ("",elfSectionName section) || ("",elfSectionName section) `elem` sections_bss ++ sections_text
 
 isAllocated section = SHF_ALLOC `elem` elfSectionFlags section
 
@@ -123,16 +128,11 @@ contains_address a section =
       si0 = elfSectionSize section in
     a0 <= a && a < a0 + si0
 
-
 elf_read_bytestring :: Elf -> Word64 -> Int -> Maybe LBS.ByteString
 elf_read_bytestring elf a si =
   case find (contains_address a) $ elfSections elf of
     Nothing -> Nothing
     Just section -> Just $ LBS.fromStrict $ BS.take si $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section
- where
-  isRelevant section
-    |  ("",elfSectionName section) `elem` sections_ro_data = True
-    | otherwise = False
 
 
 
@@ -143,9 +143,7 @@ elf_read_ro_data elf a si =
     [] -> Nothing
     [section] -> Just $ read_bytes_section a si section
  where
-  isRelevant section
-    |  ("",elfSectionName section) `elem` sections_ro_data = True
-    | otherwise = False
+  isRelevant section = is_ro_data_section ("",elfSectionName section)
 
 elf_read_data :: Elf -> Word64 -> Int -> Maybe [Word8]
 elf_read_data elf a si =
@@ -159,7 +157,7 @@ elf_read_data elf a si =
       [section] -> Just $ read_bytes_section a si section
 
   isData section 
-    | ("",elfSectionName section) `elem` sections_data = True
+    | is_data_section ("",elfSectionName section) = True
     | otherwise = False
   isBss section 
     | ("",elfSectionName section) `elem` sections_bss = True
@@ -189,16 +187,17 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
  where
   mk_symbols = IM.fromList $ filter ((/=) "" . symbol_to_name . snd) $ symbols_from_ELF_symbol_tables ++ symbols_from_relocations
 
-  mk_exports = IM.fromList $ map mk_sym_entry $ filter isExportedAndInternallyDefined $ concat $ parseSymbolTables elf
+  mk_exports = map mk_sym_entry $ filter isExportedAndInternallyDefined $ concat $ parseSymbolTables elf
   mk_sym_entry sym_entry = (fromIntegral $ steValue sym_entry, get_string_from_steName $ steName sym_entry)
 
   dynsym = parseDynSym elf
 
   isExportedAndInternallyDefined sym_entry = and
-    [ steIndex sym_entry /= SHNUndef
-    , steBind sym_entry == STBGlobal
+    [ steValue sym_entry /= 0
+    , steIndex sym_entry /= SHNUndef
+    , steBind sym_entry `elem` [ STBGlobal, STBWeak ]
     , get_string_from_steName (steName sym_entry) /= ""
-    , steType sym_entry /= STTLoOS
+    , steType sym_entry `notElem` [STTLoOS, STTHiOS, STTObject]
     , M.lookup (steName sym_entry) dynsym /= Just (Just "GLIBC_PRIVATE") ]
 
 
@@ -209,7 +208,7 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
   mk_symbol_table_for_reloc_section sec = concatMap (try_mk_symbol_entry sec) (elfRelSectRelocations sec)
 
   try_mk_symbol_entry sec reloc
-    | elfRelType reloc `elem` [6,7] =
+    | elfRelType reloc `elem` [6,7,1] =
       -- R_X86_64_GLOB_DAT, objects
       -- R_X86_64_JUMP_SLOT
       -- the RelSymbol provides an index into a lookup table that contains the name of the symbol
@@ -254,7 +253,7 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
           else
             [(reloc_address, PointerToExternalFunction (fst name_of_reloc_trgt))]
         else
-          [] -- error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
+          error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
    | otherwise = []
 
 
@@ -267,9 +266,12 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
 
   mk_symbol_entry sym_entry
     -- | is_external_var_symbol_entry sym_entry = [(fromIntegral $ steValue sym_entry, AddressOfLabel (get_string_from_steName $ steName sym_entry) True)]
-    | is_internal_symbol_entry sym_entry     = [(fromIntegral $ steValue sym_entry, AddressOfLabel (get_string_from_steName $ steName sym_entry) False)]
+    | is_ifunc_symbol_entry sym_entry      = [(fromIntegral $ steValue sym_entry, AddressOfLabel (get_string_from_steName $ steName sym_entry) True)]
+    | is_internal_symbol_entry sym_entry   = [(fromIntegral $ steValue sym_entry, AddressOfLabel (get_string_from_steName $ steName sym_entry) False)]
     | otherwise = []
 
+
+  is_ifunc_symbol_entry sym_entry = steType sym_entry `elem` [STTLoOS, STTHiOS] 
 
   -- external_variables = map mk_symbol_entry $ filter is_external_var_symbol_entry $ concat $ parseSymbolTables elf
   is_external_var_symbol_entry sym_entry = steType sym_entry `elem` [STTObject,STTCommon] && steBind sym_entry `elem` [STBGlobal, STBWeak] && not (isHiddenSymEntry sym_entry)
@@ -314,12 +316,13 @@ elf_read_file = parseElf
 
 
 pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section), showHex (elfSectionAddrAlign section)] ++ "]" 
-pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry 
+pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
   pp_symbols = ["Symbol table:\n" ++ show (elf_get_symbol_table elf)] 
   pp_relocs = ["Relocations:\n" ++ show (elf_get_relocs elf)] 
+
 
 
   pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
@@ -344,7 +347,6 @@ elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevan
   mk_flag (SHF_EXT i)   = (SectionHasFlag i)
 
 
-
 elf_text_section_size = sum . map (fromIntegral . elfSectionSize) . filter isTextSection . elfSections
  where
   isTextSection sec = ("",elfSectionName sec) `elem` sections_text
@@ -359,37 +361,43 @@ elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".
 
 instance BinaryClass NamedElf 
   where
-    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _) -> elf_read_bytestring elf
-    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_ro_data elf
-    binary_read_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_data elf
-    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _) -> si
-    binary_get_symbols = \(NamedElf elf _ _ _ t _ _) -> t
-    binary_get_relocations = \(NamedElf elf _ _ _ _ r _) -> r
-    binary_pp = \(NamedElf elf _ _ _ _ _ _) -> pp_elf elf
-    binary_entry = \(NamedElf elf _ _ _ _ _ _) -> elf_get_entry_points elf
-    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _) -> elf_text_section_size elf
-    binary_dir_name = \(NamedElf _ d _ _ _ _ _) -> d
-    binary_file_name = \(NamedElf _ _ n _ _ _ _) -> n
-    fetch_instruction = \(NamedElf _ _ _ _ _ _ is) a -> IM.lookup (fromIntegral a) is
+    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_bytestring elf
+    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_ro_data elf
+    binary_read_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_data elf
+    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _ _) -> si
+    binary_get_symbols = \(NamedElf elf _ _ _ t _ _ _) -> t
+    binary_get_relocations = \(NamedElf elf _ _ _ _ r _ _) -> r
+    binary_pp = \(NamedElf elf _ _ _ _ _ is _) -> pp_elf elf 
+    binary_entry = \(NamedElf elf _ _ _ _ _ _ _) -> elf_get_entry_points elf
+    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _) -> elf_text_section_size elf
+    binary_dir_name = \(NamedElf _ d _ _ _ _ _ _) -> d
+    binary_file_name = \(NamedElf _ _ n _ _ _ _ _) -> n
+    fetch_instruction = \(NamedElf _ _ _ _ _ _ is _) a -> IM.lookup (fromIntegral a) is
+    function_signatures = \(NamedElf _ _ _ _ _ _ _ signs) -> signs
+    get_elf = \(NamedElf elf _ _ _ _ _ _ _) -> Just elf
 
 
 
 
 -- | Information on sections
 -- TODO: get from Binary interface
-is_ro_data_section ("",".rodata",_,_,_,_) = True
-is_ro_data_section ("",".got",_,_,_,_) = True
-is_ro_data_section ("",".init_array",_,_,_,_) = True
-is_ro_data_section ("",".fini_array",_,_,_,_) = True
-is_ro_data_section ("",".ctors",_,_,_,_) = True
-is_ro_data_section ("",".dtors",_,_,_,_) = True
-is_ro_data_section ("",".data.rel.ro",_,_,_,_) = True
-is_ro_data_section ("","__sancov_guards",_,_,_,_) = True
-is_ro_data_section ("__DATA","__const",_,_,_,_) = True
+is_ro_data_section ("",".rodata") = True
+is_ro_data_section ("",".got") = True
+is_ro_data_section ("",".got.plt") = True
+is_ro_data_section ("",".init_array") = True
+is_ro_data_section ("",".fini_array") = True
+is_ro_data_section ("",".ctors") = True
+is_ro_data_section ("",".dtors") = True
+is_ro_data_section ("",".data.rel.ro") = True
+is_ro_data_section ("","__sancov_guards") = True
+is_ro_data_section ("","__libc_IO_vtables") = True
+is_ro_data_section ("__DATA","__const") = True
+is_ro_data_section ("",sec) = ".rodata" `isPrefixOf` sec
 is_ro_data_section _ = False
 
-is_data_section ("__DATA","__data",_,_,_,_) = True
-is_data_section ("",".data",_,_,_,_) = True
+is_data_section ("__DATA","__data") = True
+is_data_section ("",".data") = True
+is_data_section ("",".gcc_except_table") = True
 is_data_section _ = False
 
 is_bss_data_section ("__DATA","__bss",_,_,_,_) = True
@@ -469,16 +477,19 @@ parse_gnu_version elf =
 --    Result maps steName from symbols to version strings
 parseDynSym :: Elf -> M.Map (Word32,Maybe BS.ByteString) (Maybe String)
 parseDynSym elf =
-  let [dynsym]            = filter ((`elem` [SHT_DYNSYM]) . elfSectionType) (elfSections elf)
-      gnu_version_entries = parse_gnu_version elf
+  let gnu_version_entries = parse_gnu_version elf
       gnu_version_count   = length gnu_version_entries 
-      [dyn_sym_symbols]   = filter (\symbols -> length symbols == gnu_version_count) $ parseSymbolTables elf
-      gnu_version_d       = parse_gnu_version_d elf
-      symbols             = zip dyn_sym_symbols gnu_version_entries
-  in
-    M.fromList $ map (mk_symbol gnu_version_d) symbols
+      gnu_version_d       = parse_gnu_version_d elf in
+    case (find_dynsym, find_dynsym_symbols gnu_version_count) of
+      ([dynsym], [dyn_sym_symbols]) ->
+        let symbols = zip dyn_sym_symbols gnu_version_entries in
+          M.fromList $ map (mk_symbol gnu_version_d) symbols
+      _ -> M.empty
     --error $ (intercalate "\n" $ map (show_symbol gnu_version_d) symbols) ++ "\n\n" ++ intercalate "\n"  (map show_gnu_version_d_entry gnu_version_d)
  where
+  find_dynsym = filter ((`elem` [SHT_DYNSYM]) . elfSectionType) (elfSections elf)
+  find_dynsym_symbols gnu_version_count = filter (\symbols -> length symbols == gnu_version_count) $ parseSymbolTables elf
+
   mk_symbol gnu_version_d (sym,gnu_version) = 
     let gnu_version_value   = (fromIntegral $ bytes_to_word $ [BS.head $ gnu_version]) - 1
         lookup_vda_name     = vda_name <$> (gnu_version_d !? gnu_version_value)

@@ -10,7 +10,13 @@ resolving the targets of jumps and calls.
 
 
 
-module Binary.FunctionNames where
+module Binary.FunctionNames (
+   jump_target_for_instruction
+ , function_name_of_entry
+ , function_name_of_instruction
+ , is_address_of_symbol
+ , is_address_of_internal_symbol
+ ) where
 
 import Binary.Generic
 
@@ -36,6 +42,34 @@ import Control.Monad ((>=>))
 import Debug.Trace
 import Numeric (readHex)
 import Control.Applicative ((<|>))
+
+
+
+
+-- | Given an instruction that calls or jumps, try to find a jump target
+jump_target_for_instruction ::
+  BinaryClass bin =>
+     bin
+  -> Instruction -- ^ The instruction
+  -> ResolvedJumpTarget
+jump_target_for_instruction bin i@(Instruction _ _ SYSCALL _ _ _) = Unresolved
+jump_target_for_instruction bin i@(Instruction _ _ _ ops _ _) =
+  case operand_static_resolve bin i (head ops) of
+    External sym       -> External sym
+    ExternalDeref sym  -> ExternalDeref sym
+    Unresolved         -> Unresolved
+    ImmediateAddress a ->
+      case try_plt_target_for_entry bin a of
+        Just trgt -> immediate_address_might_be_external trgt
+        Nothing   -> immediate_address_might_be_external $ ImmediateAddress a
+
+ where
+  immediate_address_might_be_external (ImmediateAddress a) = 
+    case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
+      Just (AddressOfLabel s True)  -> External $ strip_GLIBC s -- TODO ExternalDeref?
+      Just (AddressOfObject s True) -> External $ strip_GLIBC s
+      _ -> ImmediateAddress a
+  immediate_address_might_be_external trgt = trgt
 
 
 
@@ -84,26 +118,8 @@ try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmp
     case operand_static_resolve bin i op1 of
       External sym -> Just $ External sym
       ExternalDeref sym -> Just $ ExternalDeref sym
-      ImmediateAddress a' -> Just $ ImmediateAddress a'
+      ImmediateAddress a' -> Just $ ImmediateAddress a' 
       _ -> Nothing
-
-
--- | Given an instruction that calls or jumps, try to find a jump target
-jump_target_for_instruction ::
-  BinaryClass bin =>
-     bin
-  -> Instruction -- ^ The instruction
-  -> ResolvedJumpTarget
-jump_target_for_instruction bin i@(Instruction _ _ SYSCALL _ _ _) = Unresolved
-jump_target_for_instruction bin i@(Instruction _ _ _ ops _ _) =
-  case operand_static_resolve bin i (head ops) of
-    External sym       -> External sym
-    ExternalDeref sym  -> ExternalDeref sym
-    Unresolved         -> Unresolved
-    ImmediateAddress a ->
-      case try_plt_target_for_entry bin a of
-        Just trgt -> trgt
-        Nothing   -> ImmediateAddress a
 
 
 

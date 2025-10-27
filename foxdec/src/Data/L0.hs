@@ -93,9 +93,10 @@ empty_result = FResult (init_cfg 0) TimeOut Nothing S.empty S.empty IM.empty
 
 
 l0_get_cfgs :: L0 pred finit v -> IM.IntMap CFG
-l0_get_cfgs = IM.map get_cfg . l0_functions
+l0_get_cfgs = IM.mapWithKey get_cfg . l0_functions
  where
-  get_cfg (_,Just (FResult cfg _ _ _ _ _)) = cfg
+  get_cfg a (_,Just (FResult cfg _ _ _ _ _)) = cfg
+  get_cfg a _ = error $ "Function entry 0x" ++ showHex a ++ " has no result."
 
 l0_get_function_entries :: L0 pred finit v -> S.Set Int
 l0_get_function_entries = S.fromList . IM.keys . l0_functions

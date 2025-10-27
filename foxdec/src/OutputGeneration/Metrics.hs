@@ -83,7 +83,7 @@ mk_metrics bin l0 =
      , "----------"
      , "OTHER:"
      , "----------"     
-     , "verificaton time: " ++ l0_time l0
+     , "lifting time: " ++ l0_time l0
      , "\n"
    ]
   --putStrLn $ show $ IM.filter is_error $ IM.map get_post $ l0_functions l0

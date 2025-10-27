@@ -61,7 +61,7 @@ show_set as = "{" ++ intercalate ", " (fmap show $ toList as) ++ "}"
 -- | Lookup and produce error message if key does not exists in map.
 im_lookup s m k =
   case IM.lookup k m of
-    Nothing -> error s
+    Nothing -> error $ s ++ "(k = " ++ show k ++ ")"
     Just v  -> v
 
 -- | use a default value in case of @Nothing@

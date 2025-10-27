@@ -42,6 +42,8 @@ dependencies:
 - transformers
 - attoparsec >= 0.14.4
 - binary >= 0.8.9.1
+- leb128-cereal
+- utf8-string
 
 library:
   source-dirs: src

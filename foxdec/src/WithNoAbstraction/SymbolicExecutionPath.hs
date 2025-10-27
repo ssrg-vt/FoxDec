@@ -83,7 +83,7 @@ import Data.Bits (testBit)
 import Data.Int (Int64)
 import Data.Foldable (foldr',foldlM,foldrM)
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad (forM_)
 import Control.Monad.Extra (concatMapM)
 
@@ -108,7 +108,7 @@ symb_exec_all_entries bin config l0 = do
 
 
 
-exported_functions l@(bin,config,l0) = S.difference (S.fromList $ IM.keys $ binary_get_exported_functions bin) $ externals bin l0
+exported_functions l@(bin,config,l0) = S.difference (S.fromList $ map fst $ binary_get_exported_functions bin) $ externals bin l0
  where
   externals bin l0 = S.fromList $ IM.keys $ IM.filter is_relocation $ binary_get_symbol_table bin
   is_relocation (PointerToExternalFunction str)  = str /= ""
@@ -186,6 +186,39 @@ symb_exec_nested_path_element l symstate p = error $ show $ NestedPath [p]
 
 
 
+
+
+
+symb_exec_transiting_path :: Lifted -> TransitingPath -> StateT SymState IO ([ASemantics], [ResolvedOperands], S.Set StatePart)
+symb_exec_transiting_path l p@(TransitingPath [] Nothing)      = return ([],[],S.empty)
+symb_exec_transiting_path l p@(TransitingPath [] (Just (b,n))) = symb_exec_internal_path l [b] (Just n)
+symb_exec_transiting_path l p@(TransitingPath _ end)           = do
+  let (same,others) = split_transiting_path p
+  (sems0,ras0,inputs0) <- symb_exec_internal_path l same Nothing
+  symb_exec_function_return l (last same)
+  (sems1,ras1,inputs1) <- symb_exec_transiting_path l $ TransitingPath others end
+  return $ (sems0 ++ sems1,ras0 ++ ras1,S.union inputs0 inputs1)
+    
+
+symb_exec_internal_path (bin,config,l0) p@(FunctionBlockID entry _:_) maybeN = do
+  let l' = (bin,config,l0,fromIntegral entry)
+  symstate <- get
+  let p' = map (\(FunctionBlockID _ blockID) -> blockID) p
+  (sems,ras,symstate',inputs) <- liftIO $ symbolically_execute_path l' p' maybeN symstate  
+  put symstate'
+  return (sems,ras,inputs)
+
+
+symb_exec_function_return l@(bin,config,l0) (FunctionBlockID entry blockID)
+  | block_ends_in_ret l entry blockID = do
+    let l' = (bin,config,l0,fromIntegral entry)
+    modify $ clean_below_current_stackframe l'
+  | otherwise = return ()
+
+
+
+
+
 -- SYMBOLIC EXECUTION MAIN FUNCTION
 -- Step 1: assign Abstract Semantics to the path
 -- Step 2: symbolically execute the abstract semantics
@@ -251,7 +284,7 @@ show_set l r s
 
 resolved_operands_to_inputs :: (ASemantics, ResolvedOperands) -> S.Set StatePart
 resolved_operands_to_inputs (Push _ _ _ _,_) = S.empty
-resolved_operands_to_inputs (_,ras) = S.unions $ concatMap get_stateparts $ M.elems ras
+resolved_operands_to_inputs (sem,ras) = S.unions $ concatMap get_stateparts $ M.elems ras
  where
   get_stateparts = map state_parts_of_expr
 
@@ -980,14 +1013,18 @@ prune'' ctxt@(bin,config,l0,entry) subst e =
 
 
 clean_below_current_stackframe :: LiftedWithEntry -> SymState -> SymState
-clean_below_current_stackframe l (SymState (SMemory m) regs) = 
-  let rsp_value = read_rsp regs
-      new_mem   = M.mapWithKey (clean_local_and_below_stackframe rsp_value) m in
-    SymState (SMemory new_mem) regs
+clean_below_current_stackframe l ss@(SymState (SMemory m) regs) = 
+  case read_rsp regs of
+    Just rsp_value -> 
+      let  new_mem = M.mapWithKey (clean_local_and_below_stackframe rsp_value) m in
+        SymState (SMemory new_mem) regs
+    Nothing -> ss
  where
-  read_rsp regs =
+  read_rsp regs = 
     case M.lookup (Reg64 RSP) regs of
-      Just (Just v) -> v
+      Just (Just v) -> Just v
+      Nothing -> Nothing
+      x -> error $ "Unexpected RSP value: " ++ show x ++ "\n" ++ show_symstate l ss
 
   clean_local_and_below_stackframe :: SimpleExpr -> PointerDomain -> SDomain -> SDomain
   clean_local_and_below_stackframe rsp_value dom v@(SDomain accs)
@@ -1166,7 +1203,9 @@ operand_address_to_resolved_exprs l0 a = do
 
 
 
-
+soverwrite_dst :: LiftedWithEntry -> SimpleExpr -> Maybe SimpleExpr -> State SymState ()
+soverwrite_dst l0 (SE_StatePart (SP_Reg r) _) = swrite_reg (real_reg r)
+soverwrite_dst l0 sp = swrite_dst l0 sp
 
 
 
@@ -1263,9 +1302,10 @@ tau_path l@(_,_,_,entry) p symstate = runState (traverse 0 p) symstate
 
 
 resolve_operands :: LiftedWithEntry -> ASemantics -> SymState -> ResolvedOperands
-resolve_operands l sem inv = 
-  let inv' = execState (set_rip (size_of sem + rip_of sem)) inv in
-    M.map nub $ M.unionsWith (++) $ map (resolve_operand inv' sem) $ operands_of sem
+resolve_operands l@(bin,config,l0,_) sem inv = 
+  let inv' = execState (set_rip (size_of sem + rip_of sem)) inv 
+      ops  = operands_of sem ++  map (\r -> SE_StatePart (SP_Reg r) Nothing) (syscall_input_registers sem inv' ++ function_call_input_registers (bin,config,l0) sem) in
+    M.map nub $ M.unionsWith (++) $ map (resolve_operand inv' sem) ops
  where
   resolve_operand inv sem (SE_StatePart (SP_Mem a 0) Nothing) = 
     case evalState (operand_address_to_resolved_exprs l a) inv of
@@ -1284,6 +1324,34 @@ resolve_operands l sem inv =
   resolve_operand inv sem (SE_Immediate _) = M.empty
   resolve_operand inv sem e = error $ show e
 
+
+syscall_input_registers (SysCall _ _) inv = 
+  case evalState (sread_reg $ Reg64 RAX) inv of
+    SE_Immediate imm -> do
+      let argcount = snd $ num_of_input_registers_of_sys_call $ fromIntegral imm in
+        take argcount all_input_regs_of_syscalls
+    _ -> all_input_regs_of_syscalls
+syscall_input_registers _ _ = []
+
+function_call_input_registers l@(bin,config,l0) sem = 
+  case instruction_of sem of
+    Nothing -> []
+    Just i ->
+      let trgts = get_known_jump_targets l i in
+        if any is_internal trgts then
+          []
+        else let f = function_name_of_instruction bin i in
+          take (get_argcount bin f) all_input_regs_of_functions
+ where
+  instruction_of (Call src i rip si) = Just i
+  instruction_of (Jump rip src i si) = Just i
+  instruction_of _ = Nothing
+
+  is_internal (ImmediateAddress _) = True
+  is_internal _ = False
+
+
+
 operands_of :: ASemantics -> [SimpleExpr]
 operands_of (Apply op op_si dst srcs rip si)          = operands_of_dst dst ++ srcs
 operands_of (ApplyWhenImm op op_si dst srcs rip si)   = operands_of_dst dst ++ srcs
@@ -1292,7 +1360,7 @@ operands_of (MovZX dst src op_si rip si)              = operands_of_dst dst ++ [
 operands_of (SExtend dst h src l rip si)              = operands_of_dst dst ++ [src]
 operands_of (Lea dst src rip si)                      = operands_of_dst dst ++ [src]
 operands_of (Nop  _ _)                                = []
-operands_of (Push src _ _ _)                          = [src]
+operands_of (Push src _ _ _)                          = [] -- [src]
 operands_of (Pop dst _ _ _)                           = []
 operands_of (Leave _ _)                               = []
 operands_of (NoSemantics op Nothing srcs rip si)      = srcs
@@ -1486,21 +1554,28 @@ scall l@(bin,config,l0,entry) n i rip = call $ get_known_jump_targets (bin,confi
   is_internal (ImmediateAddress _) = True
   is_internal _ = False
 
-  external_behavior f (ExternalFunctionBehavior _ (Input reg)) = do
-    ret_val <- sread_reg reg
-    swrite_reg (Reg64 RAX) (Just ret_val)
+  --external_behavior f (ExternalFunctionBehavior _ (Input reg)) = do
+  --  let regs = take (argcount f) all_input_regs_of_functions
+  --  mapM_ sread_reg regs 
+  --  ret_val <- sread_reg reg
+  --  swrite_reg (Reg64 RAX) (Just ret_val)
+
   external_behavior f _ = do
+    let argc = get_argcount bin f
+    let regs = take argc all_input_regs_of_functions
+    mapM_ sread_reg regs 
     let retval = SE_Malloc (Just rip) (Just $ f ++ "_" ++ show n)
     swrite_reg (Reg64 RAX) (Just retval) -- TODO and XMM0?
 
-  external_call n rip f (ExternalFunctionBehavior _ FreshPointer) = do
-    let fresh = SE_Malloc (Just rip) (Just $ f ++ "_" ++ show n)
-    swrite_reg (Reg64 RAX) (Just fresh)
-  external_call n rip f (ExternalFunctionBehavior _ UnknownReturnValue) = do
-    swrite_reg (Reg64 RAX) Nothing
-
-
-
+get_argcount bin f =
+  case binary_get_function_signature bin f of
+    Nothing -> argcount bin f
+    Just Variadic -> 6
+    Just (Argcount n) -> n
+ where
+  argcount bin f 
+    | any (\p -> isPrefixOf p f) ["0x", "*", "syscall@", "indirection@"] = 0
+    | otherwise = trace ("Do not know external function: " ++ f) 0
 
 cap_expr e (SE_StatePart sp _)
   | expr_size e > 50 = get_regs <&> (read_top_from_statepart sp)
@@ -1539,12 +1614,12 @@ tau l0 n (NoSemantics op dst srcs rip si)    = do
   case dst of
     Nothing  -> return ()
     Just dst -> swrite_dst l0 dst Nothing  
-tau l0 n (SysCall rip si)                    = do
+tau l0 n sem@(SysCall rip si)                    = do
   -- Note sources must be read, as reading can influence the memory model
-  let rax = Reg64 RAX
-  rax_value <- sread_reg rax
-  return ()
-tau l0 n (SetXX dst rip si)                  = swrite_dst l0 dst $ Just $ SE_Op ZeroOne 8 []
+  regs <- gets $ syscall_input_registers sem
+  mapM_ sread_reg regs
+  mapM_ (\r -> swrite_reg r Nothing) $ regs_clobbered_by_syscall
+tau l0 n (SetXX dst rip si)                  = soverwrite_dst l0 dst $ Just $ SE_Op ZeroOne 8 []
 tau l0 n (Call op i rip si)                  = scall l0 n i rip 
 tau l0 n (Jump rip op i si)                  = sjump l0 n rip i
 tau l0 n (Nop rip si)                        = return ()

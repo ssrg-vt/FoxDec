@@ -7,7 +7,9 @@ import Data.Symbol
 import Data.X86.Instruction
 
 import Conventions
+import Parser.ParserCFI
 
+import Data.Elf
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
@@ -51,12 +53,12 @@ instance Cereal.Serialize SectionsInfo
 
 data SymbolTable = SymbolTable {
   symboltable_symbols :: !(IM.IntMap Symbol),
-  symboltable_exports :: !(IM.IntMap String)
+  symboltable_exports :: ![(Int,String)] -- Addresses can bind to more than one symbol
   }
   deriving (Generic,Eq)
 
 instance Show SymbolTable where
-  show (SymbolTable tbl exports) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_export $ IM.toList exports)
+  show (SymbolTable tbl exports) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_export exports)
    where
     show_entry (a0,PointerToExternalFunction f)    = showHex a0 ++ " --> " ++ f
     show_entry (a0,PointerToInternalFunction f a1) = showHex a0 ++ " --> " ++ f ++ "@0x" ++ showHex a1
@@ -82,6 +84,16 @@ instance Show Relocation where
 
 instance Cereal.Serialize Relocation
 
+data FunctionSignature = Variadic | Argcount Int
+  deriving (Generic,Eq,Ord)
+
+
+instance Show FunctionSignature where
+  show (Variadic)    = "variadic"
+  show (Argcount n) = show n
+
+instance Cereal.Serialize FunctionSignature
+
 
 class BinaryClass a where
   binary_read_bytestring :: a -> Word64 -> Int -> Maybe BS.ByteString
@@ -96,7 +108,8 @@ class BinaryClass a where
   binary_dir_name :: a -> String
   binary_file_name :: a -> String
   fetch_instruction :: a -> Word64 -> Maybe Instruction
-
+  function_signatures :: a -> M.Map String FunctionSignature
+  get_elf :: a -> Maybe Elf
 
 data Binary = forall b . BinaryClass b => Binary b
 
@@ -114,6 +127,8 @@ instance BinaryClass Binary where
   binary_dir_name (Binary b) = binary_dir_name b
   binary_file_name (Binary b) = binary_file_name b
   fetch_instruction (Binary b) = fetch_instruction b
+  function_signatures (Binary b) = function_signatures b
+  get_elf (Binary b) = get_elf b
 
 binary_get_symbol_table bin =
   case binary_get_symbols bin of
@@ -158,6 +173,8 @@ find_section_for_address bin a =
   address_in_section a (_,_,a0,si,_,_) = a0 <= a && a < a0 + si
 
 
+-- | Find a function signature
+binary_get_function_signature bin f = M.lookup f (function_signatures bin)
 
 -- | Reading from a read-only data section.
 --
@@ -213,4 +230,16 @@ undefined_internal_global_labels bin = filter is_global_and_internal_and_outside
 
   is_internal_symbol (AddressOfLabel _ False) = True
   is_internal_symbol _                        = False
+
+
+
+get_cfi_directives bin = do
+  let filename = binary_dir_name bin ++ binary_file_name bin ++ ".cfi.txt"
+  result <- parse_cfi filename
+  case result of
+    Right cfi -> return cfi
+    Left msg  -> return $ CFI IM.empty $ "Could not get CFI directives from file: " ++ filename ++ "\n" ++ show msg
+
+
+
 

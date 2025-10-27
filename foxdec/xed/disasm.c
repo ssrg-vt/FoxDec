@@ -141,9 +141,9 @@ int main(int argc, char** argv) {
     }
     puts("");
     */
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <EXECUTABLE> <SECTION>\n", argv[0]);
-        fprintf(stderr, "Example: %s /usr/bin/ssh .text .plt\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <EXECUTABLE>\n", argv[0]);
+        fprintf(stderr, "Example: %s /usr/bin/ssh\n", argv[0]);
         return 1;
     }
 
@@ -208,26 +208,21 @@ int main(int argc, char** argv) {
         }
 
         const char* name = elf_strptr(e, shstrndx, shdr.sh_name);
-        if (name) {
-            int n;
-            for (n=2;n<argc;n++) {
-                if (strcmp(name, argv[n]) == 0) {
-                    /*printf("Found %s text section: offset 0x%lx, vaddr 0x%lx, size %lu bytes\n",
-                      argv[n],
-                      (unsigned long)shdr.sh_offset,
-                      (unsigned long)shdr.sh_addr,
-                      (unsigned long)shdr.sh_size);
-                    */
+
+        if (shdr.sh_flags & SHF_EXECINSTR) {
+                    //printf("Found %s text section: offset 0x%lx, vaddr 0x%lx, size %lu bytes\n",
+                    //  name,
+                    //  (unsigned long)shdr.sh_offset,
+                    //  (unsigned long)shdr.sh_addr,
+                    //  (unsigned long)shdr.sh_size);
                     Elf_Data* data = elf_getdata(scn, NULL);
                     if (!data) {
-                        fprintf(stderr, "elf_getdata failed for %s: %s\n", argv[n],elf_errmsg(-1));
+                        fprintf(stderr, "elf_getdata failed for %s: %s\n", name,elf_errmsg(-1));
                     }
 
                     uint64_t base_vaddr = (ehdr.e_type == ET_EXEC) ? shdr.sh_addr : shdr.sh_addr ;
 
                     disassemble_buffer((unsigned char*)data->d_buf, data->d_size, &dstate, base_vaddr);
-                }
-            }
         }
     }
 

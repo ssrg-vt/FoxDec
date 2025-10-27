@@ -1,9 +1,9 @@
 #!/bin/bash
 # USAGE:
 #
-# ./docker-run.sh $BINARY [$SECTION]
+# ./docker-run.sh $BINARY 
 #
-# Here $BINARY is the name of a binary and [$SECTION] is space-separated list of sections to disassemble.
+# Here $BINARY is the name of a binary.
 # Example:
 #  ./docker-run.sh /usr/bin/ssh .text .plt 
 

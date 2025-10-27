@@ -709,6 +709,13 @@ isRet m = m `elem` [RET, RETF, RET, RETN, IRET, IRETD, IRETQ]
 isSyscall :: Opcode -> Bool
 isSyscall m = m `elem` [SYSCALL]
 
+-- | Returns true iff m is a looping instruction
+isLoop :: Opcode -> Bool
+isLoop LOOP = True
+isLoop LOOPE = True
+isLoop LOOPNE = True
+isLoop _ = False
+
 read_opcode "AAA" = AAA
 read_opcode "AAD" = AAD
 read_opcode "AAM" = AAM

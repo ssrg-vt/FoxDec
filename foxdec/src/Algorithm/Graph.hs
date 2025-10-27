@@ -1,4 +1,4 @@
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE StrictData, MultiParamTypeClasses, FlexibleContexts #-}
 
 
 {-|
@@ -20,9 +20,11 @@ import Data.List.Extra (firstJust)
 
 import Base
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad (forM_,msum)
 import Control.Monad.Extra (concatMapM, firstJustM)
+
+import Debug.Trace
 
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
@@ -223,8 +225,8 @@ find_path_visiting_resulting_in g p q =
 -- 2.) ends in a nodes satisfying $q$
 -- The path is broken down in two parts: one ending in a $p$-vertex, the other starting after the first.
 -- The first part is thus always non-empty.
-find_paths_satisfying_resulting_in :: IntGraph g => g -> Int -> Int -> (Int -> Bool) -> (Int -> Bool) -> S.Set [Int]
-find_paths_satisfying_resulting_in g n v0 p q = snd $ execState (go [] v0) (IS.empty, S.empty)
+find_paths_satisfying_resulting_in :: IntGraph g => String -> g -> Int -> Int -> (Int -> Bool) -> (Int -> Bool) -> S.Set [Int]
+find_paths_satisfying_resulting_in msg g n v0 p q = snd $ execState (go [] v0) (IS.empty, S.empty)
  where
   go :: [Int] -> Int -> State (IS.IntSet,S.Set [Int]) ()
   go curr_path v = do
@@ -243,10 +245,78 @@ find_paths_satisfying_resulting_in g n v0 p q = snd $ execState (go [] v0) (IS.e
       let curr_path' = curr_path ++ [v]
       put (IS.insert v visited,paths)
       mapM_ (go curr_path') $ IS.toList nexts
-
+    
       (visited, paths') <- get
       if S.size paths' < n && S.size paths' > S.size paths then
         put (IS.delete v visited,paths')
       else
         return ()
+
+
+
+
+data StatefullGraph state static vertex = StatefullGraph {
+  sfg_init_state :: static -> vertex -> state,
+  sfg_edges :: static -> vertex -> State state (S.Set vertex)
+ }
+
+
+
+find_paths_satisfying_resulting_in' :: (Show node, Ord node, Ord state) => StatefullGraph state static node -> static -> Bool -> node -> (node -> Bool) -> (state -> node -> Bool) -> S.Set [node]
+find_paths_satisfying_resulting_in' g static fast v0 p q = 
+  let path_prefixes = find_path_prefixes_satisfying g static 4 v0 p q
+      paths         = S.unions $ S.map extend_prefix path_prefixes in
+    paths
+ where
+  extend_prefix prefix = 
+    let (x,v)      = last prefix
+        extensions = find_paths_satisfying_resulting_in'' g static 2 fast x v p q in
+      S.map (\path -> map snd (init prefix) ++ path) extensions
+
+
+-- find path prefixes of a given length using breadth first
+find_path_prefixes_satisfying :: (Show node, Ord node, Ord state) => StatefullGraph state static node -> static -> Int -> node -> (node -> Bool) -> (state -> node -> Bool) -> S.Set [(state,node)]
+find_path_prefixes_satisfying g static n v0 p q = go (sfg_init_state g static v0) v0 n
+ where
+  go x v n
+   | n == 0    = S.singleton []
+   | q x v     = S.singleton [(x,v)]
+   | not (p v) = S.empty
+   | otherwise =
+     let (nexts,x') = runState (sfg_edges g static v) x
+         paths1 = S.unions $ S.map (\nxt -> go x' nxt (n-1)) nexts
+         paths2 = S.map (\p -> (x,v):p) paths1 in
+       paths2
+
+
+-- find paths in depth-first-search fashion
+find_paths_satisfying_resulting_in'' :: (Show node, Ord node, Ord state) => StatefullGraph state static node -> static -> Int -> Bool -> state -> node -> (node -> Bool) -> (state -> node -> Bool) -> S.Set [node]
+find_paths_satisfying_resulting_in'' g static n fast x0 v0 p q = snd $ execState (go x0 [] v0) ((S.empty, 0), S.empty)
+ where
+  --go :: state -> [node] -> node -> State (S.Set node,S.Set [node]) ()
+  go x curr_path v = do
+    ((visited, num_visited), paths) <- get
+    let remember_x = if fast then Nothing else Just x
+    let is_visited = (v,remember_x) `S.member` visited
+    let si = S.size paths
+
+    if is_visited || si >= n || not (p v) || num_visited > 20000 then
+      return ()
+    else if q x v then do
+      let p = curr_path ++ [v]
+      let paths' = S.insert p paths
+      put ((visited, num_visited), paths')
+    else do
+      let (nexts,x') = runState (sfg_edges g static v) x
+      let curr_path' = curr_path ++ [v]
+      put ((S.insert (v,remember_x) visited,num_visited+1),paths)
+      mapM_ (go x' curr_path') $ S.toList nexts
+    
+      ((visited, num_visited),paths') <- get
+      if S.size paths' < n && S.size paths' > S.size paths then
+        put ((S.delete (v,remember_x) visited,num_visited),paths')
+      else
+        return ()
+
+
 

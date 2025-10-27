@@ -87,11 +87,13 @@ data AnalysisResult pred finit v = FoundNewCalls (IM.IntMap finit) | AnalyzedWit
 -- Lift the binary to the L0 representation
 lift_to_L0 :: WithAbstractPredicates bin pred finit v => Config -> bin -> finit -> IM.IntMap Indirections -> IO (L0 pred finit v)
 lift_to_L0 config bin finit inds = do
-  entries <- get_entries
+  entries0 <- get_entries
+  let exported_functions = map fst $ binary_get_exported_functions bin
+  let entries = filter ((/=) 0) $ entries0 ++ exported_functions
+
 
   let l0  = L0 IM.empty inds IM.empty ""
   let l0' = foldr (\entry -> l0_insert_new_entry entry finit) l0 entries
-
   let recs = IM.empty
   let entry_graph = Edges $ IM.fromList (zip entries $ repeat IS.empty)
   runReaderT (execStateT (exploreFunctionEntries entry_graph recs) l0') (bin,config)
@@ -120,20 +122,31 @@ exploreFunctionEntries entries recursions = do
   case rec of
     Just (entry,trgts) -> do
       -- If yes, then reinsert the function entry, remove the current known results and continue
-      -- TODO check whether not already done?
-      liftIO $ putStrLn $ "Reconsidering (due to mutual recursion) entry " ++ showHex entry ++ " as all entries " ++ showHex_set trgts ++ " are now done."
-      let entries'    = graph_add_edges entries entry IS.empty 
-      let recursions' = IM.delete entry recursions
-      modify $ l0_adjust_result entry Nothing
-      exploreFunctionEntry entries' recursions' $ fromIntegral entry
-    Nothing -> do
-      -- If not, find next entry to consider
-      case next_entry of
-        Nothing -> exploreDanglingFunctionPointers 
-        Just a  -> exploreFunctionEntry entries recursions $ fromIntegral a
+      done <- entry_has_been_done_and_is_terminating entry
+      if done then do
+        let recursions' = IM.delete entry recursions
+        continue_with_next_entry entries recursions'
+      else do
+        liftIO $ putStrLn $ "Reconsidering (due to mutual recursion) entry " ++ showHex entry ++ " as all entries " ++ showHex_set trgts ++ " are now done."
+        let entries'    = graph_add_edges entries entry IS.empty 
+        let recursions' = IM.delete entry recursions
+        modify $ l0_adjust_result entry Nothing
+        exploreFunctionEntry entries' recursions' $ fromIntegral entry
+    Nothing -> continue_with_next_entry entries recursions 
  where
-  next_entry = try_end_node_from_node_to_be_reconsidered `orTry` graph_find_next entries
-  try_end_node_from_node_to_be_reconsidered = firstJust (try_find_end_node_from_node entries) $ IS.toList $ IS.unions $ IM.elems recursions
+  continue_with_next_entry entries recursions = do
+    -- Find next entry to consider
+    case next_entry entries recursions of
+      Nothing -> exploreDanglingFunctionPointers 
+      Just a  -> exploreFunctionEntry entries recursions $ fromIntegral a
+  next_entry entries recursions = try_end_node_from_node_to_be_reconsidered entries recursions `orTry` graph_find_next entries
+  try_end_node_from_node_to_be_reconsidered entries recursions = firstJust (try_find_end_node_from_node entries) $ IS.toList $ IS.unions $ IM.elems recursions
+
+  entry_has_been_done_and_is_terminating entry = do
+    result <- gets $ l0_lookup_entry entry
+    case result of
+      Just (_,Just result) -> return $ result_post result == Terminates
+      _                    -> return $ False
 
 exploreDanglingFunctionPointers :: WithAbstractPredicates bin pred finit v => WithLifting bin pred finit v ()
 exploreDanglingFunctionPointers = do
