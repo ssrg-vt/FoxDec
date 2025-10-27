@@ -1,4 +1,4 @@
-## How to build FoxDec (for developpers)<a name="build"></a>
+## How to build FoxDec (for developers)<a name="build"></a>
 
 1. Install [Graphviz](https://graphviz.org) and make sure `dot` is accessible by updating the `PATH` environment variable.
 2. Install [Stack](https://docs.haskellstack.org/en/stable/README/), the build tool used for developping FoxDec. 
