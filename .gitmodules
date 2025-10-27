@@ -1,0 +1,3 @@
+[submodule "foxdec/xed"]
+	path = foxdec/xed
+	url = https://github.com/intelxed/xed.git

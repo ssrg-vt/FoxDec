@@ -71,7 +71,7 @@ import qualified Data.ByteString.Lazy as B
 import System.IO
 import System.Process (callCommand)
 import System.Directory (doesFileExist,createDirectoryIfMissing)
-import System.Exit (die)
+import System.Exit (die,exitSuccess)
 import System.Time.Extra (showDuration)
 
 import Time.System
@@ -150,7 +150,7 @@ parseCommandLineArgs argv =
   -- check validity of command-line arguments
   inputChecking args = do
     -- when help is requested, output usage message and exit
-    when (args_help args) $ err ""
+    when (args_help args) $ putStrLn usageMsg >> exitSuccess
     -- check if arguments make sense 
     when (args_config args    == "") $ err "ERROR: No config file specified (missing -c)"
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
