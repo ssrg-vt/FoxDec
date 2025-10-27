@@ -11,7 +11,7 @@ RUN cabal update && cabal v2-build --only-dependencies
 
 COPY foxdec .
 RUN cabal v2-build
-RUN cabal v2-install --installdir=/foxdec/bin --overwrite-policy=always
+RUN cabal v2-install --installdir=/foxdec/bin --overwrite-policy=always --install-method=copy
 
 ## =============================================================================
 ## == BUILD XED ================================================================
