@@ -23,9 +23,6 @@ def xedfile_path(name):
 def cfifile_path(name):
     return f"{name}.cfi.txt"
 
-def asmfile_path(name):
-    return f"{name}.s"
-
 ## =============================================================================
 ## == SUBPROCESSES =============================================================
 ## =============================================================================
@@ -41,14 +38,19 @@ def run_ellf_cfi_patch(binary):
 
 def run_foxdec(binary, config, directory):
     cmd = [FOXDEC_PROG, '-c', config, '-i', 'ELLF', '-d', directory, '-n', binary, '--Gellf']
-    subprocess.run(cmd, stdout=subprocess.DEVNULL)
+    with open('foxdec.log', 'w') as f:
+        f.write(f"RUNNING: {' '.join(cmd)}\n\n")
+        subprocess.run(cmd, stdout=f)
+
+def _delete_file(path):
+    try:
+        os.remove(path)
+    except:
+        print(f"Failed to delete {path}")
 
 def cleanup(binary):
-    try:
-        os.remove(xedfile_path(binary))
-        os.remove(cfifile_path(binary))
-    except:
-        pass
+    _delete_file(xedfile_path(binary))
+    _delete_file(cfifile_path(binary))
 
 ## =============================================================================
 ## == CHECK HEALTH =============================================================
