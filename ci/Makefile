@@ -29,8 +29,6 @@ FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 .PHONY: xed-deps xed
 
 xed-deps:
-	mkdir -p $(XED_DIR)
-	mkdir -p $(FOXDEC_DIR)
 	cd $(XED_DIR) && ./mfile.py install
 
 xed: xed-deps
@@ -49,7 +47,7 @@ xed: xed-deps
 
 .PHONY: foxdec-deps foxdec
 
-foxdec-deps: xed
+foxdec-deps:
 	cabal update
 	cabal v2-build --only-dependencies
 
