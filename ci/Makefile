@@ -32,7 +32,6 @@ xed-deps:
 	cd $(XED_DIR) && ./mfile.py install
 
 xed: xed-deps
-	cd $(XED_DIR)
 	gcc -shared -o libxed.so -fPIC \
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
