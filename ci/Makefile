@@ -29,6 +29,8 @@ FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 .PHONY: xed-deps xed
 
 xed-deps:
+	mkdir $(XED_DIR)
+	mkdir $(FOXDEC_DIR)
 	cd $(XED_DIR) && ./mfile.py install
 
 xed: xed-deps

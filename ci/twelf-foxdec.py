@@ -9,19 +9,9 @@ import sys
 ## == CONSTANTS ================================================================
 ## =============================================================================
 
-DISASM_PROG    = "foxdec-xed"
-CFI_PATCH_PROG = "foxdec-cfi-patch"
 FOXDEC_PROG    = "foxdec"
 
-## =============================================================================
-## == PATHS ====================================================================
-## =============================================================================
 
-def xedfile_path(name):
-    return f"{name}.xed"
-
-def cfifile_path(name):
-    return f"{name}.cfi.txt"
 
 ## =============================================================================
 ## == SUBPROCESSES =============================================================
@@ -42,7 +32,7 @@ def run_foxdec(binary, config, directory):
 def check_health():
     print(f"{sys.argv[0]} Health Check... ", end="")
 
-    progs = [DISASM_PROG, CFI_PATCH_PROG, FOXDEC_PROG]
+    progs = [FOXDEC_PROG]
     for prog in progs:
         cmd = [prog, '--help']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
