@@ -1,6 +1,20 @@
-Run XED disassembler on a binary to disassemble all possible instructions in the binary.
+## How to build libxed.so
 
-Example usage:
-  ./docker-run.sh "BINARY" .text .plt .init .fini .plt.sec .plt.got
+In current dir `./xed/`
 
-This disassembles the given section (.text, .plt., etc.) in BINARY (use quotes to use relative paths).
+	git clone https://github.com/intelxed/xed.git xed
+	git checkout dc6bdbe
+	git clone https://github.com/intelxed/mbuild.git mbuild
+	git checkout 7c4497f
+	cd xed
+	./mfile.py examples install
+	cd ..
+	gcc -shared -o libxed.so -fPIC  \
+	    -I /xed/xed/include/public/xed/ \
+	    -I /xed/xed/obj/wkit/include/xed/ \
+	    -L /xed/xed/obj/wkit/lib/ \
+	    -lxed \
+	    disasm1.c
+	cp libxed.so ..
+
+This will download and build the correct version of XED, and then compile `disasm1.c` to a shared object file. That file is used when building FoxDec.

@@ -28,6 +28,7 @@ library
       Algorithm.Graph
       Algorithm.SCC
       Base
+      Binary.Disassemble
       Binary.Elf
       Binary.ELLF
       Binary.FunctionNames
@@ -60,6 +61,7 @@ library
       OutputGeneration.NASM.NASM
       OutputGeneration.NASM.NASMToC
       OutputGeneration.PathGeneration
+      Parser.ByteStringReader
       Parser.ParserCalls
       Parser.ParserCFI
       Parser.ParserDump
@@ -125,6 +127,10 @@ executable foxdec-exe
   hs-source-dirs:
       app
   ghc-options: -O2 -threaded -Wno-x-partial
+  extra-lib-dirs:
+      ./xed/
+  extra-libraries:
+      xed
   build-depends:
       aeson
     , attoparsec >=0.14.4

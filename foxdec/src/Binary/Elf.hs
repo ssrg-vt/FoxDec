@@ -1,11 +1,13 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, DeriveGeneric, StrictData, StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables, PartialTypeSignatures , FlexibleContexts, DeriveGeneric, StrictData, StandaloneDeriving #-}
 
 module Binary.Elf where
 
 import Base
 
 import Binary.Generic
+import Binary.Disassemble
 import qualified Binary.ELLF as ELLF
+import Parser.ByteStringReader
 
 import Data.Binary.Get as G
 
@@ -16,10 +18,11 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
+import Data.Int
 import Data.Word 
 import Data.List
 import Data.Bits
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust,mapMaybe)
 import Data.List.Extra (firstJust)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
@@ -73,7 +76,6 @@ data NamedElf = NamedElf {
   elf_sections_info :: !SectionsInfo,
   elf_symbol_table :: !SymbolTable,
   elf_relocs :: !(S.Set Relocation),
-  elf_instructions :: !(IM.IntMap Instruction),
   elf_signs :: M.Map String FunctionSignature
  }
 
@@ -105,28 +107,16 @@ sections_bss = [
  ]
 
 
-sections_text = [
-   ("",".text"),
-   ("",".init"),
-   ("",".fini"),
-   ("","__libc_freeres_fn")
- ]
 
-
-
-isRelevantElfSection section = is_ro_data_section ("",elfSectionName section) || is_data_section ("",elfSectionName section) || ("",elfSectionName section) `elem` sections_bss ++ sections_text
+isRelevantElfSection section = isExecutable section || is_ro_data_section ("",elfSectionName section) || is_data_section ("",elfSectionName section) || ("",elfSectionName section) `elem` sections_bss 
 
 isAllocated section = SHF_ALLOC `elem` elfSectionFlags section
-
 
 
 -- reading bytes from sections. 
 read_bytes_section a si section = BS.unpack $ BS.take si $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section
 
-contains_address a section = 
-  let a0  = elfSectionAddr section
-      si0 = elfSectionSize section in
-    a0 <= a && a < a0 + si0
+
 
 elf_read_bytestring :: Elf -> Word64 -> Int -> Maybe LBS.ByteString
 elf_read_bytestring elf a si =
@@ -254,6 +244,12 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
             [(reloc_address, PointerToExternalFunction (fst name_of_reloc_trgt))]
         else
           error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
+    | elfRelType reloc `elem` [18] = 
+      -- R_X86_64_TPOFF64
+      let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
+          reloc_address           = fromIntegral $ elfRelOffset reloc in
+      [(reloc_address, TLS_Relative (fst name_of_reloc_trgt))]
    | otherwise = []
 
 
@@ -316,13 +312,15 @@ elf_read_file = parseElf
 
 
 pp_elf_section section = "[" ++ intercalate ", " [elfSectionName section, show $ elfSectionType section, showHex (elfSectionAddr section), showHex (elfSectionSize section), showHex (elfSectionAddrAlign section)] ++ "]" 
-pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry ++ [show (parseDynamicNeeded elf)]
+pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp_relocs ++ pp_all_relocs ++ pp_all_symbols ++ pp_type ++ pp_entry -- ++ pp_ehframe (parse_ehframe elf show)
  where
   pp_sections = map pp_elf_section $ elfSections elf
   pp_boundaries = ["Address range: " ++ showHex (elf_min_address elf) ++ " --> " ++ showHex (elf_max_address elf)]
   pp_symbols = ["Symbol table:\n" ++ show (elf_get_symbol_table elf)] 
   pp_relocs = ["Relocations:\n" ++ show (elf_get_relocs elf)] 
+  pp_ehframe (directives,tables,_) = ["CFI directives:"] ++ concatMap pp_directive (IM.toList directives) ++ IM.elems tables
 
+  pp_directive (a,d) = ["0x" ++ showHex a ++ ":"] ++ d
 
 
   pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
@@ -347,9 +345,7 @@ elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevan
   mk_flag (SHF_EXT i)   = (SectionHasFlag i)
 
 
-elf_text_section_size = sum . map (fromIntegral . elfSectionSize) . filter isTextSection . elfSections
- where
-  isTextSection sec = ("",elfSectionName sec) `elem` sections_text
+elf_text_section_size = sum . map (fromIntegral . elfSectionSize) . filter isExecutable . elfSections
 
 
 elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".fini" elf
@@ -361,21 +357,22 @@ elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".
 
 instance BinaryClass NamedElf 
   where
-    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_bytestring elf
-    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_ro_data elf
-    binary_read_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_data elf
-    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _ _) -> si
-    binary_get_symbols = \(NamedElf elf _ _ _ t _ _ _) -> t
-    binary_get_relocations = \(NamedElf elf _ _ _ _ r _ _) -> r
-    binary_pp = \(NamedElf elf _ _ _ _ _ is _) -> pp_elf elf 
-    binary_entry = \(NamedElf elf _ _ _ _ _ _ _) -> elf_get_entry_points elf
-    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _) -> elf_text_section_size elf
-    binary_dir_name = \(NamedElf _ d _ _ _ _ _ _) -> d
-    binary_file_name = \(NamedElf _ _ n _ _ _ _ _) -> n
-    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _ _) -> parseDynamicNeeded elf
-    fetch_instruction = \(NamedElf _ _ _ _ _ _ is _) a -> IM.lookup (fromIntegral a) is
-    function_signatures = \(NamedElf _ _ _ _ _ _ _ signs) -> signs
-    get_elf = \(NamedElf elf _ _ _ _ _ _ _) -> Just elf
+    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _) -> elf_read_bytestring elf
+    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_ro_data elf
+    binary_read_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_data elf
+    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _) -> si
+    binary_get_symbols = \(NamedElf elf _ _ _ t _ _) -> t
+    binary_get_relocations = \(NamedElf elf _ _ _ _ r _) -> r
+    binary_pp = \(NamedElf elf _ _ _ _ _ _) -> pp_elf elf 
+    binary_entry = \(NamedElf elf _ _ _ _ _ _) -> elf_get_entry_points elf
+    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _) -> elf_text_section_size elf
+    binary_dir_name = \(NamedElf _ d _ _ _ _ _) -> d
+    binary_file_name = \(NamedElf _ _ n _ _ _ _) -> n
+    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _) -> parseDynamicNeeded elf
+    address_has_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_address_has_instruction elf a
+    fetch_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
+    function_signatures = \(NamedElf _ _ _ _ _ _ signs) -> signs
+    get_elf = \(NamedElf elf _ _ _ _ _ _) -> Just elf
 
 
 
@@ -426,25 +423,25 @@ data GNU_Version_d = GNU_Version_d {
 parse_gnu_version_d elf =
   case filter (\s -> elfSectionName s == ".gnu.version_d") (elfSections elf) of
     [] -> []
-    [sec] -> evalState get_symbols (elfSectionData sec)
+    [sec] -> sectionReader get_symbols sec
  where
   get_symbols = do
-    bs <- get
+    (bs,_) <- get
     if BS.length bs < entry_size then
       return []
     else do
-      vd_version <- consume 2
-      vd_flags <- consume 2
-      vd_ndx <- consume 2
-      vd_cnt <- consume 2
-      vd_hash <- consume 4
-      vd_aux <- consume 4
+      vd_version <- read_bytes 2
+      vd_flags <- read_bytes 2
+      vd_ndx <- read_bytes 2
+      vd_cnt <- read_bytes 2
+      vd_hash <- read_bytes 4
+      vd_aux <- read_bytes 4
 
       let vd_aux_value = fromIntegral $ bytes_to_word $ vd_aux
       let vda_name = BS.unpack $ BS.take 4 $ BS.drop vd_aux_value bs
       let vda_next = BS.unpack $ BS.take 4 $ BS.drop (vd_aux_value+4) bs
 
-      vd_next <- consume 4
+      vd_next <- BS.unpack <$> consume 4
       let vd_next_value = fromIntegral $ bytes_to_word $ vd_next
       rest <- if vd_next_value /= 0 then do
                 _ <- consume $ vd_next_value - 20
@@ -455,13 +452,10 @@ parse_gnu_version_d elf =
   -- TODO for 64 bit ELF only
   entry_size = 2+2+2+2+4+4+4    
 
-consume n = do
-  (read,rest) <- gets $ BS.splitAt n
-  put rest
-  return $ BS.unpack read
 
 
 
+-- parse the .gnu_version section
 parse_gnu_version elf =
   case filter (\s -> elfSectionName s == ".gnu.version") (elfSections elf) of
     [] -> []
@@ -470,18 +464,23 @@ parse_gnu_version elf =
 
 
 
+sectionReader r s = evalState r $ (elfSectionData s, fromIntegral $ elfSectionAddr s)
+
+
+-- parse the .dynamic section, specifically, the NEEDED libraries
+-- returns a set of names of needed libraries
 parseDynamicNeeded :: Elf -> S.Set String
 parseDynamicNeeded elf =
   let [dynstr] = filter (\s -> elfSectionName s == ".dynstr") (elfSections elf) in
-    S.unions $ map (evalState (get_needed dynstr) . elfSectionData) $ filter (\s -> elfSectionType s == SHT_DYNAMIC) (elfSections elf) 
+    S.unions $ map (sectionReader (get_needed dynstr)) $ filter (\s -> elfSectionType s == SHT_DYNAMIC) (elfSections elf) 
  where
   get_needed dynstr = do
-    bs <- get
+    (bs,_) <- get
     if BS.length bs < 8 then
       return S.empty
     else do
-      d_tag <- bytes_to_word <$> consume 8
-      d_union <- bytes_to_word <$> consume 8
+      d_tag <- bytes_to_word <$> read_bytes 8
+      d_union <- bytes_to_word <$> read_bytes 8
       if d_tag == 0 then -- DT_NULL
         return S.empty
       else if d_tag == 1 then do -- DT_NEEDED
@@ -494,6 +493,7 @@ parseDynamicNeeded elf =
   read_string dynstr idx = BS.takeWhile ((/=) 0) $ BS.drop (fromIntegral idx) $ elfSectionData dynstr
 
 
+-- parse the .dynsym section
 -- the .dynsym section contains entries of size $elfSectionEntSize dnysym$ (in bytes)
 -- the .gnu_version contains entries of size $elfSectionEntSize gnu_version$ (in bytes)
 --    gnu_version_entry == 0 --> The symbol is local, not available outside the object.
@@ -510,7 +510,6 @@ parseDynSym elf =
         let symbols = zip dyn_sym_symbols gnu_version_entries in
           M.fromList $ map (mk_symbol gnu_version_d) symbols
       _ -> M.empty
-    --error $ (intercalate "\n" $ map (show_symbol gnu_version_d) symbols) ++ "\n\n" ++ intercalate "\n"  (map show_gnu_version_d_entry gnu_version_d)
  where
   find_dynsym = filter ((`elem` [SHT_DYNSYM]) . elfSectionType) (elfSections elf)
   find_dynsym_symbols gnu_version_count = filter (\symbols -> length symbols == gnu_version_count) $ parseSymbolTables elf
@@ -520,9 +519,6 @@ parseDynSym elf =
         lookup_vda_name     = vda_name <$> (gnu_version_d !? gnu_version_value)
         vda_name_index      = (fromIntegral . bytes_to_word) <$> lookup_vda_name
         vda_symbol          = find_symbol_by_index elf =<< vda_name_index in
-      --if gnu_version_value == 1 then
-      --  error $ show (steName sym, steName <$> vda_symbol, BS.last $ gnu_version)
-      --else
       (steName sym, (get_string_from_steName . steName) <$> vda_symbol)
 
 
@@ -538,4 +534,611 @@ split_bytestring bs n
     case BS.splitAt n bs of
       (bs0,bs1) -> bs0 : split_bytestring bs1 n
 
+
+
+
+
+data CIE_Aug_Data = Personality Word8 Address | LSDA_Encoding Word8 | FDE_Encoding Word8
+ deriving (Eq,Ord)
+
+instance Show CIE_Aug_Data where
+  show (Personality enc ptr) = "Personality: " ++ show ptr ++ ", enc: 0x" ++ showHex enc
+  show (LSDA_Encoding enc) = "LSDA_Encoding: 0x" ++ showHex enc
+  show (FDE_Encoding enc) = "FDE_Encoding: 0x" ++ showHex enc
+
+data CIE = CIE {
+  cie_version :: Word8,
+  cie_aug_string :: String,
+  cie_code_align_factor :: Word64,
+  cie_data_align_factor :: Int64,
+  cie_return_address_register :: Word64,
+  cie_aug_data :: [CIE_Aug_Data],
+  cie_instructions :: [CFI_Instruction]
+ }
+ deriving (Show,Eq,Ord)
+
+data FDE = FDE {
+  cie_ptr  :: Address,
+  pc_begin :: Address,
+  pc_range :: Address,
+  lsda_ptr :: Maybe Address,
+  fde_instructions :: [CFI_Instruction]
+ }
+ deriving (Show,Eq,Ord)
+
+data CFI_Frame = CFI_CIE CIE | CFI_FDE FDE
+ deriving (Eq,Ord)
+
+instance Show CFI_Frame where
+  show (CFI_CIE cie) = show cie
+  show (CFI_FDE fde) = show fde
+
+data Address = Absolute Word64 | Indirect Word64
+ deriving (Eq,Ord)
+
+instance Show Address where
+  show (Absolute w) = "0x" ++ showHex w
+  show (Indirect w) = "@0x" ++ showHex w
+
+type CFI = (Address -> String) -> (IM.IntMap [String], IM.IntMap String, IS.IntSet)
+
+
+get_fde_encoding (CIE _ _ _ _ _ dats _) = firstJust get_fde dats
+ where
+  get_fde (FDE_Encoding enc) = Just enc
+  get_fde _  = Nothing
+
+get_lsda_ptr (CFI_FDE (FDE _ pc_begin _ (Just p) _)) = Just (pc_begin,p)
+get_lsda_ptr _ = Nothing
+
+ 
+
+
+parse_ehframe :: Elf -> CFI
+parse_ehframe elf showAddress =
+  let [ehframe] = filter (\s -> elfSectionName s == ".eh_frame") (elfSections elf)
+      cfi = sectionReader (get_entries IM.empty) ehframe
+      lsda_ptrs = IM.elems $ IM.mapMaybe get_lsda_ptr cfi
+      cfid = mk_cfi_directives showAddress cfi
+      ts = IM.fromList $ map (parse_gcc_except_table elf showAddress) lsda_ptrs
+      rendered_ts = IM.map (render_gcc_except_table showAddress) ts
+
+      cfi_addresses = IS.unions (IM.keysSet cfi : (IM.keysSet ts : map get_addresses_from_gcc_except_table (IM.elems ts))) in
+    (cfid,rendered_ts,cfi_addresses)
+    -- error $ (intercalate "\n" $ map show $ IM.toList cfid) ++ "\n\n" ++  (intercalate "\n" $ map (parse_gcc_except_table elf) lsda_ptrs)
+ where
+  get_entries entries = do
+    (bs,pos0) <- get
+    if BS.length bs < 4 then
+      return entries
+    else do
+      length <- read_uint32
+      if length == 0 then
+        return entries
+      else do
+        length' <- if length == 0xffffffff then read_uint64 else return $ fromIntegral length
+        (_,pos) <- get
+        bs <- consume $ fromIntegral length'
+        let entry = evalState (get_entry entries) (bs,pos)
+        get_entries $ IM.insert pos0 entry entries
+
+  get_entry entries = do
+    (_,pos0) <- get
+    cie_id <- read_uint32
+    if cie_id == 0 then
+      get_cie 
+    else
+      get_fde entries (fromIntegral pos0 - fromIntegral cie_id)
+
+  get_cie = do
+    version <- read_uint8
+    aug_string <- read_string
+    if "eh" `isInfixOf` aug_string then do
+      _ <- consume 8 -- assumes 64 bit arch
+      return ()
+    else
+      return ()
+    code_align_factor <- read_uleb128
+    data_align_factor <- read_sleb128
+    return_address_register <- read_uleb128
+    aug <- parse_aug aug_string
+    cie_instructions <- parse_cfi_instructions code_align_factor data_align_factor
+
+    return $ CFI_CIE $ CIE version aug_string code_align_factor data_align_factor return_address_register aug cie_instructions
+
+  parse_aug aug_string
+    | head aug_string == 'z' = do
+      (aug_data_length::Word64) <- read_uleb128
+      (_,pos) <- get
+      aug_data <- consume $ fromIntegral aug_data_length
+      return $ evalState (parse_aug_data $ tail aug_string) (aug_data,pos)
+    | otherwise = return $ []
+
+  parse_aug_data [] = return []
+  parse_aug_data ('P':str) = do
+    ptr_encoding <- read_uint8
+    bs <- get
+    personality <- read_encoded ptr_encoding
+    let aug = Personality ptr_encoding personality
+    augs <- parse_aug_data str
+    return $ aug:augs
+  parse_aug_data ('R':str) = do
+    ptr_encoding <- read_uint8
+    let aug = FDE_Encoding ptr_encoding
+    augs <- parse_aug_data str
+    return $ aug:augs
+  parse_aug_data ('L':str) = do
+    ptr_encoding <- read_uint8
+    let aug = LSDA_Encoding ptr_encoding
+    augs <- parse_aug_data str
+    return $ aug:augs
+
+  -- parsing an FDE
+  get_fde entries cie_ptr = do
+    let CFI_CIE cie = entries IM.! fromIntegral cie_ptr
+    let Just enc = get_fde_encoding cie 
+    pc_begin <- read_encoded enc
+    pc_range <- read_encoded enc
+
+    let aug_string = cie_aug_string cie
+    lsda_pointer <- parse_lsda_pointer enc aug_string
+
+    cfi_instructions <- parse_cfi_instructions (cie_code_align_factor cie) (cie_data_align_factor cie)
+    return $ CFI_FDE $ FDE (Absolute cie_ptr) pc_begin pc_range lsda_pointer cfi_instructions
+
+  parse_lsda_pointer enc aug_string
+    | aug_string /= [] && head aug_string == 'z' = do
+      (aug_data_length::Word64) <- read_uleb128
+      (_,pos) <- get
+      aug_data <- consume $ fromIntegral aug_data_length
+      if 'L' `elem` aug_string then
+        return $ Just $ evalState (read_encoded enc) (aug_data,pos)
+      else
+        return Nothing
+    | otherwise = return Nothing
+
+
+
+
+
+-- https://refspecs.linuxfoundation.org/LSB_2.1.0/LSB-Core-generic/LSB-Core-generic/dwarfehencoding.html
+read_encoded :: Word8 -> State ByteStringAt Address 
+read_encoded encoding = do
+  let fmt = encoding .&. 0x0F
+  let app = encoding .&. 0x70
+  let ind = encoding .&. 0x80
+
+  (_,pos) <- get
+  v  <- read_value fmt app
+  v' <- apply app v pos
+  if ind == 0 then
+    return $ Absolute v'
+  else
+    return $ Indirect v'
+ where
+  read_value 0x1 app = read_uleb128 -- DW_EH_PE_uleb128
+  read_value 0xB app = fromIntegral <$> read_sint32 -- DW_EH_PE_sdata4
+  read_value fmt app = error $ "Unknown fmt: " ++ showHex fmt  ++ ", app: " ++ showHex app ++ " in encoding " ++ showHex encoding 
+
+  apply 0x0  v pos = return v -- DW_EH_PE_absptr
+  apply 0x10 v pos = return $ (fromIntegral pos) + v -- DW_EH_PE_pcrel
+  apply app v pos = error $ "Unknown app: " ++ showHex app ++ " in encoding " ++ showHex encoding 
+
+
+
+
+data CFI_Instruction = 
+    DW_CFA_nop
+  | DW_CFA_advance_loc Int
+  | DW_CFA_undefined Word64
+  | DW_CFA_offset Word64 Int64 
+  | DW_CFA_restore Word64
+  | DW_CFA_def_cfa Word64 Word64
+  | DW_CFA_def_cfa_offset Word64
+  | DW_CFA_def_cfa_register Word64
+  | DW_CFA_def_cfa_expression BS.ByteString
+  | DW_CFA_expression Word64 BS.ByteString
+  | DW_CFA_register Word64 Word64
+ deriving (Show,Eq,Ord)
+
+
+-- Figure 40 of https://dwarfstd.org/doc/DWARF4.pdf
+parse_cfi_instructions :: Word64 -> Int64 -> State ByteStringAt [CFI_Instruction]
+parse_cfi_instructions code_align_factor data_align_factor = do
+  (bs,pos) <- get
+  if BS.null bs then
+    return []
+  else do
+    byte <- read_uint8
+    i <- mk (primary_opcode byte) (extended_opcode byte)
+    is <- parse_cfi_instructions code_align_factor data_align_factor
+    return $ if i == DW_CFA_nop then is else i:is
+ where
+  primary_opcode byte = byte `shiftR` 6
+  extended_opcode byte = byte .&. 0x3F
+
+
+  mk 0x1 delta = do
+    return $ DW_CFA_advance_loc $ fromIntegral delta * fromIntegral code_align_factor
+  mk 0x2 reg = do
+    (offset::Word64) <- read_uleb128
+    return $ DW_CFA_offset (fromIntegral reg) (fromIntegral offset*data_align_factor)
+  mk 0x3 reg = do
+    return $ DW_CFA_restore $ fromIntegral reg
+  mk 0x0 0x0 = do
+    return $ DW_CFA_nop
+  mk 0x0 0x2 = do
+    delta <- read_uint8
+    return $ DW_CFA_advance_loc $ fromIntegral delta * fromIntegral code_align_factor
+  mk 0x0 0x3 = do
+    delta <- read_uint16
+    return $ DW_CFA_advance_loc $ fromIntegral delta * fromIntegral code_align_factor
+  mk 0x0 0x4 = do
+    delta <- read_uint32
+    return $ DW_CFA_advance_loc $ fromIntegral delta * fromIntegral code_align_factor
+  mk 0x0 0x7 = do
+    reg <- read_uleb128
+    return $ DW_CFA_undefined reg 
+  mk 0x0 0x9 = do
+    reg0 <- read_uleb128
+    reg1 <- read_uleb128
+    return $ DW_CFA_register reg0 reg1
+  mk 0x0 0xa = do
+    reg <- read_uleb128
+    (len::Word64)  <- read_uleb128
+    bs <- consume (fromIntegral len)
+    return $ DW_CFA_expression reg bs
+  mk 0x0 0xb = do
+    reg <- read_uleb128
+    offset <- read_sleb128
+    return $ DW_CFA_offset reg (offset*data_align_factor)
+  mk 0x0 0xc = do
+    reg <- read_uleb128
+    offset <- read_uleb128
+    return $ DW_CFA_def_cfa reg offset
+  mk 0x0 0xd = do
+    reg <- read_uleb128
+    return $ DW_CFA_def_cfa_register reg
+  mk 0x0 0xe = do
+    offset <- read_uleb128
+    return $ DW_CFA_def_cfa_offset offset
+  mk 0x0 0xf = do
+    (len::Word64)  <- read_uleb128
+    bs <- consume (fromIntegral len)
+    return $ DW_CFA_def_cfa_expression bs
+    
+
+  mk p e = error $ "Cannot parse CFI instruction: " ++ showHex p ++ "," ++ showHex e
+
+mk_cfi_directives :: (Address -> String) -> IM.IntMap CFI_Frame -> IM.IntMap [String]
+mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
+ where
+  mk (CFI_CIE _ ) = []
+  mk (CFI_FDE (FDE (Absolute cie_ptr) (Absolute a) _ lsda_ptr instrs)) = 
+    let (CFI_CIE cie) = cfi IM.! fromIntegral cie_ptr
+        personality = mk_personality a cie lsda_ptr in
+      (mk_instrs a cie $ cie_instructions cie ++ instrs) ++ personality
+
+  mk_instrs a cie [] = []
+  mk_instrs a cie (DW_CFA_advance_loc offset:instrs) = mk_instrs (a+fromIntegral offset) cie instrs
+  mk_instrs a cie instrs =
+    let (curr,rest) = break isAdvanceLoc instrs in
+      (fromIntegral a,map cfi_instruction_to_cfi_directive curr) : mk_instrs a cie rest
+
+  isAdvanceLoc (DW_CFA_advance_loc _) = True
+  isAdvanceLoc _ = False
+
+
+  mk_personality a cie Nothing = []
+  mk_personality a cie (Just lsda) = 
+    let lsda_encoding     = mk_lsda_encoding cie
+        (enc,personality) = mk_personality_ptr cie in
+      [ (fromIntegral a, [".cfi_personality " ++ enc ++ ", " ++ show_address personality, ".cfi_lsda 0x" ++ showHex lsda_encoding ++ ", " ++ show_address lsda])]
+
+  mk_lsda_encoding cie = 
+    case find is_lsda_encoding $ cie_aug_data cie of
+      Nothing -> 0x9b -- Sane default
+      Just (LSDA_Encoding enc) -> enc
+      
+  mk_personality_ptr cie = 
+    case find is_personality $ cie_aug_data cie of
+      Just (Personality enc a) -> ("0x" ++ showHex enc, a)
+
+
+  is_lsda_encoding (LSDA_Encoding _) = True
+  is_lsda_encoding _ = False
+
+  is_personality (Personality _ _) = True
+  is_personality _ = False
+
+
+
+
+cfi_instruction_to_cfi_directive = mk
+ where
+  mk (DW_CFA_undefined reg) = ".cfi_undefined " ++ cfi_reg reg 
+  mk (DW_CFA_offset reg offset) = ".cfi_offset " ++ cfi_reg reg ++ ", " ++ show offset 
+  mk (DW_CFA_restore reg) = ".cfi_restore " ++ cfi_reg reg 
+  mk (DW_CFA_def_cfa reg offset) = ".cfi_def_cfa " ++ cfi_reg reg ++ ", " ++ show offset 
+  mk (DW_CFA_def_cfa_offset offset) = ".cfi_def_cfa_offset " ++ show offset 
+  mk (DW_CFA_def_cfa_register reg) = ".cfi_def_cfa_register " ++ cfi_reg reg 
+  mk (DW_CFA_register reg0 reg1) = ".cfi_register " ++ cfi_reg reg0 ++ cfi_reg reg1
+  mk (DW_CFA_def_cfa_expression bytes) = ".cfi_escape 0x0f, " ++ showBlock bytes ++ " # DW_CFA_def_cfa_expression" 
+  mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x0a, " ++ cfi_reg reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
+
+  showBlock bytes = "0x" ++ showHex (BS.length bytes) ++ ", " ++ intercalate "," (map (\b -> "0x" ++ showHex b) $ BS.unpack bytes)
+
+cfi_reg 0 =  "%rax"
+cfi_reg 1 =  "%rdx"
+cfi_reg 2 =  "%rcx"
+cfi_reg 3 =  "%rbx"
+cfi_reg 4 =  "%rsi"
+cfi_reg 5 =  "%rdi"
+cfi_reg 6 =  "%rbp"
+cfi_reg 7 =  "%rsp"
+cfi_reg 8 =  "%r8"
+cfi_reg 9 =  "%r9"
+cfi_reg 10 =  "%r10"
+cfi_reg 11 =  "%r11"
+cfi_reg 12 =  "%r12"
+cfi_reg 13 =  "%r13"
+cfi_reg 14 =  "%r14"
+cfi_reg 15 =  "%r15"
+cfi_reg 16 =  "%rip"
+cfi_reg 17 =  "%xmm0"
+cfi_reg 18 =  "%xmm1"
+cfi_reg 19 =  "%xmm2"
+cfi_reg 20 =  "%xmm3"
+cfi_reg 21 =  "%xmm4"
+cfi_reg 22 =  "%xmm5"
+cfi_reg 23 =  "%xmm6"
+cfi_reg 24 =  "%xmm7"
+cfi_reg 25 =  "%xmm8"
+cfi_reg 26 =  "%xmm9"
+cfi_reg 27 =  "%xmm10"
+cfi_reg 28 =  "%xmm11"
+cfi_reg 29 =  "%xmm12"
+cfi_reg 30 =  "%xmm13"
+cfi_reg 31 =  "%xmm14"
+cfi_reg 32 =  "%xmm15"
+cfi_reg 33 =  "%st(0)"
+cfi_reg 34 =  "%st(1)"
+cfi_reg 35 =  "%st(2)"
+cfi_reg 36 =  "%st(3)"
+cfi_reg 37 =  "%st(4)"
+cfi_reg 38 =  "%st(5)"
+cfi_reg 39 =  "%st(6)"
+cfi_reg 40 =  "%st(7)"
+cfi_reg 41 =  "%mm0"
+cfi_reg 42 =  "%mm1"
+cfi_reg 43 =  "%mm2"
+cfi_reg 44 =  "%mm3"
+cfi_reg 45 =  "%mm4"
+cfi_reg 46 =  "%mm5"
+cfi_reg 47 =  "%mm6"
+cfi_reg 48 =  "%mm7"
+cfi_reg 49 =  "%rflags"
+cfi_reg 50 =  "%es"
+cfi_reg 51 =  "%cs"
+cfi_reg 52 =  "%ss"
+cfi_reg 53 =  "%ds"
+cfi_reg 54 =  "%fs"
+cfi_reg 55 =  "%gs"
+cfi_reg 58 =  "%fs_base"
+cfi_reg 59 =  "%gs_base"
+
+
+
+
+
+get_addresses_from_gcc_except_table t = IS.unions $ (map get_addresses_call_site (call_sites t)) ++ [IS.fromList $ map to_value $ type_infos t]
+ where
+  get_addresses_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action) = IS.fromList $ map to_value [start1,start0,len1,len0,lp1,lp0]
+  to_value (Absolute a) = fromIntegral a
+  to_value (Indirect a) = fromIntegral a
+
+data GCC_Except_Table_Action = GCC_Except_Table_Action {
+  gcc_except_table_action_type_filter ::Int64,
+  gcc_except_table_action_type_next_action ::Int64
+ }
+ deriving Show
+
+data GCC_Except_Table_CallSite = GCC_Except_Table_CallSite (Address,Address) (Address,Address) (Address,Address) Word64
+ deriving Show
+
+data GCC_Except_Table = GCC_Except_Table {
+  function_entry :: Word64,
+  gcc_address :: Word64,
+  lp_start_enc :: Word8,
+  lp_start :: Maybe Address,
+  ttype_enc :: Word8,
+  ttype_len :: Word64,
+  cs_enc :: Word8,
+  cs_len :: Word64,
+  call_sites :: [GCC_Except_Table_CallSite],
+  actions :: [GCC_Except_Table_Action],
+  type_infos :: [Address]
+ }
+  deriving Show
+
+
+render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address lp_start_enc lp_start ttype_enc ttype_len cs_enc cs_len call_sites actions type_infos) = intercalate "\n" $ header ++ lp ++ ttype ++ call_site ++ action_records actions ++ ttable ttype_enc ++ mk_end_label
+ where
+  header =
+    [ "# .gcc_except_table"
+    , "# LSDA for location 0x" ++ showHex function_entry ++ " is stored at 0x" ++ showHex gcc_address
+    , ".section .gcc_except_table,\"a\",@progbits"
+    , ".p2align 2"
+    , mk_address (Absolute gcc_address) ++ ":"
+    ]
+
+  lp =
+    [ "  .byte 0x" ++ showHex lp_start_enc ++ " # lp_start encoding" ] ++
+    case lp_start of
+      Nothing -> []
+
+  ttype =
+    [ "  .byte 0x" ++ showHex ttype_enc ++ " # ttype encoding" ]
+    ++ if ttype_enc /= 0xFF then ["  .uleb128 " ++ end_label ++ " - " ++ cs_start_label ++ " # length = " ++ show ttype_len] else []
+
+  call_site = 
+    [ cs_start_label ++ ":"
+    , "  .byte 0x" ++ showHex cs_enc ++ " # callsite encoding"
+    , "  .uleb128 " ++ cs_end_label ++ " - " ++ cs_entries_start_label ++ " # call site table length = " ++ show cs_len
+    , cs_entries_start_label ++ ":"
+    ]
+    ++ concatMap mk_call_site call_sites ++
+    [ cs_end_label ++ ":"
+    ]
+
+  mk_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action) =
+    [ "  .uleb128 " ++ mk_address start1 ++ " - " ++ mk_address start0
+    , "  .uleb128 " ++ mk_address len1   ++ " - " ++ mk_address len0
+    , "  .uleb128 " ++ mk_address lp1    ++ " - " ++ mk_address lp0
+    , "  .uleb128 0x" ++ showHex action
+    ]
+
+
+  action_records [] = []
+  action_records actions = 
+    [ "# Action records"
+    , "#   typeinfo: indices into typeinfo table"
+    , "#   next action: relative pointer to next action record"
+    ]
+    ++ concatMap mk_action (zip [1..] actions)
+
+  mk_action (idx,GCC_Except_Table_Action type_filter next_action) =
+    [ "# Action record " ++ show idx
+    ,   "  .sleb128 " ++ show type_filter ++ " # typeinfo"
+    ,   "  .sleb128 " ++ show next_action ++ " # next action"
+    ] 
+
+  ttable enc
+    | enc == 0xFF = []
+    | otherwise = 
+      [ ".p2align 2"
+      , "# typeinfo table"
+      ]
+      ++ concatMap mk_type_info (zip [0..] type_infos)
+
+  mk_type_info (idx,Absolute 0) = [".long 0"]
+  mk_type_info (idx,a) = 
+    [ typeInfo_label idx ++ ":"
+    , "  .long " ++ mk_address a ++ " - " ++ typeInfo_label idx ++ " # " ++ show a ]
+
+
+  mk_end_label = [end_label ++ ":"]
+
+
+  end_label              = ".L_LSDA_0x" ++ showHex gcc_address ++ "_END"
+  cs_start_label         = ".L_LSDA_0x" ++ showHex gcc_address ++ "_CALLSITE_TABLE_HEADER_START"
+  cs_end_label           = ".L_LSDA_0x" ++ showHex gcc_address ++ "_CALLSITE_TABLE_END"
+  cs_entries_start_label = ".L_LSDA_0x" ++ showHex gcc_address ++ "_CALLSITE_TABLE_START"
+  typeInfo_label idx     = ".L_LSDA_0x" ++ showHex gcc_address ++ "_typeinfo_" ++ show idx
+
+
+parse_gcc_except_table elf showAddress (Absolute pc_begin,Absolute a) = 
+  let [s] = filter (\s -> elfSectionName s == ".gcc_except_table") (elfSections elf) in
+    if elfSectionAddr s <= a && a < elfSectionAddr s + elfSectionSize s then
+      let t = evalState go $ (BS.drop (fromIntegral $ a-elfSectionAddr s) $ elfSectionData s, fromIntegral a) in
+        (fromIntegral a,t)
+    else
+      error $ "LSDA pointer 0x" ++ showHex a ++ " does not fall within a .gcc_except_table section."
+ where
+  go = do
+    -- LPStart
+    lp_start_enc <- read_uint8
+    lp_start <- do
+      if lp_start_enc /= 0xFF then do -- 0xFF == DW_EH_PE_omit
+        lp_start <- read_encoded lp_start_enc
+        return $ Just lp_start
+      else
+        return Nothing
+    
+    -- TType
+    ttype_enc <- read_uint8
+    ttype_len <- do
+      case ttype_enc of
+        0xFF -> return 0 -- 0xFF == DW_EH_PE_omit
+        0x9B -> read_uleb128
+        enc  -> error $ "Unknown ttype_enc: 0x" ++ showHex enc
+      
+    (_,pos) <- get
+    let lsda_end = fromIntegral pos + fromIntegral ttype_len
+
+
+    -- Call site table
+    cs_enc <- read_uint8
+    cs_len <- read_uleb128
+    if cs_enc /= 0x01 then -- 0x01 == DW_EH_PE_uleb128
+      error $ "Unknown encoding of call site."
+    else
+      return ()
+    css <- read_call_sites cs_enc $ fromIntegral cs_len
+
+    -- Action records
+    let max_action = maximumWith get_action_of_call_site css
+    (_,pos) <- get
+    actions <- do
+      if max_action /= 0 then
+        read_until_at (pos + fromIntegral max_action+1) read_action -- TODO + 1?
+      else
+        return []
+
+    -- Types table
+    type_infos <- do
+      case ttype_enc of
+        0xFF -> return [] -- 0xFF == DW_EH_PE_omit
+        _ -> do
+          let max_type_index = maximumWith gcc_except_table_action_type_filter actions
+          (bs,pos) <- get
+          let new_pos = lsda_end - max_type_index*4
+          put (BS.take (fromIntegral max_type_index*4) $ BS.drop (fromIntegral new_pos-pos) bs, fromIntegral new_pos)
+          read_repeat_until_empty 0 (\_ -> read_type_info)
+
+    return $ GCC_Except_Table pc_begin a lp_start_enc lp_start ttype_enc ttype_len cs_enc cs_len css actions type_infos
+
+
+  read_call_sites cs_enc 0 = return []
+  read_call_sites cs_enc cs_len = do
+    (_,pos0) <- get
+    start <- read_encoded cs_enc
+    length <- read_encoded cs_enc
+    lp <- read_encoded cs_enc
+    action <- read_uleb128
+    (_,pos1) <- get
+    css <- read_call_sites cs_enc (cs_len-(pos1-pos0))
+
+
+    case (start, length,lp) of
+      (Absolute start, Absolute length,Absolute lp) -> do
+        let start_rel  = (Absolute $ start + pc_begin, Absolute pc_begin)
+        let length_rel = (Absolute $ length + start + pc_begin, Absolute $ start + pc_begin)
+        let lp_rel     = (Absolute $ lp + pc_begin, Absolute pc_begin)
+        return $ (GCC_Except_Table_CallSite start_rel length_rel lp_rel action) : css
+
+
+  read_action = do
+    type_filter <- read_sleb128
+    next_offset <- read_sleb128
+    return $ GCC_Except_Table_Action type_filter  next_offset
+
+
+  read_type_info = do
+    (_,pos) <- get
+    type_info <- read_sint32
+    if type_info == 0 then
+      return $ Absolute 0
+    else
+      return $ Absolute $ fromIntegral $ fromIntegral type_info + pos
+
+
+  get_action_of_call_site (GCC_Except_Table_CallSite _ _ _ action) = action --TODO
+
+maximumWith f [] = 0
+maximumWith f as =
+  let as' = map (\a -> (a,f a)) as in
+    snd $ maximumBy compareSnd as'
+ where
+  compareSnd (_,i) (_,j) = compare i j
 

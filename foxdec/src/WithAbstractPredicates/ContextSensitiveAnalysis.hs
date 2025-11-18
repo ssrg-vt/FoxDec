@@ -334,7 +334,7 @@ analyze_entry entry = do
 
   static <- mk_static 
   liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": starting CFG generation."
-  let !cfg = generate_cfg static entry
+  !cfg <- liftIO $ generate_cfg static entry
   liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": CFG generation done: #basic blocks = " ++ show (IM.size $ cfg_instrs cfg) ++ ", #instructions = " ++ show (num_of_instructions cfg)
 
   liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": starting invariant generation."

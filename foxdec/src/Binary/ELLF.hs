@@ -18,6 +18,7 @@ import Data.Symbol
 import Data.JumpTarget
 
 import Parser.ParserCFI
+import Parser.ByteStringReader
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -70,8 +71,9 @@ data ELLF_Basic_Block = ELLF_Basic_Block {
 
 data ELLF_Symbol = ELLF_Symbol {
   ellf_sym_section_idx :: Word64,
-  ellf_sym_address     :: Maybe Word64,
-  ellf_sym_name        :: String
+  ellf_sym_address     :: Word64,
+  ellf_sym_name        :: String,
+  ellf_sym_offset      :: Word64
  }
  deriving (Eq,Ord, Show)
 
@@ -85,9 +87,9 @@ data ELLF_Function = ELLF_Function {
 
 data ELLF_Pointer = ELLF_Pointer {
   ellf_ptr_section_idx :: Word64,
-  ellf_ptr_offset      :: Word64,
+  ellf_ptr_address     :: Word64,
   ellf_ptr_pointee_idx :: Word64,
-  ellf_ptr_base        :: Maybe Word64
+  ellf_ptr_flags       :: Word8
  }
  deriving (Eq,Ord, Show)
 
@@ -100,9 +102,10 @@ data ELLF_Pointee = ELLF_Pointee {
 
 
 data ELLF_Section = ELLF_Section {
-  ellf_section_align :: Word64,
-  ellf_section_size  :: Word64,
-  ellf_section_name  :: String
+  ellf_section_align   :: Word64,
+  ellf_section_size    :: Word64,
+  ellf_section_address :: Word64,
+  ellf_section_name    :: String
  }
  deriving (Eq,Ord,Show)
 
@@ -115,9 +118,10 @@ data ELLF_Layout = ELLF_Layout {
  deriving (Eq,Ord,Show)
 
 data ELLF_Global = ELLF_Global {
-  ellf_global_symbol :: Word64,
-  ellf_global_size   :: Word64,
-  ellf_global_type   :: Word64
+  ellf_global_symbol  :: Word64,
+  ellf_global_address :: Word64,
+  ellf_global_size    :: Word64,
+  ellf_global_type    :: Word64
  }
  deriving (Eq,Ord,Show)
 
@@ -192,11 +196,11 @@ read_ellf :: Elf -> Maybe ELLF
 read_ellf elf = do
   bbs       <- parse_ellf_blocks    <$> get_section ".ellf.blocks"
   sections  <- parse_ellf_sections  <$> get_section ".ellf.sections"
-  layout    <- parse_ellf_layout    <$> get_section ".ellf.layout"
-  globals   <- parse_ellf_globals   <$> get_section ".ellf.globals"
+  layout    <- return [] -- parse_ellf_layout    <$> get_section ".ellf.layout"
   pointees  <- parse_ellf_pointees  <$> get_section ".ellf.pointees"
-  symbols   <- parse_ellf_symbols  sections layout  <$> get_section ".ellf.symbols"
-  pointers  <- parse_ellf_pointers sections layout <$> get_section ".ellf.pointers"
+  symbols   <- parse_ellf_symbols  sections <$> get_section ".ellf.symbols"
+  pointers  <- parse_ellf_pointers sections <$> get_section ".ellf.pointers"
+  globals   <- parse_ellf_globals  symbols  <$> get_section ".ellf.globals"
   functions <- parse_ellf_functions symbols <$> get_section ".ellf.functions"
   return $ ELLF bbs symbols functions pointers pointees sections layout globals
  where
@@ -207,7 +211,7 @@ read_ellf elf = do
 
 -- .ellf.blocks:
 parse_ellf_blocks :: ElfSection -> [[ELLF_Basic_Block]]
-parse_ellf_blocks sec = evalState (repeat_until_empty 0 get_basic_blocks) (elfSectionData sec)
+parse_ellf_blocks sec = evalState (read_repeat_until_empty 0 get_basic_blocks) (elfSectionData sec,0)
  where
   get_basic_blocks = parse_header_then_repeat . parse_block
   parse_block count = do
@@ -217,37 +221,34 @@ parse_ellf_blocks sec = evalState (repeat_until_empty 0 get_basic_blocks) (elfSe
     return $ ELLF_Basic_Block function offset size
 
 -- ellf.symbols:
-parse_ellf_symbols sections layout sec = prevent_name_clashes_in_symbols 0 $ remove_unneeded_ELLF_symbols $ evalState (repeat_until_empty 0 get_symbols) (elfSectionData sec)
+parse_ellf_symbols sections sec = prevent_name_clashes_in_symbols 0 $ remove_unneeded_ELLF_symbols $ evalState (read_repeat_until_empty 0 get_symbols) (elfSectionData sec,0)
  where
   get_symbols = parse_header_then_repeat . parse_symbol
   parse_symbol count = do
     section_idx <- read_uleb128
     offset      <- read_uleb128
     name        <- read_string
-
     let section_table = sections !! count    
     let section = section_table !! fromIntegral section_idx
-    let l       = find (\l -> ellf_layout_section l == ellf_section_name section && ellf_layout_object l == fromIntegral count) $ layout -- && ellf_layout_size l == ellf_section_size section
-    let address = case l of
-                    Nothing -> Nothing
-                    Just l  -> Just $ ellf_layout_offset l + offset
-
-    return $ ELLF_Symbol section_idx address name
+    let address = offset + ellf_section_address section
+    let name'   = if ".__ELLF_ANCHOR_" `isPrefixOf` name then name ++ "_0x" ++ showHex address else name
+    return $ ELLF_Symbol section_idx address name' offset
 
 
 -- ellf.sections:
 parse_ellf_sections :: ElfSection  -> [[ELLF_Section]]
-parse_ellf_sections sec = evalState (repeat_until_empty 0 get_sections) (elfSectionData sec)
+parse_ellf_sections sec = evalState (read_repeat_until_empty 0 get_sections) (elfSectionData sec,0)
  where
   get_sections = parse_header_then_repeat . parse_section
   parse_section count = do
-    align <- read_uleb128
-    size  <- read_uleb128
-    name  <- read_string
-    return $ ELLF_Section align size name
+    align   <- read_uleb128
+    size    <- read_uleb128
+    address <- read_uint64
+    name    <- read_string
+    return $ ELLF_Section align size address name
 
 -- ellf.functions:
-parse_ellf_functions symbols sec = evalState (repeat_until_empty 0 get_functions) (elfSectionData sec)
+parse_ellf_functions symbols sec = evalState (read_repeat_until_empty 0 get_functions) (elfSectionData sec,0)
  where
   get_functions = parse_header_then_repeat . parse_function
   parse_function count = do
@@ -257,9 +258,8 @@ parse_ellf_functions symbols sec = evalState (repeat_until_empty 0 get_functions
 
     let symtable = symbols !! count
 
-    case ellf_entry_address_of_function symtable symbol_idx of
-      Just a  -> return $ ELLF_Function symbol_idx first_bb last_bb a
-      Nothing -> error $ "Symbol of function " ++ show (ELLF_Function symbol_idx first_bb last_bb 0) ++ " has no address:\n" ++ show symtable
+    let a = ellf_entry_address_of_function symtable symbol_idx
+    return $ ELLF_Function symbol_idx first_bb last_bb a
 
   ellf_entry_address_of_function symtable symbol_idx = 
     let f_symbol  = symtable !! fromIntegral symbol_idx in
@@ -268,30 +268,24 @@ parse_ellf_functions symbols sec = evalState (repeat_until_empty 0 get_functions
 
 
 -- ellf.pointers:
-parse_ellf_pointers sections layout sec = evalState (repeat_until_empty 0 get_pointers) (elfSectionData sec)
+parse_ellf_pointers sections sec = evalState (read_repeat_until_empty 0 get_pointers) (elfSectionData sec,0)
  where
   get_pointers = parse_header_then_repeat . parse_pointer
   parse_pointer count = do
-    section <- read_uleb128
-    offset  <- read_uleb128
-    pointee <- read_uleb128
-
+    section_idx <- read_uleb128
+    offset      <- read_uleb128
+    pointee     <- read_uleb128
+    flags       <- read_uint8
     let section_table = sections !! count    
-
-    let base = ellf_base_of_pointer section_table count section
-    return $ ELLF_Pointer section offset pointee base
-
-  ellf_base_of_pointer sections count section_idx = 
-    let ptr_section = sections !! fromIntegral section_idx in
-      case find (\l -> ellf_layout_section l == ellf_section_name ptr_section && ellf_layout_object l == fromIntegral count) $ layout of -- && ellf_layout_size l == ellf_section_size ptr_section
-        Just layout -> Just $ ellf_layout_offset layout
-        Nothing -> Nothing
+    let ptr_section = section_table !! fromIntegral section_idx 
+    let base = ellf_section_address ptr_section
+    return $ ELLF_Pointer section_idx (base + offset) pointee flags
 
 
 
 -- ellf.pointees:
 parse_ellf_pointees :: ElfSection  -> [[ELLF_Pointee]]
-parse_ellf_pointees sec =  evalState (repeat_until_empty 0 get_pointees) (elfSectionData sec)
+parse_ellf_pointees sec =  evalState (read_repeat_until_empty 0 get_pointees) (elfSectionData sec,0)
  where
   get_pointees = parse_header_then_repeat . parse_pointee
   parse_pointee count = do
@@ -303,7 +297,7 @@ parse_ellf_pointees sec =  evalState (repeat_until_empty 0 get_pointees) (elfSec
 
 -- ellf.layout:
 parse_ellf_layout :: ElfSection  -> [ELLF_Layout]
-parse_ellf_layout sec = evalState get_layout (elfSectionData sec)
+parse_ellf_layout sec = evalState get_layout (elfSectionData sec,0)
  where
   get_layout = parse_header_then_repeat parse_layout
   parse_layout = do
@@ -314,14 +308,15 @@ parse_ellf_layout sec = evalState get_layout (elfSectionData sec)
     return $ ELLF_Layout object offset size name
 
 -- ellf.globals:
-parse_ellf_globals sec = evalState (repeat_until_empty 0 get_globals) (elfSectionData sec)
+parse_ellf_globals symbols sec = evalState (read_repeat_until_empty 0 get_globals) (elfSectionData sec,0)
  where
   get_globals = parse_header_then_repeat . parse_global
   parse_global count = do
     symbol_idx <- read_uleb128
     size       <- read_uleb128
     typ        <- read_uleb128
-    return $ ELLF_Global symbol_idx size typ
+    let a       = ellf_sym_address $ (symbols !! count) !! fromIntegral symbol_idx
+    return $ ELLF_Global symbol_idx a size typ
 
 
 
@@ -341,20 +336,19 @@ remove_unneeded_ELLF_symbols = map remove
   remove syms = go syms syms
   go [] all_syms = []
   go (sym:syms) all_syms
-    | ".__ELLF_SECTION_" `isPrefixOf` ellf_sym_name sym =
-      case find (\sym' -> ellf_sym_section_idx sym' == ellf_sym_section_idx sym && ellf_sym_address sym' == ellf_sym_address sym && ellf_sym_address sym' /= Nothing && ellf_sym_name sym' /= ellf_sym_name sym) all_syms of
+    | is_unneeded sym =
+      case find (\sym' -> ellf_sym_section_idx sym' == ellf_sym_section_idx sym && ellf_sym_address sym' == ellf_sym_address sym && not (is_unneeded sym')) all_syms of
         Nothing   -> sym:go syms all_syms
         Just sym' -> sym':go syms all_syms
 
     | otherwise = sym:go syms all_syms
 
+  is_unneeded sym = ".__ELLF_SECTION_" `isPrefixOf` ellf_sym_name sym || ".__ELLF_ANCHOR_" `isPrefixOf` ellf_sym_name sym
 
 
 
 
-
-
-parse_header :: State BS.ByteString MetaDataHeader 
+parse_header :: State ByteStringAt MetaDataHeader 
 parse_header = do
   version <- read_uint32
   feature <- read_uint8
@@ -362,79 +356,10 @@ parse_header = do
   return $ MetaDataHeader version feature num
 
 
-repeat_until_empty :: Int -> (Int -> State BS.ByteString a) -> State BS.ByteString [a]
-repeat_until_empty count m = do
-  bs <- get
-  if BS.null bs then
-    return []
-  else do
-    a <- m count
-    as <- repeat_until_empty (count+1) m
-    return $ a:as
-
-parse_header_then_repeat :: State BS.ByteString a -> State BS.ByteString [a]
+parse_header_then_repeat :: State ByteStringAt a -> State ByteStringAt [a]
 parse_header_then_repeat m = do
   MetaDataHeader version feature num <- parse_header
   read_n_times (fromIntegral num) m
-  
-
-read_uint8 :: State BS.ByteString Word8
-read_uint8 = consume 1 <&> runGet S.getWord8
-
-read_uint32 :: State BS.ByteString Word32
-read_uint32 = consume 4 <&> runGet S.getWord32le
-
-read_uleb128 :: (Show a, LEB128 a) => State BS.ByteString a
-read_uleb128 = do
-  bs <- get
-  let v = runGet getLEB128 bs
-  let encoding = toLEB128 v
-  let num_bytes = BS.length encoding
-  if BS.take num_bytes bs == encoding then do
-    _ <- consume num_bytes
-    return v
-  else
-    error $ show (show $ BS.unpack $ BS.take 20 bs, v, encoding,num_bytes)
-
-read_sleb128 :: (Show a, SLEB128 a) => State BS.ByteString a
-read_sleb128 = do
-  bs <- get
-  let v = runGet getSLEB128 bs
-  let encoding = toSLEB128 v
-  let num_bytes = BS.length encoding
-  if BS.take num_bytes bs == encoding then do
-    _ <- consume num_bytes
-    return v
-  else
-    error $ show (show $ BS.unpack $ BS.take 20 bs, v, encoding,num_bytes)
-
-read_string :: State BS.ByteString String
-read_string = do
-  bs <- get
-  let (ret,rest) = BS.span ((/=) 0) bs
-  put $ BS.tail rest
-  return $ BSC.unpack ret
-  
-
-
-runGet :: S.Get a -> BS.ByteString -> a
-runGet g bs =
-  case S.runGet g bs of
-    Left err -> error $ show err
-    Right w  -> w
-
-consume :: Int -> State BS.ByteString BS.ByteString
-consume n = do
-  (read,rest) <- gets $ BS.splitAt n
-  put rest
-  return read
-
-read_n_times :: Int -> State BS.ByteString a -> State BS.ByteString [a]
-read_n_times 0 r = return []
-read_n_times n m = do
-  a <- m
-  as <- read_n_times (n-1) m
-  return $ a:as
   
 
 

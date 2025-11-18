@@ -37,6 +37,7 @@ data Symbol =
   | AddressOfObject           String Bool -- ^ Address a0 can be replaced by the string, e.g., "stdout" or "optind"
   | AddressOfLabel            String Bool -- ^ Address a0 can be replaced by the string.
   | Relocated_ResolvedObject  String Word64 -- ^ At linking time internally resolved relocation
+  | TLS_Relative              String -- ^ The symbol is relative to the thread local storage
   deriving (Generic,Eq,Ord)
 
 instance Show Symbol where
@@ -46,6 +47,7 @@ instance Show Symbol where
   show (AddressOfObject o ex)          = o ++ "_" ++ show_ex ex
   show (AddressOfLabel  l ex)          = l ++ "_" ++ show_ex ex
   show (Relocated_ResolvedObject o a)  = o ++ "@0x" ++ (if a < 0 then Numeric.showHex (fromIntegral a :: Word64) "" else Numeric.showHex a "")
+  show (TLS_Relative l)                = l ++ "@TLS"
 
 show_ex True  = "ex"
 show_ex False = "in"

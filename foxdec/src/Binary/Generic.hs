@@ -66,6 +66,7 @@ instance Show SymbolTable where
     show_entry (a0,AddressOfObject l b)            = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
     show_entry (a0,AddressOfLabel f b)             = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
     show_entry (a0,Relocated_ResolvedObject l a)   = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
+    show_entry (a0,TLS_Relative l)                 = showHex a0 ++ " === " ++ l ++ "@TLS"
 
     show_export (a,f) = showHex a ++ ": " ++ f ++ " (exported)"
 
@@ -95,6 +96,8 @@ instance Show FunctionSignature where
 instance Cereal.Serialize FunctionSignature
 
 
+
+
 class BinaryClass a where
   binary_read_bytestring :: a -> Word64 -> Int -> Maybe BS.ByteString
   binary_read_ro_data :: a -> Word64 -> Int -> Maybe [Word8]
@@ -108,7 +111,8 @@ class BinaryClass a where
   binary_dir_name :: a -> String
   binary_file_name :: a -> String
   binary_get_needed_libs :: a -> S.Set String
-  fetch_instruction :: a -> Word64 -> Maybe Instruction
+  address_has_instruction :: a -> Word64 -> Bool
+  fetch_instruction :: a -> Word64 -> IO (Maybe Instruction)
   function_signatures :: a -> M.Map String FunctionSignature
   get_elf :: a -> Maybe Elf
 
@@ -128,6 +132,7 @@ instance BinaryClass Binary where
   binary_dir_name (Binary b) = binary_dir_name b
   binary_file_name (Binary b) = binary_file_name b
   binary_get_needed_libs (Binary b) = binary_get_needed_libs b
+  address_has_instruction (Binary b) = address_has_instruction b
   fetch_instruction (Binary b) = fetch_instruction b
   function_signatures (Binary b) = function_signatures b
   get_elf (Binary b) = get_elf b
@@ -147,6 +152,7 @@ symbol_to_name (PointerToObject l b)           = l
 symbol_to_name (AddressOfObject l b)           = l
 symbol_to_name (AddressOfLabel f b)            = f
 symbol_to_name (Relocated_ResolvedObject l a)  = l
+symbol_to_name (TLS_Relative l)                = l
 
 
 
@@ -207,16 +213,6 @@ find_section_ending_at bin a = find (address_ends_at_section a) (si_sections $ b
 
 
 
-address_has_instruction ::
-  BinaryClass bin => 
-     bin
-  -> Word64  -- ^ An address
-  -> Bool 
-address_has_instruction bin a =
-  case fetch_instruction bin a of
-    Nothing -> False
-    _ -> True
-
 
 
 undefined_internal_global_labels bin = filter is_global_and_internal_and_outside_of_any_section $ IM.assocs $ binary_get_symbol_table bin
@@ -233,14 +229,6 @@ undefined_internal_global_labels bin = filter is_global_and_internal_and_outside
   is_internal_symbol (AddressOfLabel _ False) = True
   is_internal_symbol _                        = False
 
-
-
-get_cfi_directives bin = do
-  let filename = binary_dir_name bin ++ binary_file_name bin ++ ".cfi.txt"
-  result <- parse_cfi filename
-  case result of
-    Right cfi -> return cfi
-    Left msg  -> return $ CFI IM.empty $ "Could not get CFI directives from file: " ++ filename ++ "\n" ++ show msg
 
 
 

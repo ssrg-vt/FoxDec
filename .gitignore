@@ -1,3 +1,4 @@
+*.so
 *.xed
 *.aux
 .stack-work/

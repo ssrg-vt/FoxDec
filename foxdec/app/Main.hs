@@ -9,6 +9,7 @@ module Main where
 import Base
 import Config
 
+import Binary.Disassemble
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
@@ -64,7 +65,7 @@ import qualified Data.ByteString as BS (readFile,writeFile)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Data.List 
 import Data.Word
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes,fromJust)
 import Data.Function ((&))
 import qualified Data.ByteString.Lazy as B
 
@@ -334,8 +335,8 @@ try_resolve_indirections_underapproximatively bin config l0 = do
         runReaderT (execStateT (add_newly_resolved_indirection ind a) l0) (bin,config)
 
   do_path l0 entry a (path,symstate) = do
-    let l = (bin,config,l0,fromIntegral entry)
-    let Just i = fetch_instruction bin $ fromIntegral a
+    let l      = (bin,config,l0,fromIntegral entry)
+    Just i    <- fetch_instruction bin $ fromIntegral a
     let sem    = instr_to_semantics l i
     let ras    = resolve_operands l sem symstate
     let [SE_StatePart op Nothing] = operands_of sem
@@ -379,7 +380,6 @@ obtain_L0 config "BINARY" verbose dirname name = do
     startTime <- timeCurrent
     when (startTime `deepseq` verbose) $ putStrLn $ binary_pp bin
 
- 
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
 
     l0 <- lift_to_L0 config bin empty_finit IM.empty

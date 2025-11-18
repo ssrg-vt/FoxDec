@@ -58,11 +58,13 @@ executables:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
-    - -O2
+    - -O2 
     - -threaded
     - -Wno-x-partial
     dependencies:
     - foxdec
+    extra-lib-dirs:      ./xed/
+    extra-libraries:     ["xed"]
 
 #tests:
 #  foxdec-test:

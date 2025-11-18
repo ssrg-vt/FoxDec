@@ -35,35 +35,39 @@ generate_cfg ::
   WithAbstractPredicates bin pred finit v =>
      Lifting bin pred finit v
   -> Word64 -- ^ The entry point of the function
-  -> CFG
-generate_cfg l@(bin,_,_) entry =
-  let g           = init_cfg entry
-      i           = fetch_instruction bin entry
-      nxt         = next_rips l i
-      bag         = S.fromList $ (\(JustRips as) -> map (\a -> (entry,a)) as) nxt 
-      g'          = mk_graph l entry bag g 
-      g''         = cfg_add_instrs l g' in
-    g''
+  -> IO CFG
+generate_cfg l@(bin,_,_) entry = do
+  let g    = init_cfg entry
+  i       <- fetch_instruction bin entry
+  let nxt  = next_rips l i
+  let bag  = S.fromList $ (\(JustRips as) -> map (\a -> (entry,a)) as) nxt 
+  g'      <- mk_graph l entry bag g 
+  cfg_add_instrs l g'
 
 
-mk_graph :: WithAbstractPredicates bin pred finit v => Lifting bin pred finit v -> Word64 -> S.Set (Word64, Word64) -> CFG -> CFG
+mk_graph :: WithAbstractPredicates bin pred finit v => Lifting bin pred finit v -> Word64 -> S.Set (Word64, Word64) -> CFG -> IO CFG
 mk_graph l@(bin,_,_) entry bag g =
   case S.minView bag of
-    Nothing -> g
+    Nothing -> return g
     Just ((a0,a1),bag) ->
       if is_edge g (fromIntegral a0) (fromIntegral a1) then 
         mk_graph l entry bag g
-      else
-        let g' = add_edge (fromIntegral a0) (fromIntegral a1) (is_call a0) g in
-          case next_rips l (fetch_instruction bin a1) of
-            JustRips as -> let bag' = S.union (S.fromList $ map (\a2 -> (a1,a2)) as) bag in
-                             mk_graph l entry bag' g' 
-            _           -> mk_graph l entry bag g'
+      else do
+        is_call_a0 <- is_call a0
+        let g' = add_edge (fromIntegral a0) (fromIntegral a1) is_call_a0 g
+        i <- fetch_instruction bin a1
+        case next_rips l i of
+          JustRips as -> let bag' = S.union (S.fromList $ map (\a2 -> (a1,a2)) as) bag in
+                           mk_graph l entry bag' g' 
+          _           -> mk_graph l entry bag g'
  where
-  is_call a =
-    let i = fetch_instruction bin a 
-        op = inOperation $ fromJust i in
-      isCall op || isSyscall op
+  is_call a = do
+    i <- fetch_instruction bin a 
+    let op = inOperation $ fromJust i 
+    return $ isCall op || isSyscall op
+
+
+
 
 
 
@@ -160,14 +164,14 @@ cfg_add_instrs ::
   WithAbstractPredicates bin pred finit v =>
      Lifting bin pred finit v
   -> CFG
-  -> CFG
-cfg_add_instrs l@(bin,_,_) g =
-  let instrs = map block_to_instrs (IM.toList $ cfg_blocks g) in
-    g { cfg_instrs = IM.fromList instrs }
+  -> IO CFG
+cfg_add_instrs l@(bin,_,_) g = do
+  instrs <- mapM block_to_instrs (IM.toList $ cfg_blocks g)
+  return $ g { cfg_instrs = IM.fromList instrs }
  where
-  block_to_instrs (a,as) =
-    let instrs = zip as $ map (fetch_instruction bin . fromIntegral) as in
-      (a, map (fromJust' instrs as) instrs)
+  block_to_instrs (a,as) = do
+    instrs <- zip as <$> mapM (fetch_instruction bin . fromIntegral) as
+    return (a, map (fromJust' instrs as) instrs)
 
   fromJust' instrs as (a,Nothing) = mk_HLT a -- error $ showHex_list as ++ show instrs
   fromJust' _ _ (a,Just i) = i

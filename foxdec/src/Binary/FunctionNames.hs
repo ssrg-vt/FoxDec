@@ -43,6 +43,7 @@ import Debug.Trace
 import Numeric (readHex)
 import Control.Applicative ((<|>))
 
+import System.IO.Unsafe
 
 
 
@@ -99,17 +100,17 @@ try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmp
       _                              -> Nothing 
 --}
   jmps_to_external_function a =
-    case fetch_instruction bin a of
+    case unsafePerformIO $ fetch_instruction bin a of
       Just i@(Instruction _ _  JMP [op1] _ _) -> resolve_operand i op1
       _                                               -> Nothing
 
   endbr64_jmps_to_external_function a =
-    case fetch_instruction bin a of
+    case unsafePerformIO $ fetch_instruction bin a of
       Just (Instruction _ _ ENDBR64 _ _ si) -> jmps_to_external_function (a + fromIntegral si)
       _                                             -> Nothing
 
   nop_jmps_to_external_function a =
-    case fetch_instruction bin a of
+    case unsafePerformIO $ fetch_instruction bin a of
       Just (Instruction _ _ NOP _ _ si) -> jmps_to_external_function (a + fromIntegral si)
       _                                   -> Nothing
 
