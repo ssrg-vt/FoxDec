@@ -36,7 +36,7 @@ COPY ci/Makefile .
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
 
-COPY --from=build-xed /xed/disasm/libxed.so .
+COPY --from=build-xed /xed/xed/libxed.so .
 
 COPY foxdec .
 RUN make foxdec
