@@ -31,7 +31,8 @@ FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 xed-deps:
 	cd $(XED_DIR) && ./mfile.py install
 
-xed:
+xed: xed-deps
+	cd $(XED_DIR)
 	gcc -shared -o libxed.so -fPIC \
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
@@ -63,11 +64,7 @@ foxdec:
 
 .PHONY: install install-foxdec install-xed install-frontend
 
-install: install-xed install-foxdec install-frontend
-
-install-xed:
-	cp $(STAGING_DIR)/$(XED_BIN) $(XED_DST)
-	chmod +x $(XED_DST)
+install: install-foxdec install-frontend
 
 install-foxdec:
 	mkdir -p $(CONFIG_DIR)
