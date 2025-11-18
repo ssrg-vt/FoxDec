@@ -46,7 +46,7 @@ xed:
 
 .PHONY: foxdec-deps foxdec
 
-foxdec-deps:
+foxdec-deps: xed
 	cabal update
 	cabal v2-build --only-dependencies
 
