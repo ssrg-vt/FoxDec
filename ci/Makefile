@@ -38,8 +38,7 @@ xed: xed-deps
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
 		-L $(XED_DIR)/obj/wkit/lib/ \
 		-lxed \
-    disasm1.c
-	cp libxed.so $(FOXDEC_DIR)
+		disasm1.c
 
 ## =============================================================================
 ## == BUILD FOXDEC =============================================================
