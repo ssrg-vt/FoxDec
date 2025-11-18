@@ -15,13 +15,30 @@ XED_PREFIX		:= /xed/disasm
 
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
 XED_BIN			:= $(XED_PREFIX)/disasm
-CFI_PATCH_PY	:= foxdec/ehframe_reader/ellf_cfi_patch.py
 FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
 XED_DST			:= $(BIN_DIR)/foxdec-xed
-CFI_PATCH_DST	:= $(BIN_DIR)/foxdec-cfi-patch
 FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
+
+
+## =============================================================================
+## == BUILD XED ================================================================
+## =============================================================================
+
+.PHONY: xed-deps xed
+
+xed-deps:
+	cd $(XED_DIR) && ./mfile.py install
+
+xed:
+	gcc -shared -o libxed.so -fPIC \
+		-I $(XED_DIR)/include/public/xed/ \
+		-I $(XED_DIR)/obj/wkit/include/xed/ \
+		-L $(XED_DIR)/obj/wkit/lib/ \
+		-lxed \
+    disasm1.c
+	cp libxed.so $(FOXDEC_DIR)
 
 ## =============================================================================
 ## == BUILD FOXDEC =============================================================
@@ -41,42 +58,22 @@ foxdec:
 		--install-method=copy
 
 ## =============================================================================
-## == BUILD XED ================================================================
-## =============================================================================
-
-.PHONY: xed-deps xed
-
-xed-deps:
-	cd $(XED_DIR) && ./mfile.py install
-
-xed:
-	gcc -o disasm disasm.c \
-		-I $(XED_DIR)/include/public/xed/ \
-		-I $(XED_DIR)/obj/wkit/include/xed/ \
-		-L $(XED_DIR)/obj/wkit/lib/ \
-		-lxed -lelf
-
-## =============================================================================
 ## == INSTALL ==================================================================
 ## =============================================================================
 
-.PHONY: install install-foxdec install-xed install-cfi-patch install-frontend
+.PHONY: install install-foxdec install-xed install-frontend
 
-install: install-foxdec install-xed install-cfi-patch install-frontend
+install: install-xed install-foxdec install-frontend
+
+install-xed:
+	cp $(STAGING_DIR)/$(XED_BIN) $(XED_DST)
+	chmod +x $(XED_DST)
 
 install-foxdec:
 	mkdir -p $(CONFIG_DIR)
 	cp $(STAGING_DIR)/$(FOXDEC_BIN) $(FOXDEC_DST)
 	cp $(SRC_DIR)/foxdec/config/config.dhall $(CONFIG_DIR)
 	chmod +x $(FOXDEC_DST)
-
-install-xed:
-	cp $(STAGING_DIR)/$(XED_BIN) $(XED_DST)
-	chmod +x $(XED_DST)
-
-install-cfi-patch:
-	cp $(SRC_DIR)/$(CFI_PATCH_PY) $(CFI_PATCH_DST)
-	chmod +x $(CFI_PATCH_DST)
 
 install-frontend:
 	cp $(SRC_DIR)/$(FRONTEND_PY) $(FRONTEND_DST)
