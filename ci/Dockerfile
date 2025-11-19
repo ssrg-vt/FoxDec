@@ -55,7 +55,7 @@ FROM ubuntu:24.04 AS runtime
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
- && apt-get install -y libelf1 python3 python3-pip python3-pyelftools \
+ && apt-get install -y libelf1 python3 python3-pip \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
