@@ -1,9 +1,12 @@
+FROM haskell:9.12.2 AS build
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
 ## =============================================================================
 ## == BUILD XED ================================================================
 ## =============================================================================
 
-FROM ubuntu:24.04 AS build-xed
-ARG DEBIAN_FRONTEND=noninteractive
+#FROM ubuntu:24.04 AS build-xed
+#ARG DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /xed
 COPY ci/Makefile .
@@ -27,13 +30,16 @@ RUN make xed
 ## == BUILD FOXDEC =============================================================
 ## =============================================================================
 
-FROM haskell:9.12.2 AS build-foxdec
-ENV LD_LIBRARY_PATH=/usr/local/lib
+#FROM haskell:9.12.2 AS build-foxdec
+#ENV LD_LIBRARY_PATH=/usr/local/lib
 
-COPY --from=build-xed /xed/libxed.so /usr/local/lib/
+# COPY --from=build-xed /xed/libxed.so /usr/local/lib/
 
 WORKDIR /foxdec
 COPY ci/Makefile .
+
+COPY /xed/libxed.so /usr/local/lib/
+COPY /xed/libxed.so .
 
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
@@ -57,8 +63,10 @@ COPY ci/Makefile .
 COPY ci     /src/ci
 COPY foxdec /src/foxdec
 
-COPY --from=build-foxdec /foxdec/bin/   /staging/foxdec/bin/
-COPY --from=build-xed    /xed/libxed.so /staging/libxed.so
+#COPY --from=build-foxdec /foxdec/bin/   /staging/foxdec/bin/
+#COPY --from=build-xed    /xed/libxed.so /staging/libxed.so
+COPY /foxdec/bin/   /staging/foxdec/bin/
+COPY /xed/libxed.so /staging/libxed.so
 
 RUN make install
 
