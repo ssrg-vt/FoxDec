@@ -39,6 +39,7 @@ RUN make foxdec-deps
 COPY foxdec .
 COPY --from=build-xed /xed/libxed.so .
 
+RUN make foxdec-deps
 RUN ls -al
 RUN make foxdec
 
