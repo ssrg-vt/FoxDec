@@ -64,8 +64,7 @@ executables:
     dependencies:
     - foxdec
     extra-lib-dirs:
-    - .
-    - xed
+    - /usr/local/lib
     extra-libraries:
     - xed
 
