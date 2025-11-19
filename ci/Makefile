@@ -29,15 +29,14 @@ FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 .PHONY: xed-deps xed
 
 xed-deps:
-	cd $(XED_DIR) && ./mfile.py install
+	cd $(XED_DIR) && ./mfile.py --shared install
 
 xed: xed-deps
 	gcc -shared -o $(XED_LIB) -fPIC \
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
-		-L $(XED_DIR)/obj/wkit/lib/ \
-		-lxed -Wl,--no-undefined \
-		disasm1.c
+		-Wl,--no-undefined \
+		disasm1.c $(XED_DIR)/obj/*.so
 
 ## =============================================================================
 ## == BUILD FOXDEC =============================================================
