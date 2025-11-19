@@ -40,7 +40,8 @@ COPY ci/Makefile .
 
 RUN find /xed -name "libxed.so"   -exec cp {} /usr/local/lib/ \; \
  && find /xed -name "libfoxed.so" -exec cp {} /usr/local/lib/ \; \
- && ldconfig
+ && ldconfig \
+ && ls -al /usr/local/lib
 
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
