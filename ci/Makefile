@@ -47,11 +47,11 @@ xed: xed-deps
 
 foxdec-deps:
 	cabal update
-	cabal v2-build --only-dependencies
+	cabal build --only-dependencies
 
 foxdec:
-	cabal v2-build
-	cabal v2-install \
+	cabal build -v3
+	cabal install \
 		--installdir=$(FOXDEC_PREFIX) \
 		--overwrite-policy=always \
 		--install-method=copy
