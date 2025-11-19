@@ -7,7 +7,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /xed
 COPY ci/Makefile .
-COPY foxdec/xed .
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -19,9 +18,9 @@ RUN apt-get update && apt-get install -y \
 RUN git clone https://github.com/intelxed/xed.git    xed    && cd xed    && git checkout dc6bdbe
 RUN git clone https://github.com/intelxed/mbuild.git mbuild && cd mbuild && git checkout 7c4497f
 
-RUN make xed-deps
+COPY foxdec/xed .
 
-COPY foxdec/xed/disasm.c .
+RUN make xed-deps
 RUN make xed
 
 ## =============================================================================
@@ -29,6 +28,7 @@ RUN make xed
 ## =============================================================================
 
 FROM haskell:9.12.2 AS build-foxdec
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 COPY --from=build-xed /xed/libxed.so /usr/local/lib/
 
