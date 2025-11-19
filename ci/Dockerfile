@@ -65,8 +65,8 @@ COPY foxdec /src/foxdec
 
 #COPY --from=build-foxdec /foxdec/bin/   /staging/foxdec/bin/
 #COPY --from=build-xed    /xed/libxed.so /staging/libxed.so
-COPY /foxdec/bin/   /staging/foxdec/bin/
-COPY /xed/libxed.so /staging/libxed.so
+COPY --from=build /foxdec/bin/   /staging/foxdec/bin/
+COPY --from=build /xed/libxed.so /staging/libxed.so
 
 RUN make install
 
