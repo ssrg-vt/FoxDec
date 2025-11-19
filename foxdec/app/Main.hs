@@ -378,8 +378,11 @@ obtain_L0 config "BINARY" verbose dirname name = do
  where
   lift !config !bin = do
     startTime <- timeCurrent
-    when (startTime `deepseq` verbose) $ putStrLn $ binary_pp bin
-
+    when (startTime `deepseq` verbose) $
+      if verbose then
+        putStrLn $ binary_pp bin
+      else
+        return ()
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
 
     l0 <- lift_to_L0 config bin empty_finit IM.empty
@@ -387,7 +390,7 @@ obtain_L0 config "BINARY" verbose dirname name = do
     endTime <- l0 `deepseq` timeCurrent
     let runningTime = fromIntegral $ timeDiff endTime startTime
     return (bin,l0 {l0_time = showDuration runningTime})
--- ... by reading ELLF metafata
+-- ... by reading ELLF metadata
 obtain_L0 config "ELLF" verbose dirname name = do
   binary <- read_binary dirname name
   case binary of
@@ -395,7 +398,10 @@ obtain_L0 config "ELLF" verbose dirname name = do
     Just b  -> lift config b
  where
   lift !config !bin = do
-    putStrLn $ binary_pp bin
+    if verbose then
+      putStrLn $ binary_pp bin
+    else
+      return ()
     putStrLn $ "Obtained L0 by reading ELLF metadata " ++ dirname ++ name
     let empty_l0 = L0 IM.empty IM.empty empty_gmem_structure ""
     return (bin,empty_l0)

@@ -35,6 +35,7 @@ import Data.Functor ((<&>))
 import Data.Int
 import Data.Maybe
 import Data.Elf
+import Data.Bits (testBit)
 import Data.Char (showLitChar,isAscii,isHexDigit,toLower)
 
 
@@ -56,6 +57,17 @@ import Debug.Trace
 import System.IO.Unsafe
 
 
+
+-- TODO LIST
+-- Improve speed (use state monad to keep track of defined and undefined labels)
+-- Use .ellf.globals properly
+-- Split into spearate object files
+-- Check whether LOOP/LOOPNE operands should be treated specifically.
+
+
+
+
+
 -- Main function: read the ELLF metadata and lift to symbolized assembly
 read_and_lift_ellf bin = with_elf $ get_elf bin
  where
@@ -64,7 +76,7 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
 
   with_ellf elf Nothing     = putStrLn $ "Given binary is not a valid ELLF file."
   with_ellf elf (Just ellf) = do
-    --putStrLn $ show ellf
+    putStrLn $ show ellf
     let dirname  = binary_dir_name bin
     let name     = binary_file_name bin
     let fname    = dirname ++ name ++ ".S" 
@@ -600,8 +612,8 @@ render_instruction bin ellf object cfi (n,i) = render_GAS_instruction bin ellf o
     | otherwise = i
   mk_GAS i = i
 
-  isMem (Op_Mem _ _ _ _ _ _ _) = True
-  isMem _                      = False
+isMem (Op_Mem _ _ _ _ _ _ _) = True
+isMem _                      = False
 
 
 -- Rendering an instruction:
@@ -647,6 +659,10 @@ render_operand :: BinaryClass bin => bin -> ELLF -> Int -> Instruction -> Operan
 render_operand bin ellf object i op
   -- TODO also for LOOP/LOOPE/LOOPNE?
   | isCall (inOperation i) || isJump (inOperation i) || isCondJump (inOperation i) || isLoop (inOperation i) = render_control_flow_operand bin ellf i op
+  | isMem op =
+    case find (\ptr -> testBit (ellf_ptr_flags ptr) 1 && inAddress i <= ellf_ptr_address ptr && ellf_ptr_address ptr < inAddress i + fromIntegral (inSize i)) $ ellf_pointers ellf !! object of
+      Just ptr -> render_TPOFF_operand bin ellf object ptr op
+      Nothing  -> render_operand_normal bin ellf i op
   | otherwise = render_operand_normal bin ellf i op
  where
   render_control_flow_operand bin ellf i (Op_Imm (Immediate _ imm)) = 
@@ -660,6 +676,17 @@ render_operand bin ellf object i op
     case symbolize_rip_relative_operand bin ellf object i op of
       Nothing -> string8 $ render_operand_GAS op
       Just s  -> string8 $ s
+
+
+render_TPOFF_operand bin ellf object ptr op@(Op_Mem si reg idx scale displ seg _) =
+  let pte = (ellf_pointees ellf  !! fromIntegral object) !! (fromIntegral $ ellf_ptr_pointee_idx ptr)
+      sym = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral (ellf_pte_base pte) in
+    string8 $ with_size_directive (show_seg seg) si $ show_reg reg ++ ellf_sym_name sym ++ "@TPOFF"
+   where
+    show_seg Nothing  = ""
+    show_seg (Just r) = show r ++ ":"
+    show_reg RegNone = ""
+    show_reg reg     = show_register reg ++ " + " 
 
 
 render_operand_GAS (Op_Reg r _) = show_register r
@@ -788,7 +815,7 @@ symbolize_address bin ellf object in_data_section a =
           if (find (is_reloc_loc a') $ (binary_get_relocations bin)) == Nothing then
             "<ERROR: ADDRESS 0x" ++ showHex a' ++ " DOES NOT HAVE A GLOBAL, sym == " ++ show (IM.lookup (fromIntegral a') $ binary_get_symbol_table bin) ++ ">"
           else
-            "" -- TODO ensure relocations are covered by globals
+            "" 
 
   in_text_section a = 
     case find (contains_address a) $ elfSections $ fromJust $ get_elf bin of
