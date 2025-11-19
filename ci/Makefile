@@ -38,7 +38,6 @@ xed: xed-deps
 		-L $(XED_DIR)/obj/wkit/lib/ \
 		-lxed \
 		disasm1.c
-	cp libxed.so /usr/local/lib/
 
 ## =============================================================================
 ## == BUILD FOXDEC =============================================================
@@ -50,7 +49,7 @@ foxdec-deps:
 	cabal update
 	cabal v2-build --only-dependencies
 
-foxdec: xed
+foxdec:
 	cabal v2-build
 	cabal v2-install \
 		--installdir=$(FOXDEC_PREFIX) \
