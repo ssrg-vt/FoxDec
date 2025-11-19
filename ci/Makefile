@@ -14,11 +14,11 @@ LIB_DIR		:= /usr/local/lib
 FOXDEC_PREFIX	:= $(FOXDEC_DIR)/bin
 
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
-XED_LIB			:= libxed.so
+XED_LIB			:= libfoxed.so
 FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
-XED_DST			:= $(LIB_DIR)/libxed.so
+XED_DST			:= $(LIB_DIR)/libfoxed.so
 FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 
 

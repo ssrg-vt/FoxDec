@@ -66,6 +66,7 @@ executables:
     extra-lib-dirs:
     - /usr/local/lib
     extra-libraries:
+    - foxed
     - xed
 
 #tests:
