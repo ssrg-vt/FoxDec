@@ -38,8 +38,8 @@ RUN make xed
 WORKDIR /foxdec
 COPY ci/Makefile .
 
-COPY /xed/libxed.so /usr/local/lib/
-COPY /xed/libxed.so .
+RUN cp /xed/libxed.so /usr/local/lib/
+RUN cp /xed/libxed.so .
 
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
