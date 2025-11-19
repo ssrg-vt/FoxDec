@@ -40,8 +40,7 @@ COPY foxdec .
 COPY --from=build-xed /xed/libxed.so .
 
 RUN make foxdec-deps
-RUN grep -n "extra-lib-dirs" -n foxdec.cabal
-RUN grep -n "extra-libraries" -n foxdec.cabal
+RUN sed -n '110,160p' foxdec.cabal
 RUN make foxdec
 
 ## =============================================================================
