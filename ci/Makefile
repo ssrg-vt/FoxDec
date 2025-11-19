@@ -9,16 +9,16 @@ SRC_DIR		:= /src
 
 CONFIG_DIR	:= /etc/foxdec
 BIN_DIR		:= /usr/bin
+LIB_DIR		:= /usr/local/lib
 
 FOXDEC_PREFIX	:= $(FOXDEC_DIR)/bin
-XED_PREFIX		:= /xed/disasm
 
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
-XED_BIN			:= $(XED_PREFIX)/disasm
+XED_LIB			:= libxed.so
 FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
-XED_DST			:= $(BIN_DIR)/foxdec-xed
+XED_DST			:= $(LIB_DIR)/libxed.so
 FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 
 
@@ -32,7 +32,7 @@ xed-deps:
 	cd $(XED_DIR) && ./mfile.py install
 
 xed: xed-deps
-	gcc -shared -o libxed.so -fPIC \
+	gcc -shared -o $(XED_LIB) -fPIC \
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
 		-L $(XED_DIR)/obj/wkit/lib/ \
@@ -62,13 +62,16 @@ foxdec:
 
 .PHONY: install install-foxdec install-xed install-frontend
 
-install: install-foxdec install-frontend
+install: install-foxdec install-frontend install-xed
 
 install-foxdec:
 	mkdir -p $(CONFIG_DIR)
 	cp $(STAGING_DIR)/$(FOXDEC_BIN) $(FOXDEC_DST)
 	cp $(SRC_DIR)/foxdec/config/config.dhall $(CONFIG_DIR)
 	chmod +x $(FOXDEC_DST)
+
+install-xed:
+	cp $(STAGING_DIR)/$(XED_LIB) $(XED_DST)
 
 install-frontend:
 	cp $(SRC_DIR)/$(FRONTEND_PY) $(FRONTEND_DST)
