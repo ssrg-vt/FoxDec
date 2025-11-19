@@ -130,7 +130,7 @@ executable foxdec-exe
   extra-lib-dirs:
       /usr/local/lib
   extra-libraries:
-      xed
+      foxed
   build-depends:
       aeson
     , attoparsec >=0.14.4

@@ -67,7 +67,6 @@ executables:
     - /usr/local/lib
     extra-libraries:
     - foxed
-    - xed
 
 #tests:
 #  foxdec-test:

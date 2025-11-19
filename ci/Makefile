@@ -36,7 +36,7 @@ xed: xed-deps
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/ \
 		-L $(XED_DIR)/obj/wkit/lib/ \
-		-lxed \
+		-lxed -Wl,--no-undefined \
 		disasm1.c
 
 ## =============================================================================
