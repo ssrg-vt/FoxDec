@@ -30,13 +30,13 @@ RUN make xed
 
 FROM haskell:9.12.2 AS build-foxdec
 
+COPY --from=build-xed /xed/libxed.so /usr/local/lib/
+
 WORKDIR /foxdec
 COPY ci/Makefile .
 
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
-
-COPY --from=build-xed /xed/disasm/libxed.so .
 
 COPY foxdec .
 RUN make foxdec
@@ -57,8 +57,8 @@ COPY ci/Makefile .
 COPY ci     /src/ci
 COPY foxdec /src/foxdec
 
-COPY --from=build-foxdec /foxdec/bin/ /staging/foxdec/bin/
-COPY --from=build-xed    /xed/disasm/ /staging/xed/disasm/
+COPY --from=build-foxdec /foxdec/bin/   /staging/foxdec/bin/
+COPY --from=build-xed    /xed/libxed.so /staging/libxed.so
 
 RUN make install
 

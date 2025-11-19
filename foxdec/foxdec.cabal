@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.38.3.
 --
 -- see: https://github.com/sol/hpack
 
@@ -128,7 +128,7 @@ executable foxdec-exe
       app
   ghc-options: -O2 -threaded -Wno-x-partial
   extra-lib-dirs:
-      ./xed/
+      /usr/local/lib
   extra-libraries:
       xed
   build-depends:

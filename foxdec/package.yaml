@@ -63,8 +63,10 @@ executables:
     - -Wno-x-partial
     dependencies:
     - foxdec
-    extra-lib-dirs:      ./xed/
-    extra-libraries:     ["xed"]
+    extra-lib-dirs:
+    - /usr/local/lib
+    extra-libraries:
+    - xed
 
 #tests:
 #  foxdec-test:
