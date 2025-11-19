@@ -37,9 +37,11 @@ COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
 
 COPY foxdec .
-COPY --from=build-xed /xed/libxed.so xed/
-RUN ldd xed/libxed.so
+COPY --from=build-xed /xed/libxed.so .
 
+RUN make foxdec-deps
+RUN grep -n "extra-lib-dirs" -n foxdec.cabal
+RUN grep -n "extra-libraries" -n foxdec.cabal
 RUN make foxdec
 
 ## =============================================================================
