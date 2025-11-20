@@ -30,7 +30,8 @@ RUN make xed
 FROM haskell:9.12.2 AS build-foxdec
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-COPY --from=build-xed /xed/libfoxed.so /usr/local/lib/
+COPY --from=build-xed /xed/libfoxed.so                /usr/local/lib/
+COPY --from=build-xed /xed/xed/obj/wkit/lib/libxed.so /usr/local/lib/
 
 WORKDIR /foxdec
 COPY ci/Makefile .
