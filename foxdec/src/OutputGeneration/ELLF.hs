@@ -474,7 +474,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) = 
     let a = ellf_sym_address $ (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base in
       if a == 1 then -- ELLF_EXTERN
-        string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]"))
+        string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
       else
         string8 $ ".quad " ++ symbolize_address bin ellf object True (fromIntegral $ fromIntegral a+addend)
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base target addend) =
