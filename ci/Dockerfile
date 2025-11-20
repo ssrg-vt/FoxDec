@@ -18,7 +18,7 @@ RUN git clone https://github.com/intelxed/xed.git    xed    && cd xed    && git 
 RUN git clone https://github.com/intelxed/mbuild.git mbuild && cd mbuild && git checkout 7c4497f
 
 COPY ci/Makefile .
-COPY foxdec/xed .
+COPY foxed .
 
 RUN make xed-deps
 RUN make xed
