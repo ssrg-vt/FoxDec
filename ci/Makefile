@@ -12,13 +12,16 @@ BIN_DIR		:= /usr/bin
 LIB_DIR		:= /usr/local/lib
 
 FOXDEC_PREFIX	:= $(FOXDEC_DIR)/bin
+XED_PREFIX		:= $(XED_DIR)/obj/wkit/lib
 
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
-XED_LIB			:= libfoxed.so
+FOXED_LIB		:= libfoxed.so
+XED_LIB			:= libxed.so
 FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
-XED_DST			:= $(LIB_DIR)/libfoxed.so
+FOXED_DST		:= $(LIB_DIR)/libfoxed.so
+XED_DST			:= $(LIB_DIR)/libxed.so
 FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 
 
@@ -36,8 +39,8 @@ xed: xed-deps
 		-I $(XED_DIR)/include/public/xed/ \
 		-I $(XED_DIR)/obj/wkit/include/xed/
 
-	gcc -shared -o $(XED_LIB) -fPIC \
-		-L $(XED_DIR)/obj/wkit/lib \
+	gcc -shared -o $(FOXED_LIB) -fPIC \
+		-L $(XED_PREFIX) \
 		-Wl,--no-undefined \
 		disasm1.o -lxed
 
@@ -73,7 +76,8 @@ install-foxdec:
 	chmod +x $(FOXDEC_DST)
 
 install-xed:
-	cp $(STAGING_DIR)/$(XED_LIB) $(XED_DST)
+	cp $(STAGING_DIR)/$(FOXED_LIB) $(FOXED_DST)
+	cp $(STAGING_DIR)/$(XED_LIB)   $(XED_DST)
 
 install-frontend:
 	cp $(SRC_DIR)/$(FRONTEND_PY) $(FRONTEND_DST)

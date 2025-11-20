@@ -57,8 +57,9 @@ COPY ci/Makefile .
 COPY ci     /src/ci
 COPY foxdec /src/foxdec
 
-COPY --from=build-foxdec /foxdec/bin/     /staging/foxdec/bin/
-COPY --from=build-xed    /xed/libfoxed.so /staging/libfoxed.so
+COPY --from=build-foxdec /foxdec/bin/                    /staging/foxdec/bin/
+COPY --from=build-xed    /xed/libfoxed.so                /staging/libfoxed.so
+COPY --from=build-xed    /xed/xed/obj/wkit/lib/libxed.so /staging/libxed.so
 
 RUN make install
 
