@@ -1,26 +1,23 @@
-FROM haskell:9.12.2 AS build
-ENV LD_LIBRARY_PATH=/usr/local/lib
-
 ## =============================================================================
 ## == BUILD XED ================================================================
 ## =============================================================================
 
-#FROM ubuntu:24.04 AS build-xed
-#ARG DEBIAN_FRONTEND=noninteractive
-
-WORKDIR /xed
-COPY ci/Makefile .
+FROM ubuntu:24.04 AS build-xed
+ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     git \
     python3 python3-pip \
     gcc make \
     libelf-dev \
- && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /xed
 
 RUN git clone https://github.com/intelxed/xed.git    xed    && cd xed    && git checkout dc6bdbe
 RUN git clone https://github.com/intelxed/mbuild.git mbuild && cd mbuild && git checkout 7c4497f
 
+COPY ci/Makefile .
 COPY foxdec/xed .
 
 RUN make xed-deps
@@ -30,18 +27,13 @@ RUN make xed
 ## == BUILD FOXDEC =============================================================
 ## =============================================================================
 
-#FROM haskell:9.12.2 AS build-foxdec
-#ENV LD_LIBRARY_PATH=/usr/local/lib
+FROM haskell:9.12.2 AS build-foxdec
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# COPY --from=build-xed /xed/libxed.so /usr/local/lib/
+COPY --from=build-xed /xed/libfoxed.so /usr/local/lib/
 
 WORKDIR /foxdec
 COPY ci/Makefile .
-
-RUN find /xed -name "libxed.so"   -exec cp {} /usr/local/lib/ \; \
- && find /xed -name "libfoxed.so" -exec cp {} /usr/local/lib/ \; \
- && ldconfig \
- && ls -al /usr/local/lib
 
 COPY foxdec/foxdec.cabal .
 RUN make foxdec-deps
@@ -57,18 +49,16 @@ FROM ubuntu:24.04 AS runtime
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
- && apt-get install -y libelf1 python3 python3-pip \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y libelf1 python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY ci/Makefile .
 COPY ci     /src/ci
 COPY foxdec /src/foxdec
 
-#COPY --from=build-foxdec /foxdec/bin/   /staging/foxdec/bin/
-#COPY --from=build-xed    /xed/libxed.so /staging/libxed.so
-COPY --from=build /foxdec/bin/   /staging/foxdec/bin/
-COPY --from=build /xed/libxed.so /staging/libxed.so
+COPY --from=build-foxdec /foxdec/bin/     /staging/foxdec/bin/
+COPY --from=build-xed    /xed/libfoxed.so /staging/libfoxed.so
 
 RUN make install
 
