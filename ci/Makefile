@@ -49,7 +49,7 @@ foxdec-deps:
 	cabal build --only-dependencies
 
 foxdec:
-	cabal build -v3
+	cabal build
 	cabal install \
 		--installdir=$(FOXDEC_PREFIX) \
 		--overwrite-policy=always \
