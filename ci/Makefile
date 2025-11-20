@@ -32,11 +32,14 @@ xed-deps:
 	cd $(XED_DIR) && ./mfile.py --shared install
 
 xed: xed-deps
-	gcc -shared -o $(XED_LIB) -fPIC \
+	gcc -c disasm1.c -o disasm1.o -fPIC \
 		-I $(XED_DIR)/include/public/xed/ \
-		-I $(XED_DIR)/obj/wkit/include/xed/ \
+		-I $(XED_DIR)/obj/wkit/include/xed/
+
+	gcc -shared -o $(XED_LIB) -fPIC \
+		-L $(XED_DIR)/obj/wkit/lib \
 		-Wl,--no-undefined \
-		disasm1.c $(XED_DIR)/obj/*.so
+		disasm1.o -lxed
 
 ## =============================================================================
 ## == BUILD FOXDEC =============================================================
