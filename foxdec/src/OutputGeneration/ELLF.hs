@@ -384,10 +384,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
        Just (object,ptr) -> 
           let ptr_a  = ellf_ptr_address ptr
               pte    = (ellf_pointees ellf  !! fromIntegral object) !! (fromIntegral $ ellf_ptr_pointee_idx ptr)
-              pte_si = pointee_size pte
+              pte_si = pointee_size ptr pte
               part0  = raw_data section is_bss is_funptr_array a (ptr_a - a)
               part1  = if is_funptr_array then [] else address_to_labels optional_object ptr_a 
-              part2  = [render_pointee section object ptr_a pte]
+              part2  = [render_pointee section object ptr_a pte pte_si]
               part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
 
@@ -468,16 +468,30 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
         si0 = elfSectionSize section in
       a0 <= a && a + si <= a0 + si0
 
-  pointee_size pte@(ELLF_Pointee base 0 _) = 8 -- A pointer
-  pointee_size pte@(ELLF_Pointee base target _) = 4 -- A pointer diff
+  pointee_size ptr pte@(ELLF_Pointee base 0 _)
+    | testBit (ellf_ptr_flags ptr) 2 = 4 -- A pointer diff even though target is 0
+    | otherwise = 8 -- A pointer
+  pointee_size ptr pte@(ELLF_Pointee base target _) = 4 -- A pointer diff
 
-  render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) = 
-    let a = ellf_sym_address $ (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base in
-      if a == 1 then -- ELLF_EXTERN
+  render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 8 = 
+    let base_symbol  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
+        base_address = ellf_sym_address base_symbol in
+      if base_address == 1 then -- ELLF_EXTERN
         string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
       else
-        string8 $ ".quad " ++ symbolize_address bin ellf object True (fromIntegral $ fromIntegral a+addend)
-  render_pointee elf_section object ptr_a pte@(ELLF_Pointee base target addend) =
+        string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend -- "# HALLO: " ++ show ((ellf_symbols ellf !! fromIntegral object) !! fromIntegral base) ++ " + 0x" ++ showHex addend
+        -- string8 $ ".quad " ++ symbolize_address bin ellf object True (fromIntegral $ fromIntegral a+addend) ++ "# HALLO: " ++ show ((ellf_symbols ellf !! fromIntegral object) !! fromIntegral base) ++ " + 0x" ++ showHex addend
+  render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 4 =
+     let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
+         bytes = read_bytes elf_section ptr_a 4
+         diff  = evalState read_sint32 (bytes,0)
+         base_address = ellf_sym_address sym1
+         trgt_address = base_address - fromIntegral diff in
+         string8 $ concat 
+           [ "  .long " ++ (mk_label ellf object base_address) ++ " - ."
+           , " # DEVIATION FROM ELLF METADATA AS TARGET==0 "
+           ] -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
+  render_pointee elf_section object ptr_a pte@(ELLF_Pointee base target addend) 4 =
      let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
          sym2  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral target
 
