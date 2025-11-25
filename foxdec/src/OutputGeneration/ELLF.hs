@@ -60,8 +60,9 @@ import System.IO.Unsafe
 
 -- TODO LIST
 -- Improve speed (use state monad to keep track of defined and undefined labels)
+-- Remove excessive labels
 -- Use .ellf.globals properly
--- Split into spearate object files
+-- Split into separate object files
 -- Check whether LOOP/LOOPNE operands should be treated specifically.
 
 
@@ -347,6 +348,7 @@ render_elf_data_sections bin elf ellf cfi sections = render_list "\n\n\n" $ conc
 
 -- Render a data section given a starting address and a size
 render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (0,si) = mempty
+render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (_,0)  = mempty
 render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) =
   case find (contains_address a si) $ elfSections elf of
     Nothing -> [string8 $ "ERROR: Cannot find section for: " ++ show (a,si)]
@@ -478,9 +480,11 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
         base_address = ellf_sym_address base_symbol in
       if base_address == 1 then -- ELLF_EXTERN
         string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
-      else
-        string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend -- "# HALLO: " ++ show ((ellf_symbols ellf !! fromIntegral object) !! fromIntegral base) ++ " + 0x" ++ showHex addend
+      else case try_render_reloc_for ptr_a of
+        Just str -> string8 $ str ++ " # RELOC"
+        Nothing  -> string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend -- ++ "# HALLO: ptr_a == 0x" ++ showHex ptr_a ++ ", pte = " ++ show pte ++ ", object == " ++ show object
         -- string8 $ ".quad " ++ symbolize_address bin ellf object True (fromIntegral $ fromIntegral a+addend) ++ "# HALLO: " ++ show ((ellf_symbols ellf !! fromIntegral object) !! fromIntegral base) ++ " + 0x" ++ showHex addend
+  -- The following case should never happen, but is a sane default in case the ellf metadata is wrong
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 4 =
      let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
          bytes = read_bytes elf_section ptr_a 4
@@ -488,7 +492,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
          base_address = ellf_sym_address sym1
          trgt_address = base_address - fromIntegral diff in
          string8 $ concat 
-           [ "  .long " ++ (mk_label ellf object base_address) ++ " - ."
+           [ "  .long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
            , " # DEVIATION FROM ELLF METADATA AS TARGET==0 "
            ] -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base target addend) 4 =
@@ -500,6 +504,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
        if ellf_sym_address sym1 + fromIntegral addend - ellf_sym_address sym2 == fromIntegral diff then
          string8 $ "  .long " ++ (mk_label_from_symbol ellf object sym1) ++ mk_offset addend ++ " - " ++ (mk_label_from_symbol ellf object sym2)
        else let base_address = ellf_sym_address sym2 + fromIntegral diff in
+         -- the following case happens: the ellf metadata has the wrong base. We compute the right base and annotate the assembly.
          string8 $ concat 
            [ "  .long " ++ (mk_label ellf object base_address) ++ " - " ++ (mk_label_from_symbol ellf object sym2)
            , " # DEVIATION FROM ELLF METADATA: "
@@ -514,7 +519,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
 
   try_render_reloc_for a = do
     Relocation _ a1 <- find (reloc_for $ fromIntegral a) $ binary_get_relocations bin
-    return $ "  .quad " ++ head (mk_all_labels ellf optional_object a1)
+    return $ ".quad " ++ head (mk_all_labels ellf optional_object a1)
 
   try_render_symbol_at :: Word64 -> Maybe String
   try_render_symbol_at a = do
