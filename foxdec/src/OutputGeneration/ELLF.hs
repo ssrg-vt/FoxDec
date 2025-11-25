@@ -77,7 +77,7 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
 
   with_ellf elf Nothing     = putStrLn $ "Given binary is not a valid ELLF file."
   with_ellf elf (Just ellf) = do
-    putStrLn $ show ellf
+    -- putStrLn $ show ellf
     let dirname  = binary_dir_name bin
     let name     = binary_file_name bin
     let fname    = dirname ++ name ++ ".S" 
@@ -475,6 +475,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
     | otherwise = 8 -- A pointer
   pointee_size ptr pte@(ELLF_Pointee base target _) = 4 -- A pointer diff
 
+  -- Rendering a pointer
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 8 = 
     let base_symbol  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
         base_address = ellf_sym_address base_symbol in
@@ -482,8 +483,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
         string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
       else case try_render_reloc_for ptr_a of
         Just str -> string8 $ str ++ " # RELOC"
-        Nothing  -> string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend -- ++ "# HALLO: ptr_a == 0x" ++ showHex ptr_a ++ ", pte = " ++ show pte ++ ", object == " ++ show object
-        -- string8 $ ".quad " ++ symbolize_address bin ellf object True (fromIntegral $ fromIntegral a+addend) ++ "# HALLO: " ++ show ((ellf_symbols ellf !! fromIntegral object) !! fromIntegral base) ++ " + 0x" ++ showHex addend
+        Nothing  -> string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend
   -- The following case should never happen, but is a sane default in case the ellf metadata is wrong
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 4 =
      let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
@@ -494,11 +494,12 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
          string8 $ concat 
            [ "  .long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
            , " # DEVIATION FROM ELLF METADATA AS TARGET==0 "
-           ] -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
+           -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
+           ]
+  -- Rendering a pointer diff
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base target addend) 4 =
      let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
          sym2  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral target
-
          bytes = read_bytes elf_section ptr_a 4
          diff  = evalState read_sint32 (bytes,0) in
        if ellf_sym_address sym1 + fromIntegral addend - ellf_sym_address sym2 == fromIntegral diff then
@@ -511,8 +512,8 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
            , (mk_label_from_symbol ellf object sym1) ++ mk_offset addend
            , " (0x" ++ showHex (fromIntegral (ellf_sym_address sym1) + addend) ++ ") - "
            , mk_label_from_symbol ellf object sym2
-           ] -- , " DEBUG: " ++ showHex base_address ++ ", " ++ showHex (ellf_sym_address sym2) ++ ", " ++ showHex diff ]
-
+           -- , " DEBUG: " ++ showHex base_address ++ ", " ++ showHex (ellf_sym_address sym2) ++ ", " ++ showHex diff ]
+           ]
 
   read_bytes elf_section a si = BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr elf_section) $ elfSectionData elf_section
 
@@ -568,7 +569,7 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
                  is -> inAddress (last is) + fromIntegral (inSize $ last is) in
     render_list "\n"
       [ render_header f_name
-      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name f_address) bbs
+      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name f_address) $ zip [0..] bbs
       , render_post f_name first_i last_a
       ]
  where
@@ -595,8 +596,8 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
       Just _  -> ".L_" ++ f_name ++ "_0x" ++ showHex (inAddress first_i) ++ "_END_LABEL"
 
 -- Rendering a basic block
-render_basic_block bin ellf cfi object f f_name f_address bb@(ELLF_Basic_Block func_idx offset 0)  = mempty
-render_basic_block bin ellf cfi object f f_name f_address bb@(ELLF_Basic_Block func_idx offset si) = 
+render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset 0))  = mempty
+render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset si)) = 
   let is = fetch_basic_block bin ellf object f f_address bb in
     render_list "\n" 
       [ render_basic_block_header
@@ -604,7 +605,7 @@ render_basic_block bin ellf cfi object f f_name f_address bb@(ELLF_Basic_Block f
       , render_instructions bin ellf object cfi is ]
  where
   render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex (f_address + offset)
-  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset)
+  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ (f_name ++ "_BB" ++ show idx) : mk_all_labels ellf (Just object) (f_address + offset)
   mk_label_def l = l ++ ":"
 
 -- Rendering a list of instructions
