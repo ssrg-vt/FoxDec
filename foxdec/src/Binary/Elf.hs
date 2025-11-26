@@ -968,8 +968,8 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
   header =
     [ "# .gcc_except_table"
     , "# LSDA for location 0x" ++ showHex function_entry ++ " is stored at 0x" ++ showHex gcc_address
-    , ".section .gcc_except_table,\"a\",@progbits"
-    , withIndent ".p2align 2"
+    , withIndent $ ".section .gcc_except_table,\"a\",@progbits"
+    , withIndent $ ".p2align 2"
     , mk_address (Absolute gcc_address) ++ ":"
     ]
 

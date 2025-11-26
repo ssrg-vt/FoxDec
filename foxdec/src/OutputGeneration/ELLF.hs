@@ -36,7 +36,7 @@ import Data.Int
 import Data.Maybe
 import Data.Elf
 import Data.Bits (testBit)
-import Data.Char (showLitChar,isAscii,isHexDigit,toLower)
+import Data.Char (showLitChar,isAscii,isHexDigit,toLower,isSpace)
 
 
 import Data.Serialize.LEB128.Lenient 
@@ -662,7 +662,7 @@ render_GAS_instruction bin ellf object (cfi_dirs,_,cfi_addresses) (n,i@(Instruct
     | fromIntegral addr `IS.member` cfi_addresses = string8 $ mk_label ellf object addr ++ ":\n"
     | otherwise = mempty
 
-  render_instr = string8 (withIndent "") <> render_list " " 
+  render_instr = string8 (withIndent "") <> render_list "" 
     [ render_prefix pre
     , render_mnemonic op
     , render_operands bin ellf object i op ops
@@ -671,14 +671,14 @@ render_GAS_instruction bin ellf object (cfi_dirs,_,cfi_addresses) (n,i@(Instruct
 
 render_prefix :: [Prefix] -> Builder
 render_prefix ps
-  | PrefixRep `elem` ps   = stringUtf8 "REP"
-  | PrefixRepNE `elem` ps = stringUtf8 "REPNE"
-  | PrefixLock `elem` ps  = stringUtf8 "LOCK"
+  | PrefixRep `elem` ps   = stringUtf8 "REP "
+  | PrefixRepNE `elem` ps = stringUtf8 "REPNE "
+  | PrefixLock `elem` ps  = stringUtf8 "LOCK "
   | otherwise             = mempty
 
 render_mnemonic :: Opcode -> Builder
-render_mnemonic (InvalidOpcode op) = string8 op
-render_mnemonic op = string8 $ show op 
+render_mnemonic (InvalidOpcode op) = string8 $ op ++ " "
+render_mnemonic op = string8 $ show op ++ " "
 
 render_operands :: BinaryClass bin => bin -> ELLF -> Int -> Instruction -> Opcode -> [Operand] -> Builder
 render_operands bin ellf object i mnemonic = render_list ", " . map (render_operand bin ellf object i)
