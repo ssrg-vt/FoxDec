@@ -17,7 +17,7 @@ import qualified Data.IntSet as IS
 import qualified Data.ByteString.Lazy as BS
 
 import Data.Word 
-import Data.List (intercalate, find)
+import Data.List (intercalate, find, isInfixOf)
 import qualified Data.Serialize as Cereal hiding (get,put)
 import Debug.Trace
 
@@ -231,5 +231,5 @@ undefined_internal_global_labels bin = filter is_global_and_internal_and_outside
 
 
 
-
+binary_is_cpp bin = any (isInfixOf "libstdc++") $ binary_get_needed_libs bin
 

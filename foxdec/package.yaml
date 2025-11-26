@@ -44,6 +44,7 @@ dependencies:
 - binary >= 0.8.9.1
 - leb128-cereal
 - utf8-string
+- cppfilt
 
 library:
   source-dirs: src

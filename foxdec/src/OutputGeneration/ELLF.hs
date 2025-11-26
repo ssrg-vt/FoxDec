@@ -51,7 +51,7 @@ import qualified Data.Serialize as Cereal hiding (get,put)
 import GHC.Generics
 
 import Data.Elf
-
+import System.Demangle.Pure
 
 import Debug.Trace
 import System.IO.Unsafe
@@ -214,7 +214,7 @@ render_ellf bin elf ellf cfi =
 
 mk_compilation_instructions bin =
   let needed = binary_get_needed_libs bin
-      is_cpp = any (isInfixOf "libstdc++") needed
+      is_cpp = binary_is_cpp bin
       name   = binary_file_name bin in
     "# " ++ (if is_cpp then "g++" else "gcc") ++ " -o " ++ name ++ "_ " ++ name ++ ".S " ++ intercalate " " (concatMap show_needed $ S.toList needed) ++ "\n\n"
  where
@@ -265,7 +265,7 @@ render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) add
       data_sections'   = render_elf_data_sections bin elf ellf cfi' $ nub $ concatMap (get_section_by_name elf) [".init_array", ".fini_array"]
       --data_sections    = render_list "\n\n\n" $ concatMap (render_data_section_from_globals bin elf ellf cfi') $ zip [0..] $ ellf_globals ellf
       cfi_data_section = [render_list "\n\n\n" $ map string8 $ IM.elems cfi_lsda_tables]
-      no_exec_stack    = [string8 $ "# Ensure non-executable stack", string8 $ withIndent ".section .note.GNU-stack,\"\",@progbits"] 
+      no_exec_stack    = [string8 $ "# Ensure non-executable stack\n" ++ withIndent ".section .note.GNU-stack,\"\",@progbits"] 
       llvm_mapping     = [render_list "\n" (string8 "### FOXDEC LLVM BASIC BLOCK MAPPING ###" : concatMap (mk_llvm_mapping bin ellf) (zip [0..] $ ellf_functions ellf))] in
     toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack ++ llvm_mapping
 
@@ -584,13 +584,14 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
       , render_post f_name first_i last_a
       ]
  where
-  render_header f_name = render_list "\n" $ map string8
-    [ "# Function " ++ f_name
-    , withIndent ".text"
-    , withIndent ".globl " ++ f_name -- TODO only if exported
-    , withIndent ".p2align 4"
-    , withIndent ".type " ++ f_name ++ ",@function"
-    , withIndent ".cfi_startproc"
+  render_header f_name = render_list "\n" $ map string8 $ catMaybes
+    [ Just $ "# Function " ++ f_name
+    , if binary_is_cpp bin then ("# Demangled " ++) <$> (demangle f_name) else Nothing
+    , Just $ withIndent ".text"
+    , Just $ withIndent ".globl " ++ f_name -- TODO only if exported
+    , Just $ withIndent ".p2align 4"
+    , Just $ withIndent ".type " ++ f_name ++ ",@function"
+    , Just $ withIndent ".cfi_startproc"
     ]
   render_post f_name first_i last_a = render_list "\n" $ map string8
     [ mk_end_label f_name first_i last_a ++ ":"
