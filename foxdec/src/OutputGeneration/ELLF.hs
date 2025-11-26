@@ -617,7 +617,7 @@ render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Bl
       , render_instructions bin ellf object cfi is ]
  where
   render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex (f_address + offset)
-  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ (f_name ++ "_BB" ++ show idx) : mk_all_labels ellf (Just object) (f_address + offset)
+  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset) ++ [f_name ++ "_BB" ++ show idx]
   mk_label_def l = l ++ ":"
 
 -- Rendering a list of instructions
