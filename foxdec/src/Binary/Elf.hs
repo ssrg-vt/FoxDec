@@ -823,7 +823,7 @@ mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
   mk_instrs a cie (DW_CFA_advance_loc offset:instrs) = mk_instrs (a+fromIntegral offset) cie instrs
   mk_instrs a cie instrs =
     let (curr,rest) = break isAdvanceLoc instrs in
-      (fromIntegral a,map cfi_instruction_to_cfi_directive curr) : mk_instrs a cie rest
+      (fromIntegral a,map (withIndent . cfi_instruction_to_cfi_directive) curr) : mk_instrs a cie rest
 
   isAdvanceLoc (DW_CFA_advance_loc _) = True
   isAdvanceLoc _ = False
@@ -833,7 +833,7 @@ mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
   mk_personality a cie (Just lsda) = 
     let lsda_encoding     = mk_lsda_encoding cie
         (enc,personality) = mk_personality_ptr cie in
-      [ (fromIntegral a, [".cfi_personality " ++ enc ++ ", " ++ show_address personality, ".cfi_lsda 0x" ++ showHex lsda_encoding ++ ", " ++ show_address lsda])]
+      [ (fromIntegral a, [withIndent ".cfi_personality " ++ enc ++ ", " ++ show_address personality, withIndent ".cfi_lsda 0x" ++ showHex lsda_encoding ++ ", " ++ show_address lsda])]
 
   mk_lsda_encoding cie = 
     case find is_lsda_encoding $ cie_aug_data cie of
@@ -852,6 +852,7 @@ mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
   is_personality _ = False
 
 
+withIndent str = "\t" ++ str
 
 
 cfi_instruction_to_cfi_directive = mk
@@ -968,23 +969,23 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
     [ "# .gcc_except_table"
     , "# LSDA for location 0x" ++ showHex function_entry ++ " is stored at 0x" ++ showHex gcc_address
     , ".section .gcc_except_table,\"a\",@progbits"
-    , ".p2align 2"
+    , withIndent ".p2align 2"
     , mk_address (Absolute gcc_address) ++ ":"
     ]
 
   lp =
-    [ "  .byte 0x" ++ showHex lp_start_enc ++ " # lp_start encoding" ] ++
+    [ withIndent ".byte 0x" ++ showHex lp_start_enc ++ " # lp_start encoding" ] ++
     case lp_start of
       Nothing -> []
 
   ttype =
-    [ "  .byte 0x" ++ showHex ttype_enc ++ " # ttype encoding" ]
-    ++ if ttype_enc /= 0xFF then ["  .uleb128 " ++ end_label ++ " - " ++ cs_start_label ++ " # length = " ++ show ttype_len] else []
+    [ withIndent ".byte 0x" ++ showHex ttype_enc ++ " # ttype encoding" ]
+    ++ if ttype_enc /= 0xFF then [withIndent ".uleb128 " ++ end_label ++ " - " ++ cs_start_label ++ " # length = " ++ show ttype_len] else []
 
   call_site = 
     [ cs_start_label ++ ":"
-    , "  .byte 0x" ++ showHex cs_enc ++ " # callsite encoding"
-    , "  .uleb128 " ++ cs_end_label ++ " - " ++ cs_entries_start_label ++ " # call site table length = " ++ show cs_len
+    , withIndent ".byte 0x" ++ showHex cs_enc ++ " # callsite encoding"
+    , withIndent ".uleb128 " ++ cs_end_label ++ " - " ++ cs_entries_start_label ++ " # call site table length = " ++ show cs_len
     , cs_entries_start_label ++ ":"
     ]
     ++ concatMap mk_call_site call_sites ++
@@ -992,10 +993,10 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
     ]
 
   mk_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action) =
-    [ "  .uleb128 " ++ mk_address start1 ++ " - " ++ mk_address start0
-    , "  .uleb128 " ++ mk_address len1   ++ " - " ++ mk_address len0
-    , "  .uleb128 " ++ mk_address lp1    ++ " - " ++ mk_address lp0
-    , "  .uleb128 0x" ++ showHex action
+    [ withIndent ".uleb128 " ++ mk_address start1 ++ " - " ++ mk_address start0
+    , withIndent ".uleb128 " ++ mk_address len1   ++ " - " ++ mk_address len0
+    , withIndent ".uleb128 " ++ mk_address lp1    ++ " - " ++ mk_address lp0
+    , withIndent ".uleb128 0x" ++ showHex action
     ]
 
 
@@ -1009,14 +1010,14 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
 
   mk_action (idx,GCC_Except_Table_Action type_filter next_action) =
     [ "# Action record " ++ show idx
-    ,   "  .sleb128 " ++ show type_filter ++ " # typeinfo"
-    ,   "  .sleb128 " ++ show next_action ++ " # next action"
+    , withIndent ".sleb128 " ++ show type_filter ++ " # typeinfo"
+    , withIndent ".sleb128 " ++ show next_action ++ " # next action"
     ] 
 
   ttable enc
     | enc == 0xFF = []
     | otherwise = 
-      [ ".p2align 2"
+      [ withIndent ".p2align 2"
       , "# typeinfo table"
       ]
       ++ concatMap mk_type_info (zip [0..] type_infos)
@@ -1024,7 +1025,7 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
   mk_type_info (idx,Absolute 0) = [".long 0"]
   mk_type_info (idx,a) = 
     [ typeInfo_label idx ++ ":"
-    , "  .long " ++ mk_address a ++ " - " ++ typeInfo_label idx ++ " # " ++ show a ]
+    , withIndent ".long " ++ mk_address a ++ " - " ++ typeInfo_label idx ++ " # " ++ show a ]
 
 
   mk_end_label = [end_label ++ ":"]

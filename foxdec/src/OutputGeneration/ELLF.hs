@@ -153,7 +153,7 @@ fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) 
         , show bb
         , "Object = " ++ show object
         , "Function = " ++ show f
-        , "Function[" ++ show (ellf_bb_function bb) ++ "] = "  ++ show f'
+        , "Function[" ++ show (ellf_bb_function bb) ++ "] = " ++ show f'
         , "Symbol[" ++ show (ellf_func_symbol_idx f') ++ "] = " ++ show s'
         , "Section[" ++ show (ellf_sym_section_idx s') ++ "] = " ++ show sec'
         ]
@@ -244,6 +244,16 @@ find_undefined_labels bs =
 
 
 
+mk_llvm_mapping bin ellf (object,fs) = concatMap mk_llvm_mapping_fun fs
+ where
+  mk_llvm_mapping_fun (ELLF_Function symb_idx first_bb last_bb f_address) = 
+    let f_symbol = (ellf_symbols ellf !! object) !! fromIntegral symb_idx
+        f_name   = ellf_sym_name f_symbol
+        bbs      = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object in
+      concatMap (mk_llvm_mapping_bb f_name f_address) $ zip [0..] bbs
+  mk_llvm_mapping_bb f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset si)) = map (mk_equality (f_name ++ "_BB" ++ show idx)) $ mk_all_labels ellf (Just object) (f_address + offset)
+  mk_equality l0 l1 = string8 $ "# " ++ l0 ++ " == " ++ l1
+
 
 
 render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) addresses =
@@ -255,8 +265,9 @@ render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) add
       data_sections'   = render_elf_data_sections bin elf ellf cfi' $ nub $ concatMap (get_section_by_name elf) [".init_array", ".fini_array"]
       --data_sections    = render_list "\n\n\n" $ concatMap (render_data_section_from_globals bin elf ellf cfi') $ zip [0..] $ ellf_globals ellf
       cfi_data_section = [render_list "\n\n\n" $ map string8 $ IM.elems cfi_lsda_tables]
-      no_exec_stack    = [string8 $ "# Ensure non-executable stack\n.section .note.GNU-stack,\"\",@progbits"] in
-    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack
+      no_exec_stack    = [string8 $ "# Ensure non-executable stack", string8 $ withIndent ".section .note.GNU-stack,\"\",@progbits"] 
+      llvm_mapping     = [render_list "\n" (string8 "### FOXDEC LLVM BASIC BLOCK MAPPING ###" : concatMap (mk_llvm_mapping bin ellf) (zip [0..] $ ellf_functions ellf))] in
+    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack ++ llvm_mapping
 
 
 render_header bin elf ellf = render_list "\n\n" [mk_intel_syntax, mk_externals]
@@ -368,14 +379,14 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
   render_section section a si = render_list "\n" $ mk_section_header section a : mk_align section : mk_data_section section (is_bss section) (is_func_array section) a si
 
   -- Render the header
-  mk_section_header section a = string8 $ "# " ++ mk_object optional_object ++ "@0x" ++ showHex a ++ " (" ++ show si ++ " bytes)\n.section " ++ (elfSectionName section) 
+  mk_section_header section a = string8 $ "# " ++ mk_object optional_object ++ "@0x" ++ showHex a ++ " (" ++ show si ++ " bytes)\n" ++ withIndent ".section " ++ (elfSectionName section) 
 
   -- Render the object
   mk_object Nothing    = ""
   mk_object (Just obj) = "object " ++ show obj ++ ", "
 
   -- Render the alignment
-  mk_align section = string8 $ ".align " ++ show (elfSectionAddrAlign section)
+  mk_align section = string8 $ withIndent ".align " ++ show (elfSectionAddrAlign section)
 
   -- Render the data
   -- Two things happen here: relocations from the .ellf.pointers sections are symbolized, and labels are inserted.
@@ -437,15 +448,15 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
   
 
   -- Render bytes. If it is 0-terminated ASCII, render as string using .asciz
-  render_bytes a (RD_BSS si) = [string8 $ "  .skip " ++ show si ]
+  render_bytes a (RD_BSS si) = [string8 $ withIndent $ ".skip " ++ show si ]
   render_bytes a (RD_ByteString bytes)
     | BS.null bytes = []
     | otherwise =
       case takeWhileString bytes of
         Nothing -> 
           let (part0,part1) = bs_takeUntilZero bytes in
-            [(string8 "  .byte ") <> (render_list "," (map (\c -> string8 $ "0x" ++ showHex c) $ BS.unpack part0))] <> render_bytes (a+BS.length part0) (RD_ByteString part1)
-        Just (str,rest) -> [string8 "  .asciz \"" <> escape_string (concatMap (\c -> showLitChar c "") str) <> string8 ("\"" ++ " # 0x" ++ showHex a) ] <> render_bytes (a+length str+1) (RD_ByteString rest)
+            [(string8 $ withIndent ".byte ") <> (render_list "," (map (\c -> string8 $ "0x" ++ showHex c) $ BS.unpack part0))] <> render_bytes (a+BS.length part0) (RD_ByteString part1)
+        Just (str,rest) -> [string8 (withIndent ".asciz \"") <> escape_string (concatMap (\c -> showLitChar c "") str) <> string8 ("\"" ++ " # 0x" ++ showHex a) ] <> render_bytes (a+length str+1) (RD_ByteString rest)
 
   takeWhileString bytes =
     let (bs0,bs1) = BS.span valid_char bytes in
@@ -483,7 +494,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
         string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
       else case try_render_reloc_for ptr_a of
         Just str -> string8 $ str ++ " # RELOC"
-        Nothing  -> string8 $ ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend
+        Nothing  -> string8 $ withIndent ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend
   -- The following case should never happen, but is a sane default in case the ellf metadata is wrong
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 4 =
      let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
@@ -492,7 +503,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
          base_address = ellf_sym_address sym1
          trgt_address = base_address - fromIntegral diff in
          string8 $ concat 
-           [ "  .long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
+           [ withIndent ".long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
            , " # DEVIATION FROM ELLF METADATA AS TARGET==0 "
            -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
            ]
@@ -503,11 +514,11 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
          bytes = read_bytes elf_section ptr_a 4
          diff  = evalState read_sint32 (bytes,0) in
        if ellf_sym_address sym1 + fromIntegral addend - ellf_sym_address sym2 == fromIntegral diff then
-         string8 $ "  .long " ++ (mk_label_from_symbol ellf object sym1) ++ mk_offset addend ++ " - " ++ (mk_label_from_symbol ellf object sym2)
+         string8 $ withIndent ".long " ++ (mk_label_from_symbol ellf object sym1) ++ mk_offset addend ++ " - " ++ (mk_label_from_symbol ellf object sym2)
        else let base_address = ellf_sym_address sym2 + fromIntegral diff in
          -- the following case happens: the ellf metadata has the wrong base. We compute the right base and annotate the assembly.
          string8 $ concat 
-           [ "  .long " ++ (mk_label ellf object base_address) ++ " - " ++ (mk_label_from_symbol ellf object sym2)
+           [ withIndent ".long " ++ (mk_label ellf object base_address) ++ " - " ++ (mk_label_from_symbol ellf object sym2)
            , " # DEVIATION FROM ELLF METADATA: "
            , (mk_label_from_symbol ellf object sym1) ++ mk_offset addend
            , " (0x" ++ showHex (fromIntegral (ellf_sym_address sym1) + addend) ++ ") - "
@@ -520,17 +531,17 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
 
   try_render_reloc_for a = do
     Relocation _ a1 <- find (reloc_for $ fromIntegral a) $ binary_get_relocations bin
-    return $ ".quad " ++ head (mk_all_labels ellf optional_object a1)
+    return $ withIndent ".quad " ++ head (mk_all_labels ellf optional_object a1)
 
   try_render_symbol_at :: Word64 -> Maybe String
   try_render_symbol_at a = do
     sym <- IM.lookup (fromIntegral a) $ binary_get_symbol_table bin
     case sym of
-      PointerToExternalFunction f -> return $ "  .quad " ++ f 
-      PointerToObject obj _ -> return $ "  .quad " ++ obj 
+      PointerToExternalFunction f -> return $ withIndent ".quad " ++ f 
+      PointerToObject obj _ -> return $ withIndent ".quad " ++ obj 
       Relocated_ResolvedObject _ a1 -> do
         sym1 <- IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
-        return $ "  .quad " ++ symbol_to_name sym1
+        return $ withIndent ".quad " ++ symbol_to_name sym1
       sym -> return $ "TODO: 0x" ++ showHex a ++ " lookup in symbol table = " ++ show sym
 
   mk_offset offset
@@ -575,16 +586,16 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
  where
   render_header f_name = render_list "\n" $ map string8
     [ "# Function " ++ f_name
-    , ".text"
-    , ".globl " ++ f_name -- TODO only if exported
-    , ".p2align 4"
-    , ".type " ++ f_name ++ ",@function"
-    , ".cfi_startproc"
+    , withIndent ".text"
+    , withIndent ".globl " ++ f_name -- TODO only if exported
+    , withIndent ".p2align 4"
+    , withIndent ".type " ++ f_name ++ ",@function"
+    , withIndent ".cfi_startproc"
     ]
   render_post f_name first_i last_a = render_list "\n" $ map string8
     [ mk_end_label f_name first_i last_a ++ ":"
-    , ".size " ++ f_name ++ ", " ++ mk_end_label f_name first_i last_a ++ " - " ++ mk_label ellf object (inAddress first_i)
-    , ".cfi_endproc"
+    , withIndent ".size " ++ f_name ++ ", " ++ mk_end_label f_name first_i last_a ++ " - " ++ mk_label ellf object (inAddress first_i)
+    , withIndent ".cfi_endproc"
     , "# End of function " ++ f_name
     ]
 
@@ -650,9 +661,8 @@ render_GAS_instruction bin ellf object (cfi_dirs,_,cfi_addresses) (n,i@(Instruct
     | fromIntegral addr `IS.member` cfi_addresses = string8 $ mk_label ellf object addr ++ ":\n"
     | otherwise = mempty
 
-  render_instr = render_list " " 
-    [ string8 $ indent 2
-    , render_prefix pre
+  render_instr = string8 (withIndent "") <> render_list " " 
+    [ render_prefix pre
     , render_mnemonic op
     , render_operands bin ellf object i op ops
     ]
@@ -868,8 +878,6 @@ escape_string cs = foldMap escape cs
 render_list :: String -> [Builder] -> Builder
 render_list s []     = mempty
 render_list s (b:bs) = b <> mconcat [ stringUtf8 s <> b' | b' <- bs ]
-
-indent n = replicate n ' ' 
 
 first_GE :: Word64 -> (a -> Word64) -> [a] -> Maybe a
 first_GE x f [] = Nothing
