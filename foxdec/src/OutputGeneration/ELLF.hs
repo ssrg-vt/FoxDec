@@ -22,7 +22,8 @@ import Data.JumpTarget
 
 import Parser.ParserCFI
 
-import qualified Data.Map as M
+import qualified Data.Map as M hiding (insertWith)
+import qualified Data.Map.Strict as M (insertWith)
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -255,6 +256,33 @@ mk_llvm_mapping bin ellf (object,fs) = concatMap mk_llvm_mapping_fun fs
   mk_equality l0 l1 = string8 $ "# " ++ l0 ++ " == " ++ l1
 
 
+render_ellf_cfg bin ellf = 
+  case ellf_cfgs ellf of
+    Nothing -> string8 $ "ELLF metadata does not contain CFGs."
+    Just cfgs -> 
+      let mapping = foldr add_edges M.empty $ zip [0..] cfgs in
+        render_list "\n" $ concat
+          [ [string8 "### ELLF CFG EDGES BEGIN ###"]
+          , map render_entry $ M.assocs mapping
+          , [string8 "### ELLF CFG EDGES END ###"] ]
+ where
+  render_entry (from,tos) = string8 $ "# " ++ from ++ " --> " ++ (intercalate ", " $ S.toList tos)
+
+  add_edges (object,edges) m = foldr (add_edge object) m edges
+
+  add_edge object (ELLF_CFG_Edge from to) m =
+    let l0 = bb_idx_to_label object from
+        l1 = bb_idx_to_label object to in
+      M.insertWith S.union l0 (S.singleton l1) m
+
+  bb_idx_to_label object bb_idx =
+    let bb = (ellf_basic_blocks ellf !! object) !! bb_idx
+        f  = (ellf_functions ellf !! object) !! fromIntegral (ellf_bb_function bb)
+        a  = ellf_func_address f + ellf_bb_offset bb in
+      "0x" ++ showHex a
+      -- head $ mk_all_labels ellf (Just object) a
+
+
 
 render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) addresses =
   let cfi'             = (cfi_directives,cfi_lsda_tables,IS.union addresses cfi_addresses)
@@ -266,8 +294,9 @@ render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) add
       --data_sections    = render_list "\n\n\n" $ concatMap (render_data_section_from_globals bin elf ellf cfi') $ zip [0..] $ ellf_globals ellf
       cfi_data_section = [render_list "\n\n\n" $ map string8 $ IM.elems cfi_lsda_tables]
       no_exec_stack    = [string8 $ "# Ensure non-executable stack\n" ++ withIndent ".section .note.GNU-stack,\"\",@progbits"] 
-      llvm_mapping     = [render_list "\n" (string8 "### FOXDEC LLVM BASIC BLOCK MAPPING ###" : concatMap (mk_llvm_mapping bin ellf) (zip [0..] $ ellf_functions ellf))] in
-    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack ++ llvm_mapping
+      llvm_mapping     = [render_list "\n" $ [string8 "### FOXDEC LLVM BASIC BLOCK MAPPING ###"] ++ concatMap (mk_llvm_mapping bin ellf) (zip [0..] $ ellf_functions ellf) ++ [string8 "### FOXDEC LLVM BASIC BLOCK MAPPING END ###"]]
+      cfgs             = [render_ellf_cfg bin ellf] in
+    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack ++ llvm_mapping ++ cfgs
 
 
 render_header bin elf ellf = render_list "\n\n" [mk_intel_syntax, mk_externals]
@@ -617,7 +646,7 @@ render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Bl
       , render_instructions bin ellf object cfi is ]
  where
   render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex (f_address + offset)
-  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset) ++ [f_name ++ "_BB" ++ show idx]
+  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset) ++ [f_name ++ "_BB" ++ show idx] -- TODO LLVM BB label is temporary
   mk_label_def l = l ++ ":"
 
 -- Rendering a list of instructions

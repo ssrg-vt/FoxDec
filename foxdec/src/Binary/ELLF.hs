@@ -125,6 +125,12 @@ data ELLF_Global = ELLF_Global {
  }
  deriving (Eq,Ord,Show)
 
+data ELLF_CFG_Edge = ELLF_CFG_Edge {
+  ellf_cfg_from :: Int,
+  ellf_cfg_to :: Int
+ }
+ deriving (Eq,Ord,Show)
+
 
 data ELLF = ELLF {
   ellf_basic_blocks :: [[ELLF_Basic_Block]], 
@@ -134,12 +140,13 @@ data ELLF = ELLF {
   ellf_pointees :: [[ELLF_Pointee]],
   ellf_sections :: [[ELLF_Section]],
   ellf_layout :: [ELLF_Layout],
-  ellf_globals :: [[ELLF_Global]]
+  ellf_globals :: [[ELLF_Global]],
+  ellf_cfgs :: Maybe [[ELLF_CFG_Edge]]
  }
  deriving (Eq,Ord)
 
 instance Show ELLF where
-  show (ELLF bbs symbols functions pointers pointees sections layout globals) = intercalate "\n" $ 
+  show (ELLF bbs symbols functions pointers pointees sections layout globals cfgs) = intercalate "\n" $ 
     [ "BASIC BLOCKS:"
     , show_list_of_lists 0 bbs
     , "SYMBOLS:"
@@ -156,6 +163,10 @@ instance Show ELLF where
     , show_list layout
     , "GLOBALS:"
     , show_list_of_lists 0 globals
+    , "CFGS:"
+    , case cfgs of
+        Nothing   -> "NO ELLF CFGS" 
+        Just cfgs -> show_list_of_lists 0 cfgs
     ]
    where
      show_list_of_lists :: Show a => Int -> [[a]] -> String
@@ -174,6 +185,7 @@ deriving instance Generic ELLF_Pointee
 deriving instance Generic ELLF_Layout
 deriving instance Generic ELLF_Global
 deriving instance Generic ELLF_Section
+deriving instance Generic ELLF_CFG_Edge
 deriving instance Generic ELLF
 
 instance Cereal.Serialize ELLF_Basic_Block
@@ -184,6 +196,7 @@ instance Cereal.Serialize ELLF_Pointee
 instance Cereal.Serialize ELLF_Section
 instance Cereal.Serialize ELLF_Layout
 instance Cereal.Serialize ELLF_Global
+instance Cereal.Serialize ELLF_CFG_Edge
 instance Cereal.Serialize ELLF
 
 
@@ -198,11 +211,12 @@ read_ellf elf = do
   sections  <- parse_ellf_sections  <$> get_section ".ellf.sections"
   layout    <- return [] -- parse_ellf_layout    <$> get_section ".ellf.layout"
   pointees  <- parse_ellf_pointees  <$> get_section ".ellf.pointees"
-  symbols   <- parse_ellf_symbols  sections <$> get_section ".ellf.symbols"
-  pointers  <- parse_ellf_pointers sections <$> get_section ".ellf.pointers"
-  globals   <- parse_ellf_globals  symbols  <$> get_section ".ellf.globals"
+  symbols   <- parse_ellf_symbols   sections <$> get_section ".ellf.symbols"
+  pointers  <- parse_ellf_pointers  sections <$> get_section ".ellf.pointers"
+  globals   <- parse_ellf_globals   symbols  <$> get_section ".ellf.globals"
   functions <- parse_ellf_functions symbols <$> get_section ".ellf.functions"
-  return $ ELLF bbs symbols functions pointers pointees sections layout globals
+  let cfgs   = parse_ellf_cfgs      <$> get_section ".ellf.cfg"
+  return $ ELLF bbs symbols functions pointers pointees sections layout globals cfgs
  where
   get_section name = find (\s -> elfSectionName s == name) (elfSections elf)
 
@@ -319,7 +333,15 @@ parse_ellf_globals symbols sec = evalState (read_repeat_until_empty 0 get_global
     return $ ELLF_Global symbol_idx a size typ
 
 
-
+-- ellf.cfg:
+parse_ellf_cfgs :: ElfSection  -> [[ELLF_CFG_Edge]]
+parse_ellf_cfgs sec = evalState (read_repeat_until_empty 0 get_cfgs) (elfSectionData sec,0)
+ where
+  get_cfgs = parse_header_then_repeat . parse_cfg
+  parse_cfg count = do
+    from::Word64 <- read_uleb128
+    to::Word64  <- read_uleb128
+    return $ ELLF_CFG_Edge (fromIntegral from) (fromIntegral to)
 
 prevent_name_clashes_in_symbols :: Int -> [[ELLF_Symbol]] -> [[ELLF_Symbol]]
 prevent_name_clashes_in_symbols object [] = []
