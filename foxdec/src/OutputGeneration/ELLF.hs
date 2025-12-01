@@ -182,7 +182,7 @@ fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) 
 -- If there are undefined labels, render the assembly a second time with these known new labels.
 -- After that, some labels may still be undefined, if they do not correspond to any address within any basic block.
 -- We declare those labels as external, with an annotation at the beginning of the assembly file.
-render_ellf bin elf ellf cfi = render_ellf' bin elf ellf cfi IS.empty
+render_ellf bin elf ellf cfi = 
   let txt    = render_ellf' bin elf ellf cfi IS.empty
       undefs = find_undefined_labels txt in
     if IS.null undefs then do
