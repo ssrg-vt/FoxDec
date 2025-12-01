@@ -314,7 +314,7 @@ render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) add
 
 render_header bin elf ellf = render_list "\n\n" [mk_intel_syntax, mk_externals]
  where
-  mk_intel_syntax = string8 ".intel_syntax noprefix"
+  mk_intel_syntax = string8 ".intel_syntax"
 
   mk_externals = render_list "\n" (string8 "# External functions" : map mk_external (S.toList $ externals bin))
   mk_external f = string8 $ ".extern " ++ f
@@ -759,7 +759,7 @@ render_TPOFF_operand bin ellf object ptr op@(Op_Mem si reg idx scale displ seg _
     string8 $ with_size_directive (show_seg seg) si $ show_reg reg ++ ellf_sym_name sym ++ "@TPOFF"
    where
     show_seg Nothing  = ""
-    show_seg (Just r) = show r ++ ":"
+    show_seg (Just r) = "%" ++ show r ++ ":"
     show_reg RegNone = ""
     show_reg reg     = show_register reg ++ " + " 
 
@@ -771,28 +771,28 @@ render_operand_GAS (Op_Mem si reg idx scale displ seg _) =
     (with_size_directive (show_seg seg) si $ part ++ show_displ part displ)
    where
     show_seg Nothing  = ""
-    show_seg (Just r) = show r ++ ":"
+    show_seg (Just r) = "%" ++ show r ++ ":"
     show_reg RegNone = ""
     show_reg reg     = show_register reg
     show_idx_scale _ RegNone 0 = ""
     show_idx_scale _ RegNone 1 = ""
     show_idx_scale _ _       0 = error "todo"
-    show_idx_scale RegNone idx scale = show idx ++ "*" ++ showHex scale
-    show_idx_scale _       idx scale = " + " ++ show idx ++ "*" ++ showHex scale
+    show_idx_scale RegNone idx scale = show_reg idx ++ "*" ++ showHex scale
+    show_idx_scale _       idx scale = " + " ++ show_reg idx ++ "*" ++ showHex scale
     show_displ "" displ = if displ < 0 then " - 0x" ++ showHex (fromIntegral (0-displ)) else "0x" ++ showHex displ
     show_displ _  displ = if displ < 0 then " - 0x" ++ showHex (fromIntegral (0-displ)) else " + 0x" ++ showHex displ
 
 
 -- Render registers in GAS syntax
-show_register (RegFPU ST0) = "ST(0)"
-show_register (RegFPU ST1) = "ST(1)"
-show_register (RegFPU ST2) = "ST(2)"
-show_register (RegFPU ST3) = "ST(3)"
-show_register (RegFPU ST4) = "ST(4)"
-show_register (RegFPU ST5) = "ST(5)"
-show_register (RegFPU ST6) = "ST(6)"
-show_register (RegFPU ST7) = "ST(7)"
-show_register reg = show reg
+show_register (RegFPU ST0) = "%ST(0)"
+show_register (RegFPU ST1) = "%ST(1)"
+show_register (RegFPU ST2) = "%ST(2)"
+show_register (RegFPU ST3) = "%ST(3)"
+show_register (RegFPU ST4) = "%ST(4)"
+show_register (RegFPU ST5) = "%ST(5)"
+show_register (RegFPU ST6) = "%ST(6)"
+show_register (RegFPU ST7) = "%ST(7)"
+show_register reg = "%" ++ show reg
 
 with_size_directive seg (BitSize si) s = mk_size_directive si ++ seg ++ "[" ++ s ++ "]"
  where
@@ -838,7 +838,7 @@ symbolize_address bin ellf object in_data_section a =
     | otherwise = symbolize_address_in_data_section a
 
 
-  withRIP = (if in_data_section then "" else "rip + ")
+  withRIP = (if in_data_section then "" else "%rip + ")
 
   -- TODO: for the last case, check if it is text or data section, then just generate label, otherwise fail
   symbolize_address_in_data_section a = try_ellf_within_global a `orTry` try_GOT_entry a `orTry` try_symbol a `orTry` try_reloc a `orElse` (withRIP ++ mk_label ellf object a) 
@@ -849,10 +849,10 @@ symbolize_address bin ellf object in_data_section a =
 
   try_GOT_entry a =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (sym@(PointerToExternalFunction f))   -> if in_data_section then Nothing else Just $ "rip + " ++ f ++ "@GOTPCREL"
+      Just (sym@(PointerToExternalFunction f))   -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL"
       Just (sym@(PointerToInternalFunction _ _)) -> error $ "TODO: symbolize 0x" ++ showHex a
-      Just (sym@(PointerToObject o _))           -> if in_data_section then Nothing else Just $ "rip + " ++ o ++ "@GOTPCREL"
-      Just (sym@(TLS_Relative f))                -> Just $ "rip  + " ++ f ++ "@GOTTPOFF"
+      Just (sym@(PointerToObject o _))           -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
+      Just (sym@(TLS_Relative f))                -> Just $ "%rip  + " ++ f ++ "@GOTTPOFF"
       Just (sym@(Relocated_ResolvedObject _ _))  -> error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
       _ -> Nothing
 
