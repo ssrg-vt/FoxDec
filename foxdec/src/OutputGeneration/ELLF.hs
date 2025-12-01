@@ -32,6 +32,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Internal (w2c)
 import Data.Word 
 import Data.List
+import Data.List.Extra (firstJust)
 import Data.Functor ((<&>))
 import Data.Int
 import Data.Maybe
@@ -103,31 +104,44 @@ flatten = concatMap (\(a,bs) -> zip (repeat a) bs)
 -- make a label for address a
 mk_label ellf object a = mk_label_strictly_within_object ellf object a `orTry` try_the_symbol a `orTry` try_symbol a `orElse` default_label a
  where
-  try_the_symbol a = (ellf_sym_name . snd) <$> (find is_the_symbol $ flatten $ zip [0..] $ ellf_symbols ellf)
-  is_the_symbol (object,sym) = ellf_sym_address sym == a && ellf_sym_name sym /= ellf_section_name ((ellf_sections ellf !! object) !! (fromIntegral $ ellf_sym_section_idx sym))
-  try_symbol a = ellf_sym_name <$> (find (\sym -> ellf_sym_address sym == a) $ concat $ ellf_symbols ellf)
+  try_the_symbol a = do
+    sym <- firstJust (try_get_the_symbol a) $ zip [0..] $ ellf_symb_map ellf 
+    return $ ellf_sym_name sym
+  try_get_the_symbol a (object,m) = do
+    symbs <- IM.lookup (fromIntegral a) m
+    find (is_the_symbol object) symbs
+  is_the_symbol object sym = ellf_sym_name sym /= ellf_section_name ((ellf_sections ellf !! object) !! (fromIntegral $ ellf_sym_section_idx sym))
+
+  try_symbol a = do
+    sym <- firstJust (try_get_symbol a) $ ellf_symb_map ellf 
+    return $ ellf_sym_name sym
+  try_get_symbol a m = do
+    symbs <- IM.lookup (fromIntegral a) m
+    return $ S.findMin symbs
 
 -- TODO refactor so that it stores defined and undefined variables instead of this ugly hack
 default_label a = "\1.L_0x" ++ showHex a
 
 -- Make a label given the current object, otherwise fail
-mk_label_strictly_within_object ellf object a = try_the_symbol_in_object object 
+mk_label_strictly_within_object ellf object a = do
+  symbs <- IM.lookup (fromIntegral a) (ellf_symb_map ellf !! object)
+  sym <- find is_the_symbol_with_object symbs
+  return $ ellf_sym_name sym 
  where
-  try_the_symbol_in_object a = ellf_sym_name <$> (find is_the_symbol_with_object $ ellf_symbols ellf !! object) 
-  is_the_symbol_with_object sym = ellf_sym_address sym == a && ellf_sym_name sym /= ellf_section_name ((ellf_sections ellf !! object) !! (fromIntegral $ ellf_sym_section_idx sym))
+  is_the_symbol_with_object sym = ellf_sym_name sym /= ellf_section_name ((ellf_sections ellf !! object) !! (fromIntegral $ ellf_sym_section_idx sym))
 
 mk_label_from_symbol ellf object sym = mk_label ellf object $ ellf_sym_address sym
 
 mk_label_from_pointer ellf object ptr = mk_label_strictly_within_object ellf object $ ellf_ptr_address ptr
 
 mk_all_labels ellf _ a = -- Always generate all labels of all objects.
-  case S.toList $ S.fromList $ filter (\sym -> ellf_sym_address sym == a) $ concat $ ellf_symbols ellf of
+  case S.toList $ S.unions $ map (S.map ellf_sym_name . IM.findWithDefault S.empty (fromIntegral a)) $ ellf_symb_map ellf of
     [] -> [default_label a]
-    ls -> S.toList $ S.fromList $ map ellf_sym_name ls
+    ls -> ls
 mk_all_labels ellf (Just object) a = 
-  case S.toList $ S.fromList $ filter (\sym -> ellf_sym_address sym == a) $ ellf_symbols ellf !! object of
-    [] -> [default_label a]
-    ls -> S.toList $ S.fromList $ map (mk_label_from_symbol ellf object) ls
+  case IM.lookup (fromIntegral a) $ ellf_symb_map ellf !! object of
+    Nothing -> [default_label a]
+    Just symbs -> S.toList $ S.map (mk_label_from_symbol ellf object) symbs
 
 
 
@@ -168,7 +182,7 @@ fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) 
 -- If there are undefined labels, render the assembly a second time with these known new labels.
 -- After that, some labels may still be undefined, if they do not correspond to any address within any basic block.
 -- We declare those labels as external, with an annotation at the beginning of the assembly file.
-render_ellf bin elf ellf cfi =
+render_ellf bin elf ellf cfi = 
   let txt    = render_ellf' bin elf ellf cfi IS.empty
       undefs = find_undefined_labels txt in
     if IS.null undefs then do
@@ -211,7 +225,6 @@ render_ellf bin elf ellf cfi =
   undef_msg = "# The following functions should exist within this binary and are called or referenced, but are undefined as they are not in the metadata:"
 
   mk_undef_extern undef = ".extern " ++ undef_to_symbol undef
-
 
 mk_compilation_instructions bin =
   let needed = binary_get_needed_libs bin
@@ -447,24 +460,25 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
   raw_data section is_bss True            _ _  = []
   raw_data section is_bss is_funptr_array a si = 
     let bytes = if is_bss then RD_BSS $ fromIntegral si else RD_ByteString $ BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section in
-      raw_data_with_symbols a si bytes
+      raw_data_with_symbols (fromIntegral a) (fromIntegral si) bytes
  
   raw_data_with_symbols a si bytes
     | raw_data_is_null bytes = []
     | otherwise =
-      let symbols0    = map (fromIntegral . ellf_sym_address) $ filter (\sym -> a <= ellf_sym_address sym && ellf_sym_address sym < a + si) $ all_ellf_symbols optional_object
-          cfi_symbols = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) cfi_addresses
-          symbols     = map fromIntegral $ IS.toAscList $ IS.union cfi_symbols $ IS.fromList symbols0 in
-        raw_data_insert_symbols a symbols bytes
+      let -- symbols0    = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object
+          symbols    = takeWhile (\a' -> a' < a + si) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
+          -- cfi_symbols = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) cfi_addresses
+          -- symbols     = map fromIntegral $ IS.toAscList symbols0 in -- $ IS.union cfi_symbols $ IS.fromList symbols0 in
+        raw_data_insert_symbols (fromIntegral a) symbols bytes
 
-  all_ellf_symbols Nothing    = concat $ ellf_symbols ellf
-  all_ellf_symbols (Just obj) = ellf_symbols ellf !! fromIntegral obj
+  all_ellf_symbol_addresses Nothing    = IS.unions $ map IM.keysSet $ ellf_symb_map ellf
+  all_ellf_symbol_addresses (Just obj) = IM.keysSet $ ellf_symb_map ellf !! fromIntegral obj
 
 
-  raw_data_insert_symbols a [] bytes = render_bytes (fromIntegral a) bytes
+  raw_data_insert_symbols a [] bytes = render_bytes a bytes
   raw_data_insert_symbols a (sym:syms) bytes
-    | a  < sym = render_bytes (fromIntegral a) (raw_data_take (fromIntegral $ sym - a) bytes) ++ raw_data_insert_symbols sym (sym:syms) (raw_data_drop (fromIntegral $ sym - a) bytes)
-    | a == sym = address_to_labels optional_object sym ++ raw_data_insert_symbols a syms bytes
+    | a  < sym = render_bytes a (raw_data_take (sym - a) bytes) ++ raw_data_insert_symbols sym (sym:syms) (raw_data_drop (sym - a) bytes)
+    | a == sym = address_to_labels optional_object (fromIntegral sym) ++ raw_data_insert_symbols a syms bytes
     | otherwise = error $ show a ++  " == 0x" ++ showHex a ++ "\n" ++ show (sym:syms)
 
   address_to_labels Nothing a = map (\l -> string8 (l ++ ":")) $ mk_all_labels ellf Nothing a
@@ -847,13 +861,26 @@ symbolize_address bin ellf object in_data_section a =
 
 
   try_symbol a = do
-    sym <- find (\sym -> ellf_sym_address sym == a) $ concat $ ellf_symbols ellf -- TODO prefer from current object, if fails then see if it matches exactly an elf symbol
+    sym <- firstJust (try_get_symbol a) $ ellf_symb_map ellf 
     return $ withRIP ++ mk_label_from_symbol ellf object sym
+  try_get_symbol a m = do
+    symbs <- IM.lookup (fromIntegral a) m
+    return $ S.findMin symbs
 
-  try_symbol_LE a = 
-    case first_LE a ellf_sym_address (concat $ ellf_symbols ellf) of -- TODO prefer from current object, if fails then see if it matches exactly an elf symbol
-      Just sym -> withRIP ++ mk_label_from_symbol ellf object sym ++ mk_offset (a - ellf_sym_address sym) -- ++ mk_error_message (ellf_sym_address sym) a
-      Nothing  -> error $ "Address 0x" ++ showHex a ++ " does not have a symbol."
+
+  try_symbol_LE a =
+    let sym = find_symbol_LE (fromIntegral a) Nothing $ ellf_symb_map ellf in
+      withRIP ++ mk_label_from_symbol ellf object sym ++ mk_offset (a - ellf_sym_address sym) -- ++ mk_error_message (ellf_sym_address sym) a
+
+  find_symbol_LE a Nothing          [] = error $ "Address 0x" ++ showHex a ++ " does not have a symbol."
+  find_symbol_LE a (Just (a0,sym0)) [] = S.findMin sym0
+  find_symbol_LE a curr (m:ms) = 
+    case (curr,IM.lookupLE a m) of
+      (Just (a0,sym0),Just (a1,sym1)) -> find_symbol_LE a (if a0 > a1 then Just (a0,sym0) else Just (a1,sym1)) ms
+      (Nothing,Just (a1,sym1))        -> find_symbol_LE a (Just (a1,sym1)) ms
+      (Just (a0,sym0),Nothing)        -> find_symbol_LE a (Just (a0,sym0)) ms
+      (Nothing,Nothing)               -> find_symbol_LE a Nothing ms
+    
 
   mk_offset offset
     | offset == 0 = ""

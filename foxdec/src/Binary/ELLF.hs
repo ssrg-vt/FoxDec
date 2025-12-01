@@ -134,19 +134,20 @@ data ELLF_CFG_Edge = ELLF_CFG_Edge {
 
 data ELLF = ELLF {
   ellf_basic_blocks :: [[ELLF_Basic_Block]], 
-  ellf_symbols :: [[ELLF_Symbol]],
-  ellf_functions :: [[ELLF_Function]],
-  ellf_pointers :: [[ELLF_Pointer]],
-  ellf_pointees :: [[ELLF_Pointee]],
-  ellf_sections :: [[ELLF_Section]],
-  ellf_layout :: [ELLF_Layout],
-  ellf_globals :: [[ELLF_Global]],
-  ellf_cfgs :: Maybe [[ELLF_CFG_Edge]]
+  ellf_symbols :: ![[ELLF_Symbol]],
+  ellf_functions :: ![[ELLF_Function]],
+  ellf_pointers :: ![[ELLF_Pointer]],
+  ellf_pointees :: ![[ELLF_Pointee]],
+  ellf_sections :: ![[ELLF_Section]],
+  ellf_layout :: ![ELLF_Layout],
+  ellf_globals :: ![[ELLF_Global]],
+  ellf_cfgs :: !(Maybe [[ELLF_CFG_Edge]]),
+  ellf_symb_map :: [IM.IntMap (S.Set ELLF_Symbol)]
  }
  deriving (Eq,Ord)
 
 instance Show ELLF where
-  show (ELLF bbs symbols functions pointers pointees sections layout globals cfgs) = intercalate "\n" $ 
+  show (ELLF bbs symbols functions pointers pointees sections layout globals cfgs _) = intercalate "\n" $ 
     [ "BASIC BLOCKS:"
     , show_list_of_lists 0 bbs
     , "SYMBOLS:"
@@ -216,10 +217,15 @@ read_ellf elf = do
   globals   <- parse_ellf_globals   symbols  <$> get_section ".ellf.globals"
   functions <- parse_ellf_functions symbols <$> get_section ".ellf.functions"
   let cfgs   = parse_ellf_cfgs      <$> get_section ".ellf.cfg"
-  return $ ELLF bbs symbols functions pointers pointees sections layout globals cfgs
+
+  let m = mk_symb_map symbols
+
+  return $ ELLF bbs symbols functions pointers pointees sections layout globals cfgs m
  where
   get_section name = find (\s -> elfSectionName s == name) (elfSections elf)
 
+
+  mk_symb_map = map (IM.fromListWith S.union . map (\sym -> (fromIntegral $ ellf_sym_address sym,S.singleton sym)))
 
 
 
