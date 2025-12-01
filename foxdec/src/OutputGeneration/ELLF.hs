@@ -120,7 +120,7 @@ mk_label_from_symbol ellf object sym = mk_label ellf object $ ellf_sym_address s
 
 mk_label_from_pointer ellf object ptr = mk_label_strictly_within_object ellf object $ ellf_ptr_address ptr
 
-mk_all_labels ellf Nothing a = 
+mk_all_labels ellf _ a = -- Always generate all labels of all objects.
   case S.toList $ S.fromList $ filter (\sym -> ellf_sym_address sym == a) $ concat $ ellf_symbols ellf of
     [] -> [default_label a]
     ls -> S.toList $ S.fromList $ map ellf_sym_name ls
