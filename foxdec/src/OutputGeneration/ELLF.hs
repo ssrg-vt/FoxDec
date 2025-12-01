@@ -182,7 +182,7 @@ fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) 
 -- If there are undefined labels, render the assembly a second time with these known new labels.
 -- After that, some labels may still be undefined, if they do not correspond to any address within any basic block.
 -- We declare those labels as external, with an annotation at the beginning of the assembly file.
-render_ellf bin elf ellf cfi = 
+render_ellf bin elf ellf cfi = render_ellf' bin elf ellf cfi IS.empty
   let txt    = render_ellf' bin elf ellf cfi IS.empty
       undefs = find_undefined_labels txt in
     if IS.null undefs then do
@@ -679,6 +679,7 @@ render_instruction bin ellf object cfi (n,i) = render_GAS_instruction bin ellf o
   mk_GAS (Instruction addr pre FCOM  [op0,op1] info si) = Instruction addr pre FCOM  [op1] info si
   mk_GAS (Instruction addr pre FCOMP [op0,op1] info si) = Instruction addr pre FCOMP [op1] info si
   mk_GAS (Instruction addr pre FADDP [op0,op1] info si) = Instruction addr pre FADDP [op0] info si
+  mk_GAS (Instruction addr pre FXCH  [op0,op1] info si) = Instruction addr pre FXCH  [op1] info si
   mk_GAS (Instruction addr pre FMUL  [op0,op1] info si)
     | isMem op1 = Instruction addr pre FMUL [op1] info si
     | otherwise = i
@@ -800,7 +801,7 @@ with_size_directive seg (BitSize si) s = mk_size_directive si ++ seg ++ "[" ++ s
   mk_size_directive 16  = "word ptr "
   mk_size_directive 32  = "dword ptr "
   mk_size_directive 64  = "qword ptr "
-  mk_size_directive 80  = "tword ptr "
+  mk_size_directive 80  = "tbyte ptr "
   mk_size_directive 128 = "oword ptr "
   mk_size_directive 256 = "yword ptr "
   mk_size_directive 512 = "zword ptr "
