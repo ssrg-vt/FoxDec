@@ -17,12 +17,10 @@ XED_PREFIX		:= $(XED_DIR)/obj/wkit/lib
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
 FOXED_LIB		:= libfoxed.so
 XED_LIB			:= libxed.so
-FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
 FOXED_DST		:= $(LIB_DIR)/libfoxed.so
 XED_DST			:= $(LIB_DIR)/libxed.so
-FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 
 
 ## =============================================================================
@@ -65,9 +63,9 @@ foxdec:
 ## == INSTALL ==================================================================
 ## =============================================================================
 
-.PHONY: install install-foxdec install-xed install-frontend
+.PHONY: install install-foxdec install-xed
 
-install: install-foxdec install-frontend install-xed
+install: install-foxdec install-xed
 
 install-foxdec:
 	mkdir -p $(CONFIG_DIR)
@@ -78,7 +76,3 @@ install-foxdec:
 install-xed:
 	cp $(STAGING_DIR)/$(FOXED_LIB) $(FOXED_DST)
 	cp $(STAGING_DIR)/$(XED_LIB)   $(XED_DST)
-
-install-frontend:
-	cp $(SRC_DIR)/$(FRONTEND_PY) $(FRONTEND_DST)
-	chmod +x $(FRONTEND_DST)
