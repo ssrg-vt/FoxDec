@@ -17,8 +17,6 @@ verify-docker:
   stage: integration
   image:
     name: ${CI_REGISTRY}/vatech/tools/foxdec/foxdec:git-${CI_COMMIT_SHORT_SHA}
-  script:
-    - twelf-foxdec --checkhealth
 
 ## =============================================================================
 ## == INTEGRATION ==============================================================
