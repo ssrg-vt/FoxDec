@@ -13,11 +13,6 @@ deploy-docker:
   script:
     - TAGS=git-${CI_COMMIT_SHORT_SHA} NAME=foxdec DOCKERFILE=ci/Dockerfile /build.sh
 
-verify-docker:
-  stage: integration
-  image:
-    name: ${CI_REGISTRY}/vatech/tools/foxdec/foxdec:git-${CI_COMMIT_SHORT_SHA}
-
 ## =============================================================================
 ## == INTEGRATION ==============================================================
 ## =============================================================================
