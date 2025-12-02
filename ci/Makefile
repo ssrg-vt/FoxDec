@@ -17,12 +17,10 @@ XED_PREFIX		:= $(XED_DIR)/obj/wkit/lib
 FOXDEC_BIN		:= $(FOXDEC_PREFIX)/foxdec-exe
 FOXED_LIB		:= libfoxed.so
 XED_LIB			:= libxed.so
-FRONTEND_PY		:= ci/twelf-foxdec.py
 
 FOXDEC_DST		:= $(BIN_DIR)/foxdec
 FOXED_DST		:= $(LIB_DIR)/libfoxed.so
 XED_DST			:= $(LIB_DIR)/libxed.so
-FRONTEND_DST	:= $(BIN_DIR)/twelf-foxdec
 
 
 ## =============================================================================
