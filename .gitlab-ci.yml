@@ -17,28 +17,8 @@ deploy-docker:
 ## == INTEGRATION ==============================================================
 ## =============================================================================
 
-.integration_template:
+trigger-integration:
   stage: integration
   needs: [deploy-docker]
   trigger:
-    branch: ellf-2
-
-trigger-analyze-image:
-  extends: .integration_template
-  trigger:
-    project: vatech/integration-2/analyze-image
-
-trigger-lamartine:
-  extends: .integration_template
-  trigger:
-    project: vatech/integration-2/lamartine
-
-trigger-openalpr:
-  extends: .integration_template
-  trigger:
-    project: vatech/integration-2/openalpr
-
-trigger-guestbook:
-  extends: .integration_template
-  trigger:
-    project: vatech/integration-1/guestbook-builds-vcpkg
+    project: vatech/tools/ellf-2.0
