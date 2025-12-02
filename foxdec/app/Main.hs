@@ -55,6 +55,8 @@ import OutputGeneration.NASM.NASM
 
 import Algorithm.Graph
 
+import Paths_foxdec (version)
+import Data.Version (showVersion)
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -104,12 +106,13 @@ data CommandLineArgs = CommandLineArgs
     args_generate_callgraph :: Bool,       -- ^ Shall we generate an annotated call graph?
     args_generate_ellf      :: Bool,       -- ^ Shall we generate a lifted ELLF?
     args_help               :: Bool,       -- ^ Shall we output a help message?
-    args_verbose            :: Bool        -- ^ Shall we produce verbose output?
+    args_verbose            :: Bool,       -- ^ Shall we produce verbose output?
+    args_version            :: Bool        -- ^ Shall we output the version number and quit?
   }
  deriving Show
 
 -- | Default values for command-line arguments
-defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False False
+defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False False False
 
 -- | The command-line arguments and their types
 args =
@@ -125,6 +128,7 @@ args =
     , Option []        ["Gfuncs"]     (NoArg  set_args_generate_functions)          "Generate per function a control flow graph (CFG) and information."
     , Option []        ["Gmetrics"]   (NoArg  set_args_generate_metrics)            "Generate metrics in .metrics.txt file."
     , Option []        ["Gellf"]      (NoArg  set_args_generate_ellf)               "Generate a lifted representation of an ELLF in .S file."
+    , Option []        ["version"]    (NoArg  set_args_generate_version)            "Print out FoxDec version number and quit."
     ]
  where
   set_args_config    str      args = args { args_config = str }
@@ -139,6 +143,7 @@ args =
   set_args_generate_ellf      args = args { args_generate_ellf = True }
   set_args_help               args = args { args_help = True }
   set_args_verbose            args = args { args_verbose = True }
+  set_args_generate_version   args = args { args_version = True }
 
 -- | Parse argv into a CommandLineArgs 
 parseCommandLineArgs :: [String] -> IO CommandLineArgs
@@ -152,6 +157,8 @@ parseCommandLineArgs argv =
   inputChecking args = do
     -- when help is requested, output usage message and exit
     when (args_help args) $ putStrLn usageMsg >> exitSuccess
+    -- when version number is requested, output version number and exit
+    when (args_version args) $ putStrLn versionNumber >> exitSuccess
     -- check if arguments make sense 
     when (args_config args    == "") $ err "ERROR: No config file specified (missing -c)"
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
@@ -168,6 +175,9 @@ parseCommandLineArgs argv =
 
   no_output args = all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM,args_generate_ellf]
   validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM] else True
+
+-- | The version number
+versionNumber = showVersion version
 
 -- | The full usage message
 usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
