@@ -269,6 +269,7 @@ mk_llvm_mapping bin ellf (object,fs) = concatMap mk_llvm_mapping_fun fs
   mk_equality l0 l1 = string8 $ "# " ++ l0 ++ " == " ++ l1
 
 
+-- Render the CFGs if the binary contains a .ellf.cfg section
 render_ellf_cfg bin ellf = 
   case ellf_cfgs ellf of
     Nothing -> string8 $ "ELLF metadata does not contain CFGs."
@@ -382,8 +383,12 @@ render_data_section_from_globals bin elf ellf cfi (object,globals) = render_data
     
 
 
-get_sections_from_globals elf globals = S.toList $ S.fromList $ concatMap toSection globals
+get_sections_from_globals elf globals = S.toList $ S.fromList $ concatMap toSection globals ++ find_data_rel_ro
  where
+  find_data_rel_ro =
+    case find (\s -> elfSectionName s == ".data.rel.ro") $ elfSections elf of
+      Nothing -> []
+      Just s  -> [(elfSectionAddr s,elfSectionSize s)]
   toSection g =
     case find (contains_address (ellf_global_address g)) $ elfSections elf of
       Nothing -> []
@@ -852,7 +857,7 @@ symbolize_address bin ellf object in_data_section a =
       Just (sym@(PointerToExternalFunction f))   -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL"
       Just (sym@(PointerToInternalFunction _ _)) -> error $ "TODO: symbolize 0x" ++ showHex a
       Just (sym@(PointerToObject o _))           -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
-      Just (sym@(TLS_Relative f))                -> Just $ "%rip  + " ++ f ++ "@GOTTPOFF"
+      Just (sym@(TLS_Relative f))                -> Just $ withRIP ++ f ++ "@GOTTPOFF"
       Just (sym@(Relocated_ResolvedObject _ _))  -> error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
       _ -> Nothing
 
