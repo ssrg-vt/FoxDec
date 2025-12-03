@@ -545,14 +545,19 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
         Nothing  -> string8 $ withIndent ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend
   -- The following case should never happen, but is a sane default in case the ellf metadata is wrong
   render_pointee elf_section object ptr_a pte@(ELLF_Pointee base 0 addend) 4 =
-     let sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
+     let --sym1  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
+         --base_address = ellf_sym_address sym1
+
          bytes = read_bytes elf_section ptr_a 4
          diff  = evalState read_sint32 (bytes,0)
-         base_address = ellf_sym_address sym1
-         trgt_address = base_address - fromIntegral diff in
+         -- trgt_address = base_address - fromIntegral diff in
+         
+         trgt_address = (fromIntegral <$> IS.lookupLE (fromIntegral ptr_a) all_LEA_addresses) `orElse` fromIntegral ptr_a
+         base_address = trgt_address + diff in
          string8 $ concat 
-           [ withIndent ".long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
-           , " # DEVIATION FROM ELLF METADATA AS TARGET==0 "
+           -- [ withIndent ".long " ++ (mk_label ellf object base_address ++ mk_offset addend) ++ " - ."
+           [ withIndent ".long " ++ (mk_label ellf object base_address) ++ " - " ++ (mk_label ellf object trgt_address)
+           , " # DEVIATION FROM ELLF METADATA AS TARGET==0. PICKING AS BASE 0x" ++ showHex base_address ++ " AND AS TARGET 0x" ++ showHex trgt_address
            -- , " DEBUG: base == 0x" ++ showHex base_address ++ ", trgt == 0x" ++ showHex trgt_address ++ ", bytes = 0x" ++ showHex diff ]
            ]
   -- Rendering a pointer diff
@@ -575,6 +580,8 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
            ]
 
   read_bytes elf_section a si = BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr elf_section) $ elfSectionData elf_section
+
+  all_LEA_addresses = get_all_LEA_addresses bin ellf
 
 
   try_render_reloc_for a = do
@@ -616,6 +623,29 @@ raw_data_drop n (RD_BSS si) = RD_BSS $ si - n
 
 -- Rendering a list of functions
 render_functions bin ellf cfi (object,fs) = render_list "\n\n\n" $ map (render_function bin ellf cfi object) fs
+
+
+get_all_LEA_addresses :: BinaryClass bin => bin -> ELLF -> IS.IntSet
+get_all_LEA_addresses bin ellf = IS.unions $ map get_LEAs_funcs $ zip [0..] $ ellf_functions ellf
+ where
+  get_LEAs_funcs (object,fs) = IS.unions $ map (get_LEAs_func object) fs
+  get_LEAs_func object f@(ELLF_Function symb_idx first_bb last_bb f_address) = 
+    let bbs = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object in
+      IS.unions $ map (get_LEAs_bb object f f_address) bbs
+  get_LEAs_bb object f f_address bb =
+    let instrs = fetch_basic_block bin ellf object f f_address bb in
+      IS.fromList $ mapMaybe get_LEA_operand_address $ filter is_LEA instrs
+  is_LEA i = inOperation i == LEA
+
+  get_LEA_operand_address i = 
+    case get_RIP_relative (inOperands i !! 1) of
+      Nothing    -> Nothing
+      Just displ -> Just $ fromIntegral $ fromIntegral (inAddress i) + fromIntegral (inSize i) + displ
+
+  get_RIP_relative (Op_Mem si (Reg64 RIP) RegNone _ displ Nothing _) = Just displ
+  get_RIP_relative _ = Nothing
+
+
 
 -- Rendering a function
 render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f_address) =
