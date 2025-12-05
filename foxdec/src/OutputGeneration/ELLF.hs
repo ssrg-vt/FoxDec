@@ -709,6 +709,7 @@ render_instruction bin ellf object cfi (n,i) = render_GAS_instruction bin ellf o
   -- TODO double check this, and expand
   mk_GAS (Instruction addr pre FSTP  [op0,op1] info si) = Instruction addr pre FSTP  [op0] info si
   mk_GAS (Instruction addr pre FISTP [op0,op1] info si) = Instruction addr pre FISTP [op0] info si
+  mk_GAS (Instruction addr pre FIST  [op0,op1] info si) = Instruction addr pre FISTP [op0] info si
   mk_GAS (Instruction addr pre FLD   [op0,op1] info si) = Instruction addr pre FLD   [op1] info si
   mk_GAS (Instruction addr pre FILD  [op0,op1] info si) = Instruction addr pre FILD  [op1] info si
   mk_GAS (Instruction addr pre FCOM  [op0,op1] info si) = Instruction addr pre FCOM  [op1] info si
