@@ -673,7 +673,7 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     ]
   render_post f_name first_i last_a = render_list "\n" $ map string8
     [ mk_end_label f_name first_i last_a ++ ":"
-    , withIndent ".size " ++ f_name ++ ", " ++ mk_end_label f_name first_i last_a ++ " - " ++ mk_label ellf object (inAddress first_i)
+    , withIndent ".size " ++ f_name ++ ", " ++ mk_end_label f_name first_i last_a ++ " - " ++ (f_name ++ "_BB0") -- mk_label ellf object (inAddress first_i)
     , withIndent ".cfi_endproc"
     , "# End of function " ++ f_name
     ]
