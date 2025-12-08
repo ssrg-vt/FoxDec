@@ -880,7 +880,7 @@ symbolize_address bin ellf object in_data_section a =
   symbolize_address_in_data_section a = try_ellf_within_global a `orTry` try_GOT_entry a `orTry` try_symbol a `orTry` try_reloc a `orElse` (withRIP ++ mk_label ellf object a) 
 
   try_ellf_within_global a = do
-    g <- find (\g -> ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g) $ concat $ ellf_globals ellf
+    g <- find (\g -> ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object -- concat $ ellf_globals ellf
     return $ try_symbol_LE a
 
   try_GOT_entry a =
