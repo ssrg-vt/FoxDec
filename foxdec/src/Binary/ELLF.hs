@@ -33,7 +33,7 @@ import Data.Functor ((<&>))
 import Data.Int
 import Data.Maybe
 import Data.Elf
-import Data.Char (showLitChar,isAscii,isHexDigit)
+import Data.Char (toLower,showLitChar,isAscii,isHexDigit)
 
 
 import Data.Serialize.LEB128.Lenient 
@@ -251,9 +251,12 @@ parse_ellf_symbols sections sec = prevent_name_clashes_in_symbols 0 $ remove_unn
     let section_table = sections !! count    
     let section = section_table !! fromIntegral section_idx
     let address = offset + ellf_section_address section
-    let name'   = if ".__ELLF_ANCHOR_" `isPrefixOf` name then name ++ "_0x" ++ showHex address else name
+    let name'   = mk_name name address
     return $ ELLF_Symbol section_idx address name' offset
-
+  mk_name name address
+    | ".__ELLF_ANCHOR_" `isPrefixOf` name = name ++ "_0x" ++ showHex address
+    | map toLower name == "offset" = ".L_FOXDEC_NAME_CORRECTION_" ++ name -- Not an allowed name in GAS (at least under Intel syntax)
+    | otherwise = name
 
 -- ellf.sections:
 parse_ellf_sections :: ElfSection  -> [[ELLF_Section]]

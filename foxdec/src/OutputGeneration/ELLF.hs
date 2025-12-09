@@ -233,7 +233,7 @@ mk_compilation_instructions bin =
     "# " ++ (if is_cpp then "g++" else "gcc") ++ " -o " ++ name ++ "_ " ++ name ++ ".S " ++ intercalate " " (concatMap show_needed $ S.toList needed) ++ "\n\n"
  where
   show_needed lib
-    | any (\p -> p `isPrefixOf` lib) ["libc.", "libgcc", "libstdc++."] = []
+    | any (\p -> p `isPrefixOf` lib) ["libc.", "libgcc", "libstdc++.", "ld-"] = []
     | otherwise = ["-l" ++ (takeWhile ((/=) '.') $ drop 3 lib)]
 
 
