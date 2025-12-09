@@ -667,7 +667,7 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     , if binary_is_cpp bin then ("# Demangled " ++) <$> (demangle f_name) else Nothing
     , Just $ withIndent ".text"
     , Just $ withIndent ".globl " ++ f_name -- TODO only if exported
-    , Just $ withIndent ".weak" ++ f_name -- TODO only if exported
+    , Just $ withIndent ".weak " ++ f_name -- TODO only if exported
     , Just $ withIndent ".p2align 4"
     , Just $ withIndent ".type " ++ f_name ++ ",@function"
     , Just $ withIndent ".cfi_startproc"
