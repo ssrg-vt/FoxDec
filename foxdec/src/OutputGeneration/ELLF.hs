@@ -341,13 +341,14 @@ external_objects l@(bin,_,l0) = map symbol_to_name $ filter is_relocation $ IM.e
   is_relocation _ = False
 
 
-get_section_by_name elf name = map (\s -> (elfSectionAddr s,elfSectionSize s)) $ filter (\s -> elfSectionName s == name) $ elfSections elf
+get_section_by_name elf name = filter (\s -> elfSectionName s == name) $ elfSections elf
 
 
 
 
 
 -- RENDERING DATA SECTIONS
+{--
 -- Render data sections provided by ELLF globals
 render_data_section_from_globals bin elf ellf cfi (object,globals) = render_data_sections_merged $ group overlaps $ sortBy compareStartAddress globals
  where
@@ -380,19 +381,19 @@ render_data_section_from_globals bin elf ellf cfi (object,globals) = render_data
     | otherwise = 
       let (matches,rest) = mk_group r as bs in
         (matches,b:rest)
-    
+    --}
 
 
-get_sections_from_globals elf globals = S.toList $ S.fromList $ concatMap toSection globals ++ find_data_rel_ro
+get_sections_from_globals elf globals = nub $ concatMap toSection globals ++ find_data_rel_ro
  where
   find_data_rel_ro =
     case find (\s -> elfSectionName s == ".data.rel.ro") $ elfSections elf of
       Nothing -> []
-      Just s  -> [(elfSectionAddr s,elfSectionSize s)]
+      Just s  -> [s]
   toSection g =
     case find (contains_address (ellf_global_address g)) $ elfSections elf of
       Nothing -> []
-      Just s  -> [(elfSectionAddr s,elfSectionSize s)]
+      Just s  -> [s]
   contains_address a section =
     let a0  = elfSectionAddr section
         si0 = elfSectionSize section in
@@ -405,13 +406,15 @@ render_elf_data_sections bin elf ellf cfi sections = render_list "\n\n\n" $ conc
 
 
 -- Render a data section given a starting address and a size
-render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (0,si) = mempty
-render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (_,0)  = mempty
-render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) =
-  case find (contains_address a si) $ elfSections elf of
-    Nothing -> [string8 $ "ERROR: Cannot find section for: " ++ show (a,si)]
-    Just section -> if is_relevant_data_section section then [render_section section a si] else []
+render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
+  | elfSectionAddr section == 0 = mempty
+  | elfSectionSize section == 0 = mempty
+  | not (is_relevant_data_section section) = mempty
+  | otherwise = [render_section section a si]
  where
+  a  = elfSectionAddr section
+  si = elfSectionSize section
+
   -- Consider non-executable sections except for the CFI related ones
   is_relevant_data_section section = and
     [ SHF_ALLOC `elem` elfSectionFlags section || is_bss section
@@ -460,18 +463,19 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object (a,si) 
   all_ellf_pointers Nothing    = flatten $ zip [0..] $ ellf_pointers ellf
   all_ellf_pointers (Just obj) = flatten $ [(obj,ellf_pointers ellf !! fromIntegral obj)]
 
+
   -- Render raw data, but insert labels of symbols from .ellf.symbols as well as from the CFI directives.
   raw_data section is_bss is_funptr_array a 0  = []
   raw_data section is_bss True            _ _  = []
   raw_data section is_bss is_funptr_array a si = 
     let bytes = if is_bss then RD_BSS $ fromIntegral si else RD_ByteString $ BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section in
-      raw_data_with_symbols (fromIntegral a) (fromIntegral si) bytes
+      raw_data_with_symbols (fromIntegral a) (fromIntegral si) is_funptr_array bytes
  
-  raw_data_with_symbols a si bytes
+  raw_data_with_symbols a si is_funptr_array bytes
     | raw_data_is_null bytes = []
     | otherwise =
       let -- symbols0    = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object
-          symbols    = takeWhile (\a' -> a' < a + si) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
+          symbols    = if is_funptr_array then [] else takeWhile (\a' -> a' < a + si) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
           -- cfi_symbols = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) cfi_addresses
           -- symbols     = map fromIntegral $ IS.toAscList symbols0 in -- $ IS.union cfi_symbols $ IS.fromList symbols0 in
         raw_data_insert_symbols (fromIntegral a) symbols bytes
@@ -840,7 +844,7 @@ with_size_directive seg (BitSize si) s = mk_size_directive si ++ seg ++ "[" ++ s
   mk_size_directive 64  = "qword ptr "
   mk_size_directive 80  = "tbyte ptr "
   mk_size_directive 128 = "oword ptr "
-  mk_size_directive 256 = "yword ptr "
+  mk_size_directive 256 = "ymmword ptr "
   mk_size_directive 512 = "zword ptr "
 
 
