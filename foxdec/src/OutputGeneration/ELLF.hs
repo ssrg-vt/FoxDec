@@ -543,7 +543,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
     let base_symbol  = (ellf_symbols ellf !! fromIntegral object) !! fromIntegral base
         base_address = ellf_sym_address base_symbol in
       if base_address == 1 then -- ELLF_EXTERN
-        string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]")) ++ mk_offset addend
+        string8 $ (try_render_reloc_for ptr_a `orTry` try_render_symbol_at ptr_a `orElse` ("ERROR: *[0x" ++ showHex ptr_a ++ "]"))
       else case try_render_reloc_for ptr_a of
         Just str -> string8 $ str ++ " # RELOC"
         Nothing  -> string8 $ withIndent ".quad " ++ ellf_sym_name base_symbol ++ mk_offset addend
