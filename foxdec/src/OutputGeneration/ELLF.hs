@@ -82,7 +82,7 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
     -- putStrLn $ show ellf
     let dirname  = binary_dir_name bin
     let name     = binary_file_name bin
-    let fname    = dirname ++ name ++ ".S" 
+    let fname    = dirname ++ name ++ ".s" 
 
     let cfi = parse_ehframe elf (symbolize bin ellf)
     let txt = render_ellf bin elf ellf cfi
@@ -667,6 +667,7 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     , if binary_is_cpp bin then ("# Demangled " ++) <$> (demangle f_name) else Nothing
     , Just $ withIndent ".text"
     , Just $ withIndent ".globl " ++ f_name -- TODO only if exported
+    , Just $ withIndent ".weak" ++ f_name -- TODO only if exported
     , Just $ withIndent ".p2align 4"
     , Just $ withIndent ".type " ++ f_name ++ ",@function"
     , Just $ withIndent ".cfi_startproc"
@@ -880,7 +881,7 @@ symbolize_address bin ellf object in_data_section a =
   symbolize_address_in_data_section a = try_ellf_within_global a `orTry` try_GOT_entry a `orTry` try_symbol a `orTry` try_reloc a `orElse` (withRIP ++ mk_label ellf object a) 
 
   try_ellf_within_global a = do
-    g <- find (\g -> ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object -- concat $ ellf_globals ellf
+    g <- find (\g -> ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object
     return $ try_symbol_LE a
 
   try_GOT_entry a =
@@ -929,7 +930,7 @@ symbolize_address bin ellf object in_data_section a =
     | a == a' = ""
     | in_text_section a' = ""
     | otherwise = 
-      case find (\g -> ellf_global_address g <= a' &&  a' < ellf_global_address g + ellf_global_size g) $ concat $ ellf_globals ellf of
+      case find (\g -> ellf_global_address g <= a' &&  a' < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object of
         Just g  -> 
           if ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g then
             ""
