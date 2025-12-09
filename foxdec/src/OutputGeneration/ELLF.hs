@@ -82,7 +82,7 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
     -- putStrLn $ show ellf
     let dirname  = binary_dir_name bin
     let name     = binary_file_name bin
-    let fname    = dirname ++ name ++ ".s" 
+    let fname    = dirname ++ name ++ ".S" 
 
     let cfi = parse_ehframe elf (symbolize bin ellf)
     let txt = render_ellf bin elf ellf cfi
