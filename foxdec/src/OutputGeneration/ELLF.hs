@@ -882,7 +882,9 @@ symbolize_address bin ellf object in_data_section a =
   withRIP = (if in_data_section then "" else "%rip + ")
 
   -- TODO: for the last case, check if it is text or data section, then just generate label, otherwise fail
-  symbolize_address_in_data_section a = try_ellf_within_global a `orTry` try_GOT_entry a `orTry` try_symbol a `orTry` try_reloc a `orElse` (withRIP ++ mk_label ellf object a) 
+  symbolize_address_in_data_section a = try_ellf_within_global a `orTry` try_GOT_entry a `orTry` try_symbol a `orTry` try_reloc a `orElse` mk_default_label a
+
+  mk_default_label a = withRIP ++ mk_label ellf object a -- ++ mk_error_message a
 
   try_ellf_within_global a = do
     g <- find (\g -> ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object
@@ -912,7 +914,7 @@ symbolize_address bin ellf object in_data_section a =
 
   try_symbol_LE a =
     let sym = find_symbol_LE (fromIntegral a) Nothing $ ellf_symb_map ellf in
-      withRIP ++ mk_label_from_symbol ellf object sym ++ mk_offset (a - ellf_sym_address sym) -- ++ mk_error_message (ellf_sym_address sym) a
+      withRIP ++ mk_label_from_symbol ellf object sym ++ mk_offset (a - ellf_sym_address sym)
 
   find_symbol_LE a Nothing          [] = error $ "Address 0x" ++ showHex a ++ " does not have a symbol."
   find_symbol_LE a (Just (a0,sym0)) [] = S.findMin sym0
@@ -930,21 +932,7 @@ symbolize_address bin ellf object in_data_section a =
     | otherwise = " + 0x" ++ showHex offset
 
 
-  mk_error_message a a'
-    | a == a' = ""
-    | in_text_section a' = ""
-    | otherwise = 
-      case find (\g -> ellf_global_address g <= a' &&  a' < ellf_global_address g + ellf_global_size g) $ ellf_globals ellf !! object of
-        Just g  -> 
-          if ellf_global_address g <= a &&  a < ellf_global_address g + ellf_global_size g then
-            ""
-          else 
-            "<ERROR: ADDRESS 0x" ++ showHex a' ++ " HAS GLOBAL " ++ show g ++ " WHICH DOES NOT CONTAIN ADDRESS 0x" ++ showHex a ++ " = " ++ showHex a' ++ " - 0x" ++ showHex (a-a') ++ ">"
-        Nothing -> 
-          if (find (is_reloc_loc a') $ (binary_get_relocations bin)) == Nothing then
-            "<ERROR: ADDRESS 0x" ++ showHex a' ++ " DOES NOT HAVE A GLOBAL, sym == " ++ show (IM.lookup (fromIntegral a') $ binary_get_symbol_table bin) ++ ">"
-          else
-            "" 
+  mk_error_message a = "ADDRESS 0x" ++ showHex a ++ " HAS NO ENCOMPASSING GLOBAL"
 
   in_text_section a = 
     case find (contains_address a) $ elfSections $ fromJust $ get_elf bin of
