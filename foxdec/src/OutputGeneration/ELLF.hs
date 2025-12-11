@@ -444,7 +444,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   mk_data_section section is_bss is_funptr_array a si =
     case find_next_pointer a si of
        Nothing  -> raw_data section is_bss is_funptr_array a si
-       Just (object,ptr) -> 
+       Just (Left (object,ptr)) -> 
           let ptr_a  = ellf_ptr_address ptr
               pte    = (ellf_pointees ellf  !! fromIntegral object) !! (fromIntegral $ ellf_ptr_pointee_idx ptr)
               pte_si = pointee_size ptr pte
@@ -453,15 +453,34 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
               part2  = [render_pointee section object ptr_a pte pte_si]
               part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
+       Just (Right (Relocation ptr_a a1)) ->
+          let pte_si = 8
+              part0  = raw_data section is_bss is_funptr_array a (ptr_a - a)
+              part1  = if is_funptr_array then [] else address_to_labels optional_object ptr_a 
+              part2  = mk_reloc is_funptr_array a1 
+              part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
+            part0 ++ part1 ++ part2 ++ part3
+
+
+  -- Within .init_array or .fini_array not all relocs need to be included (e.g. frame_dummy)
+  mk_reloc is_funptr_array a1
+    | is_funptr_array && not (is_function_entry a) = [string8 $ withIndent "# .quad " ++ head (mk_all_labels ellf optional_object a1) ++ " # RELOC NOT IN ELLF METADATA"]
+    | otherwise                                    = [string8 $ withIndent ".quad " ++ head (mk_all_labels ellf optional_object a1) ++ " # DEVIATION AS RELOC IS NOT IN ELLF METADATA"]
+  is_function_entry a = a `elem` map ellf_func_address (concat $ ellf_functions ellf)
+
+
 
   -- Find the next entry in .ellf.pointer
   find_next_pointer a si =
-    case first_GE a (ellf_ptr_address . snd) $ all_ellf_pointers optional_object of
-      Nothing  -> Nothing
-      Just (object,ptr) -> if ellf_ptr_address ptr < a + si then Just (object,ptr) else Nothing
+    case (first_GE a (a+si) (ellf_ptr_address . snd) $ all_ellf_pointers optional_object, first_GE a (a+si) (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin) of
+      (Nothing,Nothing) -> Nothing
+      (Just (object,ptr),Nothing) -> Just (Left (object,ptr))
+      (Nothing,Just reloc) -> Just (Right reloc)
+      (Just (object,ptr),Just reloc@(Relocation a0 a1)) -> if a0 < ellf_ptr_address ptr then Just (Right reloc) else Just $ Left (object,ptr)
 
   all_ellf_pointers Nothing    = flatten $ zip [0..] $ ellf_pointers ellf
   all_ellf_pointers (Just obj) = flatten $ [(obj,ellf_pointers ellf !! fromIntegral obj)]
+
 
 
   -- Render raw data, but insert labels of symbols from .ellf.symbols as well as from the CFI directives.
@@ -966,16 +985,16 @@ render_list :: String -> [Builder] -> Builder
 render_list s []     = mempty
 render_list s (b:bs) = b <> mconcat [ stringUtf8 s <> b' | b' <- bs ]
 
-first_GE :: Word64 -> (a -> Word64) -> [a] -> Maybe a
-first_GE x f [] = Nothing
-first_GE x f (a:as)
-  | f a >= x  = Just $ first_GE' x a as
-  | otherwise = first_GE x f as
+first_GE :: Word64 -> Word64 -> (a -> Word64) -> [a] -> Maybe a
+first_GE x y f [] = Nothing
+first_GE x y f (a:as)
+  | f a >= x && f a < y = Just $ first_GE' x y a as
+  | otherwise = first_GE x y f as
  where
-  first_GE' x a [] = a
-  first_GE' x a (b:bs) 
-    | x <= f b && f b < f a = first_GE' x b bs
-    | otherwise             = first_GE' x a bs
+  first_GE' x y a [] = a
+  first_GE' x y a (b:bs) 
+    | x <= f b && f b < y && f b < f a = first_GE' x y b bs
+    | otherwise                        = first_GE' x y a bs
 
 
 
