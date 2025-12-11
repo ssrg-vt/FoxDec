@@ -463,8 +463,9 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
 
 
   -- Within .init_array or .fini_array not all relocs need to be included (e.g. frame_dummy)
+  -- the tail makes it not add \1 (see default_label)
   mk_reloc is_funptr_array a1
-    | is_funptr_array && not (is_function_entry a) = [string8 $ withIndent "# .quad " ++ head (mk_all_labels ellf optional_object a1) ++ " # RELOC NOT IN ELLF METADATA"]
+    | is_funptr_array && not (is_function_entry a) = [string8 $ withIndent "# .quad " ++ tail (head (mk_all_labels ellf optional_object a1)) ++ " # RELOC NOT IN ELLF METADATA"] 
     | otherwise                                    = [string8 $ withIndent ".quad " ++ head (mk_all_labels ellf optional_object a1) ++ " # DEVIATION AS RELOC IS NOT IN ELLF METADATA"]
   is_function_entry a = a `elem` map ellf_func_address (concat $ ellf_functions ellf)
 
