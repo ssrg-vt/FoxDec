@@ -255,7 +255,7 @@ parse_ellf_symbols sections sec = prevent_name_clashes_in_symbols 0 $ remove_unn
     return $ ELLF_Symbol section_idx address name' offset
   mk_name name address
     | ".__ELLF_ANCHOR_" `isPrefixOf` name = name ++ "_0x" ++ showHex address
-    | map toLower name `elem` ["offset", "and", "or", "xor", "shl", "shr", "lt", "gt", "eq", "ne","short"]  = ".L_FOXDEC_NAME_CORRECTION_" ++ name -- Not allowed names in GAS (at least under Intel syntax)
+    | map toLower name `elem` ["offset", "and", "or", "xor", "shl", "shr", "lt", "gt", "eq", "ne","short", "not"]  = ".L_FOXDEC_NAME_CORRECTION_" ++ name -- Not allowed names in GAS (at least under Intel syntax)
     | otherwise = name
 
 -- ellf.sections:
