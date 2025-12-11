@@ -927,7 +927,11 @@ symbolize_address bin ellf object in_data_section a =
 
   try_reloc a = do
     Relocation a0 a1 <- find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin
-    return $ withRIP ++ mk_label ellf object a1 ++ "@GOTPCREL"
+    sec <- find (contains_address a) $ elfSections $ fromJust $ get_elf bin
+    if isInfixOf ".got" $ elfSectionName sec then
+      return $ withRIP ++ mk_label ellf object a1 ++ "@GOTPCREL"
+    else
+      return $ withRIP ++ mk_label ellf object a0
 
 
   try_symbol a = do
