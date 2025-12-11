@@ -442,7 +442,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   -- Two things happen here: relocations from the .ellf.pointers sections are symbolized, and labels are inserted.
   -- If the section is an array of function pointers (.init_array, .fini_array) make sure that only funciton pointers are rendered
   mk_data_section section is_bss is_funptr_array a si =
-    case find_next_pointer a si of
+    case find_next_pointer is_bss a si of
        Nothing  -> raw_data section is_bss is_funptr_array a si
        Just (Left (object,ptr)) -> 
           let ptr_a  = ellf_ptr_address ptr
@@ -472,8 +472,8 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
 
 
   -- Find the next entry in .ellf.pointer
-  find_next_pointer a si =
-    case (first_GE a (a+si) (ellf_ptr_address . snd) $ all_ellf_pointers optional_object, first_GE a (a+si) (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin) of
+  find_next_pointer is_bss a si =
+    case (first_GE a (a+si) (ellf_ptr_address . snd) $ all_ellf_pointers optional_object, if is_bss then Nothing else first_GE a (a+si) (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin) of
       (Nothing,Nothing) -> Nothing
       (Just (object,ptr),Nothing) -> Just (Left (object,ptr))
       (Nothing,Just reloc) -> Just (Right reloc)
