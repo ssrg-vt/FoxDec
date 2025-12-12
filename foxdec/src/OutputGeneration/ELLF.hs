@@ -384,10 +384,10 @@ render_data_section_from_globals bin elf ellf cfi (object,globals) = render_data
     --}
 
 
-get_sections_from_globals elf globals = nub $ concatMap toSection globals ++ find_data_rel_ro
+get_sections_from_globals elf globals = nub $ concatMap toSection globals ++ concatMap find_section_by_name [".data.rel.ro", ".bss", ".data", ".rodata"]
  where
-  find_data_rel_ro =
-    case find (\s -> elfSectionName s == ".data.rel.ro") $ elfSections elf of
+  find_section_by_name name =
+    case find (\s -> elfSectionName s == name) $ elfSections elf of
       Nothing -> []
       Just s  -> [s]
   toSection g =
@@ -926,12 +926,12 @@ symbolize_address bin ellf object in_data_section a =
       _ -> Nothing
 
   try_reloc a = do
-    Relocation a0 a1 <- find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin
     sec <- find (contains_address a) $ elfSections $ fromJust $ get_elf bin
-    if isInfixOf ".got" $ elfSectionName sec then
+    if isInfixOf ".got" $ elfSectionName sec then do
+      Relocation a0 a1 <- find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin
       return $ withRIP ++ mk_label ellf object a1 ++ "@GOTPCREL"
     else
-      return $ withRIP ++ mk_label ellf object a0
+      Nothing
 
 
   try_symbol a = do
