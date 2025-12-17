@@ -642,7 +642,7 @@ parse_ehframe elf showAddress =
     data_align_factor <- read_sleb128
     return_address_register <- read_uleb128
     aug <- parse_aug aug_string
-    cie_instructions <- parse_cfi_instructions code_align_factor data_align_factor
+    cie_instructions <- parse_cfi_instructions "CIE" code_align_factor data_align_factor
 
     return $ CFI_CIE $ CIE version aug_string code_align_factor data_align_factor return_address_register aug cie_instructions
 
@@ -683,7 +683,7 @@ parse_ehframe elf showAddress =
     let aug_string = cie_aug_string cie
     lsda_pointer <- parse_lsda_pointer enc aug_string
 
-    cfi_instructions <- parse_cfi_instructions (cie_code_align_factor cie) (cie_data_align_factor cie)
+    cfi_instructions <- parse_cfi_instructions (show $ Just (pc_begin,pc_range)) (cie_code_align_factor cie) (cie_data_align_factor cie)
     return $ CFI_FDE $ FDE (Absolute cie_ptr) pc_begin pc_range lsda_pointer cfi_instructions
 
   parse_lsda_pointer enc aug_string
@@ -739,19 +739,20 @@ data CFI_Instruction =
   | DW_CFA_def_cfa_expression BS.ByteString
   | DW_CFA_expression Word64 BS.ByteString
   | DW_CFA_register Word64 Word64
+  | DW_CFA_Escape_0x2E Word64 -- likely DW_CFA_GNU_args_size
  deriving (Show,Eq,Ord)
 
 
 -- Figure 40 of https://dwarfstd.org/doc/DWARF4.pdf
-parse_cfi_instructions :: Word64 -> Int64 -> State ByteStringAt [CFI_Instruction]
-parse_cfi_instructions code_align_factor data_align_factor = do
+parse_cfi_instructions :: Show a => a -> Word64 -> Int64 -> State ByteStringAt [CFI_Instruction]
+parse_cfi_instructions msg code_align_factor data_align_factor = do
   (bs,pos) <- get
   if BS.null bs then
     return []
   else do
     byte <- read_uint8
     i <- mk (primary_opcode byte) (extended_opcode byte)
-    is <- parse_cfi_instructions code_align_factor data_align_factor
+    is <- parse_cfi_instructions msg code_align_factor data_align_factor
     return $ if i == DW_CFA_nop then is else i:is
  where
   primary_opcode byte = byte `shiftR` 6
@@ -806,9 +807,11 @@ parse_cfi_instructions code_align_factor data_align_factor = do
     (len::Word64)  <- read_uleb128
     bs <- consume (fromIntegral len)
     return $ DW_CFA_def_cfa_expression bs
-    
+  mk 0x0 0x2e = do
+    (si::Word64)  <- read_uleb128
+    return $ DW_CFA_Escape_0x2E si
 
-  mk p e = error $ "Cannot parse CFI instruction: " ++ showHex p ++ "," ++ showHex e
+  mk p e = error $ "Cannot parse CFI instruction: " ++ showHex p ++ "," ++ showHex e ++ " msg = " ++ show msg
 
 mk_cfi_directives :: (Address -> String) -> IM.IntMap CFI_Frame -> IM.IntMap [String]
 mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
@@ -866,6 +869,7 @@ cfi_instruction_to_cfi_directive = mk
   mk (DW_CFA_register reg0 reg1) = ".cfi_register " ++ cfi_reg reg0 ++ cfi_reg reg1
   mk (DW_CFA_def_cfa_expression bytes) = ".cfi_escape 0x0f, " ++ showBlock bytes ++ " # DW_CFA_def_cfa_expression" 
   mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x0a, " ++ cfi_reg reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
+  mk (DW_CFA_Escape_0x2E si) = ".cfi_escape 0x2e, 0x" ++ showHex si
 
   showBlock bytes = "0x" ++ showHex (BS.length bytes) ++ ", " ++ intercalate "," (map (\b -> "0x" ++ showHex b) $ BS.unpack bytes)
 
