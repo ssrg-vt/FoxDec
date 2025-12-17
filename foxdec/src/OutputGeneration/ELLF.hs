@@ -682,17 +682,17 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
   let f_symbol = (ellf_symbols ellf !! object) !! fromIntegral symb_idx
       f_name   = ellf_sym_name f_symbol
       bbs      = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object 
-      first_i  = head $ fetch_basic_block bin ellf object f f_address $ head bbs
+      first_i  = f_address + ellf_bb_offset (head bbs) -- head $ fetch_basic_block bin ellf object f f_address $ head bbs
       last_a = case fetch_basic_block bin ellf object f f_address $ last bbs of
                  [] -> f_address + (ellf_bb_offset $ last bbs)
                  is -> inAddress (last is) + fromIntegral (inSize $ last is) in
     render_list "\n"
-      [ render_header f_name
-      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name f_address) $ zip [0..] bbs
+      [ render_header f_name bbs
+      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name f_address bbs) $ zip [0..] bbs
       , render_post f_name first_i last_a
       ]
  where
-  render_header f_name = render_list "\n" $ map string8 $ catMaybes
+  render_header f_name bbs = render_list "\n" $ map string8 $ catMaybes
     [ Just $ "# Function " ++ f_name
     , if binary_is_cpp bin then ("# Demangled " ++) <$> (demangle f_name) else Nothing
     , Just $ withIndent ".text"
@@ -701,6 +701,7 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     , Just $ withIndent ".p2align 4"
     , Just $ withIndent ".type " ++ f_name ++ ",@function"
     , Just $ withIndent ".cfi_startproc"
+    , if ellf_bb_size (head bbs) == 0 && find (basic_block_starting_at (f_address + ellf_bb_offset (head bbs))) bbs /= Nothing && find (function_starting_at (f_address + ellf_bb_offset (head bbs))) (concat $ ellf_functions ellf) /= Nothing then Just $ f_name ++ "_BB0:" else Nothing
     ]
   render_post f_name first_i last_a = render_list "\n" $ map string8
     [ mk_end_label f_name first_i last_a ++ ":"
@@ -709,21 +710,34 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     , "# End of function " ++ f_name
     ]
 
+  basic_block_starting_at a bb = ellf_bb_size bb /= 0 && ellf_bb_offset bb + f_address == a
+  function_starting_at a f = ellf_func_address f == a
+ 
 
   -- Only if the end address of this function is not already inserted as the start of another, insert an end-label (prevent duplicate labels)
   mk_end_label f_name first_i a =
     case find (\f -> ellf_func_address f == a) $ concat $ ellf_functions ellf of
       Nothing -> mk_label ellf object a 
-      Just _  -> ".L_" ++ f_name ++ "_0x" ++ showHex (inAddress first_i) ++ "_END_LABEL"
+      Just _  -> ".L_" ++ f_name ++ "_0x" ++ showHex first_i ++ "_END_LABEL"
 
 -- Rendering a basic block
-render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset 0))  = mempty
-render_basic_block bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset si)) = 
+render_basic_block bin ellf cfi object f f_name f_address bbs (idx,bb@(ELLF_Basic_Block func_idx offset 0))  =
+  case (find (basic_block_starting_at (f_address + offset)) bbs, find (function_starting_at (f_address + offset)) $ concat $ ellf_functions ellf) of
+    (Nothing,Nothing) -> render_basic_block' bin ellf cfi object f f_name f_address (idx,bb)
+    x  -> mempty -- string8 $ show (object,idx,bb,x)
+ where
+  basic_block_starting_at a bb = ellf_bb_size bb /= 0 && ellf_bb_offset bb + f_address == a
+  function_starting_at a f = ellf_func_address f == a
+render_basic_block bin ellf cfi object f f_name f_address bbs (idx,bb) = render_basic_block' bin ellf cfi object f f_name f_address (idx,bb)
+    
+
+
+render_basic_block' bin ellf cfi object f f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset si)) = 
   let is = fetch_basic_block bin ellf object f f_address bb in
     render_list "\n" 
       [ render_basic_block_header
       , render_basic_block_label 
-      , render_instructions bin ellf object cfi is ]
+      , if si == 0 then string8 $ withIndent "NOP" else render_instructions bin ellf object cfi is ]
  where
   render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex (f_address + offset)
   render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset) ++ [f_name ++ "_BB" ++ show idx] -- TODO LLVM BB label is temporary
