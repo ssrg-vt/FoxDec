@@ -25,14 +25,15 @@ data CFG = CFG {
   cfg_edges  :: IM.IntMap (IS.IntSet),      -- ^ A mapping of blockIDs to sets of blocKIDs
   cfg_addr_to_blockID :: IM.IntMap Int,     -- ^ A mapping of instruction addresses to blockIDs
   cfg_fresh :: Int,                         -- ^ A fresh blockID
-  cfg_instrs :: IM.IntMap [Instruction]     -- ^ A mapping of blockIDs to instructions
+  cfg_instrs :: IM.IntMap [Instruction],    -- ^ A mapping of blockIDs to instructions
+  cfg_landing_pads :: IS.IntSet             -- ^ Addresses of landing pads
  }
  deriving (Show,Generic,Eq,Ord)
 
 
 num_of_instructions = IM.foldr (+) 0 . IM.map length . cfg_blocks
 
-init_cfg a = CFG { cfg_blocks = IM.singleton 0 [fromIntegral a], cfg_edges = IM.empty, cfg_addr_to_blockID = IM.singleton (fromIntegral a) 0, cfg_fresh = 1, cfg_instrs = IM.empty }
+init_cfg a = CFG { cfg_blocks = IM.singleton 0 [fromIntegral a], cfg_edges = IM.empty, cfg_addr_to_blockID = IM.singleton (fromIntegral a) 0, cfg_fresh = 1, cfg_instrs = IM.empty, cfg_landing_pads = IS.empty }
 
 
 
@@ -65,6 +66,7 @@ instance NFData CFG
 
 instance IntGraph CFG where
   intgraph_post    = post
+  intgraph_pre cfg blockID = IS.filter (\parent -> blockID `IS.member` post cfg parent) $ IM.keysSet $ cfg_edges cfg
   intgraph_sources = \_ -> IS.singleton 0
   intgraph_V       = IM.keysSet . cfg_blocks -- IS.unions $ IM.keysSet (cfg_edges g) : IM.elems (cfg_edges g)
    where

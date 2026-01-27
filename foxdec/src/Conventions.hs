@@ -28,7 +28,8 @@ is_exiting_function_call f =
       "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx",
       "obstack_alloc_failed_handler", "isc_assertion_failed", "isc_error_fatal",
       "PyExc_SystemExit", "pthread_exit", "error_exit",
-      "__longjmp_chk", "siglongjmp"
+      "__longjmp_chk", "siglongjmp",
+      "_ZSt9terminatev", "__cxa_throw", "__cxa_rethrow", "_Unwind_Resume", "_Unwind_ForcedUnwind"
     ]
 
 strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"

@@ -15,6 +15,7 @@ import Data.JumpTarget
 import Data.Indirection
 import Data.SymbolicExpression 
 import Data.GlobalMem
+import Data.VerificationCondition
 
 
 import qualified Data.Serialize as Cereal
@@ -24,7 +25,8 @@ import qualified Data.IntSet as IS
 import qualified Data.IntMap as IM
 import qualified Data.Set.NonEmpty as NES
 
-import Data.List (intercalate,partition,intersectBy,find,nub)
+import Data.List
+import Data.List.Extra (firstJust)
 import Data.Word 
 import Data.Maybe
 
@@ -39,11 +41,11 @@ stry_resolve_indirection :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S
 stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   let [trgt] = inSrcs $ last instrs in
     case flagstatus_to_tries 10000 flgs of -- TODO
-      Nothing -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p  `orTry` try_to_resolve_AND trgt `orElse` S.singleton Indirection_Unresolved
-      Just (op1,n) ->
+      [] -> try_to_resolve_syscall (last instrs) `orTry` try_to_resolve_error_call `orTry` try_to_resolve_from_pre trgt p  `orTry` try_to_resolve_AND trgt `orElse` S.singleton Indirection_Unresolved
+      bounds ->
         try_to_resolve_syscall (last instrs)
         `orTry` try_to_resolve_error_call
-        `orTry` try_to_resolve_using_bound instrs op1 n trgt
+        `orTry` try_to_resolve_using_bounds instrs bounds trgt
         `orTry` try_to_resolve_from_pre trgt p
         `orTry` try_to_resolve_AND trgt
         `orElse` S.singleton Indirection_Unresolved
@@ -65,13 +67,17 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
 
   -- INDIRECTION RESOLVING TACTIC:
   -- If a flg was set y a CMP (or similar), then that induces a bound
+  try_to_resolve_using_bounds instrs bounds trgt = firstJust (\(op1,n) -> try_to_resolve_using_bound instrs op1 n trgt) bounds
+
   try_to_resolve_using_bound instrs op1 n trgt =
-    let values1 = map (\n -> evalState (evaluate_target_after_setting_value_and_block instrs op1 n trgt) (clean_sstate p, S.empty)) [0..n] in
+    let values1 = map (\n -> runState (evaluate_target_after_setting_value_and_block instrs op1 n trgt) (clean_sstate p, S.empty)) [0..n] in
       if values1 == [] then
         Nothing
-      else if all is_jump_table_entry values1 then do
-        let trgts = map (fromIntegral . get_immediate . S.findMin . fromJust) values1 
-            tbl = JumpTable op1 (fromIntegral n) trgt (IM.fromList $ zip [0..fromIntegral n] trgts) in
+      else if all is_jump_table_entry $ map fst values1 then do
+        let trgts = map (fromIntegral . get_immediate . S.findMin . fromJust) $ map fst values1 
+            vcs   = S.unions $ map (snd . snd) values1
+            base  = vcs_to_jump_table_base ctxt vcs
+            tbl   = JumpTable op1 (fromIntegral n) trgt (IM.fromList $ zip [0..fromIntegral n] trgts) base in
           Just $ S.singleton $ Indirection_JumpTable tbl
       else
         Nothing
@@ -79,7 +85,7 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   -- INDIRECTION RESOLVING TACTIC:
   -- Simply try to run the block from the currently known precondition
   try_to_resolve_from_pre trgt p =
-    let trgts = evalState (evaluate_target_after_block instrs trgt) (p,S.empty) in
+    let (trgts,(_,vcs)) = runState (evaluate_target_after_block instrs trgt) (p,S.empty) in
       S.map Indirection_Resolved <$> trgts
 
   -- INDIRECTION RESOLVING TACTIC:
@@ -114,19 +120,18 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   -- Evaluate $trgt$ after running the block (ignore the last instruction)
   evaluate_target_after_block instrs trgt = do
     (p,_) <- get
-    sexec_block ctxt False (init instrs) Nothing
+    sexec_block ctxt True (init instrs) Nothing
     (q,_) <- get
     sset_rip ctxt (last instrs)
     val <- sread_operand ctxt "indirection resolving" trgt
     return $ stry_jump_targets ctxt (last instrs) val -- $  trace ("is = " ++ show (instrs) ++ "P:\n" ++ show p ++ "\nQ:\n" ++ show q ++ "\nval,trgt: " ++ show (val,trgt)) $ 
 
+  flagstatus_to_tries max_tries flgs = concatMap (mk_FS_CMP max_tries) flgs
+  mk_FS_CMP max_tries (FS_CMP (Just True) op1 (Op_Imm (Immediate _ n)))
+    | n <= fromIntegral max_tries = [(op1,n)]
+    | otherwise = []
+  mk_FS_CMP _ _ = []
 
-  flagstatus_to_tries max_tries flgs =
-    case filter is_FS_CMP flgs of
-      [] -> Nothing 
-      [FS_CMP (Just True) op1 (Op_Imm (Immediate _ n))] -> if n <= fromIntegral max_tries then Just (op1,n) else Nothing
-      [FS_CMP _ _ _] -> Nothing
-      _ -> error $ show flgs
 
   -- Evaluate RAX after running the block, and try to produce an immediate value
   evaluate_syscall_after_block  = do
@@ -158,5 +163,21 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   clean_smem = M.filter (\v -> sis_deterministic ctxt v)
 
 
+vcs_to_jump_table_base :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S.Set (VerificationCondition v) -> Word64
+vcs_to_jump_table_base ctxt vcs =
+  let as = concatMap get_immediate_reads $ S.toList $ vcs in
+    case find_distanced_by_four $ sort as of
+      Just base -> base
+      _ -> error $ "Cannot find jump table base for vcs = " ++ show vcs
+ where
+  find_distanced_by_four []  = Nothing
+  find_distanced_by_four [a] = Nothing 
+  find_distanced_by_four (a0:a1:as)
+    | a0+4==a1 = Just a0
+    | otherwise = find_distanced_by_four (a1:as)
+
+
+  get_immediate_reads (PointerAnalysis _ (PointerAnalysisResult _ rs)) = mapMaybe (stry_immediate ctxt) $ catMaybes rs
+  get_immediate_reads _ = []
 
 

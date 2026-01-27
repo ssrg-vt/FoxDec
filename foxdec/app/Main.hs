@@ -18,7 +18,8 @@ import OutputGeneration.GlobalMemAnalysis
 import OutputGeneration.NASM.Abstract_ASM
 import OutputGeneration.PathGeneration
 import OutputGeneration.ELLF
-
+import OutputGeneration.L0ToELLF
+import OutputGeneration.ECFG
 
 import Data.CFG
 import Data.SValue
@@ -49,9 +50,6 @@ import Binary.Generic
 import Binary.Read
 import Data.L0
 import Data.SymbolicExpression
-
-import OutputGeneration.NASM.L0ToNASM
-import OutputGeneration.NASM.NASM
 
 import Algorithm.Graph
 
@@ -442,7 +440,7 @@ generate_metrics bin l0 = do
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
 
 -- | Generate information per function
-generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
+-- generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
 generate_per_function bin config l0 = do
   let dirname     = binary_dir_name bin
   let name        = binary_file_name bin
@@ -455,16 +453,20 @@ generate_per_function bin config l0 = do
   --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
   --putStrLn $ "Regions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))
  where
-  write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa))) = do
-    let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
-    createDirectoryIfMissing False $ dirname ++ "functions/"
-    createDirectoryIfMissing False $ fdirname      
+  write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa)))
+    | not $ address_has_instruction bin (fromIntegral entry) = return ()
+    | otherwise = do
+      let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
+      createDirectoryIfMissing False $ dirname ++ "functions/"
+      createDirectoryIfMissing False $ fdirname      
 
-    let fname  = fdirname ++ name ++ ".dot"
-    writeFile fname $ cfg_to_dot bin r
+      let fname  = fdirname ++ name ++ ".dot"
+      writeFile fname $ cfg_to_dot bin r
+      --let fname2 = fdirname ++ name ++ ".ecfg.dot"
+      --writeFile fname2 $ cfg_to_ecfg (bin,config,l0) (fromIntegral entry) $ result_cfg r
 
-    let fname2 = fdirname ++ name ++ ".txt"
-    writeFile fname2 $ show_report entry finit r
+      let fname2 = fdirname ++ name ++ ".txt"
+      writeFile fname2 $ show_report entry finit r
   show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 
     [ "Function: " ++ showHex entry
     , mk_function_boundary entry cfg
@@ -523,28 +525,37 @@ generate_NASM :: Lifted -> IO ()
 generate_NASM l@(bin,config,l0) = do
   let dirname  = binary_dir_name bin ++ "nasm/"
   let name     = binary_file_name bin
-  let fname    = dirname ++ name ++ ".asm" 
+  let fname    = dirname ++ name ++ ".s" 
   let fname1   = dirname ++ "__gmon_start__.c" 
   let fname2   = dirname ++ name ++ ".abstract.asm" 
 
   createDirectoryIfMissing False dirname      
 
-  let nasm' = lift_L0_to_NASM l
+  let Just elf = get_elf bin
+  let ellf     = lift_L0_to_ELLF l
+  -- putStrLn $ show ellf
+
+  txt <- lift_ellf bin elf ellf
+  B.writeFile fname txt
+  putStrLn $ "Generated symbolized assembly (GAS), exported to files: " ++ fname
+
+  let gmon = __gmon_start_implementation
+  writeFile fname1 $ gmon
+
+  {--
 
   let nasm = nasm'--split_data_section (bin,config,l0,0::Word64) nasm' -- TODO
 
 
-  let gmon = __gmon_start_implementation
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
   --writeFile   fname2 $ ai_show_NASM l nasm
 
 
-  putStrLn $ "Generated NASM, exported to files: " ++ fname
 
   
 
-
+--}
 
 
 

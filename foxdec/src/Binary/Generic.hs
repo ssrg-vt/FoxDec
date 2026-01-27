@@ -4,10 +4,10 @@ module Binary.Generic where
 
 import Base
 import Data.Symbol
+import Data.CFI
 import Data.X86.Instruction
 
 import Conventions
-import Parser.ParserCFI
 
 import Data.Elf
 import qualified Data.Map as M
@@ -62,7 +62,8 @@ instance Show SymbolTable where
    where
     show_entry (a0,PointerToExternalFunction f)    = showHex a0 ++ " --> " ++ f
     show_entry (a0,PointerToInternalFunction f a1) = showHex a0 ++ " --> " ++ f ++ "@0x" ++ showHex a1
-    show_entry (a0,PointerToObject l b)            = showHex a0 ++ " --> " ++ l ++ show_in_ex b "object"
+    show_entry (a0,PointerToObject o b addend Nothing) = showHex a0 ++ " --> " ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
+    show_entry (a0,PointerToObject o b addend (Just l)) = showHex a0 ++ " == " ++ o ++ " --> " ++ l ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
     show_entry (a0,AddressOfObject l b)            = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
     show_entry (a0,AddressOfLabel f b)             = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
     show_entry (a0,Relocated_ResolvedObject l a)   = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
@@ -114,6 +115,7 @@ class BinaryClass a where
   address_has_instruction :: a -> Word64 -> Bool
   fetch_instruction :: a -> Word64 -> IO (Maybe Instruction)
   function_signatures :: a -> M.Map String FunctionSignature
+  binary_get_cfi :: a -> CFI
   get_elf :: a -> Maybe Elf
 
 data Binary = forall b . BinaryClass b => Binary b
@@ -135,6 +137,7 @@ instance BinaryClass Binary where
   address_has_instruction (Binary b) = address_has_instruction b
   fetch_instruction (Binary b) = fetch_instruction b
   function_signatures (Binary b) = function_signatures b
+  binary_get_cfi (Binary b) = binary_get_cfi b
   get_elf (Binary b) = get_elf b
 
 binary_get_symbol_table bin =
@@ -148,7 +151,7 @@ binary_get_exported_functions bin =
 
 symbol_to_name (PointerToExternalFunction f)   = f
 symbol_to_name (PointerToInternalFunction f a) = f
-symbol_to_name (PointerToObject l b)           = l
+symbol_to_name (PointerToObject l b addend _)  = l++(if addend == 0 then "" else "+0x"++showHex addend)
 symbol_to_name (AddressOfObject l b)           = l
 symbol_to_name (AddressOfLabel f b)            = f
 symbol_to_name (Relocated_ResolvedObject l a)  = l

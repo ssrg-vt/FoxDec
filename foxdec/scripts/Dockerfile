@@ -19,12 +19,17 @@ RUN apt-get install ssh vim coreutils sqlite3 zip tar bind9 xxd -y
 #RUN apt-get install xxd=2:8.2.3995-1ubuntu2.19 -y 
 
 
+RUN echo '#!/bin/bash\necho "FoxDec GAS: compiling .s to .o file"\necho "gcc -g -m64 -nostartfiles -fgnu-tm -o $BINARY.o -c $BINARY.s"\ngcc -g -m64 -nostartfiles -fgnu-tm -o $BINARY.o -c $BINARY.s' > /usr/bin/foxdec_gas && \
+    chmod +x /usr/bin/foxdec_gas
 
 RUN echo '#!/bin/bash\necho "FoxDec NASM: compiling .asm to .o file"\necho "nasm -felf64 -o $BINARY.o $BINARY.asm"\nnasm -felf64 -g -F dwarf -o $BINARY.o $BINARY.asm' > /usr/bin/foxdec_nasm && \
     chmod +x /usr/bin/foxdec_nasm
 
-RUN echo '#!/bin/bash\necho "FoxDec GCC: compiling .o to executable"\necho "gcc -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o"\ngcc -c __gmon_start__.c -o __gmon_start__.o && gcc -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o "$@"' > /usr/bin/foxdec_gcc && \
+RUN echo '#!/bin/bash\necho "FoxDec gcc: compiling .o to executable"\necho "gcc -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o"\ngcc -c __gmon_start__.c -o __gmon_start__.o && gcc -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o "$@"' > /usr/bin/foxdec_gcc && \
     chmod +x /usr/bin/foxdec_gcc
+
+RUN echo '#!/bin/bash\necho "FoxDec g++: compiling .o to executable"\necho "g++ -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o"\ngcc -c __gmon_start__.c -o __gmon_start__.o && g++ -g -m64 -nostartfiles -fgnu-tm -o a.out $BINARY.o __gmon_start__.o "$@"' > /usr/bin/foxdec_g++ && \
+    chmod +x /usr/bin/foxdec_g++
 
 RUN echo '#!/bin/bash\necho "FoxDec OBJDUMP: run objdump on executable"\necho "objdump -M intel --no-show-raw-insn --disassembler-options=hex -d $BINARY > $BINARY.objdump"\nobjdump -M intel --no-show-raw-insn --disassembler-options=hex -d $BINARY > $BINARY.objdump' > /usr/bin/foxdec_objdump && \
     chmod +x /usr/bin/foxdec_objdump

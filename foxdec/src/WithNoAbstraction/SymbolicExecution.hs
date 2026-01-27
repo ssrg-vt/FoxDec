@@ -455,24 +455,40 @@ replace_rip_in_operand rip op@(Op_Mem si (Reg64 RIP) RegNone 0 displ Nothing inf
 replace_rip_in_operand rip op@(Op_Mem si (Reg64 RIP) _ _ displ _ _) = error $ "TODO: " ++ show op
 replace_rip_in_operand rip op = op
 
+operand_no_info (Op_Mem si (Reg64 RIP) RegNone 0 displ Nothing _) = Op_Mem si (Reg64 RIP) RegNone 0 displ Nothing []
+operand_no_info (Op_Reg r _) = Op_Reg (real_reg r) []
+operand_no_info op = op
 
 
-cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> [FlagStatus] -> [FlagStatus]
-cflg_semantics fctxt _ i@(Instruction label prefix mnemonic ops info annot) flgs = flg mnemonic ops
+
+-- After a "CMP o0 o1" the flags are set according to "FS_CMP o0 o1" and any equalities are kept
+-- After a "SUB o0 o1" the flags are set the same, but equalities over o0 and i1 are removed. However, if according to the old flags o2 == o0, then after SUB o0 o1 the flags
+-- are also set as "FS_CMP o2 o1".
+-- After an "AND o0 (2^n-1)" the flags are set to "FS_CMP o0 (n+1)"
+--
+-- A MOV introduces an equality, i.e., "MOV o0 o1" sets flags according to "FS_EQ o0 o1"
+cflg_semantics :: BinaryClass bin => Static bin v -> a -> Instruction -> [FlagStatus] -> [FlagStatus] -> [FlagStatus]
+cflg_semantics fctxt _ i@(Instruction label prefix mnemonic ops info annot) old_flgs flgs = flg mnemonic ops
  where
-  mk_operand = replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
+  mk_operand = operand_no_info . replace_rip_in_operand (inAddress i + (fromIntegral $ inSize i))
 
   flg CMP ops = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
-  flg SUB ops = [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ filter (not . is_FS_CMP) flgs
+  flg SUB ops = nub $ [FS_CMP Nothing (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ map (mk_FS_CMP $ ops!!1) (concatMap (get_FS_EQ (mk_operand $ ops!!0)) old_flgs) ++ filter (not . is_FS_CMP) flgs
   flg MOV ops = [FS_EQ (mk_operand $ ops!!0) (mk_operand $ ops!!1)] ++ flgs
 
   flg AND [dst,Op_Imm (Immediate si imm)]
-    | isPower2Minus1 imm = flg CMP [dst,Op_Imm (Immediate si $ imm+1)]
+    | isPower2Minus1 imm = flg CMP [dst,Op_Imm (Immediate si $ imm+1)] ++ filter (not . is_FS_CMP) flgs
     | otherwise = []
 
   flg _ _
     | WritesToFlags `elem` info = []
     | otherwise                 = flgs
+
+
+  mk_FS_CMP op1 op0 = FS_CMP Nothing (mk_operand $ op0) (mk_operand op1) 
+
+  get_FS_EQ op (FS_EQ op1 op2) = (if op == op1 && op /= op2 then [op2] else []) ++ (if op == op2  && op /= op1 then [op1] else [])
+  get_FS_EQ op _ = []
 
 
 -- MAKING POINTERS FROM EXPRESSIONS
@@ -1193,12 +1209,12 @@ ctry_jump_targets l@(bin,_,_,_) i v@(SConcrete es) =
 
   try_symbol a =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (PointerToExternalFunction f)  -> Just $ External f
-      Just (PointerToInternalFunction f a)  -> Just $ ImmediateAddress a
-      Just (AddressOfLabel f True)  -> Just $ ExternalDeref f -- an external variable contains a pointer to a function
-      Just (AddressOfObject f True) -> Just $ ExternalDeref f      -- an external variable contains a pointer to a function
-      Just s                        -> error $ show (a, s) -- Just $ External f
-      _                             -> Nothing
+      Just (PointerToExternalFunction f)   -> Just $ External f
+      Just (PointerToInternalFunction f a) -> Just $ ImmediateAddress a
+      Just (AddressOfLabel f True)         -> Just $ ExternalDeref f -- an external variable contains a pointer to a function
+      Just (AddressOfObject f True)        -> Just $ ExternalDeref f      -- an external variable contains a pointer to a function
+      Just s                               -> error $ show (a, s) -- Just $ External f
+      _                                    -> Nothing
 
 
   try_reloc a =

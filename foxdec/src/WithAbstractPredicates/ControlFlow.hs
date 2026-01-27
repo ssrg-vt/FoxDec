@@ -21,6 +21,7 @@ import Data.L0
 import Data.JumpTarget
 import Data.Indirection
 import Data.CFG
+import Data.CFI
 import Binary.Generic 
 
 import Conventions
@@ -167,7 +168,7 @@ get_known_jump_targets l@(bin,_,l0) i =
     Just r -> S.toList $ S.unions $ S.map indirection_to_jump_target r
     _      -> [jump_target_for_instruction bin i]
  where
-  indirection_to_jump_target (Indirection_JumpTable (JumpTable _ _ _ tbl)) = S.fromList $ map ImmediateAddress $ IM.elems tbl
+  indirection_to_jump_target (Indirection_JumpTable (JumpTable _ _ _ tbl _)) = S.fromList $ map ImmediateAddress $ IM.elems tbl
   indirection_to_jump_target (Indirection_Resolved trgt) = S.singleton trgt
   indirection_to_jump_target (Indirection_Unresolved) = S.singleton Unresolved
 
@@ -176,11 +177,7 @@ get_known_jump_targets l@(bin,_,l0) i =
 
 
 
-
-
-
-
-
+-- TODO move to OutputGeneration
 -- | Export a CFG to .dot file
 --
 -- Strongly connected components get the same color.
@@ -190,7 +187,7 @@ cfg_to_dot ::
   -> FResult pred v
   -> String
 cfg_to_dot bin (FResult g post _ _ _ _) =
- let name = binary_file_name bin
+ let name = mk_safe $ binary_file_name bin
      sccs = scc_of g 0 IS.empty in
   "diGraph " ++ name ++ "{\n"
   ++ intercalate "\n" (map (node_to_dot g post sccs) $ IM.keys $ cfg_blocks g)
@@ -213,7 +210,7 @@ cfg_to_dot bin (FResult g post _ _ _ _) =
 
   edge_to_dot'' blockId blockId' = "\t" ++ mk_node blockId ++ " -> " ++ mk_node blockId'
 
-  mk_node v = binary_file_name bin ++ "_" ++ showHex v
+  mk_node v = mk_safe $ binary_file_name bin ++ "_" ++ showHex v
 
   node_shape _ _ =  "oval" {-- TODO
   node_shape (ReturnsWith _) blockId = "oval"
@@ -226,6 +223,8 @@ cfg_to_dot bin (FResult g post _ _ _ _) =
     | blockId `elem` map fst errors = "invtriangle"
     | otherwise = "oval"--}
     
+
+  mk_safe str = "_" ++ str
 
 
 hex_color_of vertex sccs =

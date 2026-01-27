@@ -17,7 +17,6 @@ import Data.Size
 import Data.Symbol
 import Data.JumpTarget
 
-import Parser.ParserCFI
 import Parser.ByteStringReader
 
 import qualified Data.Map as M
@@ -51,6 +50,12 @@ import Data.Elf
 
 import Debug.Trace
 
+
+
+
+
+    
+
 ------------------
 -- DATASTRUCTURES
 ------------------
@@ -65,7 +70,8 @@ data MetaDataHeader = MetaDataHeader {
 data ELLF_Basic_Block = ELLF_Basic_Block {
   ellf_bb_function :: Word64,
   ellf_bb_offset :: Word64,
-  ellf_bb_size :: Word64
+  ellf_bb_size :: Word64,
+  ellf_bb_address :: Word64 -- Only used for L0ToELLF
  }
  deriving (Eq,Ord,Show)
 
@@ -78,10 +84,10 @@ data ELLF_Symbol = ELLF_Symbol {
  deriving (Eq,Ord, Show)
 
 data ELLF_Function = ELLF_Function {
-  ellf_func_symbol_idx :: Word64,
+  ellf_func_name     :: String,
   ellf_func_first_bb :: Word64,
-  ellf_func_last_bb :: Word64,
-  ellf_func_address :: Word64
+  ellf_func_last_bb  :: Word64,
+  ellf_func_address  :: Word64
  }
  deriving (Eq,Ord,Show)
 
@@ -208,37 +214,40 @@ instance Cereal.Serialize ELLF
 ------------------
 read_ellf :: Elf -> Maybe ELLF
 read_ellf elf = do
-  bbs       <- parse_ellf_blocks    <$> get_section ".ellf.blocks"
-  sections  <- parse_ellf_sections  <$> get_section ".ellf.sections"
+  sections  <- parse_ellf_sections            <$> get_section ".ellf.sections"
   layout    <- return [] -- parse_ellf_layout    <$> get_section ".ellf.layout"
-  pointees  <- parse_ellf_pointees  <$> get_section ".ellf.pointees"
-  symbols   <- parse_ellf_symbols   sections <$> get_section ".ellf.symbols"
-  pointers  <- parse_ellf_pointers  sections <$> get_section ".ellf.pointers"
-  globals   <- parse_ellf_globals   symbols  <$> get_section ".ellf.globals"
-  functions <- parse_ellf_functions symbols <$> get_section ".ellf.functions"
-  let cfgs   = parse_ellf_cfgs      <$> get_section ".ellf.cfg"
+  pointees  <- parse_ellf_pointees            <$> get_section ".ellf.pointees"
+  symbols   <- parse_ellf_symbols   sections  <$> get_section ".ellf.symbols"
+  pointers  <- parse_ellf_pointers  sections  <$> get_section ".ellf.pointers"
+  globals   <- parse_ellf_globals   symbols   <$> get_section ".ellf.globals"
+  functions <- parse_ellf_functions symbols   <$> get_section ".ellf.functions"
+  bbs       <- parse_ellf_blocks    functions <$> get_section ".ellf.blocks"
+  let cfgs   = parse_ellf_cfgs                <$> get_section ".ellf.cfg"
 
-  let m = mk_symb_map symbols
+  let m = ellf_mk_symb_map symbols
 
   return $ ELLF bbs symbols functions pointers pointees sections layout globals cfgs m
  where
   get_section name = find (\s -> elfSectionName s == name) (elfSections elf)
 
 
-  mk_symb_map = map (IM.fromListWith S.union . map (\sym -> (fromIntegral $ ellf_sym_address sym,S.singleton sym)))
+ellf_mk_symb_map = map (IM.fromListWith S.union . map (\sym -> (fromIntegral $ ellf_sym_address sym,S.singleton sym)))
 
 
 
 -- .ellf.blocks:
-parse_ellf_blocks :: ElfSection -> [[ELLF_Basic_Block]]
-parse_ellf_blocks sec = evalState (read_repeat_until_empty 0 get_basic_blocks) (elfSectionData sec,0)
+parse_ellf_blocks :: [[ELLF_Function]] -> ElfSection -> [[ELLF_Basic_Block]]
+parse_ellf_blocks functions sec = evalState (read_repeat_until_empty 0 get_basic_blocks) (elfSectionData sec,0)
  where
   get_basic_blocks = parse_header_then_repeat . parse_block
   parse_block count = do
     function <- read_uleb128
     offset   <- read_uleb128
     size     <- read_uleb128
-    return $ ELLF_Basic_Block function offset size
+ 
+    let f = (functions !! count) !! fromIntegral function
+    let a = ellf_func_address f + offset
+    return $ ELLF_Basic_Block function offset size a
 
 -- ellf.symbols:
 parse_ellf_symbols sections sec = prevent_name_clashes_in_symbols 0 $ remove_unneeded_ELLF_symbols $ evalState (read_repeat_until_empty 0 get_symbols) (elfSectionData sec,0)
@@ -280,13 +289,10 @@ parse_ellf_functions symbols sec = evalState (read_repeat_until_empty 0 get_func
     last_bb    <- read_uleb128
 
     let symtable = symbols !! count
+    let f_symbol = symtable !! fromIntegral (symbol_idx::Word64)
+    let a        = ellf_sym_address f_symbol
+    return $ ELLF_Function (ellf_sym_name f_symbol) first_bb last_bb a
 
-    let a = ellf_entry_address_of_function symtable symbol_idx
-    return $ ELLF_Function symbol_idx first_bb last_bb a
-
-  ellf_entry_address_of_function symtable symbol_idx = 
-    let f_symbol  = symtable !! fromIntegral symbol_idx in
-      ellf_sym_address f_symbol
 
 
 

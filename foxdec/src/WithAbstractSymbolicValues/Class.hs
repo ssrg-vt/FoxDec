@@ -48,6 +48,11 @@ instance (NFData p) => NFData (SStatePart p)
 
 
 
+instance Show p => Show (SStatePart p) where
+  show (SSP_Reg r)        = show r
+  show (SSP_Mem a si)     = "[" ++ show a ++ ", " ++ show si ++ "]"
+
+
 
 
 
@@ -114,7 +119,7 @@ class (Ord v,Eq v,Show v, Eq p,Ord p,Show p,BinaryClass bin) => WithAbstractSymb
 
 
   ssemantics :: ctxt -> String -> SymbolicOperation v -> v
-  sflg_semantics :: ctxt -> v -> Instruction -> [FlagStatus] -> [FlagStatus]
+  sflg_semantics :: ctxt -> v -> Instruction -> [FlagStatus] -> [FlagStatus] -> [FlagStatus]
   simmediate :: Integral i => ctxt -> i -> v
 
   smk_init_reg_value :: ctxt -> Register -> v

@@ -254,12 +254,13 @@ sset_rip ctxt i = swrite_reg ctxt "sset_rip" (Reg64 RIP) (simmediate ctxt $ inAd
 sexec_instr :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> Bool -> Instruction -> State (Sstate v p,VCS v) ()
 --sexec_instr ctxt i | trace ("sexec_isntr: "++ show i) False = error "trace"
 sexec_instr ctxt store_pointer_analysis i = do
+  old_flgs <- gets (sflags . fst)
   sset_rip ctxt i
 
   let i_c = canonicalize i
   maybe_store_pointer_analysis_result i
   mapM_ (sexec_cinstr ctxt) i_c
-  swrite_flags ctxt (top ctxt "") i 
+  swrite_flags ctxt (top ctxt "") i old_flgs
  where
   maybe_store_pointer_analysis_result i
     | inOperation i == LEA = return ()

@@ -49,7 +49,7 @@ data PointerDomain =
 address_has_external_symbol bin a =
   case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
     Just (PointerToExternalFunction _)  -> True
-    Just (PointerToObject _ ex) -> ex
+    Just (PointerToObject _ ex _ _) -> ex
     Just (AddressOfObject _ ex) -> ex
     Just (AddressOfLabel _ ex)  -> ex
     _ -> False

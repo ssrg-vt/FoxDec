@@ -112,7 +112,7 @@ exported_functions l@(bin,config,l0) = S.difference (S.fromList $ map fst $ bina
  where
   externals bin l0 = S.fromList $ IM.keys $ IM.filter is_relocation $ binary_get_symbol_table bin
   is_relocation (PointerToExternalFunction str)  = str /= ""
-  is_relocation (PointerToObject str ex) = ex && str /= ""
+  is_relocation (PointerToObject str ex _ _) = ex && str /= ""
   is_relocation (AddressOfObject str ex) = ex && str /= ""
   is_relocation (AddressOfLabel str ex) = ex && str /= ""
   is_relocation _ = False
@@ -160,7 +160,7 @@ produce_set_of_paths' ctxt@(bin,config,l0,entry) repetition = do
 
 
 
-init_symstate = SymState (SMemory M.empty) M.empty
+init_symstate = SymState (SMemory M.empty) M.empty M.empty
 
 get_symstate (_,_,symstate,_) = symstate
 
@@ -217,6 +217,104 @@ symb_exec_function_return l@(bin,config,l0) (FunctionBlockID entry blockID)
 
 
 
+
+init_sym_state_with :: Register -> Word64 -> SymState
+init_sym_state_with reg value = execState (swrite_reg reg (Just $ SE_Immediate value)) init_symstate
+
+
+read_RIP symstate =
+  let v = evalState (sread_reg (Reg64 RIP)) symstate in
+    case v of
+      SE_Immediate a -> a
+
+-- Tries to follow a concrete path, where each jump and conditional jump is evlauted deterministically.
+-- Errors out if it cnanot decide where some jump leads to.
+symbolically_execute_until :: LiftedWithEntry -> Int -> Int -> IS.IntSet -> SymState -> IO (S.Set SymState)
+symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
+  | a `IS.member` as = return $ S.singleton symstate
+  | count >= 100     = error $ show_symstate l symstate
+  | otherwise        = do
+    Just i          <- fetch_instruction bin $ fromIntegral a
+    let sem          = instr_to_semantics l i
+    let symstates'   = execState (run i sem count) (S.singleton symstate)
+    symstates''     <- mapM (\symstate' -> symbolically_execute_until l (count+1) (fromIntegral $ read_RIP symstate') as symstate') $ S.toList symstates'
+    return $ S.unions symstates''
+ where
+  run i sem count
+    | isCondJump (inOperation i) = gets (S.unions . S.map (evalState (do_cond_jump i))) >>= put
+    | isJump (inOperation i) = determinize $ do_jump sem
+    | inOperation i `elem` [CMP,SUB] = determinize $ (set_flags sem >> do_normal_instr sem)
+    | otherwise = determinize $ do_normal_instr sem
+
+  determinize :: State SymState () -> State (S.Set SymState) ()
+  determinize m = (gets $ S.map (execState m)) >>= put
+
+  set_flags sem@(NoSemantics CMP _ [src0,src1] _ _) = set_CMP_flags sem src0 src1
+  set_flags sem@(Apply Minus _ _ [src0,src1] _ _)   = set_CMP_flags sem src0 src1
+
+
+  set_CMP_flags sem src0 src1 = do
+    set_rip (size_of sem + rip_of sem)
+    v0 <- sread_src l src0
+    v1 <- sread_src l src1
+    symstate <- get
+    case (v0,v1) of
+      (SE_Immediate imm0,SE_Immediate imm1) -> do
+        set_flag "ZF" (imm0 == imm1)
+        set_flag "CF" (imm0  < imm1)
+      -- _ -> trace ("UNSETTING\n" ++  show_symstate l symstate) unset_all_flags
+      _ -> unset_all_flags 
+
+
+  sread_flag flg = do
+    SymState regs mem flgs <- get
+    return $ M.lookup flg flgs
+
+  set_flag flg b = do
+    SymState regs mem flgs <- get
+    put $ SymState regs mem $ M.insert flg b flgs
+
+  unset_all_flags = do
+    SymState regs mem _ <- get
+    put $ SymState regs mem M.empty
+
+  do_normal_instr sem = do
+      set_rip (size_of sem + rip_of sem)
+      tau l count sem
+
+  do_jump sem@(Jump rip src _ si) = do
+    set_rip (size_of sem + rip_of sem)
+    trgt <- sread_src l src
+    case (src,trgt) of
+      (SE_Immediate _, SE_Immediate a') -> set_rip (rip_of sem + a') 
+      (_             , SE_Immediate a') -> set_rip a'
+    
+
+  do_cond_jump :: Instruction -> State SymState (S.Set SymState)
+  do_cond_jump i = 
+    case inOperation i of
+      JNZ -> do
+        zf <- sread_flag "ZF"
+        case zf of
+          (Just b0) -> do_jump_if (not b0) i 
+          Nothing   -> do
+            symstate <- get
+            return $ S.fromList [execState (do_jump_if True i) symstate, execState (do_jump_if False i) symstate]
+      JNBE -> do
+        cf <- sread_flag "CF"
+        zf <- sread_flag "ZF"
+        case (cf,zf) of
+          (Just b0,Just b1) -> do_jump_if (not b0 && not b1) i
+      _ -> do
+        symstate <- get
+        error $ "unsupported conditional jump: " ++ show i ++ "\n" ++ show_symstate l symstate
+
+  do_jump_if True  i@(Instruction a _ _ ops _ si) = do
+    do_jump $ Jump a (operand_to_expr $ ops!!0) i (fromIntegral si)
+    gets S.singleton
+  do_jump_if False i@(Instruction a _ _ ops _ si) = do
+    set_rip (a + fromIntegral si)
+    gets S.singleton
 
 
 -- SYMBOLIC EXECUTION MAIN FUNCTION
@@ -591,6 +689,7 @@ path_to_asemantics l0 cfg n = map (instr_to_semantics l0) . concatMap canonicali
 -- If the register is not in the mapping, it has not been read or written yet.
 -- If the register is assigned Nothing, then its value is unknown.
 type Regs = M.Map Register (Maybe SimpleExpr)
+type Flags = M.Map String Bool
 
 -- Symbolic memory structures the memory into PointerDomains.
 -- Each PointerDomain is separate from all other PointerDomains.
@@ -604,7 +703,8 @@ data PointerDomain = Bases (S.Set PointerBase) | Sources (S.Set StatePart) | NoD
 --
 -- An access of the form "SRef a" says that pointer $a$ was computed (e.g., through an LEA).
 data SAccess = SStorage SimpleExpr Int SStoredVal Bool | SRef SimpleExpr
-  deriving (Eq)
+  deriving (Eq, Ord)
+
 
 -- A value stored in memory is either some value, an indication that the region has not been written to yet, or unknown.
 data SStoredVal = Written SimpleExpr | Initial | Top 
@@ -612,11 +712,14 @@ data SStoredVal = Written SimpleExpr | Initial | Top
 
 -- Per domain, we keep track of a list of accesses.
 data SDomain = SDomain [SAccess]
+  deriving (Eq, Ord)
 
 data SMemory = SMemory (M.Map PointerDomain SDomain)
+  deriving (Eq, Ord)
 
 -- The symbolic state: memory and registers
-data SymState = SymState SMemory Regs
+data SymState = SymState SMemory Regs Flags
+  deriving (Eq, Ord)
 
 
 
@@ -871,16 +974,24 @@ is_below l0 (a0,si0) (a1,si1) =
 -- Symbolic Execution: symbolic state
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
-show_symstate l0 (SymState mem regs) = show_symstate_regs show "\n" regs ++ "\n" ++ show_smemory l0 mem
+show_symstate l0 (SymState mem regs flgs) = show_symstate_regs show "\n" regs ++ "\n" ++ show_smemory l0 mem ++ show_sflags  flgs
+
+
+show_sflags flgs
+  | M.null flgs = ""
+  | otherwise = "\n" ++ (intercalate "\n" $ map (\(flg,v) -> flg ++ " == " ++ show v) $ M.assocs flgs)
 
 get_mem :: State SymState SMemory
-get_mem = get <&> (\(SymState mem _) -> mem)
+get_mem = get <&> (\(SymState mem _ _) -> mem)
 
 get_regs :: State SymState Regs
-get_regs = get <&> (\(SymState _ regs) -> regs)
+get_regs = get <&> (\(SymState _ regs _) -> regs)
+
+get_flags :: State SymState Flags
+get_flags = get <&> (\(SymState _ _ flgs) -> flgs)
 
 modify_regs :: (Regs -> Regs) -> State SymState ()
-modify_regs f = modify (\(SymState mem regs) -> SymState mem (f regs))
+modify_regs f = modify (\(SymState mem regs flgs) -> SymState mem (f regs) flgs)
 
 
 
@@ -891,30 +1002,36 @@ read_top_from_statepart sp regs = do
 
 
 sread_mem :: LiftedWithEntry -> SimpleExpr -> SimpleExpr -> Int -> State SymState SimpleExpr
-sread_mem l0 a a' si = do
+sread_mem l0@(bin,_,_,_) a a' si = do
   -- 1.) insert region into memory model
-  SymState mem regs <- get
+  SymState mem regs flgs <- get
   let (st,mem') = insert_storage_into_mem l0 a' si mem
-  put $ SymState mem' regs
+  put $ SymState mem' regs flgs
   -- 2.) use the state of the access to retrieve a value
   case st of
     (SStorage _ _ val latest) -> mk_val val latest
  where
   mk_val _           False = get_regs <&> (read_top_from_statepart $ SP_Mem a si)
   mk_val Top         _     = get_regs <&> (read_top_from_statepart $ SP_Mem a si)
-  mk_val Initial     True  = return $ SE_Var $ SP_Mem a' si
   mk_val (Written v) True  = return $ v
+  mk_val Initial     True  = 
+    case a' of
+      SE_Immediate imm -> 
+        case read_from_ro_datasection bin imm si of
+          Nothing -> return $ SE_Var $ SP_Mem a' si
+          Just v  -> return $ SE_Immediate v
+      _           -> return $ SE_Var $ SP_Mem a' si
 
 
 swrite_mem :: LiftedWithEntry -> SimpleExpr -> Int -> Maybe SimpleExpr -> State SymState ()
 swrite_mem l0 a' si v' = do
   -- 1.) insert region into memory model
-  SymState mem regs <- get
+  SymState mem regs flgs <- get
   let (_,SMemory mem') = insert_storage_into_mem l0 a' si mem
    -- 2.) overwrite all regions that are touched by doing the current write
   let dom = get_pointer_domain l0 $ prune l0 a'
   let mem'' = M.adjust dom_write dom mem'
-  put $ SymState (SMemory mem'') regs
+  put $ SymState (SMemory mem'') regs flgs
  where 
   dom_write (SDomain accs) = 
     let (touched,not_touched) = runState (partition_domain_touched_by l0 a' si) accs
@@ -1013,11 +1130,11 @@ prune'' ctxt@(bin,config,l0,entry) subst e =
 
 
 clean_below_current_stackframe :: LiftedWithEntry -> SymState -> SymState
-clean_below_current_stackframe l ss@(SymState (SMemory m) regs) = 
+clean_below_current_stackframe l ss@(SymState (SMemory m) regs flgs) = 
   case read_rsp regs of
     Just rsp_value -> 
       let  new_mem = M.mapWithKey (clean_local_and_below_stackframe rsp_value) m in
-        SymState (SMemory new_mem) regs
+        SymState (SMemory new_mem) regs flgs
     Nothing -> ss
  where
   read_rsp regs = 
@@ -1263,12 +1380,12 @@ widen_repeated_accesses l0 sems ras = update_inv $ zip sems ras
       filter (\group -> length group > 1) $ map nub groups
 
   update_inv_for_group sem si group inv =
-    let group'             = sortBy smallerDistance group
-        a'                 = simp $ SE_Op Plus 64 [head group', Bottom RockBottom]
-        SymState mem regs = inv
-        (_,mem')           = insert_storage_into_mem l0 a' si mem in
+    let group'                 = sortBy smallerDistance group
+        a'                     = simp $ SE_Op Plus 64 [head group', Bottom RockBottom]
+        SymState mem regs flgs = inv
+        (_,mem')               = insert_storage_into_mem l0 a' si mem in
       trace ("\nWIDENING: " ++ show a')
-        SymState mem' regs
+        SymState mem' regs flgs
 
 
 pruned_equal l0 a0 a1 = prune l0 a0 == prune l0 a1

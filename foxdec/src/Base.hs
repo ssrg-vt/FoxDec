@@ -330,7 +330,6 @@ hex_color_of_text bgcolor =
 
 -- | A list of RGB colors
 hex_colors = [
-  "#000000",
   "#FF0000",
   "#00FF00",
   "#0000FF",
@@ -456,7 +455,8 @@ hex_colors = [
   "#40C040",
   "#202020",
   "#FF2020",
-  "#20FF20"
+  "#20FF20",
+  "#000000"
  ]
 
 

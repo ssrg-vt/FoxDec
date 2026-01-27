@@ -17,10 +17,9 @@ import Data.X86.Instruction
 import Data.X86.Opcode
 import Data.X86.Register
 import Data.Size
+import Data.CFI
 import Data.Symbol
 import Data.JumpTarget
-
-import Parser.ParserCFI
 
 import qualified Data.Map as M hiding (insertWith)
 import qualified Data.Map.Strict as M (insertWith)
@@ -84,14 +83,20 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
     let name     = binary_file_name bin
     let fname    = dirname ++ name ++ ".S" 
 
-    let cfi = parse_ehframe elf (symbolize bin ellf)
-    let txt = render_ellf bin elf ellf cfi
+    txt <- lift_ellf bin elf ellf
     LBS.writeFile fname txt
 
+
+  
+
+lift_ellf bin elf ellf = do
+  let cfi = parse_ehframe elf (symbolize bin ellf)
+  let txt = render_ellf bin elf ellf cfi 
+  return txt
+ where
   -- TODO use the right object here instead of 0
   symbolize bin ellf (Absolute a) = mk_label ellf 0 a
   symbolize bin ellf (Indirect a) = mk_label ellf 0 a
-  
 
 
 flatten = concatMap (\(a,bs) -> zip (repeat a) bs)
@@ -145,9 +150,8 @@ mk_all_labels ellf (Just object) a =
 
 
 
-
 -- Fetching a basic block.
-fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) = go (f_address+offset) (fromIntegral si)
+fetch_basic_block bin ellf object f bb@(ELLF_Basic_Block _ offset si a) = go a (fromIntegral si)
  where
   go a 0 = []
   go a si =
@@ -156,21 +160,27 @@ fetch_basic_block bin ellf object f f_address bb@(ELLF_Basic_Block _ offset si) 
       Just i  ->
         if si < inSize i then
           error $ mk_error_msg $ "Basic block leading to the middle of an instruction: " ++ show i
-        else
-          i : go (a + fromIntegral (inSize i)) (si - inSize i)
+        else case maybe_jump i si of 
+          Nothing -> i : go (a + fromIntegral (inSize i)) (si - inSize i)
+          Just a' -> i : go (a + fromIntegral (inSize i)) (si - inSize i) --  error $ "Jump in middle of basic block: " ++ show i -- mk_NOP i : go a' (si - inSize i)
+
+  maybe_jump i si
+    | isJump (inOperation i) && si > inSize i =
+      case inOperands i of
+        [Op_Imm (Immediate _ imm)] -> Just (inAddress i + imm)
+        _ -> Nothing
+    | otherwise = Nothing
+
+  mk_NOP i = Instruction (inAddress i) [] NOP [] [] (inSize i)
 
   mk_error_msg msg =
-    let f'   = (ellf_functions ellf !! object) !! fromIntegral (ellf_bb_function bb)
-        s'   = (ellf_symbols ellf !! object) !! fromIntegral (ellf_func_symbol_idx f')
-        sec' = (ellf_sections ellf !! object) !! fromIntegral (ellf_sym_section_idx s')  in
+    let f'   = (ellf_functions ellf !! object) !! fromIntegral (ellf_bb_function bb) in
       intercalate "\n" $
         [ msg
         , show bb
         , "Object = " ++ show object
         , "Function = " ++ show f
         , "Function[" ++ show (ellf_bb_function bb) ++ "] = " ++ show f'
-        , "Symbol[" ++ show (ellf_func_symbol_idx f') ++ "] = " ++ show s'
-        , "Section[" ++ show (ellf_sym_section_idx s') ++ "] = " ++ show sec'
         ]
 
 
@@ -260,12 +270,10 @@ find_undefined_labels bs =
 
 mk_llvm_mapping bin ellf (object,fs) = concatMap mk_llvm_mapping_fun fs
  where
-  mk_llvm_mapping_fun (ELLF_Function symb_idx first_bb last_bb f_address) = 
-    let f_symbol = (ellf_symbols ellf !! object) !! fromIntegral symb_idx
-        f_name   = ellf_sym_name f_symbol
-        bbs      = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object in
-      concatMap (mk_llvm_mapping_bb f_name f_address) $ zip [0..] bbs
-  mk_llvm_mapping_bb f_name f_address (idx,bb@(ELLF_Basic_Block func_idx offset si)) = map (mk_equality (f_name ++ "_BB" ++ show idx)) $ mk_all_labels ellf (Just object) (f_address + offset)
+  mk_llvm_mapping_fun (ELLF_Function f_name first_bb last_bb f_address) = 
+    let bbs = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object in
+      concatMap (mk_llvm_mapping_bb f_name) $ zip [0..] bbs
+  mk_llvm_mapping_bb f_name (idx,bb@(ELLF_Basic_Block func_idx offset si a)) = map (mk_equality (f_name ++ "_BB" ++ show idx)) $ mk_all_labels ellf (Just object) a
   mk_equality l0 l1 = string8 $ "# " ++ l0 ++ " == " ++ l1
 
 
@@ -292,13 +300,13 @@ render_ellf_cfg bin ellf =
   bb_idx_to_label object bb_idx =
     let bb = (ellf_basic_blocks ellf !! object) !! bb_idx
         f  = (ellf_functions ellf !! object) !! fromIntegral (ellf_bb_function bb)
-        a  = ellf_func_address f + ellf_bb_offset bb in
+        a  = ellf_bb_address bb in
       "0x" ++ showHex a
       -- head $ mk_all_labels ellf (Just object) a
 
 
 
-render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) addresses =
+render_ellf' bin elf ellf cfi@(CFI cfi_directives cfi_lsda_tables cfi_addresses) addresses =
   let cfi'             = (cfi_directives,cfi_lsda_tables,IS.union addresses cfi_addresses)
       header           = render_header bin elf ellf
 
@@ -306,11 +314,18 @@ render_ellf' bin elf ellf cfi@(cfi_directives,cfi_lsda_tables,cfi_addresses) add
       data_sections    = render_elf_data_sections bin elf ellf cfi' $ get_sections_from_globals elf $ concat $ ellf_globals ellf
       data_sections'   = render_elf_data_sections bin elf ellf cfi' $ nub $ concatMap (get_section_by_name elf) [".init_array", ".fini_array"]
       --data_sections    = render_list "\n\n\n" $ concatMap (render_data_section_from_globals bin elf ellf cfi') $ zip [0..] $ ellf_globals ellf
-      cfi_data_section = [render_list "\n\n\n" $ map string8 $ IM.elems cfi_lsda_tables]
-      no_exec_stack    = [string8 $ "# Ensure non-executable stack\n" ++ withIndent ".section .note.GNU-stack,\"\",@progbits"] 
+      cfi_data_section = [render_list "\n\n\n" $ map string8 $ map (render_gcc_except_table (symbolize bin ellf)) $ IM.elems cfi_lsda_tables]
+      no_exec_stack    = [string8 $ "# Ensure non-executable stack\n" ++ withIndent ".section .note.GNU-stack,\"\",@progbits\n"] 
       llvm_mapping     = [render_list "\n" $ [string8 "### FOXDEC LLVM BASIC BLOCK MAPPING ###"] ++ concatMap (mk_llvm_mapping bin ellf) (zip [0..] $ ellf_functions ellf) ++ [string8 "### FOXDEC LLVM BASIC BLOCK MAPPING END ###"]]
       cfgs             = [render_ellf_cfg bin ellf] in
-    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack ++ llvm_mapping ++ cfgs
+    toLazyByteString $ render_list "\n\n\n" $ [header,text_section,data_sections,data_sections'] ++ cfi_data_section ++ no_exec_stack -- ++ llvm_mapping ++ cfgs
+ where
+  -- TODO use the right object here instead of 0
+  symbolize bin ellf (Absolute a) = mk_label ellf 0 a
+  symbolize bin ellf (Indirect a) = mk_label ellf 0 a
+
+
+
 
 
 render_header bin elf ellf = render_list "\n\n" [mk_intel_syntax, mk_externals]
@@ -328,7 +343,7 @@ render_header bin elf ellf = render_list "\n\n" [mk_intel_syntax, mk_externals]
 externals bin = S.fromList $ map symbol_to_name $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
   is_relocation (PointerToExternalFunction str) = str /= ""
-  is_relocation (PointerToObject str ex) = ex && str /= ""
+  is_relocation (PointerToObject str ex _ _) = ex && str /= ""
   is_relocation (AddressOfObject str ex) = ex && str /= ""
   is_relocation (AddressOfLabel str ex) = ex && str /= ""
   is_relocation _ = False
@@ -336,7 +351,7 @@ externals bin = S.fromList $ map symbol_to_name $ filter is_relocation $ IM.elem
 -- | get the external objects
 external_objects l@(bin,_,l0) = map symbol_to_name $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
-  is_relocation (PointerToObject str ex) = ex && str /= ""
+  is_relocation (PointerToObject str ex _ _) = ex && str /= ""
   is_relocation (AddressOfObject str ex) = ex && str /= ""
   is_relocation _ = False
 
@@ -404,6 +419,16 @@ get_sections_from_globals elf globals = nub $ concatMap toSection globals ++ con
 -- Render entire data sections provided by the ELF itself
 render_elf_data_sections bin elf ellf cfi sections = render_list "\n\n\n" $ concatMap (render_data_section bin elf ellf cfi Nothing) sections
 
+-- Consider non-executable sections except for the CFI related ones
+is_relevant_data_section section = and
+    [ SHF_ALLOC `elem` elfSectionFlags section || is_bss section
+    , not (SHF_EXECINSTR `elem` elfSectionFlags section)
+    , not (isInfixOf "gcc_except_table" $ elfSectionName section)
+    , elfSectionName section `notElem` [".eh_frame", ".eh_frame_hdr"]
+    ]
+ where
+  is_bss section = elfSectionName section `elem` [".bss", ".tbss"]
+
 
 -- Render a data section given a starting address and a size
 render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
@@ -415,18 +440,12 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   a  = elfSectionAddr section
   si = elfSectionSize section
 
-  -- Consider non-executable sections except for the CFI related ones
-  is_relevant_data_section section = and
-    [ SHF_ALLOC `elem` elfSectionFlags section || is_bss section
-    , not (SHF_EXECINSTR `elem` elfSectionFlags section)
-    , not (isInfixOf "gcc_except_table" $ elfSectionName section)
-    , elfSectionName section `notElem` [".eh_frame", ".eh_frame_hdr"]
-    ]
+
   is_bss section        = elfSectionName section `elem` [".bss", ".tbss"]
   is_func_array section = elfSectionName section `elem` [".init_array", ".fini_array"]
 
   -- Render a data section
-  render_section section a si = render_list "\n" $ mk_section_header section a : mk_align section : mk_data_section section (is_bss section) (is_func_array section) a si
+  render_section section a si = render_list "\n" $ (mk_section_header section a : mk_align section : mk_data_section section (is_bss section) (is_func_array section) a si) ++ mk_section_end_label section
 
   -- Render the header
   mk_section_header section a = string8 $ "# " ++ mk_object optional_object ++ "@0x" ++ showHex a ++ " (" ++ show si ++ " bytes)\n" ++ withIndent ".section " ++ (elfSectionName section) 
@@ -436,15 +455,24 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   mk_object (Just obj) = "object " ++ show obj ++ ", "
 
   -- Render the alignment
-  mk_align section = string8 $ withIndent ".align " ++ show (elfSectionAddrAlign section)
+  mk_align section = string8 $ withIndent ".align 0x" ++ showHex (elfSectionAddrAlign section)
+
+  -- Render the end label
+  mk_section_end_label section = 
+    let a = elfSectionAddr section + elfSectionSize section in
+      case find (contains_address a 1) $ elfSections elf of
+        Nothing -> [string8 $ "# additional end-label @0x" ++ showHex a] ++ address_to_labels Nothing a
+        Just _  -> []
+
+
 
   -- Render the data
   -- Two things happen here: relocations from the .ellf.pointers sections are symbolized, and labels are inserted.
   -- If the section is an array of function pointers (.init_array, .fini_array) make sure that only funciton pointers are rendered
-  mk_data_section section is_bss is_funptr_array a si =
+  mk_data_section section is_bss is_funptr_array (a::Word64) (si::Word64) =
     case find_next_pointer is_bss a si of
-       Nothing  -> raw_data section is_bss is_funptr_array a si
-       Just (Left (object,ptr)) -> 
+       (Nothing,Nothing,Nothing) -> raw_data section is_bss is_funptr_array a si
+       (Just (object,ptr),_,_) -> 
           let ptr_a  = ellf_ptr_address ptr
               pte    = (ellf_pointees ellf  !! fromIntegral object) !! (fromIntegral $ ellf_ptr_pointee_idx ptr)
               pte_si = pointee_size ptr pte
@@ -453,12 +481,19 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
               part2  = [render_pointee section object ptr_a pte pte_si]
               part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
-       Just (Right (Relocation ptr_a a1)) ->
+       (Nothing,Just (Relocation ptr_a a1),_) ->
           let pte_si = 8
               part0  = raw_data section is_bss is_funptr_array a (ptr_a - a)
               part1  = if is_funptr_array then [] else address_to_labels optional_object ptr_a 
               part2  = mk_reloc is_funptr_array a1 
               part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
+            part0 ++ part1 ++ part2 ++ part3
+       (Nothing,Nothing,Just (ptr_a,sym)) ->
+          let pte_si = 8
+              part0  = raw_data section is_bss is_funptr_array a (fromIntegral ptr_a - a)
+              part1  = if is_funptr_array then [] else address_to_labels optional_object (fromIntegral ptr_a)
+              part2  = mk_symbol sym
+              part3  = mk_data_section section is_bss is_funptr_array (fromIntegral ptr_a+pte_si) (si + a - fromIntegral ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
 
 
@@ -470,6 +505,11 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
     | not is_funptr_array                           = [string8 $ withIndent ".quad 0 # " ++ tail (head (mk_all_labels ellf optional_object a1)) ++ " RELOC NOT IN ELLF METADATA"] 
     | otherwise                                     = [string8 $ withIndent "# .quad "   ++ tail (head (mk_all_labels ellf optional_object a1)) ++ " RELOC NOT IN ELLF METADATA"]
 
+  mk_symbol (PointerToExternalFunction f)   = [ string8 $ withIndent ".quad " ++ f ]
+  mk_symbol (PointerToObject o _ addend _)  = [ string8 $ withIndent ".quad " ++ o ++ (if addend==0 then "" else "+0x" ++ showHex addend)]
+  mk_symbol (Relocated_ResolvedObject o _)  = [ string8 $ withIndent ".quad " ++ o ]
+  mk_symbol (PointerToInternalFunction f _) = [ string8 $ withIndent ".quad " ++ f ]
+
   is_function_entry a = a `elem` map ellf_func_address (concat $ ellf_functions ellf)
   in_data_section a =
     case find (\s -> elfSectionAddr s <= a && a < elfSectionAddr s + elfSectionSize s) $ elfSections elf of
@@ -477,33 +517,40 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
       Just s  -> "bss" `isInfixOf` elfSectionName s || "data" `isInfixOf` elfSectionName s
 
 
-  -- Find the next entry in .ellf.pointer
-  find_next_pointer is_bss a si =
-    case (first_GE a (a+si) (ellf_ptr_address . snd) $ all_ellf_pointers optional_object, if is_bss then Nothing else first_GE a (a+si) (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin) of
-      (Nothing,Nothing) -> Nothing
-      (Just (object,ptr),Nothing) -> Just (Left (object,ptr))
-      (Nothing,Just reloc) -> Just (Right reloc)
-      (Just (object,ptr),Just reloc@(Relocation a0 a1)) -> if a0 < ellf_ptr_address ptr then Just (Right reloc) else Just $ Left (object,ptr)
+  -- Find the next entry in .ellf.pointer, or the next relocation
+  find_next_pointer is_bss (a::Word64) (si::Word64) =
+    let first_GE_symbol = if is_bss then Nothing else IM.lookupGE (fromIntegral a) $ IM.filterWithKey (symbol_is_reloc_below (fromIntegral $ a+si)) $ binary_get_symbol_table bin 
+        bnd0 = case first_GE_symbol of
+                 Nothing       -> a + si
+                 Just (a0,sym) -> fromIntegral a0
+        first_GE_reloc  = if is_bss then Nothing else first_GE a bnd0 (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin
+        bnd1 = case first_GE_reloc of
+                 Nothing                -> bnd0
+                 Just (Relocation a0 _) -> a0
+        first_ELLF_pointer = first_GE a bnd1 (ellf_ptr_address . snd) $ all_ellf_pointers optional_object in
+      (first_ELLF_pointer,first_GE_reloc,first_GE_symbol)
 
   all_ellf_pointers Nothing    = flatten $ zip [0..] $ ellf_pointers ellf
   all_ellf_pointers (Just obj) = flatten $ [(obj,ellf_pointers ellf !! fromIntegral obj)]
 
+  symbol_is_reloc_below a' a0 (Relocated_ResolvedObject _ _)  = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToExternalFunction _)   = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToInternalFunction _ _) = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToObject _ _ _ _)       = a0 < a'
+  symbol_is_reloc_below a' a0 _ = False
 
 
   -- Render raw data, but insert labels of symbols from .ellf.symbols as well as from the CFI directives.
   raw_data section is_bss is_funptr_array a 0  = []
-  raw_data section is_bss True            _ _  = []
+  --raw_data section is_bss True            _ _  = []
   raw_data section is_bss is_funptr_array a si = 
     let bytes = if is_bss then RD_BSS $ fromIntegral si else RD_ByteString $ BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section in
       raw_data_with_symbols (fromIntegral a) (fromIntegral si) is_funptr_array bytes
  
   raw_data_with_symbols a si is_funptr_array bytes
-    | raw_data_is_null bytes = []
+   --  | raw_data_is_null bytes = []
     | otherwise =
-      let -- symbols0    = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object
-          symbols    = if is_funptr_array then [] else takeWhile (\a' -> a' < a + si) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
-          -- cfi_symbols = IS.filter (\a' -> a <= fromIntegral a' && fromIntegral a' < a + si) cfi_addresses
-          -- symbols     = map fromIntegral $ IS.toAscList symbols0 in -- $ IS.union cfi_symbols $ IS.fromList symbols0 in
+      let symbols = {--if is_funptr_array then [] else --}takeWhile (\a' -> a' < a + si || (a' == a && fromIntegral a' == elfSectionAddr section)) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
         raw_data_insert_symbols (fromIntegral a) symbols bytes
 
   all_ellf_symbol_addresses Nothing    = IS.unions $ map IM.keysSet $ ellf_symb_map ellf
@@ -513,7 +560,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   raw_data_insert_symbols a [] bytes = render_bytes a bytes
   raw_data_insert_symbols a (sym:syms) bytes
     | a  < sym = render_bytes a (raw_data_take (sym - a) bytes) ++ raw_data_insert_symbols sym (sym:syms) (raw_data_drop (sym - a) bytes)
-    | a == sym = address_to_labels optional_object (fromIntegral sym) ++ raw_data_insert_symbols a syms bytes
+    | a == sym = {--section_alignment (fromIntegral a) ++--}  address_to_labels optional_object (fromIntegral sym) ++ raw_data_insert_symbols a syms bytes
     | otherwise = error $ show a ++  " == 0x" ++ showHex a ++ "\n" ++ show (sym:syms)
 
   address_to_labels Nothing a = map (\l -> string8 (l ++ ":")) $ mk_all_labels ellf Nothing a
@@ -522,19 +569,24 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
       Nothing -> []
       Just l  -> [string8 (l ++ ":")]
 
-
+  section_alignment a = [] {--
+    case find (\s -> ellf_section_address s == a) $ concat $ ellf_sections ellf of
+      Nothing -> []
+      Just s  -> [string8 $ withIndent ".align 0x" ++ showHex (ellf_section_align s) ] --}
   
 
   -- Render bytes. If it is 0-terminated ASCII, render as string using .asciz
   render_bytes a (RD_BSS si) = [string8 $ withIndent $ ".skip " ++ show si ]
-  render_bytes a (RD_ByteString bytes)
+  render_bytes a (RD_ByteString bytes) 
+   -- RENDERING WITHOUT PRETTY PRINTING
+   -- = [(string8 $ withIndent ".byte ") <> (render_list "," (map (\c -> string8 $ "0x" ++ showHex c) $ BS.unpack bytes))]i
     | BS.null bytes = []
     | otherwise =
       case takeWhileString bytes of
         Nothing -> 
           let (part0,part1) = bs_takeUntilZero bytes in
             [(string8 $ withIndent ".byte ") <> (render_list "," (map (\c -> string8 $ "0x" ++ showHex c) $ BS.unpack part0))] <> render_bytes (a+BS.length part0) (RD_ByteString part1)
-        Just (str,rest) -> [string8 (withIndent ".asciz \"") <> escape_string (concatMap (\c -> showLitChar c "") str) <> string8 ("\"" ++ " # 0x" ++ showHex a) ] <> render_bytes (a+length str+1) (RD_ByteString rest)
+        Just (str,rest) -> [string8 (withIndent ".asciz \"") <> escape_string (concatMap (\c -> showLitChar c "") str) <> string8 ("\"") ] <> render_bytes (a+length str+1) (RD_ByteString rest)
 
   takeWhileString bytes =
     let (bs0,bs1) = BS.span valid_char bytes in
@@ -623,7 +675,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
     sym <- IM.lookup (fromIntegral a) $ binary_get_symbol_table bin
     case sym of
       PointerToExternalFunction f -> return $ withIndent ".quad " ++ f 
-      PointerToObject obj _ -> return $ withIndent ".quad " ++ obj 
+      PointerToObject obj _ addend _ -> return $ withIndent ".quad " ++ obj ++ (if addend==0 then "" else "+0x" ++ showHex addend)
       Relocated_ResolvedObject _ a1 -> do
         sym1 <- IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
         return $ withIndent ".quad " ++ symbol_to_name sym1
@@ -661,9 +713,9 @@ get_all_LEA_addresses bin ellf = IS.unions $ map get_LEAs_funcs $ zip [0..] $ el
   get_LEAs_funcs (object,fs) = IS.unions $ map (get_LEAs_func object) fs
   get_LEAs_func object f@(ELLF_Function symb_idx first_bb last_bb f_address) = 
     let bbs = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object in
-      IS.unions $ map (get_LEAs_bb object f f_address) bbs
-  get_LEAs_bb object f f_address bb =
-    let instrs = fetch_basic_block bin ellf object f f_address bb in
+      IS.unions $ map (get_LEAs_bb object f) bbs
+  get_LEAs_bb object f bb =
+    let instrs = fetch_basic_block bin ellf object f bb in
       IS.fromList $ mapMaybe get_LEA_operand_address $ filter is_LEA instrs
   is_LEA i = inOperation i == LEA
 
@@ -678,17 +730,15 @@ get_all_LEA_addresses bin ellf = IS.unions $ map get_LEAs_funcs $ zip [0..] $ el
 
 
 -- Rendering a function
-render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f_address) =
-  let f_symbol = (ellf_symbols ellf !! object) !! fromIntegral symb_idx
-      f_name   = ellf_sym_name f_symbol
-      bbs      = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object 
-      first_i  = f_address + ellf_bb_offset (head bbs) 
-      last_a = case fetch_basic_block bin ellf object f f_address $ last bbs of
-                 [] -> f_address + (ellf_bb_offset $ last bbs)
+render_function bin ellf cfi object f@(ELLF_Function f_name first_bb last_bb f_address) =
+  let bbs      = take (fromIntegral last_bb+1-fromIntegral first_bb) $ drop (fromIntegral first_bb) $ ellf_basic_blocks ellf !! object 
+      first_i  = ellf_bb_address (head bbs) 
+      last_a = case fetch_basic_block bin ellf object f $ last bbs of
+                 [] -> ellf_bb_address $ last bbs
                  is -> inAddress (last is) + fromIntegral (inSize $ last is) in
     render_list "\n"
       [ render_header f_name bbs
-      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name f_address bbs) $ zip [0..] bbs
+      , render_list "\n\n" $ map (render_basic_block bin ellf cfi object f f_name bbs) $ zip [0..] bbs
       , render_post f_name bbs first_i last_a
       ]
  where
@@ -697,15 +747,15 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
     , if binary_is_cpp bin then ("# Demangled " ++) <$> (demangle f_name) else Nothing
     , Just $ withIndent ".text"
     , Just $ withIndent ".globl " ++ f_name -- TODO only if exported
-    , Just $ withIndent ".weak " ++ f_name -- TODO only if exported
+    -- , Just $ withIndent ".weak " ++ f_name -- TODO only if exported
     , Just $ withIndent ".p2align 4"
     , Just $ withIndent ".type " ++ f_name ++ ",@function"
     , Just $ withIndent ".cfi_startproc"
-    , if ellf_bb_size (head bbs) == 0 && address_is_start_of_bb ellf bbs f_address False (f_address + ellf_bb_offset (head bbs)) then Just $ f_name ++ "_BB0:" else Nothing
+    , if ellf_bb_size (head bbs) == 0 && address_is_start_of_bb ellf bbs False (ellf_bb_address (head bbs)) then Just $ f_name ++ "_BB0:" else Nothing
     ]
   render_post f_name bbs first_i last_a = render_list "\n" $ map string8
-    [ mk_end_label f_name bbs first_i last_a ++ ":"
-    , withIndent ".size " ++ f_name ++ ", " ++ mk_end_label f_name bbs first_i last_a ++ " - " ++ (f_name ++ "_BB0") -- mk_label ellf object (inAddress first_i)
+    [ -- mk_end_label f_name bbs first_i last_a ++ ":"
+      withIndent ".size " ++ f_name ++ ", " ++ " . " {-- mk_end_label f_name bbs first_i last_a --} ++ " - " ++ (f_name ++ "_BB0") -- mk_label ellf object (inAddress first_i)
     , withIndent ".cfi_endproc"
     , "# End of function " ++ f_name
     ]
@@ -714,38 +764,45 @@ render_function bin ellf cfi object f@(ELLF_Function symb_idx first_bb last_bb f
 
   -- Only if the end address of this function is not already inserted as the start of another, insert an end-label (prevent duplicate labels)
   mk_end_label f_name bbs first_i a
-    | address_is_start_of_bb ellf bbs f_address True a = ".L_" ++ f_name ++ "_0x" ++ showHex first_i ++ "_END_LABEL"
+    | address_is_start_of_bb ellf bbs True a = ".L_" ++ f_name ++ "_0x" ++ showHex first_i ++ "_END_LABEL"
     | otherwise = mk_label ellf object a 
 
 
-address_is_start_of_bb ellf bbs f_address can_be_empty a = find (basic_block_starting_at a) bbs /= Nothing || find (function_starting_at a) (concat $ ellf_functions ellf) /= Nothing
+address_is_start_of_bb ellf bbs can_be_empty a = find (basic_block_starting_at a) bbs /= Nothing || find (function_starting_at a) (concat $ ellf_functions ellf) /= Nothing
  where
-  basic_block_starting_at a bb = (can_be_empty || ellf_bb_size bb /= 0) && ellf_bb_offset bb + f_address == a
+  basic_block_starting_at a bb = (can_be_empty || ellf_bb_size bb /= 0) && ellf_bb_address bb == a
   function_starting_at a f = ellf_func_address f == a
+
+
+address_is_start_of_bb_anywhere ellf a = any (basic_block_starts_at a) $ concat $ ellf_basic_blocks ellf
+ where
+  basic_block_starts_at a bb = ellf_bb_address bb == a
+
  
 -- Rendering a basic block
-render_basic_block bin ellf cfi object f f_name f_address bbs (idx,bb@(ELLF_Basic_Block func_idx offset 0)) =
-  if not $ address_is_start_of_bb ellf bbs f_address False (f_address + offset) then
-    render_basic_block' bin ellf cfi object f f_name f_address bbs (idx,bb)
+render_basic_block bin ellf cfi object f f_name bbs (idx,bb@(ELLF_Basic_Block func_idx _ 0 a)) =
+  if not $ address_is_start_of_bb ellf bbs False a then
+    render_basic_block' bin ellf cfi object f f_name bbs (idx,bb)
   else
     mempty -- string8 $ show (object,idx,bb,x)
-render_basic_block bin ellf cfi object f f_name f_address bbs (idx,bb) = render_basic_block' bin ellf cfi object f f_name f_address bbs (idx,bb)
+render_basic_block bin ellf cfi object f f_name bbs (idx,bb) = render_basic_block' bin ellf cfi object f f_name bbs (idx,bb)
     
 
 
-render_basic_block' bin ellf cfi object f f_name f_address bbs (idx,bb@(ELLF_Basic_Block func_idx offset si)) = 
-  let is = fetch_basic_block bin ellf object f f_address bb in
+render_basic_block' bin ellf cfi object f f_name bbs (idx,bb@(ELLF_Basic_Block func_idx _ si a)) = 
+  let is = fetch_basic_block bin ellf object f bb in
     render_list "\n" 
       [ render_basic_block_header
       , render_basic_block_label 
       , if si == 0 then mempty else render_instructions bin ellf object cfi is 
-      , if si == 0 then mempty else render_basic_block_end_label (f_address + offset + si) ]
+      , if si == 0 then mempty else render_basic_block_end_label (a + si) ]
  where
-  render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex (f_address + offset)
-  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) (f_address + offset) ++ [f_name ++ "_BB" ++ show idx] -- TODO LLVM BB label is temporary
+  render_basic_block_header = string8 $ "# Basic block " ++ f_name ++ "@0x" ++ showHex a
+  render_basic_block_label = string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) a ++ [f_name ++ "_BB" ++ show idx] -- TODO LLVM BB label is temporary
   mk_label_def l = l ++ ":"
   render_basic_block_end_label a
-    | address_is_start_of_bb ellf bbs f_address True a = mempty
+    -- | address_is_start_of_bb ellf bbs True a = mempty
+    | address_is_start_of_bb_anywhere ellf a = mempty
     | otherwise =  string8 $ intercalate "\n" $ map mk_label_def $ mk_all_labels ellf (Just object) a
 
 -- Rendering a list of instructions
@@ -757,6 +814,7 @@ render_instructions bin ellf object cfi = render_list "\n" . map (render_instruc
 render_instruction bin ellf object cfi (n,i) = render_GAS_instruction bin ellf object cfi (n,mk_GAS i)
  where
   -- TODO double check this, and expand
+  mk_GAS (Instruction addr pre NOP   _ info si)         = Instruction addr pre NOP   []    info si
   mk_GAS (Instruction addr pre FSTP  [op0,op1] info si) = Instruction addr pre FSTP  [op0] info si
   mk_GAS (Instruction addr pre FISTP [op0,op1] info si) = Instruction addr pre FISTP [op0] info si
   mk_GAS (Instruction addr pre FIST  [op0,op1] info si) = Instruction addr pre FISTP [op0] info si
@@ -916,7 +974,7 @@ symbolize_rip_relative_operand bin ellf object _ _ = Nothing
 symbolize_address :: BinaryClass bin => bin -> ELLF -> Int -> Bool -> Word64 -> String
 symbolize_address bin ellf object in_data_section a =
   case find_section_for_address bin a of
-    Nothing -> "***ERROR UNKNOWN ADDRESS 0x" ++ showHex a ++ "***"-- error $ "Cannot find section for address 0x" ++ showHex a 
+    Nothing -> symbolize_address_in_data_section a -- "***ERROR UNKNOWN ADDRESS 0x" ++ showHex a ++ "***"
     Just (seg,sec,a0,si,align,flgs) -> symbolize flgs a
  where
   symbolize flgs a
@@ -939,9 +997,13 @@ symbolize_address bin ellf object in_data_section a =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
       Just (sym@(PointerToExternalFunction f))   -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL"
       Just (sym@(PointerToInternalFunction _ _)) -> error $ "TODO: symbolize 0x" ++ showHex a
-      Just (sym@(PointerToObject o _))           -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
+      Just (sym@(PointerToObject o _ 0 _))       -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
       Just (sym@(TLS_Relative f))                -> Just $ withRIP ++ f ++ "@GOTTPOFF"
       Just (sym@(Relocated_ResolvedObject _ _))  -> error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
+
+      -- TODO
+      Just (sym@(AddressOfObject o True))        -> if in_data_section then Nothing else Just $ withRIP ++ o
+      Just (sym@(AddressOfLabel l True))         -> if in_data_section then Nothing else Just $ withRIP ++ l
       _ -> Nothing
 
   try_reloc a = do

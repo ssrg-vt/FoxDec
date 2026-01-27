@@ -35,7 +35,8 @@ data JumpTable = JumpTable {
   jtbl_index  :: Operand,
   jtbl_bound  :: Int,
   jtbl_target :: Operand,
-  jtbl_table  :: IM.IntMap Word64 
+  jtbl_table  :: IM.IntMap Word64,
+  jtbl_base   :: Word64
  }
  deriving (Generic, Eq,Ord)
 
@@ -46,7 +47,7 @@ data Indirection = Indirection_JumpTable JumpTable | Indirection_Resolved Resolv
 type Indirections = S.Set Indirection
 
 instance Show JumpTable where
-  show (JumpTable idx bnd trgt tbl) = "JumpTable: " ++ show idx ++ " < " ++ show bnd ++ " --> " ++ show trgt ++ " in " ++ showHex_set (IS.fromList $ map fromIntegral $ IM.elems tbl)
+  show (JumpTable idx bnd trgt tbl base) = "JumpTable@0x" ++ showHex base ++ ": " ++ show idx ++ " < " ++ show bnd ++ " --> " ++ show trgt ++ " in " ++ showHex_set (IS.fromList $ map fromIntegral $ IM.elems tbl)
 
 instance Show Indirection where
   show (Indirection_JumpTable tbl)  = show tbl

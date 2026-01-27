@@ -165,7 +165,7 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
   
   get_temp_object (entry,cfg,(a,inds)) = concatMap (get_temp_object_for_ind entry a) inds
 
-  get_temp_object_for_ind entry a (Indirection_JumpTable (JumpTable index bnd trgt tbl)) =
+  get_temp_object_for_ind entry a (Indirection_JumpTable (JumpTable index bnd trgt tbl base)) =
     [
      label_jump_table_temp_storage entry a 0
     ,label_jump_table_temp_storage entry a 1
@@ -184,16 +184,16 @@ render_NASM l (NASM exts globals sections footer) = intercalate "\n\n\n" $ [
 externals l@(bin,_,l0) = S.fromList $ map (strip_GLIBC . symbol_to_name) $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
   is_relocation (PointerToExternalFunction str) = str /= ""
-  is_relocation (PointerToObject str ex) = ex && str /= ""
-  is_relocation (AddressOfObject str ex) = ex && str /= ""
-  is_relocation (AddressOfLabel str ex) = ex && str /= ""
+  is_relocation (PointerToObject str ex _ _)    = ex && str /= ""
+  is_relocation (AddressOfObject str ex)        = ex && str /= ""
+  is_relocation (AddressOfLabel str ex)         = ex && str /= ""
   is_relocation _ = False
 
 -- | get the external objects
 external_objects l@(bin,_,l0) = map (strip_GLIBC . symbol_to_name) $ filter is_relocation $ IM.elems $ binary_get_symbol_table bin
  where
-  is_relocation (PointerToObject str ex) = ex && str /= ""
-  is_relocation (AddressOfObject str ex) = ex && str /= ""
+  is_relocation (PointerToObject str ex _ _) = ex && str /= ""
+  is_relocation (AddressOfObject str ex)     = ex && str /= ""
   is_relocation _ = False
 
 
@@ -367,7 +367,7 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
       ([t],_) -> block_body_with_jump_table t
       ([],inds) -> if Indirection_Unresolved `elem` inds then block_body_with_unresolved else block_body_with_resolved inds
 
-  block_body_with_jump_table (Indirection_JumpTable (tbl@(JumpTable index _ _ _))) =
+  block_body_with_jump_table (Indirection_JumpTable (tbl@(JumpTable index _ _ _ _))) =
     let ByteSize si = operand_size index
         reg  = reg_of_size (find_unused_register register_set block_instrs) si
         reg' = reg_of_size (find_unused_register [ r | r <- register_set, real_reg r /= real_reg reg] block_instrs) 8 in
@@ -402,7 +402,7 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
 
 
   -- A jump table is implemented (TODO more comments)
-  jmp_table_init t@(JumpTable index bound trgt tbl) reg reg' i =
+  jmp_table_init t@(JumpTable index bound trgt tbl base) reg reg' i =
     let (trgt_str,annot) = operand_to_NASM l entry cfg empty_instr False index in
       [ NASM_Comment 2 $ "Resolved indirection:"
       , NASM_Comment 2 $ show t
@@ -416,7 +416,7 @@ cfg_block_to_NASM l@(bin,_,l0) entry cfg blockID blockID1 = block_header : mk_bl
       [ NASM_Comment 2 $ "Start of block"  ]
 
 
-  jmp_table_end t@(JumpTable index bound trgt tbl) reg reg' last_instr =
+  jmp_table_end t@(JumpTable index bound trgt tbl base) reg reg' last_instr =
     let (trgt_str,annot) = operand_to_NASM l entry cfg empty_instr False trgt 
         a_end            = inAddress last_instr in
       [ NASM_Comment 2 $ "End of block"
@@ -626,12 +626,12 @@ try_operand_reads_GOT_entry l@(bin,_,l0) i addr =
  where
   find_relocated_function a = 
     case find (is_relocated_function $ fromIntegral a) $ IM.assocs $ binary_get_symbol_table bin of
-      Just (a',sym@(PointerToExternalFunction _))  -> Just sym
+      Just (a',sym@(PointerToExternalFunction _))    -> Just sym
       Just (a',sym@(PointerToInternalFunction _ _))  -> Just sym
       --Just (a',sym@(PointerToObject _ _)) -> Just sym
       _ -> Nothing
 
-  is_relocated_function a (a',PointerToExternalFunction str) = a == a'
+  is_relocated_function a (a',PointerToExternalFunction str)   = a == a'
   is_relocated_function a (a',PointerToInternalFunction str _) = a == a'
   --is_relocated_function a (a',PointerToObject str _) = a == a'
   is_relocated_function a _                          = False
@@ -820,7 +820,7 @@ relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symb
  where
   mk_symbol sym@(PointerToExternalFunction  l)    = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
   mk_symbol sym@(PointerToInternalFunction  l _)  = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
-  mk_symbol sym@(PointerToObject o _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
+  mk_symbol sym@(PointerToObject o _ _ _)         = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
   mk_symbol sym@(AddressOfLabel  l _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label l a)])
   mk_symbol sym@(AddressOfObject o _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
   mk_symbol sym@(Relocated_ResolvedObject str a1) = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label str a)])
@@ -1030,7 +1030,7 @@ get_terminals_per_function l@(bin,_,l0) = concatMap get $ S.toList $ l0_get_func
 
 mk_jump_table l (entry,cfg,(a,inds)) = concatMap mk $ S.toList inds
  where
-  mk (Indirection_JumpTable (JumpTable index bnd trgt tbl)) = intercalate "\n" $ 
+  mk (Indirection_JumpTable (JumpTable index bnd trgt tbl base)) = intercalate "\n" $ 
     [ "; JUMP TABLE: entry == " ++ showHex entry ++ ", instr@" ++ showHex a
     , "section .bss"
     , show (label_jump_table_temp_storage entry a 0) ++ ":"

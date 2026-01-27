@@ -2104,3 +2104,4 @@ libc.so	__nss_hosts_lookup,__nss_group_lookup,__nss_passwd_lookup	0
 libc.so	__nss_next	0
 libc.so	__nss_database_lookup	0
 libc.so	__libc_freeres	0
+libc++.so	__cxa_free_exception	1

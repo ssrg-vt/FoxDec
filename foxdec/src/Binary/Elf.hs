@@ -12,6 +12,7 @@ import Parser.ByteStringReader
 import Data.Binary.Get as G
 
 import Data.Elf
+import Data.CFI
 import Data.Symbol
 
 import qualified Data.Map as M
@@ -206,16 +207,25 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
           name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc $ symbol_table_entry
           symb_type_of_reloc_trgt = steType $ symbol_table_entry
           value                   = steValue symbol_table_entry 
-          reloc_address           = fromIntegral $ elfRelOffset reloc in
+          reloc_address           = fromIntegral $ elfRelOffset reloc
+          reloc_addend            = elfRelSymAddend reloc in
         if symb_type_of_reloc_trgt `elem` [STTObject,STTCommon] then
           let symbol_table_entry = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
               bind               = steBind symbol_table_entry in
             if any (\sec -> any (\reloc -> elfRelOffset reloc == value) $ elfRelSectRelocations sec) $ parseRelocations elf then
-              [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]
+              if reloc_addend /= Just 0 then
+                error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
+              else
+                [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]
             else if not (snd name_of_reloc_trgt) then -- internal object
-              [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
+              if reloc_addend /= Just 0 then
+                error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
+              else
+                [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
             else
-              [(reloc_address, (uncurry PointerToObject) name_of_reloc_trgt)]
+              [(reloc_address, PointerToObject (fst name_of_reloc_trgt) (snd name_of_reloc_trgt) (mk_reloc_addend reloc_addend) (find_symbol_with_address reloc_address)) ]
+        else if reloc_addend /= Just 0 then
+          error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
         else 
           if not (snd name_of_reloc_trgt) then -- internal label 
               [(reloc_address, PointerToInternalFunction (fst name_of_reloc_trgt) value)]
@@ -233,10 +243,11 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
           name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
           symb_type_of_reloc_trgt = steType $ symbol_table_entry
           value                   = steValue symbol_table_entry
-          reloc_address           = fromIntegral $ elfRelOffset reloc in
+          reloc_address           = fromIntegral $ elfRelOffset reloc
+          reloc_addend            = elfRelSymAddend reloc in
         if symb_type_of_reloc_trgt == STTFunc then
           if not (snd name_of_reloc_trgt) then -- internal label 
-            if value == 0 then
+            if value == 0 || reloc_addend /= Just 0 then
               error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
             else 
               [(reloc_address, PointerToInternalFunction (fst name_of_reloc_trgt) value)]
@@ -252,6 +263,9 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
       [(reloc_address, TLS_Relative (fst name_of_reloc_trgt))]
    | otherwise = []
 
+
+  mk_reloc_addend (Just addend) = addend
+  mk_reloc_addend Nothing = 0
 
   is_symbol_for name sym_entry = (get_string_from_steName $ steName sym_entry) == name
 
@@ -295,7 +309,8 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
   isHiddenSymEntry sym_entry = steOther sym_entry .&. 0x3 == 0x2
   is_hidden sym_entry = steType sym_entry `elem` [STTObject,STTCommon] && steBind sym_entry `elem` [STBGlobal, STBWeak] && isHiddenSymEntry sym_entry
 
-  
+  find_symbol_with_address a = (get_string_from_steName . steName) <$> (find (is_symbol_at a) $ concat $ parseSymbolTables elf)
+  is_symbol_at a sym_entry = steValue sym_entry == fromIntegral a
 
 -- get the name from a symbol table entry
 get_string_from_steName (_, Just name) = T.unpack $ T.decodeUtf8 name
@@ -372,6 +387,7 @@ instance BinaryClass NamedElf
     address_has_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_address_has_instruction elf a
     fetch_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
     function_signatures = \(NamedElf _ _ _ _ _ _ signs) -> signs
+    binary_get_cfi = \(NamedElf elf _ _ _ _ _ _) -> parse_ehframe elf show
     get_elf = \(NamedElf elf _ _ _ _ _ _) -> Just elf
 
 
@@ -538,73 +554,18 @@ split_bytestring bs n
 
 
 
-data CIE_Aug_Data = Personality Word8 Address | LSDA_Encoding Word8 | FDE_Encoding Word8
- deriving (Eq,Ord)
-
-instance Show CIE_Aug_Data where
-  show (Personality enc ptr) = "Personality: " ++ show ptr ++ ", enc: 0x" ++ showHex enc
-  show (LSDA_Encoding enc) = "LSDA_Encoding: 0x" ++ showHex enc
-  show (FDE_Encoding enc) = "FDE_Encoding: 0x" ++ showHex enc
-
-data CIE = CIE {
-  cie_version :: Word8,
-  cie_aug_string :: String,
-  cie_code_align_factor :: Word64,
-  cie_data_align_factor :: Int64,
-  cie_return_address_register :: Word64,
-  cie_aug_data :: [CIE_Aug_Data],
-  cie_instructions :: [CFI_Instruction]
- }
- deriving (Show,Eq,Ord)
-
-data FDE = FDE {
-  cie_ptr  :: Address,
-  pc_begin :: Address,
-  pc_range :: Address,
-  lsda_ptr :: Maybe Address,
-  fde_instructions :: [CFI_Instruction]
- }
- deriving (Show,Eq,Ord)
-
-data CFI_Frame = CFI_CIE CIE | CFI_FDE FDE
- deriving (Eq,Ord)
-
-instance Show CFI_Frame where
-  show (CFI_CIE cie) = show cie
-  show (CFI_FDE fde) = show fde
-
-data Address = Absolute Word64 | Indirect Word64
- deriving (Eq,Ord)
-
-instance Show Address where
-  show (Absolute w) = "0x" ++ showHex w
-  show (Indirect w) = "@0x" ++ showHex w
-
-type CFI = (Address -> String) -> (IM.IntMap [String], IM.IntMap String, IS.IntSet)
 
 
-get_fde_encoding (CIE _ _ _ _ _ dats _) = firstJust get_fde dats
- where
-  get_fde (FDE_Encoding enc) = Just enc
-  get_fde _  = Nothing
-
-get_lsda_ptr (CFI_FDE (FDE _ pc_begin _ (Just p) _)) = Just (pc_begin,p)
-get_lsda_ptr _ = Nothing
-
- 
-
-
-parse_ehframe :: Elf -> CFI
+parse_ehframe :: Elf -> (Address -> String) -> CFI
 parse_ehframe elf showAddress =
   let [ehframe] = filter (\s -> elfSectionName s == ".eh_frame") (elfSections elf)
       cfi = sectionReader (get_entries IM.empty) ehframe
       lsda_ptrs = IM.elems $ IM.mapMaybe get_lsda_ptr cfi
       cfid = mk_cfi_directives showAddress cfi
       ts = IM.fromList $ map (parse_gcc_except_table elf showAddress) lsda_ptrs
-      rendered_ts = IM.map (render_gcc_except_table showAddress) ts
 
-      cfi_addresses = IS.unions (IM.keysSet cfi : (IM.keysSet ts : map get_addresses_from_gcc_except_table (IM.elems ts))) in
-    (cfid,rendered_ts,cfi_addresses)
+      cfi_addresses = IS.unions (IM.keysSet cfi : IM.keysSet ts : map get_addresses_from_gcc_except_table (IM.elems ts)) in
+   CFI cfid ts cfi_addresses
     -- error $ (intercalate "\n" $ map show $ IM.toList cfid) ++ "\n\n" ++  (intercalate "\n" $ map (parse_gcc_except_table elf) lsda_ptrs)
  where
   get_entries entries = do
@@ -727,20 +688,7 @@ read_encoded encoding = do
 
 
 
-data CFI_Instruction = 
-    DW_CFA_nop
-  | DW_CFA_advance_loc Int
-  | DW_CFA_undefined Word64
-  | DW_CFA_offset Word64 Int64 
-  | DW_CFA_restore Word64
-  | DW_CFA_def_cfa Word64 Word64
-  | DW_CFA_def_cfa_offset Word64
-  | DW_CFA_def_cfa_register Word64
-  | DW_CFA_def_cfa_expression BS.ByteString
-  | DW_CFA_expression Word64 BS.ByteString
-  | DW_CFA_register Word64 Word64
-  | DW_CFA_Escape_0x2E Word64 -- likely DW_CFA_GNU_args_size
- deriving (Show,Eq,Ord)
+
 
 
 -- Figure 40 of https://dwarfstd.org/doc/DWARF4.pdf
@@ -785,14 +733,9 @@ parse_cfi_instructions msg code_align_factor data_align_factor = do
     reg1 <- read_uleb128
     return $ DW_CFA_register reg0 reg1
   mk 0x0 0xa = do
-    reg <- read_uleb128
-    (len::Word64)  <- read_uleb128
-    bs <- consume (fromIntegral len)
-    return $ DW_CFA_expression reg bs
+    return $ DW_CFA_remember_state
   mk 0x0 0xb = do
-    reg <- read_uleb128
-    offset <- read_sleb128
-    return $ DW_CFA_offset reg (offset*data_align_factor)
+    return $ DW_CFA_restore_state
   mk 0x0 0xc = do
     reg <- read_uleb128
     offset <- read_uleb128
@@ -807,6 +750,15 @@ parse_cfi_instructions msg code_align_factor data_align_factor = do
     (len::Word64)  <- read_uleb128
     bs <- consume (fromIntegral len)
     return $ DW_CFA_def_cfa_expression bs
+  mk 0x0 0x10 = do
+    reg <- read_uleb128
+    (len::Word64)  <- read_uleb128
+    bs <- consume (fromIntegral len)
+    return $ DW_CFA_expression reg bs
+  mk 0x0 0x11 = do
+    reg <- read_uleb128
+    offset <- read_sleb128
+    return $ DW_CFA_offset reg (offset*data_align_factor)
   mk 0x0 0x2e = do
     (si::Word64)  <- read_uleb128
     return $ DW_CFA_Escape_0x2E si
@@ -868,8 +820,10 @@ cfi_instruction_to_cfi_directive = mk
   mk (DW_CFA_def_cfa_register reg) = ".cfi_def_cfa_register " ++ cfi_reg reg 
   mk (DW_CFA_register reg0 reg1) = ".cfi_register " ++ cfi_reg reg0 ++ cfi_reg reg1
   mk (DW_CFA_def_cfa_expression bytes) = ".cfi_escape 0x0f, " ++ showBlock bytes ++ " # DW_CFA_def_cfa_expression" 
-  mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x0a, " ++ cfi_reg reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
+  mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x10, " ++ cfi_reg reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
   mk (DW_CFA_Escape_0x2E si) = ".cfi_escape 0x2e, 0x" ++ showHex si
+  mk (DW_CFA_restore_state) = ".cfi_restore_state"
+  mk (DW_CFA_remember_state) = ".cfi_remember_state"
 
   showBlock bytes = "0x" ++ showHex (BS.length bytes) ++ ", " ++ intercalate "," (map (\b -> "0x" ++ showHex b) $ BS.unpack bytes)
 
@@ -936,35 +890,7 @@ cfi_reg 59 =  "%gs_base"
 
 
 
-get_addresses_from_gcc_except_table t = IS.unions $ (map get_addresses_call_site (call_sites t)) ++ [IS.fromList $ map to_value $ type_infos t]
- where
-  get_addresses_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action) = IS.fromList $ map to_value [start1,start0,len1,len0,lp1,lp0]
-  to_value (Absolute a) = fromIntegral a
-  to_value (Indirect a) = fromIntegral a
 
-data GCC_Except_Table_Action = GCC_Except_Table_Action {
-  gcc_except_table_action_type_filter ::Int64,
-  gcc_except_table_action_type_next_action ::Int64
- }
- deriving Show
-
-data GCC_Except_Table_CallSite = GCC_Except_Table_CallSite (Address,Address) (Address,Address) (Address,Address) Word64
- deriving Show
-
-data GCC_Except_Table = GCC_Except_Table {
-  function_entry :: Word64,
-  gcc_address :: Word64,
-  lp_start_enc :: Word8,
-  lp_start :: Maybe Address,
-  ttype_enc :: Word8,
-  ttype_len :: Word64,
-  cs_enc :: Word8,
-  cs_len :: Word64,
-  call_sites :: [GCC_Except_Table_CallSite],
-  actions :: [GCC_Except_Table_Action],
-  type_infos :: [Address]
- }
-  deriving Show
 
 
 render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address lp_start_enc lp_start ttype_enc ttype_len cs_enc cs_len call_sites actions type_infos) = intercalate "\n" $ header ++ lp ++ ttype ++ call_site ++ action_records actions ++ ttable ttype_enc ++ mk_end_label
@@ -1012,7 +938,7 @@ render_gcc_except_table mk_address (GCC_Except_Table function_entry gcc_address 
     ]
     ++ concatMap mk_action (zip [1..] actions)
 
-  mk_action (idx,GCC_Except_Table_Action type_filter next_action) =
+  mk_action (idx,GCC_Except_Table_Action type_filter next_action _ _ _) =
     [ "# Action record " ++ show idx
     , withIndent ".sleb128 " ++ show type_filter ++ " # typeinfo"
     , withIndent ".sleb128 " ++ show next_action ++ " # next action"
@@ -1124,9 +1050,12 @@ parse_gcc_except_table elf showAddress (Absolute pc_begin,Absolute a) =
 
 
   read_action = do
+    (_,pos0) <- get
     type_filter <- read_sleb128
+    (_,pos1) <- get
     next_offset <- read_sleb128
-    return $ GCC_Except_Table_Action type_filter  next_offset
+    (_,pos2) <- get
+    return $ GCC_Except_Table_Action type_filter next_offset (pos2-pos0) (fromIntegral pos0) (fromIntegral pos1 + fromIntegral next_offset)
 
 
   read_type_info = do

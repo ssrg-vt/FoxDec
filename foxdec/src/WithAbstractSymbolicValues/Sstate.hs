@@ -30,7 +30,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 import qualified Data.Serialize as Cereal
 
-
+import Debug.Trace
 
 
 
@@ -128,7 +128,7 @@ read_from_ro_data ctxt p (Just (ByteSize si)) =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
       Just (PointerToExternalFunction f)   -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
       Just (PointerToInternalFunction f a) -> Just $ simmediate ctxt a
-      Just (PointerToObject f True)        -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+      Just (PointerToObject f True _ _)    -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
       Just (AddressOfObject f True)        -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
       Just (Relocated_ResolvedObject o a)  -> Just $ simmediate ctxt a
       -- Just s                        -> error $ show (a, s) 
@@ -259,10 +259,10 @@ swrite_mem_to_ptr ctxt use_existing_value p@a si v = do
 
 
 -- v is bogus, but needed for getting the type checker to accept this. Don't know why. 
-swrite_flags :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> v -> Instruction -> State (Sstate v p,VCS v) ()
-swrite_flags ctxt v i = do
+swrite_flags :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> v -> Instruction -> [FlagStatus] -> State (Sstate v p,VCS v) ()
+swrite_flags ctxt v i old_flgs = do
   (s,vcs) <- get
-  put $ (s {sflags = sflg_semantics ctxt v i (sflags s)}, vcs)
+  put $ (s {sflags = sflg_semantics ctxt v i old_flgs (sflags s)}, vcs)
 
 
 -- If the given StatePart is overwritten, does that taint the current flag status?

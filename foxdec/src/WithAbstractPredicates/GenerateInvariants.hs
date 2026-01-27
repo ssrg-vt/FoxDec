@@ -27,6 +27,8 @@ import Data.Maybe
 import Data.List
 import Control.Monad.State.Strict
 
+import Debug.Trace
+
 -- | Start propagation at the given entry address with the given initial predicate.
 -- Returns a set of invariants, i.e., a mapping of instruction addresses to predicates.
 --
@@ -35,7 +37,12 @@ generate_invariants :: WithAbstractPredicates bin pred finit v => LiftingEntry b
 generate_invariants l@(_,_,l0,_) cfg finit =
   let p = finit_to_init_pred l finit
       gmem_structure = l0_gmem_structure l0
-      (invs,_,gem_structure',vcs) = execState (propagate l cfg) (IM.singleton 0 p, out_edges cfg 0, gmem_structure, S.empty)
+
+      -- TODO should landing pads use init_pred?
+      init_blocks  = IM.fromList $ (0,p) : (map (\blockID -> (blockID, p)) $ IS.toList $ cfg_landing_pads cfg)
+      init_bag     = S.unions $ map (out_edges cfg) $ IM.keys init_blocks
+
+      (invs,_,gem_structure',vcs) = execState (propagate l cfg) (init_blocks, init_bag, gmem_structure, S.empty)
       blocks = IM.assocs $ cfg_instrs cfg
       end_blocks = filter (\(blockID,_) -> is_end_node cfg blockID) blocks
       vcs' = map (\(blockID,instrs) -> snd $ get_postcondition_for_block l blockID instrs invs) end_blocks in -- TODO use updated GMemStructure
@@ -112,8 +119,9 @@ withoutEntry (a,b,c,entry) = (a,b,c)
 
 get_postcondition_for_block :: WithAbstractPredicates bin pred finit v => LiftingEntry bin pred finit v -> Int -> [Instruction] -> IM.IntMap pred -> (pred,VCS v)
 get_postcondition_for_block l blockID instrs invs =
-  let pre = fromJust $ IM.lookup blockID invs in
-   execState (symbolically_execute l False instrs Nothing) (pre,S.empty)
+  case IM.lookup blockID invs of
+    Just pre -> execState (symbolically_execute l False instrs Nothing) (pre,S.empty)
+    Nothing  -> error $ "Block " ++ show blockID ++ " " ++ show instrs ++ " has no precondition."
 
 
 

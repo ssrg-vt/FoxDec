@@ -16,6 +16,7 @@ module Binary.FunctionNames (
  , function_name_of_instruction
  , is_address_of_symbol
  , is_address_of_internal_symbol
+ , is_ellf_special_symbol
  ) where
 
 import Binary.Generic
@@ -119,7 +120,7 @@ try_plt_target_for_entry bin a = jmps_to_external_function a `orTry` endbr64_jmp
     case operand_static_resolve bin i op1 of
       External sym -> Just $ External sym
       ExternalDeref sym -> Just $ ExternalDeref sym
-      ImmediateAddress a' -> Just $ ImmediateAddress a' 
+      ImmediateAddress a' -> Nothing-- Just $ ImmediateAddress a' 
       _ -> Nothing
 
 
@@ -152,7 +153,7 @@ try_read_function_pointer bin i a' = try_symbol a' `orTry` try_relocation a' `or
       -- Example:
       --   Instruction 10005464e: CALL 64 ptr [RIP + 1751660] 6 read from address 1002000c0 which has symbol _objc_msgSend producing address 0
       --   Address *[1002000c0,8] is treated as an external function call       
-      Just (PointerToExternalFunction s) -> Just $ External $ strip_GLIBC s
+      Just (PointerToExternalFunction s)    -> Just $ External $ strip_GLIBC s
       Just (PointerToInternalFunction s a1) -> Just $ ImmediateAddress a1
       Just (AddressOfLabel s True)  -> Just $ ExternalDeref $ strip_GLIBC s
       Just (AddressOfObject s True) -> Just $ ExternalDeref $ strip_GLIBC s
@@ -200,14 +201,15 @@ function_name_of_entry bin a = try_symbol a `orElse` try_plt a
       Just (ImmediateAddress a') -> "0x" ++ showHex a'
 
 
-is_address_of_symbol (AddressOfObject str ex) = str /= ""
-is_address_of_symbol (AddressOfLabel str ex)  = str /= ""
+is_address_of_symbol (AddressOfObject str ex) = str /= "" && not (is_ellf_special_symbol str)
+is_address_of_symbol (AddressOfLabel str ex)  = str /= "" && not (is_ellf_special_symbol str)
 is_address_of_symbol _                        = False
 
-is_address_of_internal_symbol (AddressOfObject str ex) = str /= "" && not ex
-is_address_of_internal_symbol (AddressOfLabel str ex)  = str /= "" && not ex
+is_address_of_internal_symbol (AddressOfObject str ex) = str /= "" && not ex && not (is_ellf_special_symbol str)
+is_address_of_internal_symbol (AddressOfLabel str ex)  = str /= "" && not ex && not (is_ellf_special_symbol str)
 is_address_of_internal_symbol _                        = False
 
+is_ellf_special_symbol name = ".__ELLF_SECTION" `isPrefixOf` name
 
 
 

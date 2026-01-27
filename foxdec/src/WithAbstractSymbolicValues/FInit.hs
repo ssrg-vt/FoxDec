@@ -44,11 +44,6 @@ instance (Eq v, Show v, Show p) => Show (FInit v p) where
     show_sp (SSP_Mem a si) = "*[" ++ show a ++ "," ++ show si ++ "]"
     show_entry ((sp0,sp1),r) = show (sp0,sp1) ++ ": " ++ show r
 
-instance Show p => Show (SStatePart p) where
-  show (SSP_Reg r)        = show r
-  show (SSP_Mem a si)     = "[" ++ show a ++ ", " ++ show si ++ "]"
-
-
 -- | The initial predicate.
 -- TODO: Use aliassing information
 finit_to_init_sstate :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> FInit v p -> Sstate v p
