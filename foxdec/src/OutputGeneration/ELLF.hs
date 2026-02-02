@@ -830,6 +830,7 @@ render_instruction bin ellf object cfi (n,i) = render_GAS_instruction bin ellf o
   mk_GAS i@(Instruction addr pre FDIV [op0,op1] info si)
     | isMem op1 = Instruction addr pre FDIV [op1] info si
     | otherwise = i
+  mk_GAS (Instruction addr pre FSUBR [Op_Reg (RegFPU ST0) _,op1] info si) = Instruction addr pre FSUBR [op1] info si
   mk_GAS i = i
 
 isMem (Op_Mem _ _ _ _ _ _ _) = True
