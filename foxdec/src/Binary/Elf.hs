@@ -810,6 +810,10 @@ mk_cfi_directives show_address cfi = IM.fromListWith (++) $ concatMap mk cfi
 withIndent str = "\t" ++ str
 
 
+
+-- For DWARF extensions see:
+-- https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/dwarfext.html
+
 cfi_instruction_to_cfi_directive = mk
  where
   mk (DW_CFA_undefined reg) = ".cfi_undefined " ++ cfi_reg reg 
@@ -820,7 +824,7 @@ cfi_instruction_to_cfi_directive = mk
   mk (DW_CFA_def_cfa_register reg) = ".cfi_def_cfa_register " ++ cfi_reg reg 
   mk (DW_CFA_register reg0 reg1) = ".cfi_register " ++ cfi_reg reg0 ++ cfi_reg reg1
   mk (DW_CFA_def_cfa_expression bytes) = ".cfi_escape 0x0f, " ++ showBlock bytes ++ " # DW_CFA_def_cfa_expression" 
-  mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x10, " ++ cfi_reg reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
+  mk (DW_CFA_expression reg bytes) = ".cfi_escape 0x10, 0x" ++ showHex reg ++ ", " ++ showBlock bytes ++ " # DW_CFA_expression" 
   mk (DW_CFA_Escape_0x2E si) = ".cfi_escape 0x2e, 0x" ++ showHex si
   mk (DW_CFA_restore_state) = ".cfi_restore_state"
   mk (DW_CFA_remember_state) = ".cfi_remember_state"
