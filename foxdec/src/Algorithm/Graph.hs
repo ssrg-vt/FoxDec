@@ -169,6 +169,22 @@ graph_traverse_upwards g v0 = execState (go v0) IS.empty
       mapM_ go parents
 
 
+-- | Traverse graph downwards from a node to (excluding) frontier
+-- Produces all visited nodes
+graph_traverse_downwards :: IntGraph g => g -> Int -> IS.IntSet -> IS.IntSet
+graph_traverse_downwards g v0 frontier = execState (go v0) IS.empty
+ where
+  go :: Int -> State IS.IntSet ()
+  go v = do
+    visited <- get
+    if v `IS.member` visited || v `IS.member` frontier then
+      return ()
+    else do
+      modify $ IS.insert v
+      let children = IS.toList $ intgraph_post g v
+      mapM_ go children
+
+
 -- find a path that:
 -- 1.) at least contains one vertex that satisfies $p$
 -- 2.) ends in a nodes satisfying $q$

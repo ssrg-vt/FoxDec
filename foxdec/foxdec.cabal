@@ -116,6 +116,7 @@ library
     , parsec
     , parsec-numbers
     , process
+    , set-extra
     , split
     , text
     , transformers
@@ -160,6 +161,7 @@ executable foxdec-exe
     , parsec
     , parsec-numbers
     , process
+    , set-extra
     , split
     , text
     , transformers

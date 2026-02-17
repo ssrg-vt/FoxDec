@@ -449,6 +449,7 @@ generate_per_function bin config l0 = do
   putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
 
 
+  sym_exec_cfg_all (bin,config,l0)
   --let regions = analyze_gmem (bin,config,l0,0::Word64) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0
   --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
   --putStrLn $ "Regions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))
@@ -462,9 +463,9 @@ generate_per_function bin config l0 = do
 
       let fname  = fdirname ++ name ++ ".dot"
       writeFile fname $ cfg_to_dot bin r
-      --let fname2 = fdirname ++ name ++ ".ecfg.dot"
-      --writeFile fname2 $ cfg_to_ecfg (bin,config,l0) (fromIntegral entry) $ result_cfg r
-
+      let fname2 = fdirname ++ name ++ ".ecfg.dot"
+      let ecfg = cfg_to_ecfg (bin,config,l0) (fromIntegral entry) $ result_cfg r
+      writeFile fname2 $ render_ecfg_to_dot ecfg
       let fname2 = fdirname ++ name ++ ".txt"
       writeFile fname2 $ show_report entry finit r
   show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 

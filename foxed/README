@@ -1,22 +1,19 @@
 # FoXED - FoxDec's version of the XED library
 
-## How to build libxed.so
-
-In current dir `./xed/`
+## How to build libfoxed.so natively on MacOS
 
 	git clone https://github.com/intelxed/xed.git xed
 	git checkout dc6bdbe
 	git clone https://github.com/intelxed/mbuild.git mbuild
 	git checkout 7c4497f
 	cd xed
-	./mfile.py examples install
+	./mfile.py --extra-ccflags="-arch arm64" install
 	cd ..
-	gcc -shared -o libxed.so -fPIC  \
-	    -I /xed/xed/include/public/xed/ \
-	    -I /xed/xed/obj/wkit/include/xed/ \
-	    -L /xed/xed/obj/wkit/lib/ \
+	gcc -shared -o libfoxed.so -fPIC  \
+	    -I ./xed/include/public/xed/ \
+	    -I ./xed/obj/wkit/include/xed/ \
+	    -L ./xed/obj/wkit/lib/ \
 	    -lxed \
 	    disasm1.c
-	cp libxed.so ..
 
 This will download and build the correct version of XED, and then compile `disasm1.c` to a shared object file. That file is used when building FoxDec.

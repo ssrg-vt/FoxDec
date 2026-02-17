@@ -78,7 +78,7 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
 
   with_ellf elf Nothing     = putStrLn $ "Given binary is not a valid ELLF file."
   with_ellf elf (Just ellf) = do
-    -- putStrLn $ show ellf
+    putStrLn $ show ellf
     let dirname  = binary_dir_name bin
     let name     = binary_file_name bin
     let fname    = dirname ++ name ++ ".S" 

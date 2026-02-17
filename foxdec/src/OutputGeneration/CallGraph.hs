@@ -40,12 +40,17 @@ import Debug.Trace
 
 mk_callgraph l@(bin,_,l0) =
   let cfgs  = l0_get_cfgs l0
-      fptrs = Edges $ IM.map get_function_pointer_intros $ l0_functions l0
-      g     = Edges $ IM.map (calls_of_cfg l) cfgs in
+      fptrs = Edges $ IM.map get_function_pointer_intros $ IM.filterWithKey (isExecutable l) $ l0_functions l0
+      g     = Edges $ IM.map (calls_of_cfg l) $ IM.filterWithKey (isExecutable l) $ cfgs in
     (g,fptrs)
 
 get_call_graph_sources l@(bin,_,l0) = find_source_nodes $ fst $ mk_callgraph l
  
+
+isExecutable l@(bin,_,l0) a _ =
+  case find_section_for_address bin $ fromIntegral a of
+    Nothing -> False
+    Just (_,_,_,_,_,flgs) -> SectionIsExecutable `elem` flgs
 
 get_function_pointer_intros = IS.unions . map get_ptrs . S.toList . result_vcs . fromJust . snd
  where

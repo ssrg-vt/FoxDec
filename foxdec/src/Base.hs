@@ -58,6 +58,8 @@ show_set :: (Foldable t,Show a) => t a -> String
 show_set as = "{" ++ intercalate ", " (fmap show $ toList as) ++ "}" 
 
 
+fromIntSet = IS.fromDistinctAscList . S.toAscList
+
 -- | Lookup and produce error message if key does not exists in map.
 im_lookup s m k =
   case IM.lookup k m of
@@ -214,7 +216,11 @@ skipUntil a l@(b:bs)
   | a == b    = l
   | otherwise = skipUntil a bs
 
-
+mk_dot_safe []        = []
+mk_dot_safe ('<':str) = "&lt;" ++ mk_dot_safe str
+mk_dot_safe ('>':str) = "&gt;" ++ mk_dot_safe str
+mk_dot_safe ('&':str) = "&amp;" ++ mk_dot_safe str
+mk_dot_safe (c:str)   = [c] ++ mk_dot_safe str
 
 --------------------------------------------
 -- | Generic graph with ints as vertices.

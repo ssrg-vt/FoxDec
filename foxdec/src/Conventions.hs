@@ -10,6 +10,8 @@ import qualified Data.Map as M
 import Debug.Trace
 
 import Data.X86.Register
+import System.Demangle.Pure
+import Data.List
 
 
 -- | A list of function names of functions that never return.
@@ -31,6 +33,8 @@ is_exiting_function_call f =
       "__longjmp_chk", "siglongjmp",
       "_ZSt9terminatev", "__cxa_throw", "__cxa_rethrow", "_Unwind_Resume", "_Unwind_ForcedUnwind"
     ]
+  ||
+  ("std::__throw_" `isPrefixOf` (demangle f `orElse` f))
 
 strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"
 

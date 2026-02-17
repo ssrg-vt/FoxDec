@@ -137,9 +137,11 @@ get_landing_pads_from_gcc_except_table t = IS.unions $ map get_landing_pads_call
   to_value (Indirect a) = fromIntegral a
 
 
-get_callsite_regions_from_gcc_except_table t = map get_region_from_call_site (call_sites t)
+get_callsite_regions_from_gcc_except_table t = concatMap get_region_from_call_site (call_sites t)
  where
-  get_region_from_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action) = (to_value len1,to_value len0, to_value lp1,action)
+  get_region_from_call_site (GCC_Except_Table_CallSite (start1,start0) (len1,len0) (lp1,lp0) action)
+    | lp0 == lp1 = []
+    | otherwise  = [(to_value len1,to_value len0, to_value lp1,action)]
   to_value (Absolute a) = fromIntegral a
   to_value (Indirect a) = fromIntegral a
 

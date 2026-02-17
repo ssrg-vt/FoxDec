@@ -186,7 +186,7 @@ l0_to_ellf_entry l@(bin,_,l0) entry = do
     case break (\i -> isJump (inOperation i)) instrs of
       (_, [])     -> [bb]
       (_, [_])    -> [bb]
-      (is0,i:is1) -> [(blockID,is0++[i]), (blockID,is1)]
+      (is0,i:is1) -> (blockID,is0++[i]) : split_jumps (blockID,is1)
 
 
   mk_fun_name =

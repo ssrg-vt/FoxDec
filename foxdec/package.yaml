@@ -46,6 +46,7 @@ dependencies:
 - utf8-string
 - cppfilt
 - vector
+- set-extra
 
 library:
   source-dirs: src

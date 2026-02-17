@@ -262,7 +262,7 @@ symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
       (SE_Immediate imm0,SE_Immediate imm1) -> do
         set_flag "ZF" (imm0 == imm1)
         set_flag "CF" (imm0  < imm1)
-      -- _ -> trace ("UNSETTING\n" ++  show_symstate l symstate) unset_all_flags
+        set_flag "SG"  ((fromIntegral imm0 ::Int) > (fromIntegral imm1 ::Int))
       _ -> unset_all_flags 
 
 
@@ -293,22 +293,35 @@ symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
   do_cond_jump :: Instruction -> State SymState (S.Set SymState)
   do_cond_jump i = 
     case inOperation i of
+      JZ -> do
+        zf <- sread_flag "ZF"
+        case zf of
+          (Just b0) -> do_jump_if b0 i 
+          Nothing   -> do_jump_both i
       JNZ -> do
         zf <- sread_flag "ZF"
         case zf of
           (Just b0) -> do_jump_if (not b0) i 
-          Nothing   -> do
-            symstate <- get
-            return $ S.fromList [execState (do_jump_if True i) symstate, execState (do_jump_if False i) symstate]
+          Nothing   -> do_jump_both i
       JNBE -> do
         cf <- sread_flag "CF"
         zf <- sread_flag "ZF"
         case (cf,zf) of
           (Just b0,Just b1) -> do_jump_if (not b0 && not b1) i
+          _                 -> do_jump_both i
+      JNLE -> do
+        sg <- sread_flag "SG"
+        case sg of
+          Just b0 -> do_jump_if b0 i
+          _       -> do_jump_both i
+
       _ -> do
         symstate <- get
         error $ "unsupported conditional jump: " ++ show i ++ "\n" ++ show_symstate l symstate
 
+  do_jump_both i = do
+    symstate <- get
+    return $ S.fromList [execState (do_jump_if True i) symstate, execState (do_jump_if False i) symstate]
   do_jump_if True  i@(Instruction a _ _ ops _ si) = do
     do_jump $ Jump a (operand_to_expr $ ops!!0) i (fromIntegral si)
     gets S.singleton
@@ -1016,11 +1029,23 @@ sread_mem l0@(bin,_,_,_) a a' si = do
   mk_val (Written v) True  = return $ v
   mk_val Initial     True  = 
     case a' of
-      SE_Immediate imm -> 
-        case read_from_ro_datasection bin imm si of
-          Nothing -> return $ SE_Var $ SP_Mem a' si
-          Just v  -> return $ SE_Immediate v
-      _           -> return $ SE_Var $ SP_Mem a' si
+      SE_Immediate imm -> return $ (try_read_reloc imm si `orTry` try_read_symbol imm si `orTry` (SE_Immediate <$> read_from_ro_datasection bin imm si) `orElse` (SE_Var $ SP_Mem a' si))
+      _                -> return $ SE_Var $ SP_Mem a' si
+
+
+  -- TODO only if si==8?
+  try_read_reloc a si =
+    case find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin of
+      Just (Relocation _ a1) -> Just $ SE_Immediate a1
+      Nothing -> Nothing
+
+  try_read_symbol a si =
+    case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
+      Just (PointerToInternalFunction f a1) -> Just $ SE_Immediate a1
+      Just (Relocated_ResolvedObject o a1)  -> Just $ SE_Immediate a1
+      Just (PointerToExternalFunction f)    -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
+      Just (PointerToObject f True _ _)     -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
+      _                                     -> Nothing
 
 
 swrite_mem :: LiftedWithEntry -> SimpleExpr -> Int -> Maybe SimpleExpr -> State SymState ()
@@ -1692,7 +1717,7 @@ get_argcount bin f =
  where
   argcount bin f 
     | any (\p -> isPrefixOf p f) ["0x", "*", "syscall@", "indirection@"] = 0
-    | otherwise = trace ("Do not know external function: " ++ f) 0
+    | otherwise = 0 -- trace ("Do not know external function: " ++ f) 0
 
 cap_expr e (SE_StatePart sp _)
   | expr_size e > 50 = get_regs <&> (read_top_from_statepart sp)

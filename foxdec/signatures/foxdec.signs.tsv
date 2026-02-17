@@ -2105,3 +2105,5 @@ libc.so	__nss_next	0
 libc.so	__nss_database_lookup	0
 libc.so	__libc_freeres	0
 libc++.so	__cxa_free_exception	1
+libc++.so	__cxa_begin_catch	0
+libc++.so	__cxa_end_catch	0
