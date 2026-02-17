@@ -63,7 +63,7 @@ instance Show SymbolTable where
     show_entry (a0,PointerToExternalFunction f)    = showHex a0 ++ " --> " ++ f
     show_entry (a0,PointerToInternalFunction f a1) = showHex a0 ++ " --> " ++ f ++ "@0x" ++ showHex a1
     show_entry (a0,PointerToObject o b addend Nothing) = showHex a0 ++ " --> " ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
-    show_entry (a0,PointerToObject o b addend (Just l)) = showHex a0 ++ " == " ++ o ++ " --> " ++ l ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
+    show_entry (a0,PointerToObject o b addend (Just l)) = showHex a0 ++ " === " ++ l ++ " --> " ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
     show_entry (a0,AddressOfObject l b)            = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
     show_entry (a0,AddressOfLabel f b)             = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
     show_entry (a0,Relocated_ResolvedObject l a)   = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"

@@ -1,8 +1,8 @@
 {-# LANGUAGE PartialTypeSignatures, StrictData #-}
 
 {-|
-Module      : ControlFlow
-Description : Contains functions pertaining to control flow graph generation.
+Module      : ECFG 
+Description : Contains functions pertaining to exceptional control flow graph generation.
 -}
 
 module OutputGeneration.ECFG where
@@ -57,21 +57,27 @@ import System.IO.Unsafe
 
 -- DATA STRUCTURES
 data Exception = Exception {
-    exception_type :: String
-  , exception_destructor :: Maybe String
+    exception_type :: String -- ^ The type, e.g., "std::runtime_error"
+  , exception_base :: Maybe String -- ^ Optionally, the base class, e.g., "std:exception"
+  , exception_destructor :: Maybe String -- ^ Optionally, the name of the destructor function passed to __cxa_throw
   }
   deriving (Ord,Eq)
 
-instance Show Exception where
-  show (Exception typ Nothing)      = typ 
-  show (Exception typ (Just destr)) = typ ++ "," ++ destr
+data ECFG_ControlFlow = 
+    Terminate -- ^ The program has terminated (e.g., exit() or _assert_fail())
+  | Resume -- ^ __Unwind_Resume
+  | Raise -- ^ _Unwind_RaiseException
+  | CatchBegin -- ^ "__cxa_begin_catch
+  | CatchEnd -- ^ __cxa_end_catch
+  | Rethrow Word64 -- ^ __cxa_rethrow  
+  | Throw Word64 Exception -- ^ __cxa_throw
 
-data ECFG_Function = Terminate | Resume | Raise | CatchBegin | CatchEnd | Rethrow Word64 | Throw Word64 Exception
+show_exception_as_arg (Exception typ base destr) = (if destr == Nothing then "" else "*") ++ "(" ++ typ ++ show_base base ++ ")"
+ where
+  show_base Nothing = ""
+  show_base (Just base) = " :: " ++ base
 
-show_exception_as_arg (Exception typ Nothing)  = "(" ++ typ ++ ")"
-show_exception_as_arg (Exception typ (Just _)) = "*(" ++ typ ++ ")"
-
-instance Show ECFG_Function where
+instance Show ECFG_ControlFlow where
   show Terminate = "Terminate"
   show Resume = "Resume"
   show Raise = "Raise"
@@ -83,12 +89,15 @@ instance Show ECFG_Function where
 data ECFG_Vertex_Info =
     ECFG_Start                     -- ^ Initial vertex
   | ECFG_LandingPad String Bool    -- ^ A landing pad with color (bool==True indicates cleanup only)
-  | ECFG_Call ECFG_Function        -- ^ A call to a relevant function (throw, catchBegin, etc.)
+  | ECFG_CF ECFG_ControlFlow       -- ^ A call to a control flow function (throw, catchBegin, etc.)
   | ECFG_Return                    -- ^ Return
   | ECFG_Vertex_Region ECFG_Region -- ^ A region
   deriving (Show)
 
-
+-- A region (from a callsite in the GCC except table) is defined by start- and end-addresses in the .text section.
+-- Throws within those bounds will unwind to the landing pad.
+-- The action is used to derive which exception type we are going to handle.
+-- The color is for rendering the ECFG.
 data ECFG_Region = ECFG_Region {
     ecfg_region_end :: Word64
   , ecfg_region_start :: Word64
@@ -98,11 +107,14 @@ data ECFG_Region = ECFG_Region {
   }
   deriving (Eq,Show)
 
+-- A vertex consists of its address, the adress at the end of the current block, and information.
+-- The second is only needed for rendering, i.e., has no semantical meaning.
 data ECFG_Vertex = ECFG_Vertex Word64 Word64 [ECFG_Vertex_Info]
 
 instance Show ECFG_Vertex where
   show (ECFG_Vertex start end info) = "Block 0x" ++ showHex start
 
+-- An edge goes from blockID to blockID with optionally a label (for filtering exception types).
 data ECFG_Edge = ECFG_Edge {
     ecfg_edge_start :: Int
   , ecfg_edge_label :: Maybe String
@@ -110,19 +122,18 @@ data ECFG_Edge = ECFG_Edge {
   }
   deriving (Ord,Eq,Show)
 
+-- Each function has its own ECFG
 data ECFG = ECFG {
-    ecfg_vertices :: IM.IntMap ECFG_Vertex
-  , ecfg_edges :: [ECFG_Edge]
-  , ecfg_entry :: Word64
-  , ecfg_regions :: [ECFG_Region]
+    ecfg_vertices :: IM.IntMap ECFG_Vertex -- ^ A mapping from blockIDs to vertices
+  , ecfg_edges :: [ECFG_Edge] -- ^ The edges (using blockIDs)
+  , ecfg_entry :: Word64 -- ^ The entry address of the function
+  , ecfg_regions :: [ECFG_Region] -- ^ The regions
   }
 
 
 
 
 -- SYMBOLIC EXECUTION
-type CallStack = [Word64]
-
 data EStatus = Normal | Terminated | Returned | Unwinding Exception | Landed Exception | Handling Exception
   deriving (Ord,Eq)
 
@@ -135,15 +146,14 @@ instance Show EStatus where
   show (Handling e) = "Handling" ++ show_exception_as_arg e
 
 data ECFG_SymState = ECFG_SymState {
-    ss_callstack :: CallStack
-  , ss_estatus :: [EStatus]
+    ss_estatus :: [EStatus]
   , ss_rip :: Word64
   }
   deriving (Ord,Eq)
 
 
 instance Show ECFG_SymState where
-  show (ECFG_SymState _ es a) = "0x" ++ showHex a ++ ": " ++ show es
+  show (ECFG_SymState es a) = "0x" ++ showHex a ++ ": " ++ show es
 
 
 emitLog msg = id -- trace msg
@@ -152,7 +162,7 @@ ecfg_vertex_to_address (ECFG_Vertex a _ _) = a
 
 ecfg_blockID_to_address (ECFG vertices _ _ _) blockID = ecfg_vertex_to_address $ vertices IM.! blockID
 
-init_ecfg_symstate ecfg blockID = ECFG_SymState [] [Normal] $ ecfg_blockID_to_address ecfg blockID
+init_ecfg_symstate ecfg blockID = ECFG_SymState [Normal] $ ecfg_blockID_to_address ecfg blockID
 
 
 sym_exec_cfg_all :: Lifted -> IO ()
@@ -163,28 +173,41 @@ sym_exec_cfg_all l = do
   run_entry entry = runStateT (sym_exec_ecfg_entry l True (fromIntegral entry)) init_StateSoFar
 
 
-sym_exec_ecfg_entry :: Lifted -> Bool -> Word64 -> StateT StateSoFar IO ()
+sym_exec_ecfg_entry :: Lifted -> Bool -> Word64 -> StateT StateSoFar IO (S.Set EStatus)
 sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
   posts <- gets ssf_function_posts
-  case IM.lookup (fromIntegral entry) posts of
-    Just posts -> do
+  is_explored <- gets (IS.member (fromIntegral entry) . ssf_currently_explored_functions)
+  case (is_explored, IM.lookup (fromIntegral entry) posts) of
+    (True,_) -> do
+      let msg = "Entry 0x" ++ showHex entry ++ ": overapproximation due to (mutual) recursion."
+      let cfg  = l0_get_cfgs l0 IM.! fromIntegral entry
+      let ecfg = cfg_to_ecfg l entry cfg
+      let q    = overapproximate_post l entry ecfg
+      return $ emitLog msg q 
+    (_,Just posts) -> do
       let msg = "Entry 0x" ++ showHex entry ++ " already visited."
-      return $ emitLog msg ()
-    Nothing    -> do
+      return $ emitLog msg posts
+    (_,Nothing) -> do
       putIfFirst $ "-----------------------------"
       putIfFirst $ "Entry: 0x" ++ showHex entry
       let msg  = "Entry 0x" ++ showHex entry ++ " to be explored."
       let cfg  = emitLog msg $ l0_get_cfgs l0 IM.! fromIntegral entry
       let ecfg = cfg_to_ecfg l entry cfg
-      let q    = overapproximate_post l entry ecfg
-      modify $ ssf_add_function_post entry q
-      modify $ ssf_clear_preconditions
+      pres <- gets ssf_block_pres
+
+      modify $ ssf_set_explored entry True
+      modify $ ssf_set_preconditions IM.empty
       sym_exec_ecfg l ecfg
-      posts <- gets $ ssf_get_posts entry
-      let msg = "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
+      modify $ ssf_set_preconditions pres
+      modify $ ssf_set_explored entry False
+
       ssf <- emitLog msg get
       putIfFirst $ ssf_pp ssf
       putIfFirst $ "-----------------------------"
+
+      posts <- gets $ ssf_get_posts entry
+      let msg = "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
+      return posts
  where
   putIfFirst 
     | isFirst   = liftIO . putStrLn
@@ -205,38 +228,41 @@ overapproximate_post l@(bin,config,l0) entry ecfg = S.unions [ use_l0_post, use_
 
   ecfg_vertex_to_post (ECFG_Vertex _ _ info) q = foldr ecfg_vertex_info_to_post q info
 
-  ecfg_vertex_info_to_post (ECFG_Call Terminate)   = S.insert $ Terminated
-  ecfg_vertex_info_to_post (ECFG_Call (Throw a e)) = S.insert $ Unwinding e
+  ecfg_vertex_info_to_post (ECFG_CF Terminate)     = S.insert $ Terminated
+  ecfg_vertex_info_to_post (ECFG_CF (Throw a e))   = S.insert $ Unwinding e
   ecfg_vertex_info_to_post (ECFG_Return)           = S.insert $ Returned
   ecfg_vertex_info_to_post _                       = id
 
 
 
 
-post_to_estatus (ECFG_SymState _ (e@(Returned)   :_) _) = e
-post_to_estatus (ECFG_SymState _ (e@(Unwinding _):_) _) = e
-post_to_estatus (ECFG_SymState _ (e@(Terminated ):_) _) = e
+post_to_estatus (ECFG_SymState (e@(Returned)   :_) _) = e
+post_to_estatus (ECFG_SymState (e@(Unwinding _):_) _) = e
+post_to_estatus (ECFG_SymState (e@(Terminated ):_) _) = e
 post_to_estatus s = error $ "Post = " ++ show s
 
 data StateSoFar = StateSoFar {
     ssf_function_posts :: IM.IntMap (S.Set EStatus)   -- ^ Currently known postconditions for functions
   , ssf_block_pres :: IM.IntMap (S.Set ECFG_SymState) -- ^ Preconditions for blocks current function
+  , ssf_currently_explored_functions :: IS.IntSet     -- ^ Which functions are currently being explored?
   }
 
-init_StateSoFar = StateSoFar IM.empty IM.empty
+init_StateSoFar = StateSoFar IM.empty IM.empty IS.empty
 
-ssf_pp (StateSoFar fp bp) = "FUNCTION POSTCONDITIONS:\n" ++ (intercalate "\n" $ map show_fp_entry $ IM.assocs fp) 
+ssf_pp (StateSoFar fp bp fs) = "FUNCTION POSTCONDITIONS:\n" ++ (intercalate "\n" $ map show_fp_entry $ IM.assocs fp)
  where
   show_fp_entry (entry,ess) = "0x" ++ showHex entry ++ ": " ++ intercalate ", " (map show $ S.toList ess)
 
-ssf_clear_preconditions (StateSoFar fp bp) = StateSoFar fp IM.empty
+ssf_set_preconditions pres (StateSoFar fp bp fs) = StateSoFar fp pres fs
 
-ssf_add_preconditon blockID s (StateSoFar fp bp) = StateSoFar fp $ IM.insertWith S.union blockID (S.singleton s) bp
+ssf_add_preconditon blockID s (StateSoFar fp bp fs) = StateSoFar fp (IM.insertWith S.union blockID (S.singleton s) bp) fs
 
-ssf_add_function_post entry p (StateSoFar fp bp) = StateSoFar (IM.insertWith S.union (fromIntegral entry) p fp) bp
+ssf_add_function_post entry p (StateSoFar fp bp fs) = StateSoFar (IM.insertWith S.union (fromIntegral entry) p fp) bp fs
 
-ssf_get_posts entry (StateSoFar fp bp) = IM.lookup (fromIntegral entry) fp `orElse` S.empty
+ssf_get_posts entry (StateSoFar fp bp fs) = IM.lookup (fromIntegral entry) fp `orElse` S.empty
 
+ssf_set_explored entry True  (StateSoFar fp bp fs) = StateSoFar fp bp $ IS.insert (fromIntegral entry) fs
+ssf_set_explored entry False (StateSoFar fp bp fs) = StateSoFar fp bp $ IS.delete (fromIntegral entry) fs
 
 sym_exec_ecfg l ecfg = sym_exec_ecfg' l ecfg $ S.singleton (0,init_ecfg_symstate ecfg 0)
 
@@ -267,12 +293,12 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
  where
   is_edge_from blockID (ECFG_Edge blockID0 _ _) = blockID == blockID0
 
-  isUnwinding (ECFG_SymState _ (Unwinding _:_) _) = True
+  isUnwinding (ECFG_SymState (Unwinding _:_) _) = True
   isUnwinding _ = False
 
-  isDoneOrUnwinding (ECFG_SymState _ (Unwinding _:_) _) = True
-  isDoneOrUnwinding (ECFG_SymState _ (Returned   :_) _) = True
-  isDoneOrUnwinding (ECFG_SymState _ (Terminated :_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (Unwinding _:_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (Returned   :_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (Terminated :_) _) = True
   isDoneOrUnwinding _                                   = False
 
 
@@ -282,7 +308,7 @@ applyFilter edges s
   | not $ S.null unlabeled = error $ "Do not know how to give semantics to edges: " ++ show edges
   | otherwise =
     case ss_estatus s of
-      (Landed e:_)   -> try_label (exception_type e) `orTry` try_label "(...)" `orTry` try_label "(none)" `orElse` fail
+      (Landed e:_)   -> try_label (exception_type e) `orTry` (try_label =<< exception_base e) `orTry` try_label "(...)" `orTry` try_label "(none)" `orElse` fail
       (Handling e:_) -> try_label "(...)"  `orElse` fail
       _              -> error $ "Applying filter in a state that is not Landed: " ++ show s
  where
@@ -320,8 +346,7 @@ sym_exec_ecfg_vertex l@(_,_,l0) ecfg entry blockID v@(ECFG_Vertex _ _ info) fron
 
 
   get_posts_for_call (a0,ImmediateAddress a1) = do
-    sym_exec_ecfg_entry l False a1
-    posts <- gets $ ssf_get_posts a1
+    posts <- sym_exec_ecfg_entry l False a1
     return $ S.map (\posts -> (a0,a1,posts)) posts
 
     
@@ -339,18 +364,18 @@ sym_exec_ecfg_vertex l@(_,_,l0) ecfg entry blockID v@(ECFG_Vertex _ _ info) fron
 
 
   sym_exec_normal = S.singleton $ foldr go s info
-  go (ECFG_Call f) s = sym_exec_call f s
+  go (ECFG_CF f) s = sym_exec_call f s
   go (ECFG_Return) s
     | head (ss_estatus s) == Normal = s { ss_estatus = Returned : tail (ss_estatus s) }
     | otherwise                     = error $ "Returning while status is not Normal"
   go _             s = s
 
-  sym_exec_call Terminate    (ECFG_SymState cs _               rip) = ECFG_SymState cs [Terminated]     rip
-  sym_exec_call Resume       (ECFG_SymState cs (Landed   e:es) rip) = ECFG_SymState cs (Unwinding e:es) rip
-  sym_exec_call CatchBegin   (ECFG_SymState cs (Landed   e:es) rip) = ECFG_SymState cs (Handling e:es)  rip
-  sym_exec_call CatchEnd     (ECFG_SymState cs es              rip) = ECFG_SymState cs (popHandling es) rip
-  sym_exec_call (Rethrow a)  (ECFG_SymState cs (Handling e:es) rip) = emitLog ("RETHROWING AT 0x" ++ showHex a ++ ": " ++ show (exception_type e)) $ ECFG_SymState cs (Unwinding e:Handling e:es) a
-  sym_exec_call (Throw a e)  (ECFG_SymState cs es              rip) = emitLog ("THROWING AT 0x" ++ showHex a ++ ": " ++ show (exception_type e))   $ ECFG_SymState cs (Unwinding e:es) a
+  sym_exec_call Terminate    (ECFG_SymState _               rip) = ECFG_SymState [Terminated]     rip
+  sym_exec_call Resume       (ECFG_SymState (Landed   e:es) rip) = ECFG_SymState (Unwinding e:es) rip
+  sym_exec_call CatchBegin   (ECFG_SymState (Landed   e:es) rip) = ECFG_SymState (Handling e:es)  rip
+  sym_exec_call CatchEnd     (ECFG_SymState es              rip) = ECFG_SymState (popHandling es) rip
+  sym_exec_call (Rethrow a)  (ECFG_SymState (Handling e:es) rip) = emitLog ("RETHROWING AT 0x" ++ showHex a ++ ": " ++ show (exception_type e)) $ ECFG_SymState (Unwinding e:Handling e:es) a
+  sym_exec_call (Throw a e)  (ECFG_SymState es              rip) = emitLog ("THROWING AT 0x" ++ showHex a ++ ": " ++ show (exception_type e))   $ ECFG_SymState (Unwinding e:es) a
   sym_exec_call _ _ = s
 
   popHandling (Handling e:es) = es
@@ -359,15 +384,15 @@ sym_exec_ecfg_vertex l@(_,_,l0) ecfg entry blockID v@(ECFG_Vertex _ _ info) fron
 
 
 sym_exec_ecfg_edge :: ECFG -> ECFG_Edge -> ECFG_SymState -> (Int, ECFG_SymState)
-sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState _ (Terminated :_)  _) = error $ "Should not run in terminated state."
-sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState _ (Unwinding e:_) _)  = error $ "Should not run in unwinding state." 
-sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState _ (Returned   :_) _)  = error $ "Should not run in returning state." 
+sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState (Terminated :_)  _) = error $ "Should not run in terminated state."
+sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState (Unwinding e:_) _)  = error $ "Should not run in unwinding state." 
+sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState (Returned   :_) _)  = error $ "Should not run in returning state." 
 sym_exec_ecfg_edge ecfg (ECFG_Edge blocKID label blockID') s  = (blockID',s{ss_rip = ecfg_blockID_to_address ecfg blockID'})
 
 
 -- TODO recursive
 sym_exec_unwind :: ECFG -> ECFG_Vertex -> ECFG_SymState -> (S.Set ECFG_SymState, S.Set (Int,ECFG_SymState))
-sym_exec_unwind ecfg v@(ECFG_Vertex _ _ _) s@(ECFG_SymState _ (Unwinding e:es) _) = 
+sym_exec_unwind ecfg v@(ECFG_Vertex _ _ _) s@(ECFG_SymState (Unwinding e:es) _) = 
   case find is_encompassing_region $ ecfg_regions ecfg of
     Nothing -> 
       case es of
@@ -456,8 +481,8 @@ render_ecfg_to_dot (ECFG vertices edges entry regions) =
     | otherwise       = ""
 
   -- Calls
-  mk_call (ECFG_Call f) = Just (mk_dot_safe $ show f,"")
-  mk_call _             = Nothing
+  mk_call (ECFG_CF f) = Just (mk_dot_safe $ show f,"")
+  mk_call _           = Nothing
 
 
 
@@ -505,34 +530,48 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
   -- Calls
   mk_relevant_calls blockID = concatMap (annotate_relevant_call blockID) $ get_external_calls l cfg blockID
 
-  annotate_relevant_call blockID (a,"_Unwind_Resume")         = [ECFG_Call Resume]
-  annotate_relevant_call blockID (a,"_Unwind_RaiseException") = [ECFG_Call Raise]
-  annotate_relevant_call blockID (a,"__cxa_begin_catch")      = [ECFG_Call CatchBegin]
-  annotate_relevant_call blockID (a,"__cxa_end_catch")        = [ECFG_Call CatchEnd]
-  annotate_relevant_call blockID (a,"__cxa_rethrow")          = [ECFG_Call $ Rethrow a]
+  annotate_relevant_call blockID (a,"_Unwind_Resume")         = [ECFG_CF Resume]
+  annotate_relevant_call blockID (a,"_Unwind_RaiseException") = [ECFG_CF Raise]
+  annotate_relevant_call blockID (a,"__cxa_begin_catch")      = [ECFG_CF CatchBegin]
+  annotate_relevant_call blockID (a,"__cxa_end_catch")        = [ECFG_CF CatchEnd]
+  annotate_relevant_call blockID (a,"__cxa_rethrow")          = [ECFG_CF $ Rethrow a]
   annotate_relevant_call blockID (a,"__cxa_throw")            =
     let a0        = blockID_to_address cfg blockID
         as        = IS.singleton $ blockID_to_last_address blockID
         l         = (bin,config,l0,fromIntegral entry) 
         symstates = unsafePerformIO $ symbolically_execute_until l 0 a0 as init_symstate
-        rsis      = S.toList $ S.map (try_get_label . evalState (sread_reg (Reg64 RSI))) symstates
+        tinfos    = S.toList $ S.map (try_get_type_info . evalState (sread_reg (Reg64 RSI))) symstates
         rdxs      = S.toList $ S.map (try_get_label . evalState (sread_reg (Reg64 RDX))) symstates in
-      if any ("0x" `isPrefixOf`) rsis || length rsis /= 1 || length rdxs /= 1 then
-        error $ intercalate "," rsis
-      else let e_type  = strip_typeinfo_for $ head rsis
+      if length tinfos /= 1 || length rdxs /= 1 then
+        error $ intercalate "," $ map show $ tinfos
+      else let e_type  = strip_typeinfo_for $ fst $ head tinfos
+               e_base  = strip_typeinfo_for <$> (snd $ head tinfos)
                e_destr = whenNotNull $ head rdxs
-               e       = Exception e_type e_destr in
-        [ECFG_Call $ Throw a e]
+               e       = Exception e_type e_base e_destr in
+        [ECFG_CF $ Throw a e]
   annotate_relevant_call _ (a,f)
     | "std::__throw_" `isPrefixOf` (demangle f `orElse` f) =
-      let e = Exception ("std::" ++ (takeWhile ((/=) '(') $ drop 13 $ demangle f `orElse` f)) Nothing in
-        [ECFG_Call $ Throw a e]
-    | is_exiting_function_call f = [ECFG_Call Terminate]
+      let e = Exception ("std::" ++ (takeWhile ((/=) '(') $ drop 13 $ demangle f `orElse` f)) (Just "std::exception") Nothing in
+        [ECFG_CF $ Throw a e]
+    | is_exiting_function_call f = [ECFG_CF Terminate]
     | otherwise  = []
 
+  try_get_type_info e =
+    let label = try_get_label e
+        base  = try_get_pointee $ simp $ SE_Op Plus 64 [e, SE_Immediate 16] in
+      if not $ "typeinfo for " `isPrefixOf` label then
+        error $ "RSI does not contain address of typeinfo object when throwing. It is: " ++ show label
+      else if "typeinfo for " `isPrefixOf` base then
+        (label,Just base)
+      else
+        (label,Nothing)
+
   try_get_label (SE_Immediate imm)                    = address_to_label imm
-  try_get_label (SE_Var (SP_Mem (SE_Immediate a) si)) = address_to_pointee (Absolute a)
+  try_get_label (SE_Var (SP_Mem (SE_Immediate a) si)) = address_to_pointee $ Absolute a
   try_get_label e                                     = "0x" ++ show e -- bit ugly...
+
+  try_get_pointee (SE_Immediate imm)                  = address_to_pointee $ Absolute imm
+  try_get_pointee e                                   = "*" ++ show e
 
   whenNotNull "0x0" = Nothing
   whenNotNull str   = Just str
