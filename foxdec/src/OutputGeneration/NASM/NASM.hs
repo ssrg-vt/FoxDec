@@ -399,12 +399,12 @@ instance Show NASM_Address where
   show (NASM_Addr_Label l)                    = show l 
 
 
-show_symbol (PointerToExternalFunction  l)   = l ++ " wrt ..plt"
-show_symbol (PointerToInternalFunction  l a) = l
-show_symbol (PointerToObject l True _ _)     = l ++ " wrt ..got"
-show_symbol (PointerToObject l False _ _)    = l ++ " wrt ..got"
-show_symbol (AddressOfLabel  l _)            = l
-show_symbol (AddressOfObject l _)            = l
-show_symbol (Relocated_ResolvedObject l _)   = l
+show_symbol (PointerToExternalFunction  l)    = l ++ " wrt ..plt"
+show_symbol (PointerToInternalFunction  l a)  = l
+show_symbol (PointerToObject l True _ _)      = l ++ " wrt ..got"
+show_symbol (PointerToObject l False _ _)     = l ++ " wrt ..got"
+show_symbol (AddressOfLabel  l _)             = l
+show_symbol (AddressOfObject l _)             = l
+show_symbol (Relocated_ResolvedObject l _ _ ) = l
 
 

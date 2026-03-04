@@ -2,7 +2,13 @@
 #include <exception>
 #include <iostream>
 
-class MyException: std::exception
+
+/*
+ * This example misses "public", meaning that MyException is not visibly a subclass of std::exception.
+ * As a result, this exception is not caught.
+ * */
+
+class MyException: /* public */ std::exception
 {
 public:
     explicit MyException(const char* message)

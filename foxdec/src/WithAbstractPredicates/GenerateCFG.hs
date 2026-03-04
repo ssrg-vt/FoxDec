@@ -27,7 +27,7 @@ import Data.Word
 import Data.Maybe
 import Data.List
 import Control.Monad.Extra
-import Data.Foldable (foldrM)
+import Data.Foldable (foldrM,any)
 
 import Debug.Trace
 
@@ -45,20 +45,13 @@ generate_cfg l@(bin,_,_) entry = do
   let nxt  = next_rips l i
   let bag  = S.fromList $ (\(JustRips as) -> map (\a -> (entry,a)) as) nxt 
   g'      <- mk_graph l entry bag g
-  g''     <- foldrM do_landing_pad g' $ IS.toList $ get_landing_pads
+  g''     <- repeatUntilFixPointM (\g -> foldrM do_landing_pad g $ IS.toList $ get_landing_pads g) g'
   cfg_add_instrs l g''
  where
-  get_landing_pads = 
-    case find (\t -> function_entry t == entry) $ cfi_gcc_except_tables $ binary_get_cfi bin of
-      Nothing -> IS.empty
-      Just t  -> IS.filter is_landing_pad $ get_landing_pads_from_gcc_except_table t
-
-  is_landing_pad a = address_has_instruction bin (fromIntegral a)
-
-  already_in_cfg cfg a = any (\as -> a `elem` as) $ cfg_blocks cfg
-
+  -- Given the address of a landing pad, add the landing pad as root to the CFG, and explore from there
+  -- This is iterated up to a fixpoint
   do_landing_pad lp cfg 
-    | already_in_cfg cfg lp = return cfg -- (putStrLn $ "Skipping LP 0x" ++ showHex lp ++ " " ++ show lp) >> 
+    | already_in_cfg cfg lp = return cfg
     | otherwise = do
       let f    = cfg_fresh cfg
       i       <- fetch_instruction bin $ fromIntegral lp
@@ -69,6 +62,30 @@ generate_cfg l@(bin,_,_) entry = do
 
   get_nxt a0 (JustRips as) = map (\a -> (fromIntegral a0,a)) as
   get_nxt a0 Terminal = []
+
+  -- The landing pads are retrieved from the gcc_except_tables
+  get_landing_pads g = 
+    let all_landing_pads = IS.unions $ map get_landing_pads_from_gcc_except_table $ get_relevant_tables bin g in
+      IS.filter is_landing_pad all_landing_pads
+
+  is_landing_pad a = address_has_instruction bin (fromIntegral a)
+
+  already_in_cfg cfg a = any (\as -> a `elem` as) $ cfg_blocks cfg
+
+  -- A gcc_except_table is relevant if it has a region that covers an instruction of the current CFG
+  get_relevant_tables bin cfg = filter (\t -> anyIS (table_has_overlapping_region t) $ IM.keysSet $ cfg_addr_to_blockID cfg) all_tables
+  all_tables = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+  table_has_overlapping_region t a = any (\(end,start,_,_) -> start <= a && a < end) $ get_callsite_regions_from_gcc_except_table t
+
+
+
+repeatUntilFixPointM m a0 = do
+  a1 <- m a0
+  if a0 == a1 then
+    return a0
+  else
+    repeatUntilFixPointM m a1
+
 
 cfg_add_block_for_landing_pad cfg lp = 
   let f        = cfg_fresh cfg
@@ -88,9 +105,6 @@ mk_graph l@(bin,_,_) entry bag g =
       else do
         is_call_a0 <- is_call a0
         let g' = add_edge (fromIntegral a0) (fromIntegral a1) is_call_a0 g
-
-
-        if not (is_edge g' (fromIntegral a0) (fromIntegral a1)) then error $ "HALLO " ++ showHex a0 ++ " -> " ++ showHex a1 ++ "\n" ++ show g ++ "\n" ++ show g' else return ()
         i <- fetch_instruction bin a1
         case next_rips l i of
           JustRips as -> let bag' = S.union (S.fromList $ map (\a2 -> (a1,a2)) as) bag in
@@ -236,6 +250,31 @@ is_edge g a0 a1 =
       return $ head b' == a1 && blockId' `IS.member` edges
     else
       return $ blockId == blockId' && is_consecutive a0 a1 b
+
+
+
+-- Break up basic blocks that contain a non-conditional jump in the middle.
+cfg_split_jumps :: CFG -> CFG
+cfg_split_jumps = repeatUtilFixpoint split_jumps
+ where
+  split_jumps cfg = foldr split_block cfg $ IM.assocs $ cfg_instrs cfg
+
+  split_block (blockID,is) cfg =
+    case break (isJump . inOperation) is of
+      (_, [])     -> cfg
+      (_, [_])    -> cfg
+      (is0,i:(is1@(_:_))) -> 
+        let f         = cfg_fresh cfg
+            -- The current block gets instructions is0++[i], the new block gets instructions is1
+            is1_addrs = map (fromIntegral . inAddress) is1
+            blocks'   = IM.insert f is1_addrs $ IM.adjust (take (length is0+1)) blockID $ cfg_blocks cfg
+            instrs'   = IM.insert f is1 $ IM.insert blockID (is0++[i]) $ cfg_instrs cfg 
+            a_to_b'   = IM.union (IM.fromList $ zip is1_addrs (repeat f)) $ cfg_addr_to_blockID cfg
+            -- The current block gets a single edge to the new block, the new block gets the out edges of the current block
+            curr_outs = post cfg blockID
+            edges'    = IM.insert f curr_outs $ IM.insert blockID (IS.singleton f) $ cfg_edges cfg
+            fresh'    = f + 1 in
+           CFG blocks' edges' a_to_b' fresh' instrs' (cfg_landing_pads cfg)
 
 
 

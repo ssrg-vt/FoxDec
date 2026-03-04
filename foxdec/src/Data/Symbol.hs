@@ -37,23 +37,28 @@ data Symbol =
   | PointerToObject           String Bool Int64 (Maybe String)-- ^ Address a0 can be replaced by the GOT entry of the string, e.g., "stdout wrt ..got" or "optind wrt ..got" + an addend
   | AddressOfObject           String Bool -- ^ Address a0 can be replaced by the string, e.g., "stdout" or "optind"
   | AddressOfLabel            String Bool -- ^ Address a0 can be replaced by the string.
-  | Relocated_ResolvedObject  String Word64 -- ^ At linking time internally resolved relocation
+  | Relocated_ResolvedObject  String Word64 Int64 -- ^ At linking time internally resolved relocation with addend
   | TLS_Relative              String -- ^ The symbol is relative to the thread local storage
   deriving (Generic,Eq,Ord)
 
-instance Show Symbol where
-  show (PointerToExternalFunction l)          = "&" ++ l
-  show (PointerToInternalFunction l a)        = "&" ++ l ++ "@0x" ++ showHex a
-  show (PointerToObject o ex addend Nothing)  = "&" ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ " (" ++ show_ex ex ++ ")"
-  show (PointerToObject o ex addend (Just l)) = "&" ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ " (" ++ show_ex ex ++ ", " ++  "@" ++ l ++ ")"
-  show (AddressOfObject o ex)                 = o ++ "_" ++ show_ex ex
-  show (AddressOfLabel  l ex)                 = l ++ "_" ++ show_ex ex
-  show (Relocated_ResolvedObject o a)         = o ++ "@0x" ++ (if a < 0 then Numeric.showHex (fromIntegral a :: Word64) "" else Numeric.showHex a "")
-  show (TLS_Relative l)                       = l ++ "@TLS"
+show_symbol_table_entry (a0,sym) = showHex a0 ++ show_symbol sym
+ where 
+  show_symbol (PointerToExternalFunction f)         = " --> " ++ f
+  show_symbol (PointerToInternalFunction f a1)      = " --> " ++ f ++ "@0x" ++ showHex a1
+  show_symbol (PointerToObject o b addend Nothing)  = " --> " ++ o ++ show_addend addend ++ show_in_ex b "object"
+  show_symbol (PointerToObject o b addend (Just l)) = " === " ++ l ++ " --> " ++ o ++ show_addend addend ++ show_in_ex b "object"
+  show_symbol (AddressOfObject l b)                 = " === " ++ l ++ show_in_ex b "object"
+  show_symbol (AddressOfLabel f b)                  = " === " ++ f ++ show_in_ex b "label"
+  show_symbol (Relocated_ResolvedObject l a addend) = " --> " ++ l ++ "@0x" ++ showHex a ++ show_addend addend ++ " (object)"
+  show_symbol (TLS_Relative l)                      = " === " ++ l ++ "@TLS"
 
-show_ex True  = "ex"
-show_ex False = "in"
+  show_addend 0      = ""
+  show_addend addend = "+0x"++showHex addend
 
+  show_export (a,f) = showHex a ++ ": " ++ f ++ " (exported)"
+
+  show_in_ex True  ty = " (external " ++ ty ++ ")" 
+  show_in_ex False ty = " (internal " ++ ty ++ ")" 
 
 
 instance Cereal.Serialize Symbol

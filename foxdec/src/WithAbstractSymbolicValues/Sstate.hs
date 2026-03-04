@@ -130,7 +130,7 @@ read_from_ro_data ctxt p (Just (ByteSize si)) =
       Just (PointerToInternalFunction f a) -> Just $ simmediate ctxt a
       Just (PointerToObject f True _ _)    -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
       Just (AddressOfObject f True)        -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
-      Just (Relocated_ResolvedObject o a)  -> Just $ simmediate ctxt a
+      Just (Relocated_ResolvedObject o a addend) -> Just $ simmediate ctxt $ fromIntegral $ fromIntegral a + addend
       -- Just s                        -> error $ show (a, s) 
       _                             -> Nothing
 read_from_ro_data _ _ _ = Nothing

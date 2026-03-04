@@ -47,6 +47,7 @@ dependencies:
 - cppfilt
 - vector
 - set-extra
+- filepath
 
 library:
   source-dirs: src

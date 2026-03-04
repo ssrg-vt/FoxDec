@@ -1213,7 +1213,7 @@ ctry_jump_targets l@(bin,_,_,_) i v@(SConcrete es) =
       Just (PointerToInternalFunction f a) -> Just $ ImmediateAddress a
       Just (AddressOfLabel f True)         -> Just $ ExternalDeref f -- an external variable contains a pointer to a function
       Just (AddressOfObject f True)        -> Just $ ExternalDeref f      -- an external variable contains a pointer to a function
-      Just s                               -> error $ show (a, s) -- Just $ External f
+      Just s                               -> error $ show_symbol_table_entry (a, s) -- Just $ External f
       _                                    -> Nothing
 
 

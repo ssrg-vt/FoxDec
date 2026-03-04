@@ -63,6 +63,7 @@ next_rips l@(bin,_,_) (Just i) = next_rip_based_on_opcode i $ inOperation i
           JustRips _       -> JustRips []
           Terminal         -> Terminal
           UnresolvedTarget -> UnresolvedTarget
+          UnvisitedFunctionCall a -> UnvisitedFunctionCall a
           x -> error $ show (i,x,get_known_jump_targets l i)
       else let trgts = get_known_jump_targets l i in
         if all ((==) Unresolved) trgts then
@@ -144,7 +145,7 @@ jump_is_actually_a_call ::
      Lifting bin pred finit v
   -> Instruction       -- ^ The instruction
   -> Bool
-jump_is_actually_a_call l@(_,_,l0) i =
+jump_is_actually_a_call l@(bin,_,l0) i =
   let trgts = get_known_jump_targets l i in
     any resolves_to_function_entry trgts
  where
@@ -154,8 +155,10 @@ jump_is_actually_a_call l@(_,_,l0) i =
   resolves_to_function_entry (Returns _)          = True
   resolves_to_function_entry (ImmediateAddress a) = 
     case l0_lookup_entry a l0 of
-      Nothing -> False
+      Nothing -> has_gcc_except_table a
       Just _  -> True
+
+  has_gcc_except_table a  = any (\t -> function_entry t == a) $ cfi_gcc_except_tables $ binary_get_cfi bin
 
 
 get_known_jump_targets ::

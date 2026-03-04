@@ -58,21 +58,9 @@ data SymbolTable = SymbolTable {
   deriving (Generic,Eq)
 
 instance Show SymbolTable where
-  show (SymbolTable tbl exports) = (intercalate "\n" $ map show_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_export exports)
+  show (SymbolTable tbl exports) = (intercalate "\n" $ map show_symbol_table_entry $ IM.assocs tbl) ++ "\n" ++ (intercalate "\n" $ map show_export exports)
    where
-    show_entry (a0,PointerToExternalFunction f)    = showHex a0 ++ " --> " ++ f
-    show_entry (a0,PointerToInternalFunction f a1) = showHex a0 ++ " --> " ++ f ++ "@0x" ++ showHex a1
-    show_entry (a0,PointerToObject o b addend Nothing) = showHex a0 ++ " --> " ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
-    show_entry (a0,PointerToObject o b addend (Just l)) = showHex a0 ++ " === " ++ l ++ " --> " ++ o ++ (if addend == 0 then "" else "+0x"++showHex addend) ++ show_in_ex b "object"
-    show_entry (a0,AddressOfObject l b)            = showHex a0 ++ " === " ++ l ++ show_in_ex b "object"
-    show_entry (a0,AddressOfLabel f b)             = showHex a0 ++ " === " ++ f ++ show_in_ex b "label"
-    show_entry (a0,Relocated_ResolvedObject l a)   = showHex a0 ++ " (" ++ l ++ ") --> " ++ showHex a ++ " (external object, but internally resolved)"
-    show_entry (a0,TLS_Relative l)                 = showHex a0 ++ " === " ++ l ++ "@TLS"
-
     show_export (a,f) = showHex a ++ ": " ++ f ++ " (exported)"
-
-    show_in_ex True  ty = " (external " ++ ty ++ ")" 
-    show_in_ex False ty = " (internal " ++ ty ++ ")" 
 
 instance Cereal.Serialize SymbolTable
 
@@ -149,13 +137,13 @@ binary_get_exported_functions bin =
   case binary_get_symbols bin of
     (SymbolTable tbl exports) -> exports
 
-symbol_to_name (PointerToExternalFunction f)   = f
-symbol_to_name (PointerToInternalFunction f a) = f
-symbol_to_name (PointerToObject l b addend _)  = l++(if addend == 0 then "" else "+0x"++showHex addend)
-symbol_to_name (AddressOfObject l b)           = l
-symbol_to_name (AddressOfLabel f b)            = f
-symbol_to_name (Relocated_ResolvedObject l a)  = l
-symbol_to_name (TLS_Relative l)                = l
+symbol_to_name (PointerToExternalFunction f)    = f
+symbol_to_name (PointerToInternalFunction f a)  = f
+symbol_to_name (PointerToObject l b addend _)   = l++(if addend == 0 then "" else "+0x"++showHex addend)
+symbol_to_name (AddressOfObject l b)            = l
+symbol_to_name (AddressOfLabel f b)             = f
+symbol_to_name (Relocated_ResolvedObject l a addend) = l++(if addend == 0 then "" else "+0x"++showHex addend)
+symbol_to_name (TLS_Relative l)                 = l
 
 
 

@@ -123,15 +123,14 @@ exploreFunctionEntries entries recursions = do
     Just (entry,trgts) -> do
       -- If yes, then reinsert the function entry, remove the current known results and continue
       done <- entry_has_been_done_and_is_terminating entry
+      let entries'    = graph_add_edges entries entry IS.empty 
+      let recursions' = IM.delete entry recursions
       if done then do
-        let recursions' = IM.delete entry recursions
-        continue_with_next_entry entries recursions'
+        liftIO $ putStrLn $ "Reconsidering entry (due to mutual recursion) entry " ++ showHex entry ++ " while keeping the information that it terminates."
       else do
         liftIO $ putStrLn $ "Reconsidering (due to mutual recursion) entry " ++ showHex entry ++ " as all entries " ++ showHex_set trgts ++ " are now done."
-        let entries'    = graph_add_edges entries entry IS.empty 
-        let recursions' = IM.delete entry recursions
         modify $ l0_adjust_result entry Nothing
-        exploreFunctionEntry entries' recursions' $ fromIntegral entry
+      exploreFunctionEntry entries' recursions' $ fromIntegral entry
     Nothing -> continue_with_next_entry entries recursions 
  where
   continue_with_next_entry entries recursions = do
@@ -341,7 +340,7 @@ analyze_entry entry = do
   let !(invs,gmem_structure',vcs)  = generate_invariants (withEntry entry static) cfg finit
   modify $ l0_set_gmem_structure gmem_structure'
 
-  new_calls <- (join_duplicate_new_calls static . catMaybes) <$> (concatMapM (get_new_calls invs) $ IM.assocs $ cfg_instrs cfg)
+  new_calls <- (join_duplicate_new_calls static . catMaybes) <$> (concatMapM (get_new_calls static invs) $ IM.assocs $ cfg_instrs cfg)
 
   if new_calls /= [] then do
     liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": Adding new internal functions at " ++ showHex_list (map fst new_calls) ++ " to entries to be explored."
@@ -369,9 +368,8 @@ analyze_entry entry = do
         finit'      = foldr1 (join_finits $ withEntry (fromIntegral a) static) (finit:map snd same) in
       (a,finit') : join_duplicate_new_calls static rest
 
-  get_new_calls invs (blockID,instrs)
-    -- Assumes calls are always last intruction in block (TODO jumps that are actually calls)
-    | isCall (inOperation $ last instrs) = do
+  get_new_calls  static invs (blockID,instrs)
+    | isCall (inOperation $ last instrs) || (isJump (inOperation $ last instrs) && (jump_is_actually_a_call static $ last instrs)) = do
       static <- mk_static
       let trgts = get_known_jump_targets static $ last instrs
       mapM (get_new_calls_from_trgt invs blockID instrs) trgts

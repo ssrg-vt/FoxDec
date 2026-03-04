@@ -17,6 +17,8 @@ import Data.List
 import Data.List.Extra (firstJust)
 
 import qualified Data.ByteString as BS
+import qualified Data.Serialize as Cereal hiding (get,put)
+import GHC.Generics
 
 
 data CIE_Aug_Data = Personality Word8 Address | LSDA_Encoding Word8 | FDE_Encoding Word8
@@ -147,3 +149,45 @@ get_callsite_regions_from_gcc_except_table t = concatMap get_region_from_call_si
 
 get_callsite_region_starts_from_gcc_except_table = IS.fromList . map (\(_,start,_,_) -> start) . get_callsite_regions_from_gcc_except_table
 get_callsite_region_ends_from_gcc_except_table = IS.fromList . map (\(end,_,_,_) -> end) . get_callsite_regions_from_gcc_except_table
+
+
+-- Given an action index (i.e., the action number stored in a callsite) retrieve an ordered list of actions annotated with their type infos.
+gcc_except_table_action_indx_to_type_info t = map gcc_except_table_action_to_type_info . traverse_actions . find_action_at
+ where
+  gcc_except_table_action_to_type_info act =
+    let typs      = type_infos t
+        filter    = gcc_except_table_action_type_filter act
+        typs_indx = (length typs - fromIntegral filter) in
+       if filter == 0 then
+         (gcc_except_table_action_type_filter act,Absolute 0)
+       else if typs_indx < length typs then
+         (gcc_except_table_action_type_filter act,typs !! typs_indx)
+       else
+         error $ show (typs,act)
+
+  find_action_at cs_action = find_action cs_action $ actions t
+
+  find_action 1         (act:_) = act
+  find_action cs_action (act:acts)
+    | gcc_except_table_action_type_size act <= fromIntegral cs_action = find_action (cs_action - gcc_except_table_action_type_size act) acts
+    | otherwise = error $ show (cs_action,act:acts) 
+
+  traverse_actions act
+    | gcc_except_table_action_type_next_action act == 0 = [act]
+    | otherwise =
+      case find (\act' -> gcc_except_table_action_type_address act' == gcc_except_table_action_type_next_address act) $ actions t of
+        Just act' -> act : traverse_actions act'
+
+
+deriving instance Generic Address 
+deriving instance Generic GCC_Except_Table_CallSite 
+deriving instance Generic GCC_Except_Table_Action 
+deriving instance Generic GCC_Except_Table 
+deriving instance Generic CFI 
+
+instance Cereal.Serialize Address
+instance Cereal.Serialize GCC_Except_Table_CallSite
+instance Cereal.Serialize GCC_Except_Table_Action
+instance Cereal.Serialize GCC_Except_Table
+instance Cereal.Serialize CFI
+

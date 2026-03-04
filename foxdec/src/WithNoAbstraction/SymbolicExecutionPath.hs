@@ -227,24 +227,28 @@ read_RIP symstate =
     case v of
       SE_Immediate a -> a
 
--- Tries to follow a concrete path, where each jump and conditional jump is evlauted deterministically.
--- Errors out if it cnanot decide where some jump leads to.
-symbolically_execute_until :: LiftedWithEntry -> Int -> Int -> IS.IntSet -> SymState -> IO (S.Set SymState)
-symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
+-- Tries to follow a concrete path, where each jump and conditional jump is evaluated deterministically.
+-- Errors out if it cannot decide where some jump leads to.
+symbolically_execute_until :: LiftedWithEntry -> Int -> IS.IntSet -> SymState -> StateT Int IO (S.Set SymState)
+symbolically_execute_until l@(bin,config,l0,entry) a as symstate
   | a `IS.member` as = return $ S.singleton symstate
-  | count >= 100     = error $ show_symstate l symstate
   | otherwise        = do
-    Just i          <- fetch_instruction bin $ fromIntegral a
-    let sem          = instr_to_semantics l i
-    let symstates'   = execState (run i sem count) (S.singleton symstate)
-    symstates''     <- mapM (\symstate' -> symbolically_execute_until l (count+1) (fromIntegral $ read_RIP symstate') as symstate') $ S.toList symstates'
-    return $ S.unions symstates''
+    count <- get
+    put $ count + 1
+    if count >= 1000 then
+      return $ S.singleton symstate
+    else do
+      Just i          <- liftIO $ fetch_instruction bin $ fromIntegral a
+      let sem          = instr_to_semantics l i
+      let symstates'   = execState (run i sem count) (S.singleton symstate)
+      symstates''     <- mapM (\symstate' -> symbolically_execute_until l (fromIntegral $ read_RIP symstate') as symstate') $ S.toList symstates'
+      return $ S.unions symstates''
  where
   run i sem count
     | isCondJump (inOperation i) = gets (S.unions . S.map (evalState (do_cond_jump i))) >>= put
     | isJump (inOperation i) = determinize $ do_jump sem
-    | inOperation i `elem` [CMP,SUB] = determinize $ (set_flags sem >> do_normal_instr sem)
-    | otherwise = determinize $ do_normal_instr sem
+    | inOperation i `elem` [CMP,SUB] = determinize $ (set_flags sem >> do_normal_instr sem count)
+    | otherwise = determinize $ do_normal_instr sem count
 
   determinize :: State SymState () -> State (S.Set SymState) ()
   determinize m = (gets $ S.map (execState m)) >>= put
@@ -278,7 +282,7 @@ symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
     SymState regs mem _ <- get
     put $ SymState regs mem M.empty
 
-  do_normal_instr sem = do
+  do_normal_instr sem count = do
       set_rip (size_of sem + rip_of sem)
       tau l count sem
 
@@ -309,6 +313,11 @@ symbolically_execute_until l@(bin,config,l0,entry) count a as symstate
         case (cf,zf) of
           (Just b0,Just b1) -> do_jump_if (not b0 && not b1) i
           _                 -> do_jump_both i
+      JNB -> do
+        cf <- sread_flag "CF"
+        case cf of
+          (Just b0) -> do_jump_if (not b0) i
+          _         -> do_jump_both i
       JNLE -> do
         sg <- sread_flag "SG"
         case sg of
@@ -1041,11 +1050,11 @@ sread_mem l0@(bin,_,_,_) a a' si = do
 
   try_read_symbol a si =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (PointerToInternalFunction f a1) -> Just $ SE_Immediate a1
-      Just (Relocated_ResolvedObject o a1)  -> Just $ SE_Immediate a1
-      Just (PointerToExternalFunction f)    -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
-      Just (PointerToObject f True _ _)     -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
-      _                                     -> Nothing
+      Just (PointerToInternalFunction f a1)       -> Just $ SE_Immediate a1
+      Just (Relocated_ResolvedObject o a1 addend) -> Just $ SE_Immediate $ fromIntegral $ fromIntegral a1 + addend
+      Just (PointerToExternalFunction f)          -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
+      Just (PointerToObject f True _ _)           -> Just $ SE_Var $ SP_Mem (SE_Immediate a) si
+      _                                           -> Nothing
 
 
 swrite_mem :: LiftedWithEntry -> SimpleExpr -> Int -> Maybe SimpleExpr -> State SymState ()

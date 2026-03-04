@@ -9,7 +9,7 @@ module Main where
 import Base
 import Config
 
-import Binary.Disassemble
+import Binary.Elf (getELFFiles)
 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
@@ -45,6 +45,7 @@ import WithNoAbstraction.SymbolicExecution
 import WithNoAbstraction.SymbolicExecutionPath
 import WithNoAbstraction.Lifted
 import WithAbstractSymbolicValues.SymbolicExecution
+import WithAbstractPredicates.GenerateCFG
 
 import Binary.Generic
 import Binary.Read
@@ -95,7 +96,7 @@ data CommandLineArgs = CommandLineArgs
   { 
     args_config             :: FilePath,   -- ^ The .config file
     args_dirname            :: FilePath,   -- ^ The directory where results are stored
-    args_filename           :: FilePath,   -- ^ The name of the binary
+    args_filename           :: Maybe FilePath,   -- ^ The name of the binary
     args_inputtype          :: String,     -- ^ The input type (a binary or a .L0 file)
     args_generate_L0        :: Bool,       -- ^ Shall we generate a .L0 file?
     args_generate_NASM      :: Bool,       -- ^ Shall we generate NASM?
@@ -110,14 +111,14 @@ data CommandLineArgs = CommandLineArgs
  deriving Show
 
 -- | Default values for command-line arguments
-defaultArgs = CommandLineArgs "" "" "" "" False False False False False False False False False
+defaultArgs = CommandLineArgs "" "" Nothing "" False False False False False False False False False
 
 -- | The command-line arguments and their types
 args =
     [ Option ['h','?'] ["help"]       (NoArg  set_args_help)                        "Provide help message and exit (overrides all other options)."
     , Option ['c']     ["config"]     (ReqArg set_args_config      "CONFIGFILE")    "The config file with .dhall extension."
     , Option ['d']     ["dir"]        (ReqArg set_args_dirname     "DIRNAME")       "Directory to use."
-    , Option ['n']     ["name"]       (ReqArg set_args_filename    "FILENAME")      "Name of the binary."
+    , Option ['n']     ["name"]       (OptArg set_args_filename    "FILENAME")      "Name of the binary."
     , Option ['i']     ["input"]      (ReqArg set_args_inputtype   "INPUTTYPE")     "Either the string BINARY or the string L0."
     , Option ['v']     ["verbose"]    (NoArg  set_args_verbose)                     "If enabled, produce verbose output."
     , Option []        ["GL0"]        (NoArg  set_args_generate_L0)                 "Generate a .L0 file (only if INPUTTYPE==BINARY)."
@@ -148,7 +149,7 @@ parseCommandLineArgs :: [String] -> IO CommandLineArgs
 parseCommandLineArgs argv =
   case getOpt Permute args argv of
     (o,[],[])  -> inputChecking $ foldl (flip id) defaultArgs o
-    (o,n,[])   -> err $ "ERROR: invalid argument(s) " ++ show n
+    (o,[n],[]) -> inputChecking $ (foldl (flip id) defaultArgs o) { args_filename = Just n }
     (_,_,errs) -> err $ "ERROR: " ++ concat errs 
  where
   -- check validity of command-line arguments
@@ -160,7 +161,6 @@ parseCommandLineArgs argv =
     -- check if arguments make sense 
     when (args_config args    == "") $ err "ERROR: No config file specified (missing -c)"
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
-    when (args_filename args  == "") $ err "ERROR: No name of binary specified (missing -n)"
     when (args_inputtype args == "") $ err "ERROR: No input type specified (missing -i)"
     when (args_inputtype args `notElem` ["BINARY","L0", "ELLF"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string L0 or the string ELLF."
     when (args_generate_L0 args   && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output an L0 when input is set to L0."
@@ -209,28 +209,36 @@ main = getArgs >>= parseCommandLineArgs >>= start
 -- 2.) use context for generating output
 start :: CommandLineArgs -> IO ()
 start args = do
+  config      <- parse_config $ args_config args
   let dirname  = if last (args_dirname args) == '/' then args_dirname args else args_dirname args ++ "/"
   let name     = args_filename args
+  bin_names   <- get_binary_names dirname name
+  mapM_ (start' config dirname) bin_names
+ where
+  start' config dirname name = do
+    -- 1.)
+    (bin,l0') <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
+    l0 <- return l0'
+          -- >>= try_resolve_indirections_underapproximatively bin config
+          -- >>= lift_to_L0 config bin empty_finit . l0_indirections
+          -- >>= try_resolve_indirections_underapproximatively bin config
+    --get_function_signatures bin config l0
 
-  config <- parse_config $ args_config args
-  -- 1.)
-  (bin,l0') <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
-
-  l0 <- return l0'
-        -- >>= try_resolve_indirections_underapproximatively bin config
-        -- >>= lift_to_L0 config bin empty_finit . l0_indirections
-        -- >>= try_resolve_indirections_underapproximatively bin config
-  --get_function_signatures bin config l0
-
-  -- 2.)
-  when (args_generate_metrics args)   $ generate_metrics bin l0
-  when (args_generate_L0 args)        $ serialize_l0 bin l0
-  when (args_generate_callgraph args) $ generate_call_graph bin config l0
-  when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
-  when (args_generate_functions args) $ generate_per_function bin config l0
-  when (args_generate_ellf args)      $ read_and_lift_ellf bin
+    -- 2.)
+    when (args_generate_metrics args)   $ generate_metrics bin l0
+    when (args_generate_L0 args)        $ serialize_l0 bin l0
+    when (args_generate_callgraph args) $ generate_call_graph bin config l0
+    when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
+    when (args_generate_functions args) $ generate_per_function bin config l0
+    when (args_generate_ellf args)      $ read_and_lift_ellf bin
 
 
+get_binary_names dirname (Just name) = return [name]
+get_binary_names dirname Nothing = do
+  files <- getELFFiles dirname 
+  putStrLn $ "No -n option used, therefore doing all binaries in the given directory:"
+  putStrLn $ intercalate ", " files
+  return files
 
 
 
@@ -464,7 +472,8 @@ generate_per_function bin config l0 = do
       let fname  = fdirname ++ name ++ ".dot"
       writeFile fname $ cfg_to_dot bin r
       let fname2 = fdirname ++ name ++ ".ecfg.dot"
-      let ecfg = cfg_to_ecfg (bin,config,l0) (fromIntegral entry) $ result_cfg r
+      let l = (bin,config,l0)
+      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l (fromIntegral entry) $ cfg_split_jumps $ result_cfg r
       writeFile fname2 $ render_ecfg_to_dot ecfg
       let fname2 = fdirname ++ name ++ ".txt"
       writeFile fname2 $ show_report entry finit r

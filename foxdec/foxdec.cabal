@@ -109,6 +109,7 @@ library
     , dom-lt
     , elf
     , extra
+    , filepath
     , hourglass
     , leb128-cereal
     , mtl
@@ -153,6 +154,7 @@ executable foxdec-exe
     , dom-lt
     , elf
     , extra
+    , filepath
     , foxdec
     , hourglass
     , leb128-cereal

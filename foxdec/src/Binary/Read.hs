@@ -39,7 +39,8 @@ read_binary dirname name = do
     content <-  BS.readFile filename
     if (BS.unpack $ BS.take 4 content) == [0x7f, 0x45, 0x4C, 0x46] then do
       let elf = elf_read_file content
-      let bin  = NamedElf elf dirname name (elf_get_sections_info elf) (elf_get_symbol_table elf) (elf_get_relocs elf) signs 
+      let cfi = parse_ehframe elf show
+      let bin  = NamedElf elf dirname name (elf_get_sections_info elf) (elf_get_symbol_table elf) (elf_get_relocs elf) signs cfi
       return $ Just $ Binary bin
     else
       return Nothing

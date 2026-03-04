@@ -505,10 +505,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
     | not is_funptr_array                           = [string8 $ withIndent ".quad 0 # " ++ tail (head (mk_all_labels ellf optional_object a1)) ++ " RELOC NOT IN ELLF METADATA"] 
     | otherwise                                     = [string8 $ withIndent "# .quad "   ++ tail (head (mk_all_labels ellf optional_object a1)) ++ " RELOC NOT IN ELLF METADATA"]
 
-  mk_symbol (PointerToExternalFunction f)   = [ string8 $ withIndent ".quad " ++ f ]
-  mk_symbol (PointerToObject o _ addend _)  = [ string8 $ withIndent ".quad " ++ o ++ (if addend==0 then "" else "+0x" ++ showHex addend)]
-  mk_symbol (Relocated_ResolvedObject o _)  = [ string8 $ withIndent ".quad " ++ o ]
-  mk_symbol (PointerToInternalFunction f _) = [ string8 $ withIndent ".quad " ++ f ]
+  mk_symbol (PointerToExternalFunction f)         = [ string8 $ withIndent ".quad " ++ f ]
+  mk_symbol (PointerToObject o _ addend _)        = [ string8 $ withIndent ".quad " ++ o ++ (if addend==0 then "" else "+0x" ++ showHex addend)]
+  mk_symbol (Relocated_ResolvedObject o _ addend) = [ string8 $ withIndent ".quad " ++ o ++ (if addend==0 then "" else "+0x" ++ showHex addend)]
+  mk_symbol (PointerToInternalFunction f _)       = [ string8 $ withIndent ".quad " ++ f ]
 
   is_function_entry a = a `elem` map ellf_func_address (concat $ ellf_functions ellf)
   in_data_section a =
@@ -533,10 +533,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   all_ellf_pointers Nothing    = flatten $ zip [0..] $ ellf_pointers ellf
   all_ellf_pointers (Just obj) = flatten $ [(obj,ellf_pointers ellf !! fromIntegral obj)]
 
-  symbol_is_reloc_below a' a0 (Relocated_ResolvedObject _ _)  = a0 < a'
-  symbol_is_reloc_below a' a0 (PointerToExternalFunction _)   = a0 < a'
-  symbol_is_reloc_below a' a0 (PointerToInternalFunction _ _) = a0 < a'
-  symbol_is_reloc_below a' a0 (PointerToObject _ _ _ _)       = a0 < a'
+  symbol_is_reloc_below a' a0 (Relocated_ResolvedObject _ _ _)  = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToExternalFunction _)     = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToInternalFunction _ _)   = a0 < a'
+  symbol_is_reloc_below a' a0 (PointerToObject _ _ _ _)         = a0 < a'
   symbol_is_reloc_below a' a0 _ = False
 
 
@@ -676,10 +676,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
     case sym of
       PointerToExternalFunction f -> return $ withIndent ".quad " ++ f 
       PointerToObject obj _ addend _ -> return $ withIndent ".quad " ++ obj ++ (if addend==0 then "" else "+0x" ++ showHex addend)
-      Relocated_ResolvedObject _ a1 -> do
-        sym1 <- IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
-        return $ withIndent ".quad " ++ symbol_to_name sym1
-      sym -> return $ "TODO: 0x" ++ showHex a ++ " lookup in symbol table = " ++ show sym
+      Relocated_ResolvedObject o a1 addend -> do
+        -- sym1 <- IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
+        return $ withIndent ".quad " ++ o ++ (if addend==0 then "" else "+0x" ++ showHex addend)
+      sym -> return $ "TODO lookup in symbol table: " ++ show_symbol_table_entry (a,sym)
 
   mk_offset offset
     | offset == 0 = ""
@@ -996,15 +996,15 @@ symbolize_address bin ellf object in_data_section a =
 
   try_GOT_entry a =
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
-      Just (sym@(PointerToExternalFunction f))   -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL"
-      Just (sym@(PointerToInternalFunction _ _)) -> error $ "TODO: symbolize 0x" ++ showHex a
-      Just (sym@(PointerToObject o _ 0 _))       -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
-      Just (sym@(TLS_Relative f))                -> Just $ withRIP ++ f ++ "@GOTTPOFF"
-      Just (sym@(Relocated_ResolvedObject _ _))  -> error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
+      Just (sym@(PointerToExternalFunction f))    -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL"
+      Just (sym@(PointerToInternalFunction f _))  -> if in_data_section then Nothing else Just $ withRIP ++ f ++ "@GOTPCREL" -- error $ "TODO: symbolize 0x" ++ showHex a
+      Just (sym@(PointerToObject o _ 0 _))        -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
+      Just (sym@(Relocated_ResolvedObject o a 0)) -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL" -- error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
+      Just (sym@(TLS_Relative f))                 -> Just $ withRIP ++ f ++ "@GOTTPOFF"
 
       -- TODO
-      Just (sym@(AddressOfObject o True))        -> if in_data_section then Nothing else Just $ withRIP ++ o
-      Just (sym@(AddressOfLabel l True))         -> if in_data_section then Nothing else Just $ withRIP ++ l
+      Just (sym@(AddressOfObject o True))         -> if in_data_section then Nothing else Just $ withRIP ++ o
+      Just (sym@(AddressOfLabel l True))          -> if in_data_section then Nothing else Just $ withRIP ++ l
       _ -> Nothing
 
   try_reloc a = do

@@ -157,7 +157,7 @@ try_read_function_pointer bin i a' = try_symbol a' `orTry` try_relocation a' `or
       Just (PointerToInternalFunction s a1) -> Just $ ImmediateAddress a1
       Just (AddressOfLabel s True)  -> Just $ ExternalDeref $ strip_GLIBC s
       Just (AddressOfObject s True) -> Just $ ExternalDeref $ strip_GLIBC s
-      Just (Relocated_ResolvedObject f a1) -> Just $ ImmediateAddress a1
+      Just (Relocated_ResolvedObject f a1 addend) -> Just $ ImmediateAddress $ fromIntegral $ fromIntegral a1 + addend
 
       --Just s -> error $ show (i,showHex a',s)
       _ -> Nothing

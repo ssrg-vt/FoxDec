@@ -818,12 +818,12 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
 -- see if address matches an external symbol loaded at linking time
 relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symbol_table bin) >>= mk_symbol) `orTry` (find (reloc_for a) (binary_get_relocations bin) >>= mk_reloc)
  where
-  mk_symbol sym@(PointerToExternalFunction  l)    = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
-  mk_symbol sym@(PointerToInternalFunction  l _)  = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
-  mk_symbol sym@(PointerToObject o _ _ _)         = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
-  mk_symbol sym@(AddressOfLabel  l _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label l a)])
-  mk_symbol sym@(AddressOfObject o _)             = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
-  mk_symbol sym@(Relocated_ResolvedObject str a1) = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label str a)])
+  mk_symbol sym@(PointerToExternalFunction  l)      = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
+  mk_symbol sym@(PointerToInternalFunction  l _)    = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
+  mk_symbol sym@(PointerToObject o _ _ _)           = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
+  mk_symbol sym@(AddressOfLabel  l _)               = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label l a)])
+  mk_symbol sym@(AddressOfObject o _)               = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
+  mk_symbol sym@(Relocated_ResolvedObject str a1 0) = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label str a)])
 
   mk_reloc (Relocation a0 a1) = 
     let label = block_label l 0 a0 0 in
@@ -955,9 +955,8 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
              Just sym@(PointerToInternalFunction f _) -> 
                let nasm_sym = (NASM_Addr_Symbol sym,[]) in
                  (a0+offset, DataEntry_Pointer nasm_sym) : mk_data_entries (offset+8) s
-             Just sym@(Relocated_ResolvedObject f a1) ->  
-               let Just sym = IM.lookup (fromIntegral a1) $ binary_get_symbol_table bin
-                   nasm_sym = (NASM_Addr_Symbol $ AddressOfLabel (symbol_to_name sym) True,[]) in
+             Just sym@(Relocated_ResolvedObject f a1 0) ->  
+               let nasm_sym = (NASM_Addr_Symbol $ AddressOfLabel f True,[]) in
                  (a0+offset, DataEntry_Pointer nasm_sym) : mk_data_entries (offset+8) s
              _ -> (a0+offset, DataEntry_Byte $ read_byte offset a0) : mk_data_entries (offset+1) s
 

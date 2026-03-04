@@ -93,7 +93,10 @@ orTryM m0 m1 = do
     Nothing -> m1
     Just a  -> return $ Just a
     
+anyS :: (a -> Bool) -> S.Set a -> Bool
+anyS predicate s = not $ S.null $ S.filter predicate s
 
+anyIS predicate s = not $ IS.null $ IS.filter predicate s
 
 -- | return only if Bool holds
 onlyWhen b a = if b then Just a else Nothing
@@ -186,6 +189,9 @@ quotientByL eq (a:as) =
   let (group,remainder) = partition (eq a) as in
     (a:group) : quotientByL eq remainder
 
+repeatUtilFixpoint f a =
+  let a' = f a in
+    if a == a' then a else f a'
 
 -- | Sign-extension from 32 to 64 bits
 sextend_32_64 w = if testBit w 31 then (w .&. 0x00000000FFFFFFFF) .|. 0xFFFFFFFF00000000 else (w .&. 0x00000000FFFFFFFF)

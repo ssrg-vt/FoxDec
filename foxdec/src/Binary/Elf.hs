@@ -36,7 +36,12 @@ import qualified Data.Text.Encoding         as T
 import Data.X86.Instruction
 
 import Control.Monad.State.Strict
+import Control.Monad (filterM)
+import Control.Exception (try)
 
+import System.Directory (listDirectory, doesFileExist)
+import System.IO (withBinaryFile, IOMode(ReadMode))
+import System.FilePath ((</>))
 import Debug.Trace
 
 deriving instance Generic ElfMachine
@@ -77,7 +82,8 @@ data NamedElf = NamedElf {
   elf_sections_info :: !SectionsInfo,
   elf_symbol_table :: !SymbolTable,
   elf_relocs :: !(S.Set Relocation),
-  elf_signs :: M.Map String FunctionSignature
+  elf_signs :: !(M.Map String FunctionSignature),
+  elf_cfi :: !CFI
  }
 
 
@@ -213,15 +219,11 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
           let symbol_table_entry = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
               bind               = steBind symbol_table_entry in
             if any (\sec -> any (\reloc -> elfRelOffset reloc == value) $ elfRelSectRelocations sec) $ parseRelocations elf then
-              if reloc_addend /= Just 0 then
-                error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
-              else
-                [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]
+                [ (reloc_address, Relocated_ResolvedObject (fst name_of_reloc_trgt) value (reloc_addend `orElse` 0))
+                , (fromIntegral value, AddressOfObject (fst name_of_reloc_trgt) False)]
             else if not (snd name_of_reloc_trgt) then -- internal object
-              if reloc_addend /= Just 0 then
-                error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) 
-              else
-                [(reloc_address, (Relocated_ResolvedObject (fst name_of_reloc_trgt) value))]  --error $ show name_of_reloc_trgt++ (show reloc) ++ show sym
+                [ (reloc_address, Relocated_ResolvedObject (fst name_of_reloc_trgt) value (reloc_addend `orElse` 0))
+                , (fromIntegral value, AddressOfObject (fst name_of_reloc_trgt) False)]
             else
               [(reloc_address, PointerToObject (fst name_of_reloc_trgt) (snd name_of_reloc_trgt) (mk_reloc_addend reloc_addend) (find_symbol_with_address reloc_address)) ]
         else if reloc_addend /= Just 0 then
@@ -255,12 +257,13 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
             [(reloc_address, PointerToExternalFunction (fst name_of_reloc_trgt))]
         else
           error $ show (reloc,symbol_table_entry,symb_type_of_reloc_trgt) -- TODO very likely this is exactly the same as elfRelType reloc == 6 (see libc)
-    | elfRelType reloc `elem` [18] = 
+   | elfRelType reloc `elem` [18] = 
       -- R_X86_64_TPOFF64
       let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
           name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
-          reloc_address           = fromIntegral $ elfRelOffset reloc in
-      [(reloc_address, TLS_Relative (fst name_of_reloc_trgt))]
+          reloc_address           = fromIntegral $ elfRelOffset reloc
+          name                    = fst name_of_reloc_trgt in -- if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
+      [(reloc_address, TLS_Relative name)]
    | otherwise = []
 
 
@@ -372,23 +375,23 @@ elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".
 
 instance BinaryClass NamedElf 
   where
-    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _) -> elf_read_bytestring elf
-    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_ro_data elf
-    binary_read_data = \(NamedElf elf _ _ _ _ _ _) -> elf_read_data elf
-    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _) -> si
-    binary_get_symbols = \(NamedElf elf _ _ _ t _ _) -> t
-    binary_get_relocations = \(NamedElf elf _ _ _ _ r _) -> r
-    binary_pp = \(NamedElf elf _ _ _ _ _ _) -> pp_elf elf 
-    binary_entry = \(NamedElf elf _ _ _ _ _ _) -> elf_get_entry_points elf
-    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _) -> elf_text_section_size elf
-    binary_dir_name = \(NamedElf _ d _ _ _ _ _) -> d
-    binary_file_name = \(NamedElf _ _ n _ _ _ _) -> n
-    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _) -> parseDynamicNeeded elf
-    address_has_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_address_has_instruction elf a
-    fetch_instruction = \(NamedElf elf _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
-    function_signatures = \(NamedElf _ _ _ _ _ _ signs) -> signs
-    binary_get_cfi = \(NamedElf elf _ _ _ _ _ _) -> parse_ehframe elf show
-    get_elf = \(NamedElf elf _ _ _ _ _ _) -> Just elf
+    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_bytestring elf
+    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_ro_data elf
+    binary_read_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_data elf
+    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _ _) -> si
+    binary_get_symbols = \(NamedElf elf _ _ _ t _ _ _) -> t
+    binary_get_relocations = \(NamedElf elf _ _ _ _ r _ _) -> r
+    binary_pp = \(NamedElf elf _ _ _ _ _ _ _) -> pp_elf elf 
+    binary_entry = \(NamedElf elf _ _ _ _ _ _ _) -> elf_get_entry_points elf
+    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _) -> elf_text_section_size elf
+    binary_dir_name = \(NamedElf _ d _ _ _ _ _ _) -> d
+    binary_file_name = \(NamedElf _ _ n _ _ _ _ _) -> n
+    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _ _) -> parseDynamicNeeded elf
+    address_has_instruction = \(NamedElf elf _ _ _ _ _ _ _) a -> elf_address_has_instruction elf a
+    fetch_instruction = \(NamedElf elf _ _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
+    function_signatures = \(NamedElf _ _ _ _ _ _ signs _) -> signs
+    binary_get_cfi = \(NamedElf elf _ _ _ _ _ _ cfi) -> cfi 
+    get_elf = \(NamedElf elf _ _ _ _ _ _ _) -> Just elf
 
 
 
@@ -1073,10 +1076,38 @@ parse_gcc_except_table elf showAddress (Absolute pc_begin,Absolute a) =
 
   get_action_of_call_site (GCC_Except_Table_CallSite _ _ _ action) = action --TODO
 
+
 maximumWith f [] = 0
 maximumWith f as =
   let as' = map (\a -> (a,f a)) as in
     snd $ maximumBy compareSnd as'
  where
   compareSnd (_,i) (_,j) = compare i j
+
+
+
+
+
+
+
+
+
+-- ELF magic number: 0x7F 'E' 'L' 'F'
+elfMagic :: BS.ByteString
+elfMagic = BS.pack [0x7f, 0x45, 0x4c, 0x46]
+
+-- Check if a file is an ELF file (reads only first 4 bytes)
+isELF :: FilePath -> FilePath -> IO Bool
+isELF dir path = do
+  let file = dir </> path
+  exists <- doesFileExist file
+  if exists then do
+    bytes <- withBinaryFile file ReadMode $ \h -> BS.hGet h 4
+    return $ bytes == elfMagic
+  else
+    return False
+
+-- Get ELF files in a directory (non-recursive)
+getELFFiles :: FilePath -> IO [FilePath]
+getELFFiles dir = listDirectory dir >>= filterM (isELF dir)
 
