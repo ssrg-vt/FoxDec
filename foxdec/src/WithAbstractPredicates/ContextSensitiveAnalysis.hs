@@ -115,6 +115,15 @@ lift_to_L0 config bin finit inds = do
   read_line = readHex' . tail . tail
 
 
+toLog :: String -> WithLifting bin pred finit v ()
+toLog msg = do
+  (bin,config) <- ask 
+  if verbose_logs config then
+    liftIO $ putStrLn $ msg
+  else
+    return ()
+
+
 exploreFunctionEntries :: WithAbstractPredicates bin pred finit v => Graph -> Recursions -> WithLifting bin pred finit v ()
 exploreFunctionEntries entries recursions = do
   -- Check if a (mutually) recursive function must be reconsidered as all its calls are done.
@@ -217,7 +226,7 @@ exploreFunctionEntry entries recursions entry = do
   explore :: WithAbstractPredicates bin pred finit v => Bool ->  WithLifting bin pred finit v ()
   explore False = do
     -- Entry is not within a text section of the binary, delete it and continue
-    liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " ignored."
+    toLog $ "\n\nEntry " ++ showHex entry ++ " ignored."
     modify $ l0_adjust_result entry (Just empty_result) 
 
     let entries' = graph_delete entries $ fromIntegral entry
@@ -256,9 +265,9 @@ exploreFunctionEntry entries recursions entry = do
     static <- mk_static
     let empty_finit = new_finit static
     when (finit /= empty_finit) $ do
-      liftIO $ putStrLn $ "Function precondition:\n" ++ pp_finit static finit
-    liftIO $ putStrLn $ "Function postcondition: " ++ (show $ result_post result)
-    liftIO $ putStrLn $ (intercalate "\n" $ map show $ S.toList $ result_vcs result)
+      toLog $ "Function precondition:\n" ++ pp_finit static finit
+    toLog $ "Function postcondition: " ++ (show $ result_post result)
+    toLog $ (intercalate "\n" $ map show $ S.toList $ result_vcs result)
 
 
 mark_callers_of_newly_terminating_callee :: WithAbstractPredicates bin pred finit v => Graph -> Recursions -> Word64 -> WithLifting bin pred finit v Graph
@@ -332,11 +341,11 @@ analyze_entry entry = do
   (Just (finit,_)) <- gets $ l0_lookup_entry entry
 
   static <- mk_static 
-  liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": starting CFG generation."
+  toLog $ "Entry " ++ showHex entry ++ ": starting CFG generation."
   !cfg <- liftIO $ generate_cfg static entry
-  liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": CFG generation done: #basic blocks = " ++ show (IM.size $ cfg_instrs cfg) ++ ", #instructions = " ++ show (num_of_instructions cfg)
+  toLog $ "Entry " ++ showHex entry ++ ": CFG generation done: #basic blocks = " ++ show (IM.size $ cfg_instrs cfg) ++ ", #instructions = " ++ show (num_of_instructions cfg)
 
-  liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": starting invariant generation."
+  toLog $ "Entry " ++ showHex entry ++ ": starting invariant generation."
   let !(invs,gmem_structure',vcs)  = generate_invariants (withEntry entry static) cfg finit
   modify $ l0_set_gmem_structure gmem_structure'
 
@@ -349,10 +358,10 @@ analyze_entry entry = do
     to_be_resolved_blocks <- filterM (is_to_be_resolved_block) $ IM.assocs $ cfg_instrs cfg
     is_newly_resolved <- mapM (try_resolve_indirection invs) to_be_resolved_blocks
     if or is_newly_resolved then do
-      liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": Continuing to next round as there are newly resolved indirections."
+      toLog $ "Entry " ++ showHex entry ++ ": Continuing to next round as there are newly resolved indirections."
       analyze_entry entry 
     else do
-      liftIO $ putStrLn $ "Entry " ++ showHex entry ++ ": Terminating as no new indirections are resolved."
+      toLog $ "Entry " ++ showHex entry ++ ": Terminating as no new indirections are resolved."
 
       -- liftIO $ putStrLn $ "Invariants:\n" ++ intercalate "\n" (map show $ IM.assocs invs)
 
@@ -430,12 +439,12 @@ analyze_entry entry = do
     let inds = resolve_indirection (withEntry entry static) pre instrs
     case Indirection_Unresolved `S.member` inds of
       True -> do
-        liftIO $ putStrLn $ "Unresolved indirection: " ++ show (last instrs) ++ "\n" ++ show inds
-        liftIO $ putStrLn $ show pre
+        toLog $ "Unresolved indirection: " ++ show (last instrs) ++ "\n" ++ show inds
+        toLog $ show pre
         add_newly_resolved_indirection inds (inAddress $ last instrs)
       _ -> do
-        liftIO $ putStrLn $ "Resolved indirection: " ++ show (last instrs)
-        liftIO $ putStrLn $ intercalate ", " $ map show $ S.toList inds
+        toLog $ "Resolved indirection: " ++ show (last instrs)
+        toLog $ intercalate ", " $ map show $ S.toList inds
         add_newly_resolved_indirection inds (inAddress $ last instrs) 
 
 add_newly_resolved_indirection inds a' = do
@@ -445,7 +454,7 @@ add_newly_resolved_indirection inds a' = do
     Just inds' -> if inds `S.isSubsetOf` inds' then 
                     return False
                   else do
-                    liftIO $ putStrLn $ "Extending previous indirection resolving @ " ++ showHex a' ++ ": " ++ show (S.toList inds') ++ " with new resolving: " ++ show (S.toList inds)
+                    toLog $ "Extending previous indirection resolving @ " ++ showHex a' ++ ": " ++ show (S.toList inds') ++ " with new resolving: " ++ show (S.toList inds)
                     modify $ l0_insert_indirection a' (S.union inds inds')
                     return True
 

@@ -36,6 +36,8 @@ is_exiting_function_call f =
     ]
   ||
   ("std::__throw_" `isPrefixOf` (demangle f `orElse` f))
+  ||
+  ("std::rethrow_exception" `isPrefixOf` (demangle f `orElse` f))
 
 strip_GLIBC = takeUntilString "@GLIBC" . takeUntilString "@@GLIBC"
 

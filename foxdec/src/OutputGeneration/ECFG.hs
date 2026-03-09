@@ -139,7 +139,7 @@ data ECFG = ECFG {
 
 
 -- SYMBOLIC EXECUTION
-data EStatus = Normal | Terminated | Returned | Unwinding Exception | Landed Exception | Handling Exception | WeirdError String
+data EStatus = Normal | Terminated | Returned | Unwinding Exception | Landed Exception | Handling Exception | IllegalThrow String | WeirdError String
   deriving (Ord,Eq)
 
 instance Show EStatus where
@@ -150,6 +150,19 @@ instance Show EStatus where
   show (Landed e) = "Landed" ++ show_exception_as_arg e
   show (Handling e) = "Handling" ++ show_exception_as_arg e
   show (WeirdError msg) = "Error " ++ show msg
+  show (IllegalThrow msg) = "Illegal Throw " ++ show msg
+
+isReturn     p = p == Returned
+isTerminated p = p == Terminated
+isUnwinding  (Unwinding _)  = True
+isUnwinding  _              = False
+isError  (WeirdError _)     = True
+isError  (IllegalThrow _)   = True
+isError  _                  = False
+isIllegalThrow (IllegalThrow _) = True
+isIllegalThrow _                = False
+isWeirdError (WeirdError _)     = True
+isWeirdError _                  = False
 
 data ECFG_SymState = ECFG_SymState {
     ss_estatus :: [EStatus]
@@ -162,7 +175,7 @@ instance Show ECFG_SymState where
   show (ECFG_SymState es a) = "0x" ++ showHex a ++ ": " ++ show es
 
 
-emitLog   msg = id -- trace msg
+emitLog msg = id -- trace msg
 
 ecfg_vertex_to_address (ECFG_Vertex a _ _ _) = a
 
@@ -175,7 +188,11 @@ sym_exec_cfg_all :: Lifted -> IO ()
 sym_exec_cfg_all l@(bin,config,l0) = do
   let fs = get_call_graph_sources l
   ssf <- execStateT (mapM_ run_entry $ IS.toList fs) init_StateSoFar
-  putStrLn $ ssf_pp l ssf
+
+  let dirname   = binary_dir_name bin
+  let name      = binary_file_name bin
+  let fname     = dirname ++ name ++ ".ecfg.txt" 
+  appendFile fname $ ssf_pp l ssf
  where
   run_entry = sym_exec_ecfg_entry l True . fromIntegral
 
@@ -243,10 +260,11 @@ overapproximate_post l@(bin,config,l0) entry ecfg = S.unions [ use_l0_post, use_
 
 
 
-post_to_estatus (ECFG_SymState (e@(Returned)    :_) _) = e
-post_to_estatus (ECFG_SymState (e@(Unwinding  _):_) _) = e
-post_to_estatus (ECFG_SymState (e@(Terminated  ):_) _) = e
-post_to_estatus (ECFG_SymState (e@(WeirdError _):_) _) = e
+post_to_estatus (ECFG_SymState (e@(Returned)      :_) _) = e
+post_to_estatus (ECFG_SymState (e@(Unwinding    _):_) _) = e
+post_to_estatus (ECFG_SymState (e@(Terminated    ):_) _) = e
+post_to_estatus (ECFG_SymState (e@(WeirdError   _):_) _) = e
+post_to_estatus (ECFG_SymState (e@(IllegalThrow _):_) _) = e
 post_to_estatus s = error $ "Post = " ++ show s
 
 data StateSoFar = StateSoFar {
@@ -257,7 +275,7 @@ data StateSoFar = StateSoFar {
 
 init_StateSoFar = StateSoFar IM.empty IM.empty IS.empty
 
-ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs) = intercalate "\n" $ ["SUMMARY:"] ++ mk_errors ++ [mk_summary] -- (intercalate "\n" $ map show_fp_entry $ IM.assocs fp)
+ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs) = intercalate "\n" $ ["SUMMARY:"] ++ mk_errors ++ [mk_summary] ++ [""] -- (intercalate "\n" $ map show_fp_entry $ IM.assocs fp)
  where
   num_of_instrs = sum $ map (sum . map length . IM.elems . cfg_instrs) $ IM.elems $ l0_get_cfgs l0
 
@@ -272,20 +290,17 @@ ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs) = intercalate "\n" $ ["SUMMARY:"]
     , count_posts (\es -> all (\e -> isReturn e || isTerminated e) es && any isReturn es)
     , count_posts (\es -> all isTerminated es)
     , count_posts (\es -> all isUnwinding es)
-    , count_posts (\es -> any isReturn es && any isUnwinding es)
-    , count_posts (\es -> any isError es) ]
+    , count_posts (\es -> any isUnwinding es && all (not . isError) es)
+    , count_posts (\es -> any isIllegalThrow es)
+    , count_posts (\es -> any isWeirdError es) ]
 
-  isReturn     p = p == Returned
-  isTerminated p = p == Terminated
-  isUnwinding  (Unwinding _)  = True
-  isUnwinding  _              = False
-  isError  (WeirdError _) = True
-  isError  _              = False
+
 
   mk_errors = map show_error $ S.toList $ S.unions $ map get_errors $ IM.elems fp
 
   get_errors ps = S.filter isError ps
-  show_error (WeirdError msg) = "ERROR: " ++ msg
+  show_error (WeirdError   msg) = "ERROR: " ++ msg
+  show_error (IllegalThrow msg) = "ERROR: ILLEGAL THROW " ++ msg
     
 
 ssf_set_preconditions pres (StateSoFar fp bp fs) = StateSoFar fp pres fs
@@ -336,11 +351,12 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
   isUnwinding (ECFG_SymState (Unwinding _:_) _) = True
   isUnwinding _ = False
 
-  isDoneOrUnwinding (ECFG_SymState (Unwinding  _:_) _) = True
-  isDoneOrUnwinding (ECFG_SymState (Returned    :_) _) = True
-  isDoneOrUnwinding (ECFG_SymState (Terminated  :_) _) = True
-  isDoneOrUnwinding (ECFG_SymState (WeirdError _:_) _) = True
-  isDoneOrUnwinding _                                  = False
+  isDoneOrUnwinding (ECFG_SymState (Unwinding    _:_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (Returned      :_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (Terminated    :_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (WeirdError   _:_) _) = True
+  isDoneOrUnwinding (ECFG_SymState (IllegalThrow _:_) _) = True
+  isDoneOrUnwinding _                                    = False
 
 
 -- TODO
@@ -404,14 +420,24 @@ sym_exec_ecfg_vertex l@(_,_,l0) ecfg entry blockID v@(ECFG_Vertex _ _ info calls
 
   sym_exec_call Terminate    (ECFG_SymState _               rip) = ECFG_SymState [Terminated]     rip
   sym_exec_call Resume       (ECFG_SymState (Landed   e:es) rip) = emitLog ("RESUME: " ++ exception_type e) ECFG_SymState (Unwinding e:es) rip
-  sym_exec_call CatchBegin   (ECFG_SymState (Landed   e:es) rip) = ECFG_SymState (Handling e:es)  rip
-  sym_exec_call CatchEnd     (ECFG_SymState es              rip) = ECFG_SymState (popHandling es) rip
+  sym_exec_call CatchBegin   (ECFG_SymState (Landed   e:es) rip)
+    | activeHandlers es == 2                                     = ECFG_SymState [ WeirdError $ "Exceeding maximum active handlers: " ++ show (Landed e:es) ] rip
+    | otherwise                                                  = emitLog ("CATCHBEGIN: " ++ show (Landed e:es)) $ ECFG_SymState (Handling e:es)  rip
+  sym_exec_call CatchEnd     (ECFG_SymState es              rip) = emitLog ("CATCHEND: " ++ show es) $ ECFG_SymState (popHandling es) rip
   sym_exec_call (Rethrow a)  (ECFG_SymState (Handling e:es) rip) = emitLog ("RETHROWING AT 0x" ++ showHex a ++ ": " ++ exception_type e) $ ECFG_SymState (Unwinding e:Handling e:es) a
   sym_exec_call (Throw a e)  (ECFG_SymState es              rip) = emitLog ("THROWING AT 0x" ++ showHex a ++ ": " ++ exception_type e)   $ ECFG_SymState (Unwinding e:es) a
   sym_exec_call call         (ECFG_SymState _               rip) = ECFG_SymState [WeirdError $ "Entry 0x" ++ showHex entry ++ ": cannot execute " ++ show call ++ " in state " ++ show s ] rip
 
-  popHandling (Handling e:es) = es
-  popHandling (e:es) = e : popHandling es
+  popHandling es
+    | any isHandling es = popHandling' es
+    | otherwise         = [WeirdError $ "Entry 0x" ++ showHex entry ++ ": EndCatch without corresponding BeginCatch in state " ++ show s ]
+
+  popHandling' (Handling e:es) = es
+  popHandling' (e:es) = e : popHandling es
+
+  activeHandlers = length . filter isHandling
+  isHandling (Handling e) = True
+  isHandling _ = False
 
 
 
@@ -428,10 +454,11 @@ sym_exec_unwind ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es) _
   case find is_encompassing_region $ ecfg_regions ecfg of
     Nothing -> 
       case es of
-        (Landed e0:_) -> let msg = "Entry 0x" ++ showHex (ecfg_entry ecfg) ++ ": Uncaught exception " ++ exception_type e ++ " between landing but before handling exception " ++ exception_type e0 ++ " at " ++ show v in
-                           emitLog msg $ (S.singleton $ s {ss_estatus = [WeirdError msg]} , S.empty)
+        (Landed e0:_) -> let msg = "AT ENTRY 0x" ++ showHex (ecfg_entry ecfg) ++ " UNWINDING " ++ exception_type e ++ " WHILE LANDED FOR " ++ exception_type e0 ++ " AT " ++ show v in
+                           emitLog msg $ (S.singleton $ s {ss_estatus = [IllegalThrow msg]} , S.empty)
         _             -> emitLog ("NO LANDING PAD " ++ show v) $ (S.singleton s, S.empty)
-    Just r  -> emitLog ("LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r)) $ (S.empty, S.singleton $ (get_blockID_for_address ecfg (fromIntegral $ ecfg_region_landingpad r), s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
+    Just r  -> emitLog ("LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r)) $
+                 (S.empty, S.singleton $ (get_blockID_for_address ecfg (fromIntegral $ ecfg_region_landingpad r), s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
  where
    is_encompassing_region (ECFG_Region end start lp action color indx) = start <= ss_rip s && ss_rip s < end
 sym_exec_unwind _ _ s = (S.singleton s, S.empty)
@@ -596,6 +623,10 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
     | "std::__throw_" `isPrefixOf` (demangle f `orElse` f) =
       let e = Exception ("std::" ++ (takeWhile ((/=) '(') $ drop 13 $ demangle f `orElse` f)) (Just "std::exception") Nothing in
         [ECFG_CF $ Throw a e]
+    | "std::rethrow_exception"  `isPrefixOf` (demangle f `orElse` f) =
+      let e = Exception ("std::exception") Nothing Nothing in
+        [ECFG_CF $ Throw a e]
+
     | is_exiting_function_call f = [ECFG_CF Terminate]
     | otherwise  = []
 
@@ -860,10 +891,12 @@ cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ c
 
 
 
-
-
-
-is_ecfg_relevant (a,f) = (f `notElem` ["__cxa_finalize", "__cxa_allocate_exception", "__cxa_free_exception"] && "__cxa_" `isPrefixOf` f) || f `elem` ["_Unwind_Resume", "_Unwind_RaiseException", "_Unwind_ForcedUnwind"] || "std::__throw_" `isPrefixOf` (demangle f `orElse` f)
+is_ecfg_relevant (a,f) = 
+  let f' = demangle f `orElse` f in
+    or
+      [ f `elem` ["__cxa_begin_catch", "__cxa_end_catch", "__cxa_rethrow", "__cxa_throw", "_Unwind_Resume", "_Unwind_RaiseException", "_Unwind_ForcedUnwind"]
+      , "std::__throw_" `isPrefixOf`  f'
+      , "std::rethrow_exception" `isPrefixOf` f' ]
 
 get_external_calls l cfg blockID = concatMap get_external_call $ get_calls_from_blockID l cfg blockID
  where

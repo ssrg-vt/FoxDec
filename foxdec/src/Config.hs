@@ -94,7 +94,10 @@ instance NFData Config
 -- See: https://dhall-lang.org
 parse_config ::
      String    -- ^ The filename
+  -> Bool      -- ^ Verbose?
   -> IO Config
-parse_config = input auto . pack
+parse_config path verbose = do
+  config <- input auto $ pack path
+  return $ config { verbose_logs = verbose }
 
 

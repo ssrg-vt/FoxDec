@@ -556,10 +556,8 @@ cmk_init_reg_value fctxt = mk_concreteS fctxt . SE_Var . SP_Reg
 
 -- Concert SValues to SExpressions
 cmk_init_mem_value :: BinaryClass bin => Static bin v -> String -> SPointer -> Maybe ByteSize -> SValue
-cmk_init_mem_value fctxt msg (Ptr_Concrete a) si = mk_concreteS fctxt $ SE_Var $ SP_Mem a $ mk_si si
- where
-  mk_si (Just (ByteSize imm)) = imm
-cmk_init_mem_value fctxt msg (Ptr_Base b) si = Top
+cmk_init_mem_value fctxt msg (Ptr_Concrete a) (Just (ByteSize si)) = mk_concreteS fctxt $ SE_Var $ SP_Mem a si
+cmk_init_mem_value fctxt msg _ _ = Top
 
 
 

@@ -307,6 +307,12 @@ symbolically_execute_until l@(bin,config,l0,entry) a as symstate
         case zf of
           (Just b0) -> do_jump_if (not b0) i 
           Nothing   -> do_jump_both i
+      JBE -> do
+        cf <- sread_flag "CF"
+        zf <- sread_flag "ZF"
+        case (cf,zf) of
+          (Just b0,Just b1) -> do_jump_if (b0 || b1) i
+          _                 -> do_jump_both i
       JNBE -> do
         cf <- sread_flag "CF"
         zf <- sread_flag "ZF"

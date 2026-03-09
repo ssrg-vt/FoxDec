@@ -209,7 +209,7 @@ main = getArgs >>= parseCommandLineArgs >>= start
 -- 2.) use context for generating output
 start :: CommandLineArgs -> IO ()
 start args = do
-  config      <- parse_config $ args_config args
+  config      <- parse_config (args_config args) (args_verbose args)
   let dirname  = if last (args_dirname args) == '/' then args_dirname args else args_dirname args ++ "/"
   let name     = args_filename args
   bin_names   <- get_binary_names dirname name
@@ -217,7 +217,7 @@ start args = do
  where
   start' config dirname name = do
     -- 1.)
-    (bin,l0') <- obtain_L0 config (args_inputtype args) (args_verbose args) dirname name
+    (bin,l0') <- obtain_L0 config (args_inputtype args) dirname name
     l0 <- return l0'
           -- >>= try_resolve_indirections_underapproximatively bin config
           -- >>= lift_to_L0 config bin empty_finit . l0_indirections
@@ -370,8 +370,8 @@ try_resolve_indirections_underapproximatively bin config l0 = do
 
 -- | Obtain L0 ...
 -- ... by reading in a .L0 file
-obtain_L0 :: Config -> String -> Bool -> String -> String -> IO (Binary,L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue)
-obtain_L0 config "L0" verbose dirname name = do
+obtain_L0 :: Config -> String -> String -> String -> IO (Binary,L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue)
+obtain_L0 config "L0" dirname name = do
   let fname = dirname ++ name ++ ".L0"
   exists <- doesFileExist fname
   if exists then do
@@ -386,7 +386,7 @@ obtain_L0 config "L0" verbose dirname name = do
   else
     die $ "File: " ++ show (dirname ++ name ++ ".L0") ++ " does not exist."
 -- ... by doing binary lifting
-obtain_L0 config "BINARY" verbose dirname name = do
+obtain_L0 config "BINARY" dirname name = do
   binary <- read_binary dirname name
   case binary of
     Nothing -> die $ "Cannot read binary file: " ++ dirname ++ name
@@ -394,8 +394,8 @@ obtain_L0 config "BINARY" verbose dirname name = do
  where
   lift !config !bin = do
     startTime <- timeCurrent
-    when (startTime `deepseq` verbose) $
-      if verbose then
+    when (startTime `deepseq` verbose_logs config) $
+      if verbose_logs config then
         putStrLn $ binary_pp bin
       else
         return ()
@@ -407,14 +407,14 @@ obtain_L0 config "BINARY" verbose dirname name = do
     let runningTime = fromIntegral $ timeDiff endTime startTime
     return (bin,l0 {l0_time = showDuration runningTime})
 -- ... by reading ELLF metadata
-obtain_L0 config "ELLF" verbose dirname name = do
+obtain_L0 config "ELLF" dirname name = do
   binary <- read_binary dirname name
   case binary of
     Nothing -> die $ "Cannot read binary file: " ++ dirname ++ name
     Just b  -> lift config b
  where
   lift !config !bin = do
-    if verbose then
+    if verbose_logs config then
       putStrLn $ binary_pp bin
     else
       return ()
