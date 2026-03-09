@@ -2,3 +2,5 @@ dist/
 .stack-work/
 challenges/
 *~
+*.metrics.txt
+*.ecfg.txt
