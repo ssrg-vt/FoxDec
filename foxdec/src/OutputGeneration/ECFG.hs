@@ -192,7 +192,7 @@ sym_exec_cfg_all l@(bin,config,l0) = do
   let dirname   = binary_dir_name bin
   let name      = binary_file_name bin
   let fname     = dirname ++ name ++ ".ecfg.txt" 
-  appendFile fname $ ssf_pp l ssf
+  writeFile fname $ ssf_pp l ssf
  where
   run_entry = sym_exec_ecfg_entry l True . fromIntegral
 
@@ -216,11 +216,13 @@ sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
       putIfFirst $ "Entry: " ++ address_to_label bin entry
       let msg  = "Entry 0x" ++ showHex entry ++ " to be explored."
       let cfg  = emitLog msg $ cfg_split_jumps $ l0_get_cfgs l0 IM.! fromIntegral entry
-      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry cfg
+      let ecfg_unfolded = cfg_to_ecfg l entry cfg
+      let ecfg = ecgf_unfold_jumps_to_function_entries l ecfg_unfolded
       pres <- gets ssf_block_pres
 
       modify $ ssf_set_explored entry True
       modify $ ssf_set_preconditions IM.empty
+      modify $ ssf_set_ecfg_size entry (cfg_size cfg) (length $ ecfg_edges ecfg_unfolded)
       sym_exec_ecfg l ecfg
       modify $ ssf_set_preconditions pres
       modify $ ssf_set_explored entry False
@@ -271,11 +273,12 @@ data StateSoFar = StateSoFar {
     ssf_function_posts :: IM.IntMap (S.Set EStatus)   -- ^ Currently known postconditions for functions
   , ssf_block_pres :: IM.IntMap (S.Set ECFG_SymState) -- ^ Preconditions for blocks current function
   , ssf_currently_explored_functions :: IS.IntSet     -- ^ Which functions are currently being explored?
+  , ssf_ecfg_sizes :: IM.IntMap (Int,Int) -- ^ The sizes of the ECFGs for later reporting
   }
 
-init_StateSoFar = StateSoFar IM.empty IM.empty IS.empty
+init_StateSoFar = StateSoFar IM.empty IM.empty IS.empty IM.empty
 
-ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs) = intercalate "\n" $ ["SUMMARY:"] ++ mk_errors ++ [mk_summary] ++ [""] -- (intercalate "\n" $ map show_fp_entry $ IM.assocs fp)
+ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs sz) = intercalate "\n" $ ["SUMMARY:"] ++ mk_errors ++ [mk_summary] ++ [""] ++ [show_ecfg_sizes sz ] ++ [show_cfg_sizes sz ] ++ [""]
  where
   num_of_instrs = sum $ map (sum . map length . IM.elems . cfg_instrs) $ IM.elems $ l0_get_cfgs l0
 
@@ -301,18 +304,32 @@ ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs) = intercalate "\n" $ ["SUMMARY:"]
   get_errors ps = S.filter isError ps
   show_error (WeirdError   msg) = "ERROR: " ++ msg
   show_error (IllegalThrow msg) = "ERROR: ILLEGAL THROW " ++ msg
+
+  show_ecfg_sizes sz = 
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+      [] -> ""
+      is -> "ECFG_SIZES:" ++ (intercalate "," $ map (show . snd) $ is)
+
+  show_cfg_sizes sz = 
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+      [] -> ""
+      is -> "_CFG_SIZES:" ++ (intercalate "," $ map (show . fst) $ is)
+
     
 
-ssf_set_preconditions pres (StateSoFar fp bp fs) = StateSoFar fp pres fs
 
-ssf_add_preconditon blockID s (StateSoFar fp bp fs) = StateSoFar fp (IM.insertWith S.union blockID (S.singleton s) bp) fs
+ssf_set_ecfg_size entry si0 si1 (StateSoFar fp bp fs sz) = StateSoFar fp bp fs $ IM.insert (fromIntegral entry) (si0,si1) sz
 
-ssf_add_function_post entry p (StateSoFar fp bp fs) = StateSoFar (IM.insertWith S.union (fromIntegral entry) p fp) bp fs
+ssf_set_preconditions pres (StateSoFar fp bp fs sz) = StateSoFar fp pres fs sz
 
-ssf_get_posts entry (StateSoFar fp bp fs) = IM.lookup (fromIntegral entry) fp `orElse` S.empty
+ssf_add_preconditon blockID s (StateSoFar fp bp fs sz) = StateSoFar fp (IM.insertWith S.union blockID (S.singleton s) bp) fs sz
 
-ssf_set_explored entry True  (StateSoFar fp bp fs) = StateSoFar fp bp $ IS.insert (fromIntegral entry) fs
-ssf_set_explored entry False (StateSoFar fp bp fs) = StateSoFar fp bp $ IS.delete (fromIntegral entry) fs
+ssf_add_function_post entry p (StateSoFar fp bp fs sz) = StateSoFar (IM.insertWith S.union (fromIntegral entry) p fp) bp fs sz
+
+ssf_get_posts entry (StateSoFar fp bp fs sz) = IM.lookup (fromIntegral entry) fp `orElse` S.empty
+
+ssf_set_explored entry True  (StateSoFar fp bp fs sz) = StateSoFar fp bp (IS.insert (fromIntegral entry) fs) sz
+ssf_set_explored entry False (StateSoFar fp bp fs sz) = StateSoFar fp bp (IS.delete (fromIntegral entry) fs) sz
 
 sym_exec_ecfg l ecfg = sym_exec_ecfg' l ecfg $ S.singleton (0,init_ecfg_symstate ecfg 0)
 
@@ -336,9 +353,9 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
         ss'                           <- sym_exec_ecfg_vertex l ecfg entry blockID v s
         -- Unwind states that can be unwinded
         let (done_or_unwinding,normal) = S.partition isDoneOrUnwinding ss'
-        let (done,bag1)                = S.unzip $ S.map (sym_exec_unwind ecfg v) done_or_unwinding
+        let (done,bag1)                = S.unzip $ S.map (sym_exec_unwind l ecfg v) done_or_unwinding
         -- For other states, go the next vertex
-        let filtered_out_edges         = S.unions $ S.map (applyFilter out_edges) normal
+        let filtered_out_edges         = S.unions $ S.map (applyFilter l entry out_edges) normal
         let bag0                       = S.map (\(s',edge) -> sym_exec_ecfg_edge ecfg edge s') filtered_out_edges
         -- Add the currently known precondition for the current block
         modify $ ssf_add_preconditon blockID s
@@ -360,16 +377,16 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
 
 
 -- TODO
-applyFilter edges s
+applyFilter l@(bin,_,_) entry edges s
   | S.null labeled         = withState edges
   | not $ S.null unlabeled = error $ "Do not know how to give semantics to edges: " ++ show edges
   | otherwise =
     case ss_estatus s of
-      (Landed e:_)   -> try_label (exception_type e) `orTry` (try_label =<< exception_base e) `orTry` try_label "(...)" `orTry` try_label "(none)" `orElse` fail
+      (Landed e:_)   -> try_label (exception_type e) `orTry` (try_label =<< exception_base e) `orTry` try_label "(...)" `orTry` try_label "(none)" `orTry` try_single_outgoing_edge `orElse` fail
       (Handling e:_) -> try_label "(...)" `orTry` try_label "(none)" `orElse` fail
-      _              -> error $ "Applying filter in a state that is not Landed: " ++ show s
+      _              -> withState edges -- error $ binary_file_name bin ++ ": 0x" ++ showHex entry ++ "\nApplying filter in a state that is not Landed: " ++ show s
  where
-  fail = error $ "Outgoing edges cannot be applied: " ++ show edges ++ " in state " ++ show s
+  fail = error $ binary_file_name bin ++ ": 0x" ++ showHex entry ++ "\nOutgoing edges cannot be applied: " ++ show edges ++ " in state " ++ show s
 
   withState = S.map (\edge -> (s,edge))
 
@@ -381,6 +398,10 @@ applyFilter edges s
         Nothing
       else
         emitLog ("FILTERING EXCEPTION " ++ l) $ Just $ withState filtered
+
+  try_single_outgoing_edge 
+    | S.size edges == 1 = Just $ withState edges
+    | otherwise = Nothing
 
 
 -- Symbolic execution of a single vertex
@@ -449,8 +470,7 @@ sym_exec_ecfg_edge ecfg (ECFG_Edge blocKID label blockID') s  = (blockID',s{ss_r
 
 
 -- TODO recursive
-sym_exec_unwind :: ECFG -> ECFG_Vertex -> ECFG_SymState -> (S.Set ECFG_SymState, S.Set (Int,ECFG_SymState))
-sym_exec_unwind ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es) _) = 
+sym_exec_unwind l ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es) _) = 
   case find is_encompassing_region $ ecfg_regions ecfg of
     Nothing -> 
       case es of
@@ -458,16 +478,16 @@ sym_exec_unwind ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es) _
                            emitLog msg $ (S.singleton $ s {ss_estatus = [IllegalThrow msg]} , S.empty)
         _             -> emitLog ("NO LANDING PAD " ++ show v) $ (S.singleton s, S.empty)
     Just r  -> emitLog ("LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r)) $
-                 (S.empty, S.singleton $ (get_blockID_for_address ecfg (fromIntegral $ ecfg_region_landingpad r), s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
+                 (S.empty, S.singleton $ (get_blockID_for_address l ecfg (fromIntegral $ ecfg_region_landingpad r), s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
  where
    is_encompassing_region (ECFG_Region end start lp action color indx) = start <= ss_rip s && ss_rip s < end
-sym_exec_unwind _ _ s = (S.singleton s, S.empty)
+sym_exec_unwind _ _ _ s = (S.singleton s, S.empty)
 
 
-get_blockID_for_address ecfg a =
+get_blockID_for_address l@(bin,_,_) ecfg a =
   case find (\(_,ECFG_Vertex block_start _ _ _) -> block_start == a) $ IM.assocs $ ecfg_vertices ecfg of
     Just (blockID,_) -> blockID
-    Nothing -> error $ show ecfg ++ "\nUnknown address 0x" ++ showHex a
+    Nothing -> error $ binary_file_name bin ++ "\n" ++ show ecfg ++ "\nUnknown address 0x" ++ showHex a
 
 
 
@@ -713,7 +733,7 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
       inAddress i + fromIntegral (inSize i)
 
 
-  !all_relevant_tables = zip [0..] $ get_relevant_tables bin cfg
+  !all_relevant_tables = zip [0..] $ get_relevant_tables bin entry cfg
 
   blockID_to_landing_pads (id,t) blockID = 
     let landing_pads = get_landing_pads_from_gcc_except_table t
@@ -817,15 +837,17 @@ blockID_to_addresses cfg blockID = map (fromIntegral . inAddress) $ cfg_instrs c
 
 
 
-get_relevant_tables bin cfg = filter (table_has_overlapping_region_or_landing_pad cfg) all_tables
+get_relevant_tables bin entry cfg = filter (table_has_overlapping_region_or_landing_pad entry cfg) all_tables
  where
   all_tables = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
 
 
-table_has_overlapping_region_or_landing_pad cfg t = 
-  let regions = get_callsite_regions_from_gcc_except_table t
-      as      = IM.keysSet $ cfg_addr_to_blockID cfg in -- all instruction addresses
-   any (\(end,start,lp,_) -> lp `IS.member` as || (not $ IS.disjoint as $ IS.fromRange (start,end-1))) regions
+table_has_overlapping_region_or_landing_pad entry cfg t
+  | function_entry t == entry = True
+  | otherwise = 
+    let regions = get_callsite_regions_from_gcc_except_table t
+        as      = IM.keysSet $ cfg_addr_to_blockID cfg in -- all instruction addresses
+      any (\(end,start,lp,_) -> lp `IS.member` as || (not $ IS.disjoint as $ IS.fromRange (start,end-1))) regions
 
 
 table_has_overlapping_region_or_landing_pad_for_block cfg t blockID = 
@@ -853,6 +875,7 @@ cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ c
     | relevant_calls l cfg blockID /= []                         = cfg
     | block_has_cfi_directive cfg blockID                        = cfg 
     | block_contains_region_start_or_end cfg all_regions blockID = cfg
+    | block_starts_landing_pad cfg blockID                       = cfg
     -- TODO or end of basic block has cfi_directive end is not start of another?
     | otherwise                                                  = remove_node blockID cfg
 
@@ -864,6 +887,10 @@ cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ c
 
   all_regions = concatMap get_callsite_regions_from_gcc_except_table $ cfi_gcc_except_tables $ binary_get_cfi bin
 
+
+  block_starts_landing_pad cfg blockID = blockID_to_address cfg blockID `IS.member` all_landing_pads
+
+  all_landing_pads = IS.unions $ map get_landing_pads_from_gcc_except_table $ IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
 
   address_has_cfi_directive a = IM.lookup a (cfi_directives $ binary_get_cfi bin) /= Nothing
 

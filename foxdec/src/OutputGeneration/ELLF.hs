@@ -1001,6 +1001,7 @@ symbolize_address bin ellf object in_data_section a =
       Just (sym@(PointerToObject o _ 0 _))        -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
       Just (sym@(Relocated_ResolvedObject o a 0)) -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL" -- error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
       Just (sym@(TLS_Relative f))                 -> Just $ withRIP ++ f ++ "@GOTTPOFF"
+      Just (sym@(TLS_Module f))                   -> Just $ withRIP ++ f ++ "@DTPMOD"
 
       -- TODO
       Just (sym@(AddressOfObject o True))         -> if in_data_section then Nothing else Just $ withRIP ++ o

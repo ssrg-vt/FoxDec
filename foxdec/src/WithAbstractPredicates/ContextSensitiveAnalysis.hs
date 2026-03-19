@@ -15,6 +15,7 @@ import Data.JumpTarget
 import Data.Symbol
 import Data.L0
 import Data.CFG
+import Data.CFI
 import Data.Indirection
 import Data.VerificationCondition
 import Data.X86.Opcode
@@ -96,6 +97,7 @@ lift_to_L0 config bin finit inds = do
   let l0' = foldr (\entry -> l0_insert_new_entry entry finit) l0 entries
   let recs = IM.empty
   let entry_graph = Edges $ IM.fromList (zip entries $ repeat IS.empty)
+  liftIO $ putStrLn $ "Binary: " ++ binary_file_name bin
   runReaderT (execStateT (exploreFunctionEntries entry_graph recs) l0') (bin,config)
  where
   get_entries = do
@@ -159,9 +161,12 @@ exploreFunctionEntries entries recursions = do
 exploreDanglingFunctionPointers :: WithAbstractPredicates bin pred finit v => WithLifting bin pred finit v ()
 exploreDanglingFunctionPointers = do
   l0 <- get
+  (bin,config) <- ask
   static <- mk_static
 
-  let fptrs = concatMap (get_dangling_function_pointers $ l0_functions l0) $ IM.elems $ l0_functions l0
+  let fptrs0 = concatMap (get_dangling_function_pointers $ l0_functions l0) $ IM.elems $ l0_functions l0
+  let fptrs1 = concatMap (isDangling (l0_functions l0) . fromIntegral . function_entry) $ IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+  let fptrs  = IS.toList $ IS.fromList $ fptrs0 ++ fptrs1
 
   case fptrs of
     [] -> exploreDanglingRelocations
@@ -234,7 +239,7 @@ exploreFunctionEntry entries recursions entry = do
   explore True = do
     -- Entry is to be explored
     l0 <- get
-    liftIO $ putStrLn $ "\n\nEntry " ++ showHex entry ++ " (#entries explored/to be explored: " ++ show (IM.size $ l0_functions l0) ++ "/" ++ show (IS.size $ intgraph_V entries) ++ ")"
+    liftIO $ putStrLn $ "Entry " ++ showHex entry ++ " (#entries explored/to be explored: " ++ show (IM.size $ l0_functions l0) ++ "/" ++ show (IS.size $ intgraph_V entries) ++ ")"
     result <- analyze_entry entry 
     case result of
       FoundNewCalls m -> do
@@ -260,7 +265,7 @@ exploreFunctionEntry entries recursions entry = do
         exploreFunctionEntries entries' recursions'
        
   report_result result = do
-    liftIO $ putStrLn $ "Entry " ++ showHex entry ++ " lifted."
+    liftIO $ putStrLn $ "Entry " ++ showHex entry ++ " lifted.\n"
     Just (finit,_) <- gets $ l0_lookup_entry entry
     static <- mk_static
     let empty_finit = new_finit static
@@ -377,7 +382,7 @@ analyze_entry entry = do
         finit'      = foldr1 (join_finits $ withEntry (fromIntegral a) static) (finit:map snd same) in
       (a,finit') : join_duplicate_new_calls static rest
 
-  get_new_calls  static invs (blockID,instrs)
+  get_new_calls static invs (blockID,instrs)
     | isCall (inOperation $ last instrs) || (isJump (inOperation $ last instrs) && (jump_is_actually_a_call static $ last instrs)) = do
       static <- mk_static
       let trgts = get_known_jump_targets static $ last instrs

@@ -75,10 +75,11 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
         Nothing
       else if all is_jump_table_entry $ map fst values1 then do
         let trgts = map (fromIntegral . get_immediate . S.findMin . fromJust) $ map fst values1 
-            vcs   = S.unions $ map (snd . snd) values1
-            base  = vcs_to_jump_table_base ctxt vcs
-            tbl   = JumpTable op1 (fromIntegral n) trgt (IM.fromList $ zip [0..fromIntegral n] trgts) base in
-          Just $ S.singleton $ Indirection_JumpTable tbl
+            vcs   = S.unions $ map (snd . snd) values1 in
+          case vcs_to_jump_table_base ctxt vcs of
+            Nothing -> Nothing
+            Just base -> let tbl = JumpTable op1 (fromIntegral n) trgt (IM.fromList $ zip [0..fromIntegral n] trgts) base in
+                           Just $ S.singleton $ Indirection_JumpTable tbl
       else
         Nothing
 
@@ -163,12 +164,10 @@ stry_resolve_indirection ctxt p@(Sstate regs mem gmem flgs) instrs =
   clean_smem = M.filter (\v -> sis_deterministic ctxt v)
 
 
-vcs_to_jump_table_base :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S.Set (VerificationCondition v) -> Word64
+vcs_to_jump_table_base :: WithAbstractSymbolicValues ctxt bin v p => ctxt -> S.Set (VerificationCondition v) -> Maybe Word64
 vcs_to_jump_table_base ctxt vcs =
   let as = concatMap get_immediate_reads $ S.toList $ vcs in
-    case find_distanced_by_four $ sort as of
-      Just base -> base
-      _ -> error $ "Cannot find jump table base for vcs = " ++ show vcs
+    find_distanced_by_four $ sort as
  where
   find_distanced_by_four []  = Nothing
   find_distanced_by_four [a] = Nothing 

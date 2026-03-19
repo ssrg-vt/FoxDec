@@ -72,3 +72,6 @@ instance IntGraph CFG where
    where
     post :: CFG -> IS.Key -> IS.IntSet
     post g blockId = fromMaybe IS.empty (IM.lookup blockId (cfg_edges g))
+
+
+cfg_size = sum . map IS.size . IM.elems . cfg_edges

@@ -264,6 +264,13 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
           reloc_address           = fromIntegral $ elfRelOffset reloc
           name                    = fst name_of_reloc_trgt in -- if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
       [(reloc_address, TLS_Relative name)]
+   | elfRelType reloc `elem` [16] = 
+      -- R_X86_64_TPOFF64
+      let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
+          name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
+          reloc_address           = fromIntegral $ elfRelOffset reloc
+          name                    = fst name_of_reloc_trgt in -- if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
+      [(reloc_address, TLS_Module name)]
    | otherwise = []
 
 
@@ -341,7 +348,7 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
   pp_directive (a,d) = ["0x" ++ showHex a ++ ":"] ++ d
 
 
-  pp_all_relocs  = "Complete relocation list:" : map show (concatMap elfRelSectRelocations $ parseRelocations elf)
+  pp_all_relocs  = "Complete relocation list:" : map pp_reloc (concatMap elfRelSectRelocations $ parseRelocations elf)
   pp_all_symbols = "Complete symbol table:" : map (show_symbol_entry parse_dynsym) (zip [0..] $ concat $ parseSymbolTables elf)
   show_symbol_entry dynsym (ind,sym_entry) = intercalate "; " [ show ind, show (steName sym_entry), show (steType sym_entry) , show $ steBind sym_entry, show $ steOther sym_entry, showHex (steValue sym_entry), show $ steIndex sym_entry, show_dynsym $ M.lookup (steName sym_entry) dynsym]
 
@@ -352,6 +359,8 @@ pp_elf elf = intercalate "\n" $ pp_sections ++ pp_boundaries ++ pp_symbols ++ pp
   pp_type = ["Type: " ++ (show $ elfType elf)]
   pp_entry = ["Entry: " ++ (showHex $ elfEntry elf)]
   
+  pp_reloc (ElfRel offset symbol ty addend) = "ElfRel offset=0x"++showHex offset ++ " symbol=" ++ show symbol ++ " type=" ++ show ty ++ " addend= " ++ show addend
+
 
 elf_get_sections_info elf = SectionsInfo (map mk_section_info $ filter isRelevantElfSection $ elfSections elf) (elf_min_address elf) (elf_max_address elf)
  where

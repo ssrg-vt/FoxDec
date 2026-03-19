@@ -39,6 +39,7 @@ data Symbol =
   | AddressOfLabel            String Bool -- ^ Address a0 can be replaced by the string.
   | Relocated_ResolvedObject  String Word64 Int64 -- ^ At linking time internally resolved relocation with addend
   | TLS_Relative              String -- ^ The symbol is relative to the thread local storage
+  | TLS_Module                String -- ^ The symbolis a TLS module ID
   deriving (Generic,Eq,Ord)
 
 show_symbol_table_entry (a0,sym) = showHex a0 ++ show_symbol sym
@@ -51,6 +52,7 @@ show_symbol_table_entry (a0,sym) = showHex a0 ++ show_symbol sym
   show_symbol (AddressOfLabel f b)                  = " === " ++ f ++ show_in_ex b "label"
   show_symbol (Relocated_ResolvedObject l a addend) = " --> " ++ l ++ "@0x" ++ showHex a ++ show_addend addend ++ " (object)"
   show_symbol (TLS_Relative l)                      = " === " ++ l ++ "@TLS"
+  show_symbol (TLS_Module l)                        = " === " ++ l ++ "@DTPMOD"
 
   show_addend 0      = ""
   show_addend addend = "+0x"++showHex addend

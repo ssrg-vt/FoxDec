@@ -144,6 +144,7 @@ symbol_to_name (AddressOfObject l b)            = l
 symbol_to_name (AddressOfLabel f b)             = f
 symbol_to_name (Relocated_ResolvedObject l a addend) = l++(if addend == 0 then "" else "+0x"++showHex addend)
 symbol_to_name (TLS_Relative l)                 = l
+symbol_to_name (TLS_Module l)                   = l
 
 
 

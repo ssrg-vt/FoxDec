@@ -43,7 +43,7 @@ generate_cfg l@(bin,_,_) entry = do
   let g    = init_cfg entry
   i       <- fetch_instruction bin entry
   let nxt  = next_rips l i
-  let bag  = S.fromList $ (\(JustRips as) -> map (\a -> (entry,a)) as) nxt 
+  let bag  = S.fromList $ get_nxt entry nxt 
   g'      <- mk_graph l entry bag g
   g''     <- repeatUntilFixPointM (\g -> foldrM do_landing_pad g $ IS.toList $ get_landing_pads g) g'
   cfg_add_instrs l g''
@@ -61,7 +61,7 @@ generate_cfg l@(bin,_,_) entry = do
       return $ g' { cfg_landing_pads = IS.insert f $ cfg_landing_pads g' }
 
   get_nxt a0 (JustRips as) = map (\a -> (fromIntegral a0,a)) as
-  get_nxt a0 Terminal = []
+  get_nxt a0 _             = []
 
   -- The landing pads are retrieved from the gcc_except_tables
   get_landing_pads g = 
@@ -73,7 +73,7 @@ generate_cfg l@(bin,_,_) entry = do
   already_in_cfg cfg a = any (\as -> a `elem` as) $ cfg_blocks cfg
 
   -- A gcc_except_table is relevant if it has a region that covers an instruction of the current CFG
-  get_relevant_tables bin cfg = filter (\t -> anyIS (table_has_overlapping_region t) $ IM.keysSet $ cfg_addr_to_blockID cfg) all_tables
+  get_relevant_tables bin cfg = filter (\t -> function_entry t == entry || (anyIS (table_has_overlapping_region t) $ IM.keysSet $ cfg_addr_to_blockID cfg)) all_tables
   all_tables = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
   table_has_overlapping_region t a = any (\(end,start,_,_) -> start <= a && a < end) $ get_callsite_regions_from_gcc_except_table t
 
