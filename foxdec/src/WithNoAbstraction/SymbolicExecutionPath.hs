@@ -1050,8 +1050,8 @@ sread_mem l0@(bin,_,_,_) a a' si = do
 
   -- TODO only if si==8?
   try_read_reloc a si =
-    case find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin of
-      Just (Relocation _ a1) -> Just $ SE_Immediate a1
+    case IM.lookup (fromIntegral a) $ binary_get_relocations bin of
+      Just (Relocation a1) -> Just $ SE_Immediate a1
       Nothing -> Nothing
 
   try_read_symbol a si =

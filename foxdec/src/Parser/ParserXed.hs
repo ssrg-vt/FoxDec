@@ -353,6 +353,7 @@ instruction = do
     | is_zero_mem_operand op0 && m `elem` [FSTP,FLD]              = mk_operands i m numWrites (mem_operand_with_size op0 80:ops') (i0:is')
     | is_zero_mem_operand op0 && m `elem` [FSTENV,FNSTENV,FLDENV] = mk_operands i m numWrites (mem_operand_with_size op0 28:ops') (i0:is')
     | is_zero_mem_operand op0 && m `elem` prefetches              = mk_operands i m numWrites (mem_operand_with_size op0 8:ops') (i0:is')
+    | is_zero_mem_operand op0 && m `elem` [CLFLUSH]               = mk_operands i m numWrites (mem_operand_with_size op0 8:ops') (i0:is')
     | is_zero_mem_operand op0 && m /= LEA                         = error $ show i
     | isWrite i0 && numWrites < 2 = add_info op0 i0 : mk_operands i m (numWrites+1) ops' is'
     | isRead i0 && all (not . isWrite) is' && all isRead is' = add_info op0 i0 : mk_operands i m numWrites ops' is'

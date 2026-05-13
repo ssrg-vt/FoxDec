@@ -232,6 +232,22 @@ contains_bot_sp (SP_Reg r)        = False
 contains_bot_sp (SP_Mem a si)     = contains_bot a
 
 
+-- | Returns true iff the expression contains SE_Statepart
+contains_statepart (Bottom typ)         = False
+contains_statepart (SE_Malloc _ _)      = False
+contains_statepart (SE_Var sp)          = contains_statepart_sp sp
+contains_statepart (SE_Immediate _)     = False
+contains_statepart (SE_StatePart sp _ ) = True
+contains_statepart (SE_Op _ _ es)       = any contains_statepart es
+contains_statepart (SE_Bit i e)         = contains_statepart e
+contains_statepart (SE_SExtend _ _ e)   = contains_statepart e
+contains_statepart (SE_Overwrite _ a b) = contains_statepart a || contains_statepart b
+
+-- | Returns true iff the statepart contains Bot
+contains_statepart_sp (SP_Reg r)        = False
+contains_statepart_sp (SP_Mem a si)     = contains_statepart a
+
+
 
 
 
@@ -252,6 +268,18 @@ all_bot_satisfy_sp p (SP_Mem a si)     = all_bot_satisfy p a
 
 
 
+-- e1[ e0 := x ]
+-- Allows custom equality
+substE normalize e0 x e1
+    | normalize e1 == normalize e0  = x
+    | otherwise = substE' e0 x e1
+ where
+  substE' e0 x (SE_Op op si es)       = SE_Op op si $ map (substE normalize e0 x) es
+  substE' e0 x (SE_Bit b e)           = SE_Bit b $ substE normalize e0 x e
+  substE' e0 x (SE_SExtend l h e)     = SE_SExtend l h $ substE normalize e0 x e
+  substE' e0 x (SE_Overwrite n v0 v1) = SE_Overwrite n (substE normalize e0 x v0) (substE normalize e0 x v1)
+  substE' e0 x (SE_Var (SP_Mem a si)) = SE_Var $ SP_Mem (substE normalize e0 x a) si
+  substE' e0 x e1                     = e1
 
 
 -- | 
@@ -304,7 +332,10 @@ simp' (SE_Bit i (SE_SExtend l h e))
   | i == h    = SE_SExtend l h $ simp' e
   | otherwise = SE_Bit i $ SE_SExtend l h $ simp' e
 
-simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
+-- simp' (SE_Overwrite i (SE_Overwrite i' e0 e1) e2) = if i >= i' then SE_Overwrite i (simp' e0) (simp' e2) else SE_Overwrite i (SE_Overwrite i' (simp' e0) (simp' e1)) (simp' e2)
+
+simp' (SE_Overwrite b (SE_Bit i0 e0) e1) = if b == i0 then simp' $ SE_Overwrite b e0 e1 else SE_Overwrite b (simp' $ SE_Bit i0 e0) (simp' e1)
+simp' (SE_Overwrite b e0 (SE_Bit i1 e1)) = if b <= i1 && e0 == e1 then simp' $ SE_Bit i1 e1 else SE_Overwrite b (simp' e0) (simp' $ SE_Bit i1 e1)
 
 simp' (SE_SExtend l h (SE_Bit i e))  = if i == l then SE_SExtend l h (simp' e) else SE_SExtend l h (SE_Bit i $ simp' e)
 
@@ -359,6 +390,10 @@ simp' e@(SE_Bit si0 e1@(SE_Var (SP_Mem _ si)))         = if si*8 == si0 then sim
 simp' e@(SE_Bit si0 e1@(SE_Op (SExtHi b) _ [_]))       = if b==si0 then simp' e1 else SE_Bit si0 $ simp' e1
 simp' e@(SE_Bit si0 e1@(SE_Op Cmov si1 es))            = SE_Op Cmov si1 $ map (simp' . SE_Bit si0) es
 
+simp' e@(SE_Op Cmov si1 []) = e            
+simp' e@(SE_Op Cmov si1 (e0:e0s))
+  | all ((==) e0) e0s = simp' e0
+  | otherwise = SE_Op Cmov si1 $ map simp' (e0:e0s)
 
 simp' (SE_Op SdivLo si0 es@[SE_Op (SExtHi b) _ [e0], e1,e2]) = if e0==e1 then simp' $ SE_Op Sdiv si0 [e0,e2] else SE_Op SdivLo si0 $ map simp' es
 

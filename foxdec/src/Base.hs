@@ -49,7 +49,7 @@ showHex_list is = "[" ++ intercalate "," (map (\n -> "0x" ++ showHex n) is) ++ "
 showHex_set     = showHex_list . IS.toList
 -- | Show an optional integer as an optional hex.
 showHex_option Nothing = "Nothing"
-showHex_option (Just v) = showHex v
+showHex_option (Just v) = "0x" ++ showHex v
 -- | Read an int from a string storing a hex.
 readHex' :: (Eq a, Num a) => String -> a
 readHex' = fst . head . Numeric.readHex
@@ -85,6 +85,10 @@ orElseM m0 m1 = do
     Nothing -> m1
     Just a  -> return a
 
+onJustM :: Monad m => (a -> m ()) -> Maybe a -> m ()
+onJustM m Nothing = return ()
+onJustM m (Just x) = m x 
+
 
 orTryM :: Monad m => m (Maybe a) -> m (Maybe a) -> m (Maybe a)
 orTryM m0 m1 = do
@@ -92,11 +96,26 @@ orTryM m0 m1 = do
   case a of
     Nothing -> m1
     Just a  -> return $ Just a
+
+foldlM' :: (Monad m) => (a -> b -> m a) -> a -> [b] -> m a
+foldlM' _ z [] = return z
+foldlM' f z (x:xs) = do
+  z' <- f z x
+  z' `seq` foldlM' f z' xs
+
     
 anyS :: (a -> Bool) -> S.Set a -> Bool
 anyS predicate s = not $ S.null $ S.filter predicate s
 
 anyIS predicate s = not $ IS.null $ IS.filter predicate s
+
+
+infixr 9 <.>
+
+-- | Composition: pure function after functorial (monadic) function.
+(<.>) :: Functor m => (b -> c) -> (a -> m b) -> a -> m c
+(f <.> g) a = f <$> g a
+
 
 -- | return only if Bool holds
 onlyWhen b a = if b then Just a else Nothing
@@ -189,9 +208,16 @@ quotientByL eq (a:as) =
   let (group,remainder) = partition (eq a) as in
     (a:group) : quotientByL eq remainder
 
+
+-- TODO: does not repeat
 repeatUtilFixpoint f a =
   let a' = f a in
-    if a == a' then a else f a'
+    if a == a' then a else repeatUtilFixpoint f a'
+
+repeatUtilFixpointM m a = do
+  a' <- m a
+  if a == a' then return a else m a'
+
 
 -- | Sign-extension from 32 to 64 bits
 sextend_32_64 w = if testBit w 31 then (w .&. 0x00000000FFFFFFFF) .|. 0xFFFFFFFF00000000 else (w .&. 0x00000000FFFFFFFF)

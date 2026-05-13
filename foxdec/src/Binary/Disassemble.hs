@@ -35,11 +35,10 @@ elf_disassemble_instruction elf a = do
     [] -> return Nothing
     [section] -> do
       let bytes = BS.take 20 $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section
-      i <- BS.useAsCStringLen bytes (processBuffer a) 
-      return $ Just i
+      BS.useAsCStringLen bytes (processBuffer a) 
     sections -> error $ show $ map (\s -> (elfSectionName s, elfSectionAddr s, elfSectionSize s)) sections
  where
-  processBuffer :: Word64 -> CStringLen -> IO Instruction
+  processBuffer :: Word64 -> CStringLen -> IO (Maybe Instruction)
   processBuffer a (ptr,len) = do
     outPtr <- c_disassemble1_buffer ptr (fromIntegral len) (fromIntegral a)
     if outPtr == nullPtr then
@@ -48,8 +47,8 @@ elf_disassemble_instruction elf a = do
       str <- peekCAString outPtr
       c_free_buffer outPtr
       case parse instruction "xed" str of
-        Left err -> error $ "Dissassembly error: " ++ show err
-        Right i  -> return i 
+        Left err -> (putStrLn $ "Dissassembly error @ 0x" ++ showHex a ++ ": " ++ show err) >> return Nothing
+        Right i  -> return $ Just i 
 
 
 

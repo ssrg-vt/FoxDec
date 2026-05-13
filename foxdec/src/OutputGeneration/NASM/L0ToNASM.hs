@@ -221,12 +221,12 @@ block_label l@(bin,_,l0) entry a blockID = (try_start_symbol `orTry` try_symbol 
     else
       return $ Label a name
   -- Try to see if the address stores a relocation
-  try_relocation_label = reloc_label <$> find (reloc_for a) (binary_get_relocations bin)
+  try_relocation_label = reloc_label a <$> IM.lookup (fromIntegral a) (binary_get_relocations bin)
 
   -- Make a new label based on the entry and blockID
   custom_label = Label a $ "L" ++ showHex entry ++ "_" ++ show blockID
   -- Make a label for relocation
-  reloc_label (Relocation a0 a1) = Label a $ "L_reloc_0x" ++ showHex a0 ++ "_0x" ++ showHex a1
+  reloc_label a0 (Relocation a1) = Label a $ "L_reloc_0x" ++ showHex a0 ++ "_0x" ++ showHex a1
 
 
 -- Make a label for the start of a section
@@ -816,7 +816,7 @@ try_symbolize_base l@(bin,_,l0) not_part_of_larger_expression imm = within_secti
 
 
 -- see if address matches an external symbol loaded at linking time
-relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symbol_table bin) >>= mk_symbol) `orTry` (find (reloc_for a) (binary_get_relocations bin) >>= mk_reloc)
+relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symbol_table bin) >>= mk_symbol) `orTry` (IM.lookup (fromIntegral a) (binary_get_relocations bin) >>= mk_reloc a)
  where
   mk_symbol sym@(PointerToExternalFunction  l)      = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
   mk_symbol sym@(PointerToInternalFunction  l _)    = Nothing --  error $ "Reading PLT entry of address " ++ showHex a -- TODO check if this actually happens. If so, return Nothing.
@@ -825,11 +825,10 @@ relocatable_symbol l@(bin,_,l0) a = (IM.lookup (fromIntegral a) (binary_get_symb
   mk_symbol sym@(AddressOfObject o _)               = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label o a)])
   mk_symbol sym@(Relocated_ResolvedObject str a1 0) = Just (NASM_Addr_Symbol sym,[(a,mk_safe_label str a)])
 
-  mk_reloc (Relocation a0 a1) = 
-    let label = block_label l 0 a0 0 in
+  mk_reloc a0 (Relocation a1) = 
+    let label = block_label l 0 (fromIntegral a0) 0 in
       Just (NASM_Addr_Label label, [(a,label)])
 
-reloc_for a (Relocation a0 a1) = a == a0
 
 
 rip_relative_to_immediate i (Op_Mem _ (Reg64 RIP) RegNone _ displ Nothing _) = Just $ fromIntegral (inAddress i) + fromIntegral (inSize i) + displ
@@ -943,7 +942,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
 
   mk_data_entries_no_string offset s@(segment,section,a0,sz,align,_) =
     case find_reloc offset a0 of
-      Just (Relocation _ a1) ->
+      Just (Relocation a1) ->
         [ (a0+offset, DataEntry_Label $ mk_reloc_label (a0 + offset))
         , (a0+offset, DataEntry_Pointer $ try_symbolize_imm l a1) ]
         ++
@@ -975,7 +974,7 @@ generic_data_section l@(bin,_,l0) pick_section read_from =
 
 
 
-  find_reloc offset a0 = find (reloc_for $ fromIntegral (a0 + offset)) $ binary_get_relocations bin
+  find_reloc offset a0 = IM.lookup (fromIntegral (a0 + offset)) $ binary_get_relocations bin
   read_byte  offset a0 = 
     case read_from bin (fromIntegral $ a0 + offset) 1 of
       Just [v] -> v
@@ -996,19 +995,18 @@ bss_data_section l@(bin,_,l0) =
 
 
   mk_bss segment section a0 sz =
-    case sort $ map get_addr $ filter (was_relocated_and_in a0 sz) $ S.toList $ binary_get_relocations bin of
+    case sort $ map fst $ filter (was_relocated_and_in a0 sz) $ IM.toList $ binary_get_relocations bin of
       [] -> [ (a0,      DataEntry_BSS $ fromIntegral sz)
             , (a0 + sz, DataEntry_Label $ end_of_section_label l (segment,section,0,0,0,[])) ]
-      (a:_) -> [ (a0, DataEntry_BSS $ fromIntegral $ a - a0)
-               , (a,  DataEntry_Label $ mk_reloc_label a) ]
+      (a:_) -> [ (a0, DataEntry_BSS $ fromIntegral $ fromIntegral a - a0)
+               , (fromIntegral a,  DataEntry_Label $ mk_reloc_label $ fromIntegral a) ]
                ++
                mk_bss segment section (fromIntegral a) (sz + a0 - fromIntegral a)
 
   mk_reloc_label a0 = block_label l 0 a0 0
 
 
-  get_addr (Relocation a0 _) = a0
-  was_relocated_and_in a0 sz (Relocation a a1) = fromIntegral a0 < a && a < fromIntegral (a0 + sz)-- TODO note strict inequality here
+  was_relocated_and_in a0 sz (a,Relocation a1) = fromIntegral a0 < fromIntegral a && fromIntegral a < fromIntegral (a0 + sz)-- TODO note strict inequality here
 
 
 

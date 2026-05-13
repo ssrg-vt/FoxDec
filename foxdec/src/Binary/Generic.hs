@@ -66,11 +66,11 @@ instance Cereal.Serialize SymbolTable
 
 
 data Relocation = 
-  Relocation Word64 Word64 -- ^ 8: At address a0, address a1 has been written, i.e., qword ptr[a0] == a1
+  Relocation Word64 -- ^ 8: At address a0, address a1 has been written, i.e., qword ptr[a0] == a1
   deriving (Generic,Eq,Ord)
 
 instance Show Relocation where
-  show (Relocation a0 a1)  = showHex a0 ++ " --> " ++ showHex a1
+  show (Relocation a1)  = " --> 0x" ++ showHex a1
 
 instance Cereal.Serialize Relocation
 
@@ -93,7 +93,7 @@ class BinaryClass a where
   binary_read_data :: a -> Word64 -> Int -> Maybe [Word8]
   binary_get_sections_info :: a -> SectionsInfo
   binary_get_symbols :: a -> SymbolTable
-  binary_get_relocations :: a -> S.Set Relocation
+  binary_get_relocations :: a -> IM.IntMap Relocation
   binary_pp :: a -> String
   binary_entry :: a -> [Word64] -- The first element is the entry point of the binary (or 0 if shared object)
   binary_text_section_size :: a -> Int
@@ -104,7 +104,9 @@ class BinaryClass a where
   fetch_instruction :: a -> Word64 -> IO (Maybe Instruction)
   function_signatures :: a -> M.Map String FunctionSignature
   binary_get_cfi :: a -> CFI
+  binary_get_ehframe_covering :: a -> IM.IntMap (Int,Int)
   get_elf :: a -> Maybe Elf
+  binary_null :: a
 
 data Binary = forall b . BinaryClass b => Binary b
 
@@ -126,6 +128,7 @@ instance BinaryClass Binary where
   fetch_instruction (Binary b) = fetch_instruction b
   function_signatures (Binary b) = function_signatures b
   binary_get_cfi (Binary b) = binary_get_cfi b
+  binary_get_ehframe_covering (Binary b) = binary_get_ehframe_covering b
   get_elf (Binary b) = get_elf b
 
 binary_get_symbol_table bin =
@@ -224,4 +227,35 @@ undefined_internal_global_labels bin = filter is_global_and_internal_and_outside
 
 
 binary_is_cpp bin = any (isInfixOf "libstdc++") $ binary_get_needed_libs bin
+
+
+-- The landing pads are retrieved from the gcc_except_tables
+get_all_landing_pads bin = concatMap (get_landing_pads_from_table bin) $ all_tables bin 
+ where
+  get_landing_pads_from_table bin t = map (withFunctionEntry t) $ IS.toList $ IS.filter (is_landing_pad bin) $ get_landing_pads_from_gcc_except_table t
+  withFunctionEntry t lp = (function_entry t,lp)
+
+  all_tables bin = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+  is_landing_pad bin a = address_has_instruction bin (fromIntegral a)
+
+get_all_region_starts bin = concatMap (get_region_starts bin) $ all_tables bin 
+ where
+  get_region_starts bin t = map (withFunctionEntry t) $ IS.toList $ IS.filter (is_region_start bin) $ get_callsite_region_starts_from_gcc_except_table t
+  withFunctionEntry t lp = (function_entry t,lp)
+
+  all_tables bin = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+  is_region_start bin a = address_has_instruction bin (fromIntegral a)
+
+get_all_function_entries bin = map function_entry $ IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+
+
+get_gcc_except_table_covering_address :: IM.IntMap (Int,Int) -> Int -> Maybe Int
+get_gcc_except_table_covering_address covering a =
+  case IM.lookupLE a covering of
+    Nothing     -> Nothing
+    Just (lb,(ub,k)) -> if a < ub then Just k else Nothing
+
+
+
+
 

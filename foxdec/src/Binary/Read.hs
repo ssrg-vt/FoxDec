@@ -40,7 +40,8 @@ read_binary dirname name = do
     if (BS.unpack $ BS.take 4 content) == [0x7f, 0x45, 0x4C, 0x46] then do
       let elf = elf_read_file content
       let cfi = parse_ehframe elf show
-      let bin  = NamedElf elf dirname name (elf_get_sections_info elf) (elf_get_symbol_table elf) (elf_get_relocs elf) signs cfi
+      let cov = generate_eh_frame_covering cfi
+      let bin  = NamedElf elf dirname name (elf_get_sections_info elf) (elf_get_symbol_table elf) (elf_get_relocs elf) signs cfi cov
       return $ Just $ Binary bin
     else
       return Nothing

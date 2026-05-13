@@ -118,11 +118,10 @@ read_from_ro_data ctxt p (Just (ByteSize si)) =
   try_read_ro_data a si = simmediate ctxt <$> read_from_ro_datasection bin (fromIntegral a) (fromIntegral si)
 
   try_read_reloc a si =
-    case find (is_reloc_for $ fromIntegral a) $ S.toList $ binary_get_relocations bin of
-      Just (Relocation _ a') -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
+    case IM.lookup (fromIntegral a) $ binary_get_relocations bin of
+      Just (Relocation a') -> Just $ smk_init_mem_value ctxt "reloc" p $ Just $ ByteSize si
       Nothing -> Nothing
 
-  is_reloc_for a (Relocation a' _) = a == a'
 
   try_read_symbol a si = 
     case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of

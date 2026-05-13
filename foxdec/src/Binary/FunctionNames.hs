@@ -163,15 +163,14 @@ try_read_function_pointer bin i a' = try_symbol a' `orTry` try_relocation a' `or
       _ -> Nothing
 
   try_relocation a' =
-    case find (is_reloc_for a') $ binary_get_relocations bin of
+    case IM.lookup (fromIntegral a') $ binary_get_relocations bin of
       Nothing -> Nothing
-      Just (Relocation _ a1) -> Just $ ImmediateAddress a1 --TODO what if a1 is a symbol?
+      Just (Relocation a1) -> Just $ ImmediateAddress a1 --TODO what if a1 is a symbol?
         --case try_symbol a1 of
         --  Nothing -> Just $ ImmediateAddress a1
         --  Just sym -> Just sym -- error $ show (a',a1,sym)
     
 
-  is_reloc_for a' (Relocation a _) = a == a'
 
   find_address_of_label syms l = (ImmediateAddress . fromIntegral . fst) <$> (find (\(a,symbol) -> symbol == AddressOfLabel l False) $ IM.assocs syms)
 

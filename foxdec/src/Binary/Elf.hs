@@ -81,9 +81,10 @@ data NamedElf = NamedElf {
   elf_file_name :: !String,
   elf_sections_info :: !SectionsInfo,
   elf_symbol_table :: !SymbolTable,
-  elf_relocs :: !(S.Set Relocation),
+  elf_relocs :: !(IM.IntMap Relocation),
   elf_signs :: !(M.Map String FunctionSignature),
-  elf_cfi :: !CFI
+  elf_cfi :: !CFI,
+  elf_ehframe_covering :: !(IM.IntMap (Int,Int))
  }
 
 
@@ -162,7 +163,7 @@ elf_read_data elf a si =
 
 
 
-elf_get_relocs elf = S.fromList $ mk_relocs
+elf_get_relocs elf = IM.fromList $ mk_relocs
  where
   -- go through all relocations
   mk_relocs = concatMap mk_reloc $ parseRelocations elf
@@ -174,8 +175,8 @@ elf_get_relocs elf = S.fromList $ mk_relocs
      -- R_X86_64_RELATIVE
      -- The SymAddend provides the relocation address
      case elfRelSymAddend reloc of
-       Nothing     -> [Relocation (fromIntegral $ elfRelOffset reloc) 0] -- TODO implicit addend?
-       Just addend -> [Relocation (fromIntegral $ elfRelOffset reloc) (fromIntegral $ addend)]
+       Nothing     -> [(fromIntegral $ elfRelOffset reloc,Relocation 0)] -- TODO implicit addend?
+       Just addend -> [(fromIntegral $ elfRelOffset reloc,Relocation $ fromIntegral $ addend)]
    | otherwise = []
 
 
@@ -262,14 +263,14 @@ elf_get_symbol_table elf = SymbolTable mk_symbols mk_exports
       let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
           name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
           reloc_address           = fromIntegral $ elfRelOffset reloc
-          name                    = fst name_of_reloc_trgt in -- if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
+          name                    = if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
       [(reloc_address, TLS_Relative name)]
    | elfRelType reloc `elem` [16] = 
       -- R_X86_64_TPOFF64
       let symbol_table_entry      = (elfRelSectSymbolTable sec) !! (fromIntegral $ elfRelSymbol reloc)
           name_of_reloc_trgt      = get_name_and_inex_from_sym_entry reloc symbol_table_entry
           reloc_address           = fromIntegral $ elfRelOffset reloc
-          name                    = fst name_of_reloc_trgt in -- if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
+          name                    = if fst name_of_reloc_trgt == "" then "FOXDEC_ANON_VARNAME_" ++ show (fromJust $ elfRelSymAddend reloc) else fst name_of_reloc_trgt in
       [(reloc_address, TLS_Module name)]
    | otherwise = []
 
@@ -384,23 +385,24 @@ elf_get_entry_points elf = [elfEntry elf] ++ entry_of ".init" elf ++ entry_of ".
 
 instance BinaryClass NamedElf 
   where
-    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_bytestring elf
-    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_ro_data elf
-    binary_read_data = \(NamedElf elf _ _ _ _ _ _ _) -> elf_read_data elf
-    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _ _) -> si
-    binary_get_symbols = \(NamedElf elf _ _ _ t _ _ _) -> t
-    binary_get_relocations = \(NamedElf elf _ _ _ _ r _ _) -> r
-    binary_pp = \(NamedElf elf _ _ _ _ _ _ _) -> pp_elf elf 
-    binary_entry = \(NamedElf elf _ _ _ _ _ _ _) -> elf_get_entry_points elf
-    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _) -> elf_text_section_size elf
-    binary_dir_name = \(NamedElf _ d _ _ _ _ _ _) -> d
-    binary_file_name = \(NamedElf _ _ n _ _ _ _ _) -> n
-    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _ _) -> parseDynamicNeeded elf
-    address_has_instruction = \(NamedElf elf _ _ _ _ _ _ _) a -> elf_address_has_instruction elf a
-    fetch_instruction = \(NamedElf elf _ _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
-    function_signatures = \(NamedElf _ _ _ _ _ _ signs _) -> signs
-    binary_get_cfi = \(NamedElf elf _ _ _ _ _ _ cfi) -> cfi 
-    get_elf = \(NamedElf elf _ _ _ _ _ _ _) -> Just elf
+    binary_read_bytestring = \(NamedElf elf _ _ _ _ _ _ _ _) -> elf_read_bytestring elf
+    binary_read_ro_data = \(NamedElf elf _ _ _ _ _ _ _ _) -> elf_read_ro_data elf
+    binary_read_data = \(NamedElf elf _ _ _ _ _ _ _ _) -> elf_read_data elf
+    binary_get_sections_info = \(NamedElf elf _ _ si _ _ _ _ _) -> si
+    binary_get_symbols = \(NamedElf elf _ _ _ t _ _ _ _) -> t
+    binary_get_relocations = \(NamedElf elf _ _ _ _ r _ _ _) -> r
+    binary_pp = \(NamedElf elf _ _ _ _ _ _ _ _) -> pp_elf elf 
+    binary_entry = \(NamedElf elf _ _ _ _ _ _ _ _) -> elf_get_entry_points elf
+    binary_text_section_size = \(NamedElf elf _ _ _ _ _ _ _ _) -> elf_text_section_size elf
+    binary_dir_name = \(NamedElf _ d _ _ _ _ _ _ _) -> d
+    binary_file_name = \(NamedElf _ _ n _ _ _ _ _ _) -> n
+    binary_get_needed_libs = \(NamedElf elf _ _ _ _ _ _ _ _) -> parseDynamicNeeded elf
+    address_has_instruction = \(NamedElf elf _ _ _ _ _ _ _ _) a -> elf_address_has_instruction elf a
+    fetch_instruction = \(NamedElf elf _ _ _ _ _ _ _ _) a -> elf_disassemble_instruction elf a
+    function_signatures = \(NamedElf _ _ _ _ _ _ signs _ _) -> signs
+    binary_get_cfi = \(NamedElf elf _ _ _ _ _ _ cfi _) -> cfi 
+    binary_get_ehframe_covering = \(NamedElf elf _ _ _ _ _ _ _ covering) -> covering 
+    get_elf = \(NamedElf elf _ _ _ _ _ _ _ _) -> Just elf
 
 
 
@@ -1095,10 +1097,26 @@ maximumWith f as =
 
 
 
+-- Create a mapping that enables efficient lookup of addresses to see if they are covered by a reigon or landing pad in the eh frame
+-- The mapping is of the form lb -> (ub,k)
+--
+-- If for an address $a$ we have lb <= a < ub, then k is the key of the corresponding table covering address $a$
+--
+-- Function get_gcc_except_table_covering_address can be used to lookup an address and get the corresponding table.
+generate_eh_frame_covering :: CFI -> IM.IntMap (Int,Int)
+generate_eh_frame_covering cfi = foldl' add_landing_pads (IM.fromList $ concatMap mk_covering $ IM.assocs $ cfi_gcc_except_tables cfi) $ IM.assocs $ cfi_gcc_except_tables cfi
+ where
+  mk_covering (k,t) = map (mk_covering_from_call_site k) $ get_callsite_regions_from_gcc_except_table t
+
+  mk_covering_from_call_site k (end,start,lp,_) = (start,(end+1,k)) -- The +1 ensures the region ends stay within the corrcet function
 
 
+  add_landing_pads covering (k,t) = foldl' (add_landing_pads_from_callsite k) covering $ get_callsite_regions_from_gcc_except_table t
 
-
+  add_landing_pads_from_callsite k covering (end,start,lp,_) =
+    case get_gcc_except_table_covering_address covering lp of
+      Just _  -> covering
+      Nothing -> IM.insert lp (lp+1,k) covering
 
 
 -- ELF magic number: 0x7F 'E' 'L' 'F'
@@ -1119,4 +1137,20 @@ isELF dir path = do
 -- Get ELF files in a directory (non-recursive)
 getELFFiles :: FilePath -> IO [FilePath]
 getELFFiles dir = listDirectory dir >>= filterM (isELF dir)
+
+
+
+
+elf_section_contains_address a section =
+  let a0  = elfSectionAddr section
+      si0 = elfSectionSize section in
+    SHF_ALLOC `elem` elfSectionFlags section && a0 <= a && a < a0 + si0
+
+elf_section_contains_region a si section =
+  let a0  = elfSectionAddr section
+      si0 = elfSectionSize section in
+    SHF_ALLOC `elem` elfSectionFlags section && a0 <= a && a + si <= a0 + si0
+
+
+
 

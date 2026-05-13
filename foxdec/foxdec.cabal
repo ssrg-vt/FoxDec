@@ -52,11 +52,19 @@ library
       Data.X86.Instruction
       Data.X86.Opcode
       Data.X86.Register
+      InputLifting.ControlFlowGraph
+      InputLifting.Lift
+      InputLifting.NextRips
+      InputLifting.SymbolicExecution
+      InputLifting.Types
       OutputGeneration.CallGraph
       OutputGeneration.ECFG
+      OutputGeneration.ECFG2
       OutputGeneration.ELLF
       OutputGeneration.GlobalMemAnalysis
       OutputGeneration.L0ToELLF
+      OutputGeneration.LRToCallGraph
+      OutputGeneration.LRToELLF
       OutputGeneration.Metrics
       OutputGeneration.NASM.Abstract_ASM
       OutputGeneration.NASM.L0ToNASM

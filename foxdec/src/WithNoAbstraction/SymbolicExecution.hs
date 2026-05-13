@@ -1216,11 +1216,10 @@ ctry_jump_targets l@(bin,_,_,_) i v@(SConcrete es) =
 
 
   try_reloc a =
-    case find (is_reloc_for a) $ S.toList $ binary_get_relocations bin of
-      Just (Relocation _ a') -> try_immediate_address a'
+    case IM.lookup (fromIntegral a) $ binary_get_relocations bin of
+      Just (Relocation a') -> try_immediate_address a'
       Nothing -> Nothing
 
-  is_reloc_for a (Relocation a' _) = a == a'
 
 ctry_jump_targets fctxt _  _ = Nothing 
 

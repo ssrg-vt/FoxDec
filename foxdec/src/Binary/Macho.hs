@@ -75,7 +75,7 @@ instance BinaryClass Macho
     binary_read_data = macho_read_data
     binary_get_sections_info = macho_sections
     binary_get_symbols b = SymbolTable (macho_symbols b) []
-    binary_get_relocations = \_ -> S.empty
+    binary_get_relocations = \_ -> IM.empty
     binary_pp = macho_pp
     binary_entry = macho_entry
     binary_text_section_size = macho_text_section_size

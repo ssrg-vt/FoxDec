@@ -40,7 +40,7 @@ data Symbol =
   | Relocated_ResolvedObject  String Word64 Int64 -- ^ At linking time internally resolved relocation with addend
   | TLS_Relative              String -- ^ The symbol is relative to the thread local storage
   | TLS_Module                String -- ^ The symbolis a TLS module ID
-  deriving (Generic,Eq,Ord)
+  deriving (Generic,Eq,Ord,Show)
 
 show_symbol_table_entry (a0,sym) = showHex a0 ++ show_symbol sym
  where 

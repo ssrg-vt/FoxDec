@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, BangPatterns #-}
+{-# LANGUAGE PartialTypeSignatures , FlexibleContexts, Strict, BangPatterns, ScopedTypeVariables #-}
 
 
 module Main where
@@ -11,15 +11,13 @@ import Config
 
 import Binary.Elf (getELFFiles)
 
-import OutputGeneration.Metrics
-import OutputGeneration.CallGraph
-import OutputGeneration.NASM.ModDataSection
-import OutputGeneration.GlobalMemAnalysis
-import OutputGeneration.NASM.Abstract_ASM
-import OutputGeneration.PathGeneration
 import OutputGeneration.ELLF
-import OutputGeneration.L0ToELLF
-import OutputGeneration.ECFG
+import OutputGeneration.ECFG2
+import OutputGeneration.LRToELLF 
+import OutputGeneration.LRToCallGraph
+import InputLifting.Types
+import InputLifting.Lift
+import InputLifting.Types
 
 import Data.CFG
 import Data.SValue
@@ -34,18 +32,6 @@ import Data.X86.Instruction
 import Data.JumpTarget
 import Data.X86.Register
 
-
-import WithAbstractPredicates.ControlFlow
-import WithAbstractSymbolicValues.Class
-import WithAbstractSymbolicValues.FInit
-import WithAbstractSymbolicValues.GMem
-import WithAbstractPredicates.ContextSensitiveAnalysis
-import WithAbstractSymbolicValues.InstanceOfAbstractPredicates
-import WithNoAbstraction.SymbolicExecution
-import WithNoAbstraction.SymbolicExecutionPath
-import WithNoAbstraction.Lifted
-import WithAbstractSymbolicValues.SymbolicExecution
-import WithAbstractPredicates.GenerateCFG
 
 import Binary.Generic
 import Binary.Read
@@ -217,20 +203,21 @@ start args = do
  where
   start' config dirname name = do
     -- 1.)
-    (bin,l0') <- obtain_L0 config (args_inputtype args) dirname name
-    l0 <- return l0'
+    putStrLn $ "Binary: " ++ name
+    l0' <- obtain_L0 config (args_inputtype args) dirname name
+    l0  <- return l0'
           -- >>= try_resolve_indirections_underapproximatively bin config
           -- >>= lift_to_L0 config bin empty_finit . l0_indirections
           -- >>= try_resolve_indirections_underapproximatively bin config
     --get_function_signatures bin config l0
 
     -- 2.)
-    when (args_generate_metrics args)   $ generate_metrics bin l0
-    when (args_generate_L0 args)        $ serialize_l0 bin l0
-    when (args_generate_callgraph args) $ generate_call_graph bin config l0
-    when (args_generate_NASM args)      $ generate_NASM (bin,config,l0)
-    when (args_generate_functions args) $ generate_per_function bin config l0
-    when (args_generate_ellf args)      $ read_and_lift_ellf bin
+    when (args_generate_metrics args)   $ generate_metrics l0
+    when (args_generate_L0 args)        $ serialize_l0 l0
+    when (args_generate_callgraph args) $ generate_call_graph l0
+    when (args_generate_NASM args)      $ generate_NASM l0
+    when (args_generate_functions args) $ generate_per_function l0
+    when (args_generate_ellf args)      $ read_and_lift_ellf $ lrf_binary l0
 
 
 get_binary_names dirname (Just name) = return [name]
@@ -242,8 +229,8 @@ get_binary_names dirname Nothing = do
 
 
 
-
-
+{--
+TODO
 get_function_signatures bin config l0 = do
   let l       = (bin,config,l0)
   let dirname = binary_dir_name bin
@@ -303,7 +290,7 @@ get_function_signatures bin config l0 = do
   isAboveStackFrame offset _ = False
 
   size_of_mem_statepart (SP_Mem a si) = si
-
+--}
 
 match_with_systemV_ABI input_stateparts = 
   let params = reg_inputs ++ mem_inputs in
@@ -328,6 +315,7 @@ match_with_systemV_ABI input_stateparts =
 
 
 -- TODO: move to own file
+{--
 try_resolve_indirections_underapproximatively bin config l0 = do
   let unresolved_indirections = zip [0 ..] $ IM.keys $ IM.filter isUnresolved $ l0_indirections l0
   foldM (try_resolve_underapproximatively (length unresolved_indirections)) l0 unresolved_indirections
@@ -362,7 +350,7 @@ try_resolve_indirections_underapproximatively bin config l0 = do
     --putStrLn $ show op ++ " == " ++ show (ras M.! op)
     --putStrLn $ show trgts
     return trgts
-
+--}
 
 
 
@@ -370,19 +358,19 @@ try_resolve_indirections_underapproximatively bin config l0 = do
 
 -- | Obtain L0 ...
 -- ... by reading in a .L0 file
-obtain_L0 :: Config -> String -> String -> String -> IO (Binary,L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue)
+obtain_L0 :: Config -> String -> String -> String -> IO (LiftedRepresentationFunctions Binary)
 obtain_L0 config "L0" dirname name = do
   let fname = dirname ++ name ++ ".L0"
   exists <- doesFileExist fname
   if exists then do
     rcontents <- BS.readFile (dirname ++ name ++ ".L0")
     bcontents <- read_binary dirname name
-    case (Cereal.decode rcontents, bcontents) of
+    case (Cereal.decode rcontents,bcontents) of
       (Left err,_)        -> die $ "Could not read L0 in file " ++ (dirname ++ name ++ ".L0") ++  "\n" ++ show err
       (_,Nothing)         -> die $ "Cannot read binary file: " ++ dirname ++ name
-      (Right l0,Just bin) -> do
+      (Right (l0::LiftedRepresentationFunctions Binary),Just bin) -> do
         putStrLn $ "Obtained L0 from file " ++ fname
-        return (bin,l0)
+        return $ l0 { lrf_binary = bin }
   else
     die $ "File: " ++ show (dirname ++ name ++ ".L0") ++ " does not exist."
 -- ... by doing binary lifting
@@ -394,19 +382,16 @@ obtain_L0 config "BINARY" dirname name = do
  where
   lift !config !bin = do
     startTime <- timeCurrent
-    when (startTime `deepseq` verbose_logs config) $
-      if verbose_logs config then
-        putStrLn $ binary_pp bin
-      else
-        return ()
+    when (verbose_logs config) $ putStrLn $ binary_pp bin
+
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
 
-    l0 <- lift_to_L0 config bin empty_finit IM.empty
+    l0 <- lift_to_lifted_representation_functions bin config
     putStrLn $ "Obtained L0 by lifting " ++ dirname ++ name
-    endTime <- l0 `deepseq` timeCurrent
-    let runningTime = fromIntegral $ timeDiff endTime startTime
-    return (bin,l0 {l0_time = showDuration runningTime})
+    return l0
 -- ... by reading ELLF metadata
+obtain_L0 config "ELLF" dirname name = error "TODO"
+{-- TODO
 obtain_L0 config "ELLF" dirname name = do
   binary <- read_binary dirname name
   case binary of
@@ -421,14 +406,15 @@ obtain_L0 config "ELLF" dirname name = do
     putStrLn $ "Obtained L0 by reading ELLF metadata " ++ dirname ++ name
     let empty_l0 = L0 IM.empty IM.empty empty_gmem_structure ""
     return (bin,empty_l0)
-
+--}
 
 
 
 -- OUTPUT
 
 -- | Write a context to a .L0 file
-serialize_l0 bin l0 = do
+serialize_l0 l0 = do
+  let bin      = lrf_binary l0
   let dirname  = binary_dir_name bin
   let name     = binary_file_name bin
   let fname    = dirname ++ name ++ ".L0" 
@@ -437,7 +423,7 @@ serialize_l0 bin l0 = do
 
 
 -- | Generate metrics
-generate_metrics bin l0 = do
+generate_metrics l = return () {-- TODO
   let dirname    = binary_dir_name bin
   let name       = binary_file_name bin
   let fname      = dirname ++ name ++ ".metrics.txt" 
@@ -446,35 +432,42 @@ generate_metrics bin l0 = do
   putStrLn $ metrics
   writeFile fname $ metrics
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
+--}
 
 -- | Generate information per function
 -- generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
-generate_per_function bin config l0 = do
+generate_per_function l = do
+  let bin         = lrf_binary l
   let dirname     = binary_dir_name bin
   let name        = binary_file_name bin
 
-  mapM_ (write_function dirname name) $ IM.assocs $ l0_functions l0
-  putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
+  createDirectoryIfMissing False $ dirname ++ "functions/"
 
 
-  sym_exec_cfg_all (bin,config,l0)
+  --mapM_ (write_function bin dirname name) $ IM.assocs $ lrf_cfgs l
+  --putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
+
+
+  sym_exec_cfg_all l
   --let regions = analyze_gmem (bin,config,l0,0::Word64) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0
   --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
   --putStrLn $ "Regions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))
+  {-- REMOVE
  where
-  write_function dirname name (entry,(finit,Just r@(FResult cfg post join calls vcs pa)))
+  write_function bin dirname name (entry,cfg)
     | not $ address_has_instruction bin (fromIntegral entry) = return ()
     | otherwise = do
-      let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
-      createDirectoryIfMissing False $ dirname ++ "functions/"
-      createDirectoryIfMissing False $ fdirname      
+      
 
-      let fname  = fdirname ++ name ++ ".dot"
-      writeFile fname $ cfg_to_dot bin r
+      --TODO
+      --let fname  = fdirname ++ name ++ ".dot"
+      --writeFile fname $ cfg_to_dot bin r
+
       let fname2 = fdirname ++ name ++ ".ecfg.dot"
-      let l = (bin,config,l0)
-      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l (fromIntegral entry) $ cfg_split_jumps $ result_cfg r
+      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l (fromIntegral entry) Nothing cfg
       writeFile fname2 $ render_ecfg_to_dot ecfg
+--}
+{-- TODO
       let fname2 = fdirname ++ name ++ ".txt"
       writeFile fname2 $ show_report entry finit r
   show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 
@@ -485,6 +478,7 @@ generate_per_function bin config l0 = do
     , if S.null calls then "" else "Dangling function pointers: " ++ showHex_list (map fromIntegral $ S.toList $ calls) -- TODO rest
     ]
    --TODO move to own file
+   --}
 
 mk_function_boundary entry cfg =
   let addresses = concat $ IM.elems $ cfg_blocks cfg in
@@ -507,7 +501,7 @@ mk_function_boundary entry cfg =
   add_to_hd i (is:iss) = (i:is) : iss
 
 -- | Generate the call graph
-generate_call_graph bin config l0 = do
+generate_call_graph l = return () {--TODO
   let dirname   = binary_dir_name bin
   let name      = binary_file_name bin
   let do_pdfs   = generate_pdfs config
@@ -528,39 +522,35 @@ generate_call_graph bin config l0 = do
   --let dot    = callgraph_to_dot (bin,config,l0) pp_finitC g' fptrs'
   --putStrLn $ show g'
   --writeFile (dirname ++ name ++ ".callgraph.sub.dot") dot
-
+--}
 
 -- | Generate NASM
-generate_NASM :: Lifted -> IO ()
-generate_NASM l@(bin,config,l0) = do
+generate_NASM :: LiftedRepresentationFunctions Binary -> IO ()
+generate_NASM l = do
+  let bin      = lrf_binary l
   let dirname  = binary_dir_name bin ++ "nasm/"
   let name     = binary_file_name bin
-  let fname    = dirname ++ name ++ ".s" 
+  let fname    = dirname ++ name ++ ".S" 
   let fname1   = dirname ++ "__gmon_start__.c" 
-  let fname2   = dirname ++ name ++ ".abstract.asm" 
+  let ellf     = lift_LR_to_ELLF l
+  let Just elf = get_elf bin
+  txt <- lift_ellf bin elf ellf False
+
 
   createDirectoryIfMissing False dirname      
-
-  let Just elf = get_elf bin
-  let ellf     = lift_L0_to_ELLF l
-  -- putStrLn $ show ellf
-
-  txt <- lift_ellf bin elf ellf
   B.writeFile fname txt
+  writeFile fname1 __gmon_start_implementation
   putStrLn $ "Generated symbolized assembly (GAS), exported to files: " ++ fname
-
-  let gmon = __gmon_start_implementation
-  writeFile fname1 $ gmon
 
   {--
 
   let nasm = nasm'--split_data_section (bin,config,l0,0::Word64) nasm' -- TODO
 
+  let fname2   = dirname ++ name ++ ".abstract.asm" 
 
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
   --writeFile   fname2 $ ai_show_NASM l nasm
-
 
 
   
@@ -585,8 +575,6 @@ generate_NASM l@(bin,config,l0) = do
 --}
 
 
-symbolically_execute_paths bin config l0 = do
-  symb_exec_all_entries bin config l0
 
 
 

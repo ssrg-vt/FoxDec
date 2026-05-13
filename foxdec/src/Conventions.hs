@@ -30,7 +30,7 @@ is_exiting_function_call f =
       "_err", "_verr", "_errc", "_verrc", "_errx", "_verrx",
       "obstack_alloc_failed_handler", "isc_assertion_failed", "isc_error_fatal",
       "PyExc_SystemExit", "pthread_exit", "error_exit",
-      "__longjmp_chk", "siglongjmp",
+      "__longjmp_chk", "siglongjmp", "longjmp", 
       "_ZSt9terminatev", "__cxa_throw", "__cxa_rethrow", "_Unwind_Resume", "_Unwind_ForcedUnwind",
       "__cxa_pure_virtual", "__cxa_throw_bad_array_new_length"
     ]

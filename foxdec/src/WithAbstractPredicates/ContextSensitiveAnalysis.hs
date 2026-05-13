@@ -10,6 +10,7 @@ import WithAbstractPredicates.GenerateCFG
 import WithAbstractPredicates.GenerateInvariants
 import WithAbstractPredicates.ControlFlow
 import OutputGeneration.CallGraph
+import InputLifting.Lift
 
 import Data.JumpTarget
 import Data.Symbol
@@ -199,7 +200,7 @@ exploreDanglingFunctionPointers = do
 exploreDanglingRelocations :: WithAbstractPredicates bin pred finit v => WithLifting bin pred finit v ()
 exploreDanglingRelocations = do
   (bin,_)        <- ask
-  relocs <- filterM is_dangling $ S.toList $ binary_get_relocations bin
+  relocs <- filterM is_dangling $ IM.elems $ binary_get_relocations bin
   case relocs of
     [] -> finishExploration
     _  -> do
@@ -212,8 +213,8 @@ exploreDanglingRelocations = do
       mapM_ (\a -> modify $ l0_insert_new_entry a finit) fptrs
       exploreFunctionEntries entries' IM.empty
  where
-  get_fptr (Relocation _ a1) = fromIntegral a1
-  is_dangling (Relocation a0 a1) = do
+  get_fptr (Relocation a1) = fromIntegral a1
+  is_dangling (Relocation a1) = do
     (bin,_)        <- ask
     let valid_entry = address_has_instruction bin a1 
     has_been_done  <- entry_has_been_done IM.empty a1 

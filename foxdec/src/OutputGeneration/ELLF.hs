@@ -83,15 +83,15 @@ read_and_lift_ellf bin = with_elf $ get_elf bin
     let name     = binary_file_name bin
     let fname    = dirname ++ name ++ ".S" 
 
-    txt <- lift_ellf bin elf ellf
+    txt <- lift_ellf bin elf ellf True
     LBS.writeFile fname txt
 
 
   
 
-lift_ellf bin elf ellf = do
+lift_ellf bin elf ellf fromELLF = do
   let cfi = parse_ehframe elf (symbolize bin ellf)
-  let txt = render_ellf bin elf ellf cfi 
+  let txt = render_ellf bin elf ellf cfi fromELLF
   return txt
  where
   -- TODO use the right object here instead of 0
@@ -143,11 +143,12 @@ mk_all_labels ellf _ a = -- Always generate all labels of all objects.
   case S.toList $ S.unions $ map (S.map ellf_sym_name . IM.findWithDefault S.empty (fromIntegral a)) $ ellf_symb_map ellf of
     [] -> [default_label a]
     ls -> ls
+{--
 mk_all_labels ellf (Just object) a = 
   case IM.lookup (fromIntegral a) $ ellf_symb_map ellf !! object of
     Nothing -> [default_label a]
     Just symbs -> S.toList $ S.map (mk_label_from_symbol ellf object) symbs
-
+--}
 
 
 -- Fetching a basic block.
@@ -192,16 +193,16 @@ fetch_basic_block bin ellf object f bb@(ELLF_Basic_Block _ offset si a) = go a (
 -- If there are undefined labels, render the assembly a second time with these known new labels.
 -- After that, some labels may still be undefined, if they do not correspond to any address within any basic block.
 -- We declare those labels as external, with an annotation at the beginning of the assembly file.
-render_ellf bin elf ellf cfi = 
+render_ellf bin elf ellf cfi fromELLF = 
   let txt    = render_ellf' bin elf ellf cfi IS.empty
       undefs = find_undefined_labels txt in
     if IS.null undefs then do
-      let header  = BLU.fromString (mk_compilation_instructions bin) in
+      let header  = BLU.fromString (mk_compilation_instructions bin fromELLF) in
         mappend header $ BL.filter ((/=) 1) txt
     else let txt'    = render_ellf' bin elf ellf cfi undefs
              undefs' = find_undefined_labels txt' 
              txt''   = subst_undefs undefs' txt'
-             header  = BLU.fromString (mk_compilation_instructions bin ++ mk_undefs_header undefs') in
+             header  = BLU.fromString (mk_compilation_instructions bin fromELLF ++ mk_undefs_header undefs') in
            mappend header txt''
  where
   subst_undefs undefs bs
@@ -236,12 +237,18 @@ render_ellf bin elf ellf cfi =
 
   mk_undef_extern undef = ".extern " ++ undef_to_symbol undef
 
-mk_compilation_instructions bin =
-  let needed = binary_get_needed_libs bin
-      is_cpp = binary_is_cpp bin
-      name   = binary_file_name bin in
-    "# " ++ (if is_cpp then "g++" else "gcc") ++ " -o " ++ name ++ "_ " ++ name ++ ".S " ++ intercalate " " (concatMap show_needed $ S.toList needed) ++ "\n\n"
+mk_compilation_instructions bin fromELLF =
+ if fromELLF then ellf_instructions else elf_instructions
  where
+  ellf_instructions = "# " ++ (if is_cpp then "g++" else "gcc") ++ " -o " ++ name ++ "_ " ++ name ++ ".S " ++ intercalate " " (concatMap show_needed $ S.toList needed) ++ "\n\n"
+  elf_instructions  = "# gcc -c __gmon_start__.c -o __gmon_start__.o && "
+                      ++ (if is_cpp then "g++" else "gcc") ++ " -g -nostartfiles -fgnu-tm -o " ++ name ++ "_ " ++ name ++ ".S __gmon_start__.o " ++ intercalate " " (concatMap show_needed $ S.toList needed)
+                      ++ "\n\n"
+
+
+  needed = binary_get_needed_libs bin
+  is_cpp = binary_is_cpp bin
+  name   = binary_file_name bin
   show_needed lib
     | any (\p -> p `isPrefixOf` lib) ["libc.", "libgcc", "libstdc++.", "ld-"] = []
     | otherwise = ["-l" ++ (takeWhile ((/=) '.') $ drop 3 lib)]
@@ -406,13 +413,9 @@ get_sections_from_globals elf globals = nub $ concatMap toSection globals ++ con
       Nothing -> []
       Just s  -> [s]
   toSection g =
-    case find (contains_address (ellf_global_address g)) $ elfSections elf of
+    case find (elf_section_contains_address (ellf_global_address g)) $ elfSections elf of
       Nothing -> []
       Just s  -> [s]
-  contains_address a section =
-    let a0  = elfSectionAddr section
-        si0 = elfSectionSize section in
-      a0 <= a && a < a0 + si0
 
 
 
@@ -460,9 +463,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   -- Render the end label
   mk_section_end_label section = 
     let a = elfSectionAddr section + elfSectionSize section in
-      case find (contains_address a 1) $ elfSections elf of
+      case find (elf_section_contains_region a 1) $ elfSections elf of
         Nothing -> [string8 $ "# additional end-label @0x" ++ showHex a] ++ address_to_labels Nothing a
         Just _  -> []
+
 
 
 
@@ -481,12 +485,12 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
               part2  = [render_pointee section object ptr_a pte pte_si]
               part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
-       (Nothing,Just (Relocation ptr_a a1),_) ->
+       (Nothing,Just (ptr_a,Relocation a1),_) ->
           let pte_si = 8
-              part0  = raw_data section is_bss is_funptr_array a (ptr_a - a)
+              part0  = raw_data section is_bss is_funptr_array a (fromIntegral ptr_a - a)
               part1  = if is_funptr_array then [] else address_to_labels optional_object ptr_a 
               part2  = mk_reloc is_funptr_array a1 
-              part3  = mk_data_section section is_bss is_funptr_array (ptr_a+pte_si) (si + a - ptr_a - pte_si) in
+              part3  = mk_data_section section is_bss is_funptr_array (fromIntegral ptr_a+pte_si) (si + a - fromIntegral ptr_a - pte_si) in
             part0 ++ part1 ++ part2 ++ part3
        (Nothing,Nothing,Just (ptr_a,sym)) ->
           let pte_si = 8
@@ -523,10 +527,10 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
         bnd0 = case first_GE_symbol of
                  Nothing       -> a + si
                  Just (a0,sym) -> fromIntegral a0
-        first_GE_reloc  = if is_bss then Nothing else first_GE a bnd0 (\(Relocation a0 _) -> a0) $ S.toList $ binary_get_relocations bin
+        first_GE_reloc  = if is_bss then Nothing else only_when_lt (IM.lookupGE (fromIntegral a) $ binary_get_relocations bin) bnd0
         bnd1 = case first_GE_reloc of
-                 Nothing                -> bnd0
-                 Just (Relocation a0 _) -> a0
+                 Nothing                 -> bnd0
+                 Just (a0,Relocation a1) -> fromIntegral a0
         first_ELLF_pointer = first_GE a bnd1 (ellf_ptr_address . snd) $ all_ellf_pointers optional_object in
       (first_ELLF_pointer,first_GE_reloc,first_GE_symbol)
 
@@ -538,6 +542,11 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   symbol_is_reloc_below a' a0 (PointerToInternalFunction _ _)   = a0 < a'
   symbol_is_reloc_below a' a0 (PointerToObject _ _ _ _)         = a0 < a'
   symbol_is_reloc_below a' a0 _ = False
+
+  only_when_lt Nothing a_end = Nothing
+  only_when_lt e@(Just (a,_)) a_end
+    | a < fromIntegral a_end = e
+    | otherwise = Nothing
 
 
   -- Render raw data, but insert labels of symbols from .ellf.symbols as well as from the CFI directives.
@@ -606,10 +615,6 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
 
 
 
-  contains_address a si section =
-    let a0  = elfSectionAddr section
-        si0 = elfSectionSize section in
-      a0 <= a && a + si <= a0 + si0
 
   pointee_size ptr pte@(ELLF_Pointee base 0 _)
     | testBit (ellf_ptr_flags ptr) 2 = 4 -- A pointer diff even though target is 0
@@ -667,7 +672,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
 
 
   try_render_reloc_for a = do
-    Relocation _ a1 <- find (reloc_for $ fromIntegral a) $ binary_get_relocations bin
+    Relocation a1 <- IM.lookup (fromIntegral a) $ binary_get_relocations bin
     return $ withIndent ".quad " ++ head (mk_all_labels ellf optional_object a1)
 
   try_render_symbol_at :: Word64 -> Maybe String
@@ -949,7 +954,7 @@ with_size_directive seg (BitSize si) s = mk_size_directive si ++ seg ++ "[" ++ s
   mk_size_directive 80  = "tbyte ptr "
   mk_size_directive 128 = "oword ptr "
   mk_size_directive 256 = "ymmword ptr "
-  mk_size_directive 512 = "zword ptr "
+  mk_size_directive 512 = "zmmword ptr "
 
 
 -- Symbolization of a RIP-relative operand
@@ -1001,7 +1006,7 @@ symbolize_address bin ellf object in_data_section a =
       Just (sym@(PointerToObject o _ 0 _))        -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL"
       Just (sym@(Relocated_ResolvedObject o a 0)) -> if in_data_section then Nothing else Just $ withRIP ++ o ++ "@GOTPCREL" -- error $ "TODO: symbolization of 0x" ++ showHex a ++ ": " ++ show sym
       Just (sym@(TLS_Relative f))                 -> Just $ withRIP ++ f ++ "@GOTTPOFF"
-      Just (sym@(TLS_Module f))                   -> Just $ withRIP ++ f ++ "@DTPMOD"
+      Just (sym@(TLS_Module f))                   -> Just $ withRIP ++ f ++ "@TLSDESC" -- TODO See note ZZZ below.
 
       -- TODO
       Just (sym@(AddressOfObject o True))         -> if in_data_section then Nothing else Just $ withRIP ++ o
@@ -1009,9 +1014,9 @@ symbolize_address bin ellf object in_data_section a =
       _ -> Nothing
 
   try_reloc a = do
-    sec <- find (contains_address a) $ elfSections $ fromJust $ get_elf bin
+    sec <- find (elf_section_contains_address a) $ elfSections $ fromJust $ get_elf bin
     if isInfixOf ".got" $ elfSectionName sec then do
-      Relocation a0 a1 <- find (\(Relocation a0 a1) -> a0 == a) $ binary_get_relocations bin
+      Relocation a1 <- IM.lookup (fromIntegral a) $ binary_get_relocations bin
       return $ withRIP ++ mk_label ellf object a1 ++ "@GOTPCREL"
     else
       Nothing
@@ -1048,18 +1053,22 @@ symbolize_address bin ellf object in_data_section a =
   mk_error_message a = "ADDRESS 0x" ++ showHex a ++ " HAS NO ENCOMPASSING GLOBAL"
 
   in_text_section a = 
-    case find (contains_address a) $ elfSections $ fromJust $ get_elf bin of
+    case find (elf_section_contains_address a) $ elfSections $ fromJust $ get_elf bin of
       Just s  -> SHF_EXECINSTR `elem` elfSectionFlags s
       Nothing -> False
 
+-- Note ZZZ:
+-- (see page 22 of https://www.akkadia.org/drepper/tls.pdf)
+-- The following GAS syntax compiles and links:
+{--
+foo:
+    .byte 0x66
+    lea rdi, [rip + _ZSt11__once_call@TLSGD]
+	  .word 0x6666
+    rex64
+    CALL __tls_get_addr@PLT
+--}
 
-  is_reloc_loc a' (Relocation a0 _) = a0 == a'
-
-
-  contains_address a section =
-    let a0  = elfSectionAddr section
-        si0 = elfSectionSize section in
-      a0 <= a && a < a0 + si0
 
 substitutions :: (String -> Maybe (String,String)) -> (String -> String) -> String -> String
 substitutions pattern replacement [] = []
@@ -1103,6 +1112,5 @@ first_LE x f (a:as)
     | f b <= x && f b > f a = first_LE' x b bs
     | otherwise             = first_LE' x a bs
 
-reloc_for a (Relocation a0 a1) = a == a0
 
 

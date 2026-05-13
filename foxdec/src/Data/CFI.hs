@@ -151,6 +151,8 @@ get_callsite_region_starts_from_gcc_except_table = IS.fromList . map (\(_,start,
 get_callsite_region_ends_from_gcc_except_table = IS.fromList . map (\(end,_,_,_) -> end) . get_callsite_regions_from_gcc_except_table
 
 
+
+
 -- Given an action index (i.e., the action number stored in a callsite) retrieve an ordered list of actions annotated with their type infos.
 gcc_except_table_action_indx_to_type_info t = map gcc_except_table_action_to_type_info . traverse_actions . find_action_at
  where
