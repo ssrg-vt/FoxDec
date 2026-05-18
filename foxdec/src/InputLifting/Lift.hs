@@ -390,7 +390,7 @@ make_new_entry a encompassing_function = do
   cfg <- gets current_cfg
 
   let parents = xgraph_parents cfg $ toInt a
-  reach <- get_function_reach a
+  reach <- get_function_reach a encompassing_function
 
   xDebug 1 $ "Reach: " ++ showHex_set reach
   new_rets <- IS.fromList <$> (filterM isRET $ IS.toList reach)
@@ -530,8 +530,8 @@ trigger_call_to_entry entry0 = do
 
 
 
-get_function_reach :: BinaryClass bin => InstructionAddress -> XLifting bin IS.IntSet
-get_function_reach a = do
+get_function_reach :: BinaryClass bin => InstructionAddress -> FunctionEntry -> XLifting bin IS.IntSet
+get_function_reach a encompassing_function = do
   find_entry <- get_entry_of_instruction a
   case find_entry of
     Nothing -> return IS.empty
@@ -541,7 +541,7 @@ get_function_reach a = do
   get_function_reach_from :: BinaryClass bin => FunctionEntry -> XLifting bin IS.IntSet
   get_function_reach_from entry = do
     g     <- gets current_cfg
-    reach <- dfs (snd <.> get_next_collapsed_calls (S.singleton entry)) (is_RET_in_entry entry) (is_covered) a 
+    reach <- dfs (snd <.> get_next_collapsed_calls (S.singleton entry)) (is_RET_in_entry entry) is_encompassing_or_covered a 
     return reach
 
   dfs next stopAtIncl stopAtExcl a = do
@@ -575,13 +575,16 @@ get_function_reach a = do
           return False
       _ -> return False
 
-
-  is_covered :: BinaryClass bin => Int -> XLifting bin Bool
-  is_covered a = do
-    find_table <- find_ehframe_table_covering_address $ InstructionAddress a
-    case find_table  of
-      Just t  -> return $ True 
-      Nothing -> return $ False
+  -- Stop the dfs when we hit an instruction covered by a region in an ehframe section, or
+  -- when we hit the encompassing function entry again
+  is_encompassing_or_covered :: BinaryClass bin => Int -> XLifting bin Bool
+  is_encompassing_or_covered a
+    | FunctionEntry a == encompassing_function = return True
+    | otherwise = do
+      find_table <- find_ehframe_table_covering_address $ InstructionAddress a
+      case find_table  of
+        Just t  -> return $ True 
+        Nothing -> return $ False
 
 
 

@@ -128,6 +128,8 @@ data ECFG_Vertex = ECFG_Vertex Word64 Word64 [ECFG_Vertex_Info] (S.Set (Word64,W
 instance Show ECFG_Vertex where
   show (ECFG_Vertex start end info calls) = "Block 0x" ++ showHex start
 
+show_ecfg_vertex (ECFG_Vertex start end info calls) = "Block 0x" ++ showHex start ++ " --> 0x" ++ showHex end ++ show info ++ show calls
+
 -- An edge goes from blockID to blockID with optionally a label (for filtering exception types).
 data ECFG_Edge = ECFG_Edge {
     ecfg_edge_start :: Int
@@ -185,7 +187,7 @@ instance Show ECFG_SymState where
   show (ECFG_SymState es a) = "0x" ++ showHex a ++ ": " ++ show es
 
 
-emitLog msg = trace msg
+emitLog msg = id -- trace msg
 
 ecfg_vertex_to_address (ECFG_Vertex a _ _ _) = a
 
@@ -216,10 +218,10 @@ sym_exec_ecfg_entry l isFirst entry = do
   is_explored <- gets (IS.member (fromIntegral entry) . ssf_currently_explored_functions)
   case (is_explored, IM.lookup (fromIntegral entry) posts,IM.lookup (fromIntegral entry) $ lrf_cfgs l) of
     (_,_,Nothing) -> do
-      -- TODO: happens in lamartine
-      -- TODO: generate WeirdError
+      -- Extremely unlikely, but may happen if function starts with instructions that are not disassemblable.
+      -- Examples: aesenc, aesenclast in lamartine
       let msg = "Entry 0x" ++ showHex entry ++ " has no CFG."
-      return $ emitLog msg $ S.singleton Terminated
+      return $ emitLog msg $ S.singleton $ WeirdError msg
     (True,_,Just cfg) -> do
       let msg      = "Entry 0x" ++ showHex entry ++ ": overapproximation due to (mutual) recursion."
       let ecfg     = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry Nothing cfg
@@ -230,9 +232,8 @@ sym_exec_ecfg_entry l isFirst entry = do
       return $ emitLog msg posts
     (_,Nothing,Just cfg) -> do
       putIfFirst $ "-----------------------------"
-      putIfFirst $ "Entry: " ++ address_to_label bin entry
-      let msg           = "Entry 0x" ++ showHex entry ++ " to be explored."
-      let ecfg_unfolded = emitLog msg $ cfg_to_ecfg l entry Nothing cfg
+      liftIO $ putStrLn $ "Entry: 0x" ++ showHex entry ++ ": " ++ address_to_label bin entry
+      let ecfg_unfolded = cfg_to_ecfg l entry Nothing cfg
       let ecfg          = ecgf_unfold_jumps_to_function_entries l ecfg_unfolded
 
 
@@ -257,8 +258,8 @@ sym_exec_ecfg_entry l isFirst entry = do
       putIfFirst $ "-----------------------------"
 
 
-      let msg = "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
-      return $ emitLog msg posts
+      liftIO $ putStrLn $ "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
+      return posts
  where
   bin = lrf_binary l
   putIfFirst 
@@ -372,7 +373,7 @@ ssf_set_explored entry False (StateSoFar fp bp fs sz) = StateSoFar fp bp (IS.del
 sym_exec_ecfg l ecfg =
   case get_blockID_for_address l ecfg $ ecfg_entry ecfg of
     Just blockID0 -> sym_exec_ecfg' l ecfg $ S.singleton (blockID0,init_ecfg_symstate ecfg blockID0)
-    Nothing -> return () -- error $ show ecfg -- TODO
+    Nothing -> return () -- Never happens
 
 sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
   case S.minView bag of
@@ -838,7 +839,7 @@ address_to_label bin a =
    _                                         -> "0x" ++ showHex a
       
 
--- See: ros/functions/0x15cf0, librclcpp_lifecycle.so.ecfg.pdf for a ncie example
+-- See: ros/functions/0x15cf0, librclcpp_lifecycle.so.ecfg.pdf for a nice example
 -- ALso: 0x18ee60 of ros, libfastrtps.so
 ecgf_unfold_jumps_to_function_entries :: BinaryClass bin => LiftedRepresentationFunctions bin -> ECFG -> ECFG
 ecgf_unfold_jumps_to_function_entries l = repeatUtilFixpoint unfold
@@ -867,12 +868,14 @@ ecgf_unfold_jumps_to_function_entries l = repeatUtilFixpoint unfold
      Just (blocKID',_) -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing blocKID') : ecfg_edges ecfg  }
      _ -> 
       case find_cfg_for_address l a of
-        Nothing        -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- TODO test without
+        -- Nothing -> error $ show (show_ecfg_vertex v, showHex a) ++ "\n" ++ show ecfg
+        Nothing        -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens
         Just cfg_child ->
          let (maxBlockID,_)           = IM.findMax $ ecfg_vertices ecfg
              ecfg_child               = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a (Just a) cfg_child in
            case find_address_in_ecfg a ecfg_child of
-             Nothing -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- TODO test without 
+             -- Nothing -> error $ show (show_ecfg_vertex v, showHex a) ++ "\n" ++ show ecfg ++ "\n\n" ++ show ecfg_child ++ "\n\n" ++ show cfg_child
+             Nothing -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens 
              Just (new_blockID,new_v) ->
                let ecfg_parent        = ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing new_blockID) : ecfg_edges ecfg }
                    msg                = "Unfolding: connecting " ++ show v ++ " to " ++ show new_v
