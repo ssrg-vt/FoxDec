@@ -99,10 +99,6 @@ withLR m = do
 
 
 
-isRegionStart bin i = (fromIntegral (inAddress i) + inSize i) `IS.member` all_region_starts
- where
-   all_region_starts = IS.unions $ map get_callsite_region_starts_from_gcc_except_table all_tables
-   all_tables = IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
 
 -- Make the basic blocks for a snippet.
 -- This requires a DFS where instruction adrdesses with mutiple parents or mulitple children indicate the start or end of a basic block.
@@ -111,17 +107,16 @@ isRegionStart bin i = (fromIntegral (inAddress i) + inSize i) `IS.member` all_re
 lr_make_function_blocks :: BinaryClass bin => FunctionEntry -> XLifted bin (S.Set FunctionEntry,Blocks,Sources)
 lr_make_function_blocks entry = do
   (bin,_,lr,_) <- ask
-  (lps,additional_sources) <- get_additional_sources
+  (lps,additional_sources,t) <- get_additional_sources
   let sources = IS.insert (toInt entry) additional_sources
-  (blocks,entries) <- execStateT (dfs_all lps $ map (\a -> (a,a)) $ IS.toList sources) $ (IM.empty,S.empty)
+  (blocks,entries) <- execStateT (dfs_all t lps $ map (\a -> (a,a)) $ IS.toList sources) $ (IM.empty,S.empty)
   return (entries,blocks,sources) 
  where
   -- Do a depth-first-search to traverse the snippet of the entry.
   -- The extra state stores the currently known blocks, and the snippets to which they leak.
-  dfs_all :: BinaryClass bin => IS.IntSet -> [(Int, Int)] -> StateT (Blocks,S.Set FunctionEntry) (XLifted bin) ()
-  dfs_all lps = mapM_ (dfs lps)
-  dfs lps (blockID,a) = do
-    (bin,_,_,_) <- ask
+  dfs_all :: BinaryClass bin => Maybe GCC_Except_Table -> IS.IntSet -> [(Int, Int)] -> StateT (Blocks,S.Set FunctionEntry) (XLifted bin) ()
+  dfs_all t lps = mapM_ (dfs t lps)
+  dfs t lps (blockID,a) = do
     (blocks,leaking_entries) <- get
     x <- lift $ add_address blockID a blocks
     case x of
@@ -131,23 +126,23 @@ lr_make_function_blocks entry = do
         let children = S.filter (\child -> not $ toInt child `IS.member` lps) children0
         Just i <- lift $ withLR $ fetch $ InstructionAddress a
         -- Start a new basic block if there is outgoing branching
-        let start_new_block = S.size children > 1 || isCall (inOperation i) || isJump (inOperation i) || isCondJump (inOperation i) || isRegionStart bin i
+        let start_new_block = S.size children > 1 || isCall (inOperation i) || isJump (inOperation i) || isCondJump (inOperation i) || isRegionStart t i
         let nxt = map (\child -> (if start_new_block then child else blockID',child)) $ map toInt $ S.toList children
         put (blocks',S.union new_entries leaking_entries)
-        dfs_all lps nxt
+        dfs_all t lps nxt
 
 
   get_additional_sources = do 
     (bin,_,lr,_) <- ask
     case find (\t -> function_entry t == fromIntegral (toInt entry)) $ cfi_gcc_except_tables $ binary_get_cfi bin of
-      Nothing -> return (IS.empty,IS.empty)
+      Nothing -> return (IS.empty,IS.empty,Nothing)
       Just t -> do
         lps     <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_landing_pads_from_gcc_except_table t)
         starts  <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_callsite_region_starts_from_gcc_except_table t)
         ends    <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_callsite_region_ends_from_gcc_except_table t)
         let as = xgraph_all_parents $ current_inlining lr
         inlines <- IS.fromList <$> (filterM (is_source_from_entry True) $ IS.toList as)
-        return $ (lps,IS.unions [lps,starts,ends,inlines])
+        return $ (lps,IS.unions [lps,starts,ends,inlines],Just t)
 
   is_source_from_entry :: BinaryClass bin => Bool -> Int -> XLifted bin Bool
   is_source_from_entry strict a = do
@@ -174,10 +169,14 @@ lr_make_function_blocks entry = do
       Just block -> 
         if head block == i then
           return Nothing
-        else if i `elem` block then
-          error $ "Should not happen:" ++ show i ++ show block
+        -- TODO never happens, but could be strict check
+        -- else if i `elem` block then
+        --  error $ "Should not happen:" ++ show i ++ show block
         else do
           return $ Just (IM.insert blockID' (block ++ [i]) blocks, blockID')
+
+  isRegionStart Nothing  i = False
+  isRegionStart (Just t) i = (fromIntegral (inAddress i) + inSize i) `IS.member` get_callsite_region_starts_from_gcc_except_table t
 
 lr_make_function_cfg :: BinaryClass bin => S.Set FunctionEntry -> Blocks -> Sources -> XLifted bin ControlFlowGraph
 lr_make_function_cfg comp blocks sources = do
