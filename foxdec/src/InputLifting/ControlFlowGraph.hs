@@ -138,8 +138,8 @@ lr_make_function_blocks entry = do
       Nothing -> return (IS.empty,IS.empty,Nothing)
       Just t -> do
         lps     <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_landing_pads_from_gcc_except_table t)
-        starts  <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_callsite_region_starts_from_gcc_except_table t)
-        ends    <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_callsite_region_ends_from_gcc_except_table t)
+        starts  <- IS.fromList <$> filterM (is_source_from_entry True)  (IS.toList $ get_callsite_region_starts_from_gcc_except_table t)
+        ends    <- IS.fromList <$> filterM (is_source_from_entry True) (IS.toList $ get_callsite_region_ends_from_gcc_except_table t)
         let as = xgraph_all_parents $ current_inlining lr
         inlines <- IS.fromList <$> (filterM (is_source_from_entry True) $ IS.toList as)
         return $ (lps,IS.unions [lps,starts,ends,inlines],Just t)
