@@ -144,8 +144,8 @@ symbolically_execute_until ctxt@(bin,config) a as symstate
     count <- get
     put $ count + 1
     Just i          <- liftIO $ fetch_instruction bin $ fromIntegral a
-    if count >= 1000 || isRet (inOperation i) then
-      return $ S.singleton symstate
+    if count >= 300 || isRet (inOperation i) then
+      return $ S.empty -- S.singleton symstate
     else do
       let sem          = instr_to_semantics ctxt i
       let symstates'   = execState (run i sem count) (S.singleton symstate)
@@ -164,7 +164,7 @@ symbolically_execute_until ctxt@(bin,config) a as symstate
 
   do_normal_instr (ASemantics sem rip si _) count = do
       set_rip (rip + si)
-      tau ctxt count True rip si sem
+      tau ctxt count True False rip si sem
 
   do_jump sem@(ASemantics (Jump src _) rip si _) = do
     set_rip (rip + si)
@@ -184,9 +184,12 @@ symbolically_execute_until ctxt@(bin,config) a as symstate
   do_cond_jump i JB   = do_cond_jump_on_flags i ["CF"]      (\[cf] -> cf)
   do_cond_jump i JNB  = do_cond_jump_on_flags i ["CF"]      (\[cf] -> not cf)
   do_cond_jump i JNLE = do_cond_jump_on_flags i ["SG"]      (\[sg] -> sg)
-  do_cond_jump i op   = do
-    symstate <- get
-    error $ "unsupported conditional jump: " ++ show i ++ "\n" ++ show_symstate ctxt symstate
+  do_cond_jump i JLE  = do_cond_jump_on_flags i ["SG"]      (\[sg] -> not sg)
+  do_cond_jump i op   = do_jump_both i
+  -- TODO more jumps
+  --do_cond_jump i op   = do
+  --  symstate <- get
+  --  error $ "unsupported conditional jump: " ++ show i ++ "\n" ++ show_symstate ctxt symstate
 
   do_cond_jump_on_flags i flgs cond = do
     flg_values <- mapM sread_flag flgs
@@ -1215,7 +1218,7 @@ tau_path ctxt p symstate = runState (traverse 0 p) symstate
     resolved_ops <- gets $ resolve_operands ctxt sem
 
     -- regs <- get_regs
-    tau ctxt n (does_fall_through p0) rip si exec
+    tau ctxt n (does_fall_through p0) True rip si exec
     resolved_ops' <- traverse (n+1) p
     return $ resolved_ops : resolved_ops'
     -- return (prune_symstate_for_instruction sem regs:regs')
@@ -1500,17 +1503,17 @@ cap_expr e (SE_StatePart sp _)
   | expr_size e > 50 = get_regs <&> (read_top_from_statepart sp)
   | otherwise        = return e
 
-tau :: BinaryClass bin => Context bin -> Int -> Bool -> Word64 -> Word64 -> AExecution -> State SymState ()
-tau ctxt n fall_through rip si (Apply op op_si dst srcs)          = do
+tau :: BinaryClass bin => Context bin -> Int -> Bool -> Bool -> Word64 -> Word64 -> AExecution -> State SymState ()
+tau ctxt n fall_through generalize_CMP rip si (Apply op op_si dst srcs)          = do
   when (op == Minus) $ do
-    tau ctxt n fall_through rip si $ SetFlag CMP dst (srcs!!1)
+    tau ctxt n fall_through generalize_CMP rip si $ SetFlag CMP dst (srcs!!1)
 
   srcs' <- mapM (sread_src ctxt) srcs
   let v = simp $ SE_Op op op_si srcs'
   v' <- cap_expr v dst 
   swrite_dst ctxt dst $ Just v'
 
-tau ctxt n fall_through rip si (ApplyWhenImm op op_si dst srcs)   = do
+tau ctxt n fall_through generalize_CMP rip si (ApplyWhenImm op op_si dst srcs)   = do
   srcs' <- mapM (sread_src ctxt) srcs
   let v = simp $ SE_Op op op_si srcs'
   v' <- cap_expr v dst 
@@ -1518,47 +1521,48 @@ tau ctxt n fall_through rip si (ApplyWhenImm op op_si dst srcs)   = do
     swrite_dst ctxt dst $ Just v'
   else
     swrite_dst ctxt dst Nothing  
-tau ctxt n fall_through rip si (Mov dst src)                = do
+tau ctxt n fall_through generalize_CMP rip si (Mov dst src)                = do
   src' <- sread_src ctxt src
   swrite_dst ctxt dst (Just src') 
-tau ctxt n fall_through rip si (MovZX dst src op_si)        = do
+tau ctxt n fall_through generalize_CMP rip si (MovZX dst src op_si)        = do
   src' <- sread_src ctxt src
   swrite_dst ctxt dst (Just $ simp $ SE_Bit op_si src') 
-tau ctxt n fall_through rip si (SExtend dst h src l)        = do
+tau ctxt n fall_through generalize_CMP rip si (SExtend dst h src l)        = do
   src' <- sread_src ctxt src
   swrite_dst ctxt dst (Just $ simp $ SE_SExtend l h src') 
-tau ctxt n fall_through rip si (Lea dst src)                = do
+tau ctxt n fall_through generalize_CMP rip si (Lea dst src)                = do
   let SE_StatePart (SP_Mem a si) _ = src
   src' <- sresolve_expr ctxt a
   swrite_dst ctxt dst (Just src') 
-tau ctxt n fall_through rip si (NoSemantics op dst srcs)    = do
+tau ctxt n fall_through generalize_CMP rip si (NoSemantics op dst srcs)    = do
   -- Note sources must be read, as reading can influence the memory model
   srcs' <- mapM (sread_src ctxt) srcs
   case dst of
     Nothing  -> return ()
     Just dst -> swrite_dst ctxt dst Nothing  
-tau ctxt n fall_through rip si sem@(SysCall)                    = do
+tau ctxt n fall_through generalize_CMP rip si sem@(SysCall)                    = do
   -- Note sources must be read, as reading can influence the memory model
   regs <- gets $ syscall_input_registers 
   mapM_ sread_reg regs
   mapM_ (\r -> swrite_reg r Nothing) $ regs_clobbered_by_syscall
-tau ctxt n fall_through rip si sem@(SetFlag op src0 src1) = do
+tau ctxt n fall_through generalize_CMP rip si sem@(SetFlag op src0 src1) = do
   v <- sread_src ctxt src0
-  --case v of
-  -- SE_Immediate _ -> swrite_dst ctxt src0 Nothing
-  --  _              -> return ()
+  when generalize_CMP $ do
+    case v of
+     SE_Immediate _ -> swrite_dst ctxt src0 Nothing
+     _              -> return ()
   sset_flag ctxt op src0 src1
 
-tau ctxt n fall_through rip si (SetXX dst)                  = soverwrite_dst ctxt dst $ Just $ SE_Op ZeroOne 8 []
-tau ctxt n fall_through rip si (Call op i)                  = scall ctxt n i rip 
-tau ctxt n fall_through rip si (Jump op i)                  = sjump ctxt n rip i
-tau ctxt n fall_through rip si (CondJump op)                = scondjump ctxt rip fall_through op si
-tau ctxt n fall_through rip si (Nop)                        = return ()
+tau ctxt n fall_through generalize_CMP rip si (SetXX dst)                  = soverwrite_dst ctxt dst $ Just $ SE_Op ZeroOne 8 []
+tau ctxt n fall_through generalize_CMP rip si (Call op i)                  = scall ctxt n i rip 
+tau ctxt n fall_through generalize_CMP rip si (Jump op i)                  = sjump ctxt n rip i
+tau ctxt n fall_through generalize_CMP rip si (CondJump op)                = scondjump ctxt rip fall_through op si
+tau ctxt n fall_through generalize_CMP rip si (Nop)                        = return ()
 
-tau ctxt n fall_through rip si (Push src op_si)             = spush ctxt src op_si
-tau ctxt n fall_through rip si (Pop dst op_si)              = spop ctxt dst op_si
-tau ctxt n fall_through rip si (Leave)                      = sleave ctxt
-tau ctxt n fall_through rip si (Ret)                        = sret ctxt
+tau ctxt n fall_through generalize_CMP rip si (Push src op_si)             = spush ctxt src op_si
+tau ctxt n fall_through generalize_CMP rip si (Pop dst op_si)              = spop ctxt dst op_si
+tau ctxt n fall_through generalize_CMP rip si (Leave)                      = sleave ctxt
+tau ctxt n fall_through generalize_CMP rip si (Ret)                        = sret ctxt
 
 
 

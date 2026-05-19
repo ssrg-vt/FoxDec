@@ -232,7 +232,8 @@ sym_exec_ecfg_entry l isFirst entry = do
       return $ emitLog msg posts
     (_,Nothing,Just cfg) -> do
       putIfFirst $ "-----------------------------"
-      liftIO $ putStrLn $ "Entry: 0x" ++ showHex entry ++ ": " ++ address_to_label bin entry
+      let fname         = if take 2 (address_to_label bin entry) == "0x" then "" else "\n" ++ address_to_label bin entry
+      liftIO $ putStrLn $ "Entry: 0x" ++ showHex entry ++ fname
       let ecfg_unfolded = cfg_to_ecfg l entry Nothing cfg
       let ecfg          = ecgf_unfold_jumps_to_function_entries l ecfg_unfolded
 
@@ -255,10 +256,8 @@ sym_exec_ecfg_entry l isFirst entry = do
       ssf <- get
       posts <- gets $ ssf_get_posts entry
       putIfFirst $ "Post: " ++ (show $ S.toList posts)
-      putIfFirst $ "-----------------------------"
-
-
       liftIO $ putStrLn $ "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
+      putIfFirst $ "-----------------------------"
       return posts
  where
   bin = lrf_binary l
