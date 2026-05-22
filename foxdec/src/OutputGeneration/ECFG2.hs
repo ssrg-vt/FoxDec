@@ -224,7 +224,7 @@ sym_exec_ecfg_entry l isFirst entry = do
       return $ emitLog msg $ S.singleton $ WeirdError msg
     (True,_,Just cfg) -> do
       let msg      = "Entry 0x" ++ showHex entry ++ ": overapproximation due to (mutual) recursion."
-      let ecfg     = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry Nothing cfg
+      let ecfg     = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry cfg
       let q        = overapproximate_post l entry ecfg
       return $ emitLog msg q 
     (_,Just posts,Just cfg) -> do
@@ -234,21 +234,21 @@ sym_exec_ecfg_entry l isFirst entry = do
       putIfFirst $ "-----------------------------"
       let fname         = if take 2 (address_to_label bin entry) == "0x" then "" else "\n" ++ address_to_label bin entry
       liftIO $ putStrLn $ "Entry: 0x" ++ showHex entry ++ fname
-      let ecfg_unfolded = cfg_to_ecfg l entry Nothing cfg
-      let ecfg          = ecgf_unfold_jumps_to_function_entries l ecfg_unfolded
+      let ecfg_folded   = cfg_to_ecfg l entry cfg
+      let ecfg          = ecgf_unfold_jumps_to_function_entries l ecfg_folded
 
-
-      let dirname  = binary_dir_name bin
-      let name     = binary_file_name bin
-      let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
-      let fname2   = fdirname ++ name ++ ".ecfg.dot"
+      let dirname   = binary_dir_name bin
+      let name      = binary_file_name bin
+      let fdirname  = dirname ++ "functions/0x" ++ showHex entry ++ "/"
+      let fname2    = fdirname ++ name ++ ".ecfg.dot"
+      let ecfg_comp = cfg_to_ecfg l entry $ cfg_compress l entry cfg
       liftIO $ createDirectoryIfMissing False $ fdirname
-      liftIO $ writeFile fname2 $ render_ecfg_to_dot ecfg
+      liftIO $ writeFile fname2 $ render_ecfg_to_dot ecfg_comp
 
       pres <- gets ssf_block_pres
       modify $ ssf_set_explored entry True
       modify $ ssf_set_preconditions IM.empty
-      modify $ ssf_set_ecfg_size entry (cfg_size cfg) (length $ ecfg_edges ecfg_unfolded)
+      modify $ ssf_set_ecfg_size entry (cfg_size cfg) (length $ ecfg_edges ecfg_comp)
       sym_exec_ecfg l ecfg
       modify $ ssf_set_preconditions pres
       modify $ ssf_set_explored entry False
@@ -622,10 +622,8 @@ render_ecfg_to_dot (ECFG vertices edges entry regions) =
 
 
 -- Creating an ECFG from a CFG
-cfg_to_ecfg :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> Maybe Word64 -> ControlFlowGraph -> ECFG
-cfg_to_ecfg l entry keepAddress cfg =
-  let cfg' = cfg_compress l entry keepAddress cfg in
-    ECFG (mk_vertices cfg') (mk_edges cfg') entry $ concatMap mk_regions all_relevant_tables
+cfg_to_ecfg :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> ControlFlowGraph -> ECFG
+cfg_to_ecfg l entry cfg = ECFG (mk_vertices cfg) (mk_edges cfg) entry $ concatMap mk_regions all_relevant_tables
  where
   bin    = lrf_binary l
   config = lrf_config l
@@ -871,7 +869,7 @@ ecgf_unfold_jumps_to_function_entries l = repeatUtilFixpoint unfold
         Nothing        -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens
         Just cfg_child ->
          let (maxBlockID,_)           = IM.findMax $ ecfg_vertices ecfg
-             ecfg_child               = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a (Just a) cfg_child in
+             ecfg_child               = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a cfg_child in
            case find_address_in_ecfg a ecfg_child of
              -- Nothing -> error $ show (show_ecfg_vertex v, showHex a) ++ "\n" ++ show ecfg ++ "\n\n" ++ show ecfg_child ++ "\n\n" ++ show cfg_child
              Nothing -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens 
@@ -936,12 +934,11 @@ table_has_overlapping_region_or_landing_pad_for_block cfg t blockID =
 -- 2.) contains calls to, e.g., __cxa_throw
 -- 3.) has CFI directives
 -- 4.) is the beginning or end of a call-site region 
-cfg_compress :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> Maybe Word64 -> ControlFlowGraph -> ControlFlowGraph
-cfg_compress l entry keepAddress cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_basic_blocks cfg0
+cfg_compress :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> ControlFlowGraph -> ControlFlowGraph
+cfg_compress l entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_basic_blocks cfg0
  where
   maybe_remove_node blockID cfg
     | blockID_to_address cfg blockID == entry                    = cfg
-    | block_starts_address_to_keep cfg keepAddress blockID       = cfg
     | IS.null (intgraph_pre  cfg blockID)                        = cfg
     | IS.null (intgraph_post cfg blockID)                        = cfg
     | relevant_calls l cfg blockID /= []                         = cfg

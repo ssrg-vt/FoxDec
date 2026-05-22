@@ -1104,19 +1104,21 @@ maximumWith f as =
 --
 -- Function get_gcc_except_table_covering_address can be used to lookup an address and get the corresponding table.
 generate_eh_frame_covering :: CFI -> IM.IntMap (Int,Int)
-generate_eh_frame_covering cfi = foldl' add_landing_pads (IM.fromList $ concatMap mk_covering $ IM.assocs $ cfi_gcc_except_tables cfi) $ IM.assocs $ cfi_gcc_except_tables cfi
+generate_eh_frame_covering cfi = foldl' add_landing_pads_and_entries (IM.fromList $ concatMap mk_covering $ IM.assocs $ cfi_gcc_except_tables cfi) $ IM.assocs $ cfi_gcc_except_tables cfi
  where
   mk_covering (k,t) = map (mk_covering_from_call_site k) $ get_callsite_regions_from_gcc_except_table t
 
   mk_covering_from_call_site k (end,start,lp,_) = (start,(end+1,k)) -- The +1 ensures the region ends stay within the corrcet function
 
 
-  add_landing_pads covering (k,t) = foldl' (add_landing_pads_from_callsite k) covering $ get_callsite_regions_from_gcc_except_table t
+  add_landing_pads_and_entries covering (k,t) = add_address k (foldl' (add_landing_pads_from_callsite k) covering $ get_callsite_regions_from_gcc_except_table t) $ fromIntegral $ function_entry t
 
-  add_landing_pads_from_callsite k covering (end,start,lp,_) =
-    case get_gcc_except_table_covering_address covering lp of
+  add_landing_pads_from_callsite k covering (end,start,lp,_) = add_address k covering lp
+
+  add_address k covering a =
+    case get_gcc_except_table_covering_address covering a of
       Just _  -> covering
-      Nothing -> IM.insert lp (lp+1,k) covering
+      Nothing -> IM.insert a (a+1,k) covering
 
 
 -- ELF magic number: 0x7F 'E' 'L' 'F'

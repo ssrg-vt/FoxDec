@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, ScopedTypeVariables, DeriveGeneric, StrictData, StandaloneDeriving #-}
+{-# LANGUAGE PartialTypeSignatures, ScopedTypeVariables, DeriveGeneric, Strict, StandaloneDeriving #-}
 
 
 module OutputGeneration.ELLF where

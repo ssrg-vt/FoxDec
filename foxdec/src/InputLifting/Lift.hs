@@ -69,11 +69,7 @@ lift_to_lifted_representation_functions bin config = do
 lift_to_unstructured_representation :: BinaryClass bin => bin -> Config -> IO LiftedRepresentationUnstructured
 lift_to_unstructured_representation bin config = runReaderT (execStateT run init_lr) (bin,config)
  where
-  run = do
-    get_ehframe_locations >>= add_function_entries_to_bag
-    explore_bag False
-    add_function_entries_to_bag mk_init_bag
-    xlift
+  run = add_function_entries_to_bag mk_init_bag >> xlift
 
   mk_init_bag = S.fromList $ map mk_entry $ delete 0 $ binary_entry bin
   mk_entry e  = (FunctionEntry $ fromIntegral e,InstructionAddress $ fromIntegral e)
@@ -89,13 +85,14 @@ lift_to_unstructured_representation bin config = runReaderT (execStateT run init
 -- After exploration, dangling function entries are explored until no more exists.
 xlift :: BinaryClass bin => XLifting bin ()
 xlift = do
-  explore_bag True
+  explore_bag 
   ifM explore_more_entries xlift xlift_finish
  where
   explore_more_entries = orM [
-      explore_dangling get_dangling_relocations     "relocations"
-    , explore_dangling get_dangling_exports         "exported functions"
-    , explore_dangling get_dangling_LEA_entries     "LEA's"
+      explore_dangling get_dangling_relocations  "relocations"
+    , explore_dangling get_dangling_exports      "exported functions"
+    , explore_dangling get_dangling_LEA_entries  "LEA's"
+    , explore_dangling get_ehframe_locations     "addresses from the ehframe"
     ]
 
   explore_dangling get_dangling_fptrs msg = do
@@ -103,7 +100,7 @@ xlift = do
     if S.null dangling then do
       return False
     else do
-      xtoLog $ "Dangling function pointers from " ++ msg ++ ": " ++ show (S.toList $ S.map snd dangling)
+      xtoLog $ "Dangling instruction addresses from " ++ msg ++ ": " ++ show (S.toList $ S.map snd dangling)
       add_function_entries_to_bag dangling
       return True
 
@@ -151,9 +148,10 @@ get_ehframe_locations = do
   let fptrs  = map (\a -> (FunctionEntry a, InstructionAddress a)) $ map (fromIntegral . function_entry) $ all_tables bin
   let lps    = get_all_landing_pads' bin
   let starts = get_all_region_starts bin
-  let bag    = S.fromList $ concat [fptrs, lps,starts]
-  modify $ register_real_entries $ S.map fst bag
-  return bag
+  let all    = concat [fptrs, lps,starts]
+  bag       <- filterM (\(e,a) -> isDangling $ toInt a) all
+  modify $ register_real_entries $ S.fromList $ map fst fptrs
+  return $ S.fromList bag
  where
   get_all_landing_pads' bin = map withFunctionEntry $ get_all_landing_pads bin
   withFunctionEntry (e,lp) = (FunctionEntry $ fromIntegral e,InstructionAddress lp)
@@ -221,8 +219,8 @@ whenDangling a = do
 
 -- The recursive traversal. Pick an edge (a0,a1) from the bag. Address a0 is already explored, so we should know which function it belongs to.
 -- Based on that, we decide the function entry of a1. Then we explore address a1.
-explore_bag :: BinaryClass bin => Bool -> XLifting bin ()
-explore_bag continue = whenJustM pick_from_bag $ \x -> explore x >> when continue (explore_bag continue)
+explore_bag :: BinaryClass bin => XLifting bin ()
+explore_bag = whenJustM pick_from_bag $ \x -> explore x >> explore_bag
  where
   -- Explore address $a1$ coming from address $a0$
   explore (a0,a1) = do
