@@ -15,6 +15,7 @@ import OutputGeneration.ELLF
 import OutputGeneration.ECFG2
 import OutputGeneration.LRToELLF 
 import OutputGeneration.LRToCallGraph
+import OutputGeneration.Metrics
 import InputLifting.Types
 import InputLifting.Lift
 import InputLifting.Types
@@ -83,8 +84,8 @@ data CommandLineArgs = CommandLineArgs
     args_config             :: FilePath,   -- ^ The .config file
     args_dirname            :: FilePath,   -- ^ The directory where results are stored
     args_filename           :: Maybe FilePath,   -- ^ The name of the binary
-    args_inputtype          :: String,     -- ^ The input type (a binary or a .L0 file)
-    args_generate_L0        :: Bool,       -- ^ Shall we generate a .L0 file?
+    args_inputtype          :: String,     -- ^ The input type (a binary or a .LR file)
+    args_generate_LR        :: Bool,       -- ^ Shall we generate a .LR file?
     args_generate_NASM      :: Bool,       -- ^ Shall we generate NASM?
     args_generate_functions :: Bool,       -- ^ Shall we generate CGs?
     args_generate_metrics   :: Bool,       -- ^ Shall we generate a .metrics file?
@@ -105,9 +106,9 @@ args =
     , Option ['c']     ["config"]     (ReqArg set_args_config      "CONFIGFILE")    "The config file with .dhall extension."
     , Option ['d']     ["dir"]        (ReqArg set_args_dirname     "DIRNAME")       "Directory to use."
     , Option ['n']     ["name"]       (OptArg set_args_filename    "FILENAME")      "Name of the binary."
-    , Option ['i']     ["input"]      (ReqArg set_args_inputtype   "INPUTTYPE")     "Either the string BINARY or the string L0."
+    , Option ['i']     ["input"]      (ReqArg set_args_inputtype   "INPUTTYPE")     "Either the string BINARY or the string LR."
     , Option ['v']     ["verbose"]    (NoArg  set_args_verbose)                     "If enabled, produce verbose output."
-    , Option []        ["GL0"]        (NoArg  set_args_generate_L0)                 "Generate a .L0 file (only if INPUTTYPE==BINARY)."
+    , Option []        ["GLR"]        (NoArg  set_args_generate_LR)                 "Generate a .LR file (only if INPUTTYPE==BINARY)."
     , Option []        ["Gcallgraph"] (NoArg  set_args_generate_callgraph)          "Generate an annotated call graph."
     , Option []        ["GNASM"]      (NoArg  set_args_generate_NASM)               "Generate NASM"
     , Option []        ["Gfuncs"]     (NoArg  set_args_generate_functions)          "Generate per function a control flow graph (CFG) and information."
@@ -120,7 +121,7 @@ args =
   set_args_dirname   str      args = args { args_dirname = str }
   set_args_filename  str      args = args { args_filename = str }
   set_args_inputtype str      args = args { args_inputtype = str }
-  set_args_generate_L0        args = args { args_generate_L0 = True }
+  set_args_generate_LR        args = args { args_generate_LR = True }
   set_args_generate_NASM      args = args { args_generate_NASM = True }
   set_args_generate_functions args = args { args_generate_functions = True }
   set_args_generate_metrics   args = args { args_generate_metrics = True }
@@ -148,17 +149,17 @@ parseCommandLineArgs argv =
     when (args_config args    == "") $ err "ERROR: No config file specified (missing -c)"
     when (args_dirname args   == "") $ err "ERROR: No dirname specified (missing -d)"
     when (args_inputtype args == "") $ err "ERROR: No input type specified (missing -i)"
-    when (args_inputtype args `notElem` ["BINARY","L0", "ELLF"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string L0 or the string ELLF."
-    when (args_generate_L0 args   && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output an L0 when input is set to L0."
-    when (args_generate_ellf args && args_inputtype args == "L0") $ err "ERROR: Cannot generate as output a lifted ELLF when input is set to L0."
+    when (args_inputtype args `notElem` ["BINARY","LR", "ELLF"]) $ err $ "ERROR: input type is now set to \"" ++ show (args_inputtype args) ++ "\" but should be either the string BINARY or the string LR or the string ELLF."
+    when (args_generate_LR args   && args_inputtype args == "LR") $ err "ERROR: Cannot generate as output an LR when input is set to LR."
+    when (args_generate_ellf args && args_inputtype args == "LR") $ err "ERROR: Cannot generate as output a lifted ELLF when input is set to LR."
     
-    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GL0, --Gfuncs, --Gmetrics, --Gcallgraph, --GNASM, --Gellf]"
+    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GLR, --Gfuncs, --Gmetrics, --Gcallgraph, --GNASM, --Gellf]"
     when (not $ validate_ellf args) $ err "ERROR: for reading and lifting an ELLF, set input type to ELLF and enable only the -G option -Gellf"
     
     return args
 
-  no_output args = all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM,args_generate_ellf]
-  validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_L0, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM] else True
+  no_output args = all (not . (&) args) [args_generate_LR, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM,args_generate_ellf]
+  validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_LR, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM] else True
 
 -- | The version number
 versionNumber = showVersion version
@@ -172,7 +173,7 @@ usageMsg = usageInfo usageMsgHeader args ++ "\n" ++ usageMsgFooter
     , "USAGE: ./run_foxdec -c CONFIGFILE -d DIRNAME -n FILENAME -i INPUTTYPE [OUTPUTTYPES ...]"
     , ""
     , "Provide the configuration file, the directory where the input is located, the name of the binary, and the type of desired input and output(s)."
-    , "The input can be a binary, or if the binary has already been lifted, its L0 representation. stored in a .L0 file."
+    , "The input can be a binary, or if the binary has already been lifted, its LR representation. stored in a .LR file."
     , "The desired output-type(s) can be any of the -G flags (more than one can be enabled)"
     , ""
     ]
@@ -191,7 +192,7 @@ main = getArgs >>= parseCommandLineArgs >>= start
 
 
 -- | Start
--- 1.) obtain a context, either through analyzing a binary or by reading in a .L0 file
+-- 1.) obtain a context, either through analyzing a binary or by reading in a .LR file
 -- 2.) use context for generating output
 start :: CommandLineArgs -> IO ()
 start args = do
@@ -204,20 +205,20 @@ start args = do
   start' config dirname name = do
     -- 1.)
     putStrLn $ "Binary: " ++ name
-    l0' <- obtain_L0 config (args_inputtype args) dirname name
-    l0  <- return l0'
+    lr' <- obtain_LR config (args_inputtype args) dirname name
+    lr  <- return lr'
           -- >>= try_resolve_indirections_underapproximatively bin config
           -- >>= lift_to_L0 config bin empty_finit . l0_indirections
           -- >>= try_resolve_indirections_underapproximatively bin config
     --get_function_signatures bin config l0
 
     -- 2.)
-    when (args_generate_metrics args)   $ generate_metrics l0
-    when (args_generate_L0 args)        $ serialize_l0 l0
-    when (args_generate_callgraph args) $ generate_call_graph l0
-    when (args_generate_NASM args)      $ generate_NASM l0
-    when (args_generate_functions args) $ generate_per_function l0
-    when (args_generate_ellf args)      $ read_and_lift_ellf $ lrf_binary l0
+    when (args_generate_metrics args)   $ generate_metrics lr
+    when (args_generate_LR args)        $ serialize_lr lr
+    when (args_generate_callgraph args) $ generate_call_graph lr
+    when (args_generate_NASM args)      $ generate_NASM lr
+    when (args_generate_functions args) $ generate_per_function lr
+    when (args_generate_ellf args)      $ read_and_lift_ellf $ lrf_binary lr
 
 
 get_binary_names dirname (Just name) = return [name]
@@ -356,25 +357,25 @@ try_resolve_indirections_underapproximatively bin config l0 = do
 
 -- INPUT
 
--- | Obtain L0 ...
--- ... by reading in a .L0 file
-obtain_L0 :: Config -> String -> String -> String -> IO (LiftedRepresentationFunctions Binary)
-obtain_L0 config "L0" dirname name = do
-  let fname = dirname ++ name ++ ".L0"
+-- | Obtain LR ...
+-- ... by reading in a .LR file
+obtain_LR :: Config -> String -> String -> String -> IO (LiftedRepresentationFunctions Binary)
+obtain_LR config "LR" dirname name = do
+  let fname = dirname ++ name ++ ".LR"
   exists <- doesFileExist fname
   if exists then do
-    rcontents <- BS.readFile (dirname ++ name ++ ".L0")
+    rcontents <- BS.readFile (dirname ++ name ++ ".LR")
     bcontents <- read_binary dirname name
     case (Cereal.decode rcontents,bcontents) of
-      (Left err,_)        -> die $ "Could not read L0 in file " ++ (dirname ++ name ++ ".L0") ++  "\n" ++ show err
+      (Left err,_)        -> die $ "Could not read LR in file " ++ (dirname ++ name ++ ".LR") ++  "\n" ++ show err
       (_,Nothing)         -> die $ "Cannot read binary file: " ++ dirname ++ name
       (Right (l0::LiftedRepresentationFunctions Binary),Just bin) -> do
-        putStrLn $ "Obtained L0 from file " ++ fname
+        putStrLn $ "Obtained LR from file " ++ fname
         return $ l0 { lrf_binary = bin }
   else
-    die $ "File: " ++ show (dirname ++ name ++ ".L0") ++ " does not exist."
+    die $ "File: " ++ show (dirname ++ name ++ ".LR") ++ " does not exist."
 -- ... by doing binary lifting
-obtain_L0 config "BINARY" dirname name = do
+obtain_LR config "BINARY" dirname name = do
   binary <- read_binary dirname name
   case binary of
     Nothing -> die $ "Cannot read binary file: " ++ dirname ++ name
@@ -387,10 +388,10 @@ obtain_L0 config "BINARY" dirname name = do
     --putStrLn $ show $ fetch_instruction bin 0x2b40e
 
     l0 <- lift_to_lifted_representation_functions bin config
-    putStrLn $ "Obtained L0 by lifting " ++ dirname ++ name
+    putStrLn $ "Obtained LR by lifting " ++ dirname ++ name
     return l0
 -- ... by reading ELLF metadata
-obtain_L0 config "ELLF" dirname name = error "TODO"
+obtain_LR config "ELLF" dirname name = error "TODO"
 {-- TODO
 obtain_L0 config "ELLF" dirname name = do
   binary <- read_binary dirname name
@@ -412,27 +413,27 @@ obtain_L0 config "ELLF" dirname name = do
 
 -- OUTPUT
 
--- | Write a context to a .L0 file
-serialize_l0 l0 = do
-  let bin      = lrf_binary l0
+-- | Write a context to a .LR file
+serialize_lr lr = do
+  let bin      = lrf_binary lr
   let dirname  = binary_dir_name bin
   let name     = binary_file_name bin
-  let fname    = dirname ++ name ++ ".L0" 
-  BS.writeFile fname $ Cereal.encode l0
-  putStrLn $ "Generated L0: " ++ fname 
+  let fname    = dirname ++ name ++ ".LR" 
+  BS.writeFile fname $ Cereal.encode lr
+  putStrLn $ "Generated LR: " ++ fname 
 
 
 -- | Generate metrics
-generate_metrics l = return () {-- TODO
+generate_metrics lrf = do
+  let bin        = lrf_binary lrf
   let dirname    = binary_dir_name bin
   let name       = binary_file_name bin
   let fname      = dirname ++ name ++ ".metrics.txt" 
 
-  let metrics = mk_metrics bin l0
+  let metrics = mk_metrics lrf
   putStrLn $ metrics
   writeFile fname $ metrics
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
---}
 
 -- | Generate information per function
 -- generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()

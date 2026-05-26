@@ -65,8 +65,26 @@ cast_entry_to_address (FunctionEntry a) = InstructionAddress a
 cast_address_to_entry (InstructionAddress a) = FunctionEntry a
 
 
-data Comment = CommentJumpTable Word64 Word64 | CommentTextual String
-  deriving Generic
+data IndirectionResolving =
+    ResolvedJumpTable Word64 Word64
+  | ResolvedJump Next
+  | ResolvedCall Next
+  | ResolvedCallToError Bool
+  | UnresolvedJumpTable String
+  | UnresolvedCallToError
+  | UnresolvedJump
+  | UnresolvedCall
+  deriving (Eq,Generic)
+
+instance Show IndirectionResolving where
+  show (ResolvedJumpTable base bound) = "resolved jump table (base = 0x" ++ showHex base ++ ", bound = 0x" ++ showHex bound ++ ")"
+  show (ResolvedJump next) = "resolved jump (target = " ++ show next ++ ")"
+  show (ResolvedCall next) = "resolved call (target = " ++ show next ++ ")"
+  show (ResolvedCallToError does_return) = "resolved error(); (" ++ (if does_return then "returns" else "terminates") ++ ")"
+  show (UnresolvedJumpTable errmsg) = "unresolved jumptable"
+  show (UnresolvedCallToError) = "unresolved error();"
+  show (UnresolvedJump) = "unresolved jump"
+  show (UnresolvedCall) = "unresolved call"
 
 data Next = 
     NxtTerminal (Maybe String) -- optional: calling a function that terminates
@@ -96,7 +114,7 @@ data LiftedRepresentationUnstructured = LiftedRepresentationUnstructured {
   , current_fmap          :: IM.IntMap FunctionEntry -- ^ Mapping from instruction addresses to function entries
   , current_callers       :: IntRelation -- ^ Mapping from function entries to their callers (addresses of CALLs)
   , current_returns       :: IntRelation -- ^ Mapping from function entries to RET instructions (addresses)
-  , current_comments      :: IM.IntMap Comment
+  , current_indirections  :: IM.IntMap IndirectionResolving
   , current_real_entries  :: S.Set (FunctionEntry)-- ^ Set of entry points of likely real actual functions (not snippets)
   , current_covered       :: IM.IntMap Int
  }
@@ -137,17 +155,14 @@ register_next_rips a nxt lr = lr { current_nexts = IM.insert (toInt a) nxt (curr
 register_inlining :: FunctionEntry -> FunctionEntry -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
 register_inlining a0 a1 lr = lr { current_inlining = xgraph_add_edge (current_inlining lr)  (toInt a0) (toInt a1)  }
 
-register_resolved_jump_table :: InstructionAddress -> Word64 -> Word64 -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
-register_resolved_jump_table a base bound lr = lr { current_comments = IM.insert (toInt a) (CommentJumpTable base bound) (current_comments lr)  }
-
-register_comment :: InstructionAddress -> String -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
-register_comment a c lr = lr { current_comments = IM.insert (toInt a) (CommentTextual c) (current_comments lr)  }
-
 register_real_entries :: S.Set (FunctionEntry) -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
 register_real_entries entries lr = lr { current_real_entries = S.union (current_real_entries lr) entries }
 
 register_cover :: Int -> Int -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
 register_cover a k lr = lr { current_covered = IM.insert a k (current_covered lr) }
+
+register_resolving :: InstructionAddress -> IndirectionResolving -> LiftedRepresentationUnstructured -> LiftedRepresentationUnstructured
+register_resolving a ind lr = lr { current_indirections = IM.insert (toInt a) ind (current_indirections lr) }
 
 -- Reading from the current LiftedRepresentationUnstructured
 get_entry_of_instruction :: InstructionAddress -> XLifting bin (Maybe FunctionEntry)
@@ -205,12 +220,12 @@ data ControlFlowGraph = ControlFlowGraph {
 
 -- The algorithm keeps track of the following information:
 data LiftedRepresentationFunctions bin = LiftedRepresentationFunctions {
-    lrf_binary   :: bin
-  , lrf_config   :: Config
-  , lrf_instrs   :: IM.IntMap Instruction -- ^ Memoization of disassembled instructions: mapping instruction addresses to instructions
-  , lrf_nexts    :: IM.IntMap Next        -- ^ Memoization of 'next_rips' function
-  , lrf_cfgs     :: IM.IntMap ControlFlowGraph -- ^ A mapping from function entries to CFGs
-  , lrf_comments :: IM.IntMap Comment
+    lrf_binary       :: bin
+  , lrf_config       :: Config
+  , lrf_instrs       :: IM.IntMap Instruction -- ^ Memoization of disassembled instructions: mapping instruction addresses to instructions
+  , lrf_nexts        :: IM.IntMap Next        -- ^ Memoization of 'next_rips' function
+  , lrf_cfgs         :: IM.IntMap ControlFlowGraph -- ^ A mapping from function entries to CFGs
+  , lrf_indirections :: IM.IntMap IndirectionResolving
  }
 
 
@@ -218,14 +233,14 @@ instance NFData InstructionAddress
 instance NFData FunctionEntry
 instance NFData XGraph
 instance NFData Next
-instance NFData Comment
+instance NFData IndirectionResolving
 instance NFData ControlFlowGraph
 
 instance Cereal.Serialize InstructionAddress
 instance Cereal.Serialize FunctionEntry
 instance Cereal.Serialize XGraph
 instance Cereal.Serialize Next
-instance Cereal.Serialize Comment
+instance Cereal.Serialize IndirectionResolving
 instance Cereal.Serialize ControlFlowGraph
 
 instance BinaryClass bin => Cereal.Serialize (LiftedRepresentationFunctions bin) where
@@ -241,8 +256,8 @@ instance BinaryClass bin => Cereal.Serialize (LiftedRepresentationFunctions bin)
     instrs <- Cereal.get
     nexts  <- Cereal.get
     cfgs   <- Cereal.get
-    comms  <- Cereal.get
-    return $ LiftedRepresentationFunctions binary_null config instrs nexts cfgs comms
+    inds   <- Cereal.get
+    return $ LiftedRepresentationFunctions binary_null config instrs nexts cfgs inds
 
 
 data XGraph = XEdges (IM.IntMap IS.IntSet) (IM.IntMap IS.IntSet)

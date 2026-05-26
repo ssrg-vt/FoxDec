@@ -5,17 +5,11 @@ module OutputGeneration.Metrics where
 
 import Base
 
-import Data.SValue
-import Data.L0
-import Data.CFG
-import Data.Indirection
-import Data.VerificationCondition
-import Data.SymbolicExpression
+import InputLifting.Types
+import InputLifting.ControlFlowGraph
 import Data.X86.Instruction
 
-
 import Binary.Generic
-import WithNoAbstraction.Pointers
 
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -36,11 +30,104 @@ import GHC.Generics
 import Debug.Trace
 
 
+mk_metrics :: BinaryClass bin => LiftedRepresentationFunctions bin -> String
+mk_metrics lrf =
+  let bin                = lrf_binary lrf
+      instrs             = lrf_instrs lrf
+      num_intrs          = IM.size instrs
+      avg_size           = round2dp $ average $ map inSize $ IM.elems instrs
+      num_expected_intrs = floor (fromIntegral (binary_text_section_size bin) / avg_size)
+      coverage           = round2dp (fromIntegral num_intrs / fromIntegral num_expected_intrs * 100)
+
+      inds               = lrf_indirections lrf
+      total_inds         = IM.size inds
+      total_inds_jt      = IM.size $ IM.filter isResolvedJumpTable inds
+      total_inds_jump    = IM.size $ IM.filter isResolvedJump inds
+      total_inds_call    = IM.size $ IM.filter isResolvedCall inds
+      total_inds_error   = IM.size $ IM.filter isResolvedCallToError inds
+      total_inds_ujt     = IM.size $ IM.filter isUnresolvedJumpTable inds
+      total_inds_uerr    = IM.size $ IM.filter isUnresolvedCallToError inds
+      total_inds_ujump   = IM.size $ IM.filter isUnresolvedJump inds
+      total_inds_ucall   = IM.size $ IM.filter isUnresolvedCall inds
+
+      cfgs               = lrf_cfgs lrf
+      total_functions    = IM.size cfgs
+      cfg_sizes          = map cfg_size $ IM.elems cfgs
+      avg_cfg_size       = round2dp $ average cfg_sizes
+      max_cfg_size       = maximum cfg_sizes
+   in
+  intercalate "\n" $ [
+       "-------------"
+     , "INSTRUCTIONS:"
+     , "-------------"
+     , "#instructions:                      " ++ show num_intrs
+     , "average instruction size:           " ++ show avg_size
+     , "estimate of expected #instructions: " ++ show num_expected_intrs
+     , "estimate of coverage:               " ++ show coverage
+     , "-------------"
+     , "INDIRECTIONS:"
+     , "-------------"
+     , "#indirections:                      " ++ show total_inds 
+     , "  of which resolved:                " ++ show (total_inds_jt + total_inds_jump + total_inds_call + total_inds_error) 
+     , "    #jump tables:                   " ++ show total_inds_jt
+     , "    #jumps:                         " ++ show total_inds_jump
+     , "    #calls:                         " ++ show total_inds_call
+     , "    #call to error():               " ++ show total_inds_error
+     , "  of which unresolved:              " ++ show (total_inds_ujt + total_inds_uerr + total_inds_ujump + total_inds_ucall) 
+     , "    #jump tables:                   " ++ show total_inds_ujt
+     , "    #jumps:                         " ++ show total_inds_ujump
+     , "    #calls:                         " ++ show total_inds_ucall
+     , "    #call to error():               " ++ show total_inds_uerr
+     , "----------"
+     , "FUNCTIONS:"
+     , "----------"
+     , "#lifted functions:                  " ++ show total_functions
+     , "#average CFG size:                  " ++ show avg_cfg_size
+     , "#maximum CFG size:                  " ++ show max_cfg_size
+     , "\n"
+     , "\n"
+     , "Resolved indirections:"
+     ]
+     ++
+     (map show_indirection $ IM.assocs $ IM.filter isResolved $ inds)
+
+
+show_indirection (a,ind) = "0x" ++ showHex a ++ ": " ++ show ind 
+
+isResolved (ResolvedJumpTable _ _) = True
+isResolved (ResolvedJump _) = True
+isResolved (ResolvedCall _) = True
+isResolved (ResolvedCallToError _) = True
+isResolved _ = False
+
+
+
+isResolvedJumpTable (ResolvedJumpTable _ _) = True
+isResolvedJumpTable _ = False
+
+isResolvedJump (ResolvedJump _) = True
+isResolvedJump _ = False
+
+isResolvedCall (ResolvedCall _) = True
+isResolvedCall _ = False
+
+isResolvedCallToError (ResolvedCallToError _) = True
+isResolvedCallToError _ = False
+
+isUnresolvedJumpTable (UnresolvedJumpTable _) = True
+isUnresolvedJumpTable _ = False
+
+isUnresolvedCallToError = (==) UnresolvedCallToError
+
+isUnresolvedJump = (==) UnresolvedJump
+
+isUnresolvedCall = (==) UnresolvedCall
 
 
 
 
 
+{--
 mk_metrics bin l0 =
   let (rest,unresolved) = IM.partition ((/=) (S.singleton Indirection_Unresolved)) $ l0_indirections l0
       (partially_resolved,resolved) = IM.partition (S.member Indirection_Unresolved) $ rest
@@ -143,7 +230,7 @@ intDiv :: (Integral a,Integral b) => a -> b -> Double
 x `intDiv` y = fromIntegral x / fromIntegral y
 
 
-{--
+
 
 metrics = M.fromList [
   ("#instructions",          "number of covered instructions"),

@@ -6,7 +6,7 @@ import Base
 import Config
 import Conventions
 
-import Data.JumpTarget
+import qualified Data.JumpTarget as JT
 import Data.Symbol
 import Data.Size
 import Data.CFG
@@ -61,7 +61,8 @@ next_rips_unresolved_call a = do
   case p of
     Nothing   -> do
       Just i <- fetch a
-      unresolved_indirection i $ Bottom RockBottom
+      modify $ register_resolving a $ UnresolvedCall
+      snd <$> (unresolved_indirection i $ Bottom RockBottom)
     Just path -> do
       instrs'      <- mapM fetch $ map InstructionAddress path
       let instrs    = map fromJust instrs' 
@@ -73,7 +74,9 @@ next_rips_unresolved_call a = do
       let sem       = instr_to_semantics ctxt i
       let [SE_StatePart op Nothing] = operands_of sem
       let v         = resolve_operands ctxt sem ss M.! op
-      resolve_target_based_on_symbolic_value bin i v
+      (is_resolved,nxt) <- resolve_target_based_on_symbolic_value bin i v
+      modify $ register_resolving a $ if is_resolved then ResolvedCall nxt else UnresolvedCall
+      return nxt
 
 -- Explore an unresolved CALL to ERROR
 -- Do under-constrained symbolic execution to see if tit returns or terminates
@@ -96,15 +99,15 @@ next_rips_error a = do
     [SE_Immediate imm] -> do 
       if imm == 0 then do
         xtoLog $ "Resolved error() operand at " ++ show a ++ ": it returns"
-        modify $ register_comment a "(returns)"
+        modify $ register_resolving a $ ResolvedCallToError True
         return $ NxtAddresses (Just "error") $ S.singleton $ instruction_next_address i
       else do 
         xtoLog $ "Resolved error() operand at " ++ show a ++ ": it terminates."
-        modify $ register_comment a "(terminates)"
+        modify $ register_resolving a $ ResolvedCallToError False
         return $ NxtTerminal $ Just "error"
     _ -> do
         xtoLog $ "Unesolved error() operand at " ++ show a ++ ": RDI == " ++ show v
-        modify $ register_comment a "(unresolved)"
+        modify $ register_resolving a $ UnresolvedCallToError
         return $ NxtAddresses (Just "error") $ S.singleton $ instruction_next_address i
     
 
@@ -115,7 +118,9 @@ next_rips_unresolved_jump a = do
   Just entry <- get_entry_of_instruction a
   p <- mk_path_upwards_folded_calls entry a
   case p of
-    Nothing   -> return $ NxtReturn Nothing -- TODO, try finding shorter paths, also for calls
+    Nothing   -> do
+      modify $ register_resolving a UnresolvedJump
+      return $ NxtReturn Nothing -- TODO, try finding shorter paths, also for calls
     Just path -> use_path_to_resolve_jump a path
 
 use_path_to_resolve_jump :: BinaryClass bin => InstructionAddress -> [Int] -> XLifting bin Next
@@ -128,19 +133,22 @@ use_path_to_resolve_jump a path = do
   case attempt of
     (v,errmsg,Nothing) -> do
       xDebug 0 $ "Not a jump table: " ++ show i
-      nxt <- resolve_target_based_on_symbolic_value bin i v
-      case nxt of
-        NxtTerminal f            -> return $ NxtTerminal f
-        NxtInternalCall trgt     -> return $ NxtAddresses Nothing $ S.singleton trgt
-        NxtAddresses (Just f) as -> return $ NxtReturn $ Just f
-        NxtAddresses Nothing as  -> return $ NxtReturn Nothing -- unresolved, TODO report
-        _ -> error $ show nxt
+      (is_resolved,nxt0) <- resolve_target_based_on_symbolic_value bin i v
+      let nxt = case nxt0 of
+                  NxtTerminal f            -> NxtTerminal f
+                  NxtInternalCall trgt     -> NxtAddresses Nothing $ S.singleton trgt
+                  NxtAddresses (Just f) as -> NxtReturn $ Just f
+                  NxtAddresses Nothing as  -> NxtReturn Nothing -- unresolved, TODO report
+                  _ -> error $ show nxt
+      modify $ register_resolving a $ if is_resolved then ResolvedJump nxt else UnresolvedJump
+      return nxt
     (v,errmsg,Just (idx,ss)) -> do
       let invs = symstate_invs ss
       bnd <- (return $ firstJust (find_bound idx) invs) `orTryM` (return $ bound_inherited_from_expr idx) `orElseM` failed_to_find_bound idx errmsg
       when (bnd >= 10000) $ error $ "Bound too large: " ++ show (idx,bnd) ++ errmsg
       case find_base ctxt $ head v of
         Nothing -> do
+          modify $ register_resolving a $ UnresolvedJumpTable errmsg
           -- error $ "ERROR: Cannot find base!" ++ errmsg  -- TODO report error
           return $ NxtReturn Nothing
         Just base -> do
@@ -148,9 +156,10 @@ use_path_to_resolve_jump a path = do
           let vs = S.toList $ S.fromList vs_ordered
           if all (expr_is_global_immediate bin) vs then do
             xtoLog $ "Jump table @0x" ++ showHex (inAddress i) ++ ", bound " ++ show bnd ++ ", base 0x" ++ showHex base  ++ " and targets " ++ show vs
-            modify $ register_resolved_jump_table a base bnd
+            modify $ register_resolving a $ ResolvedJumpTable base bnd
             return $ NxtAddresses Nothing $ S.fromList $ map (\(SE_Immediate imm) -> InstructionAddress $ fromIntegral imm) vs
           else do
+            modify $ register_resolving a $ UnresolvedJumpTable errmsg
             xtoLog $ "Jump table @0x" ++ showHex (inAddress i) ++ " with index " ++ show idx ++ ", bound " ++ show bnd ++ ", base 0x" ++ showHex base  ++ " and targets " ++ show (zip [0..bnd] vs_ordered) ++ " --> " ++ show (substE remove_take_bits idx (SE_Immediate 0x42) (head v))
             error $ "ERROR: Jump table has invalid targets!" ++ errmsg
  where
@@ -252,7 +261,7 @@ use_path_to_resolve_jump a path = do
 resolve_target_based_on_symbolic_value bin i v@[SE_Immediate imm]
   | address_has_instruction bin imm = do
     xtoLog $ "Resolved operand of " ++ show i ++ " to 0x" ++ showHex imm
-    return $ NxtInternalCall $ InstructionAddress $ fromIntegral imm
+    return $ (True,NxtInternalCall $ InstructionAddress $ fromIntegral imm)
   | otherwise = do
     -- TODO check if is external symbol and if exitting call
     -- xtoLog $ "Resolved operand of " ++ show i ++ " to 0x" ++ showHex imm
@@ -267,23 +276,23 @@ try_resolve_symbol_at i a si = do
   case IM.lookup (fromIntegral a) $ binary_get_symbol_table bin of
     Just (PointerToInternalFunction f a1)       -> do
       xtoLog $ "Resolved operand of " ++ show i ++ " to internal function 0x" ++ showHex a1
-      return $ Just $ NxtInternalCall $ InstructionAddress $ fromIntegral a1
+      return $ Just (True, NxtInternalCall $ InstructionAddress $ fromIntegral a1)
     Just (PointerToExternalFunction f)          -> do
       trgt <- next_rip_external_function i f
       xtoLog $ "Resolved operand of " ++ show i ++ " to external function " ++ f
-      return $ Just trgt
+      return $ Just (True, trgt)
     Just (Relocated_ResolvedObject o a1 addend) -> error "TODO" -- internal? external? Just $ SE_Immediate $ fromIntegral $ fromIntegral a1 + addend
     Just (PointerToObject f True _ _)           -> error "TODO" -- Just $ SE_Var $ SP_Mem (SE_Immediate a) si
     Just (AddressOfObject l b)                  -> do
       trgt <- next_rip_external_function i l
       xtoLog $ "Resolved operand of " ++ show i ++ " to function stored at " ++ l
-      return $ Just trgt
+      return $ Just (True, trgt)
     -- Just x -> error $ show i ++ ": " ++ show_symbol_table_entry (a,x)
     _ -> return Nothing
 
 unresolved_indirection i v = do
   -- xtoLog $ "WARNING: Cannot resolve " ++ show i ++ " resolves to " ++ show v
-  return $ NxtAddresses Nothing $ S.singleton $ instruction_next_address i
+  return $ (False, NxtAddresses Nothing $ S.singleton $ instruction_next_address i)
 
 
 
@@ -306,21 +315,21 @@ next_rips i = do
     | isRet op     = return $ NxtReturn Nothing
     | isJump op    = do
       case jump_target_for_instruction bin i of
-        ImmediateAddress a' -> return $ NxtAddresses Nothing $ S.singleton $ InstructionAddress $ fromIntegral a'
-        External sym        -> if is_exiting_function_call sym then return $ NxtTerminal $ Just sym else if sym == "error" then jump_to_error <$> next_rips_error a else return $ NxtReturn $ Just sym
-        Unresolved          -> next_rips_unresolved_jump (InstructionAddress $ fromIntegral $ inAddress i)
+        JT.ImmediateAddress a' -> return $ NxtAddresses Nothing $ S.singleton $ InstructionAddress $ fromIntegral a'
+        JT.External sym        -> if is_exiting_function_call sym then return $ NxtTerminal $ Just sym else if sym == "error" then jump_to_error <$> next_rips_error a else return $ NxtReturn $ Just sym
+        JT.Unresolved          -> next_rips_unresolved_jump (InstructionAddress $ fromIntegral $ inAddress i)
     | isCondJump op =
       case jump_target_for_instruction bin i of
-        ImmediateAddress a' -> return $ NxtAddresses Nothing $ S.fromList [ InstructionAddress $ fromIntegral a', instruction_next_address i ]
-        External sym        -> return $ NxtAddresses (Just sym) $ S.fromList [ instruction_next_address i ]
-        trgt -> error $ show i ++ " --> " ++ show trgt
+        JT.ImmediateAddress a' -> return $ NxtAddresses Nothing $ S.fromList [ InstructionAddress $ fromIntegral a', instruction_next_address i ]
+        JT.External sym        -> return $ NxtAddresses (Just sym) $ S.fromList [ instruction_next_address i ]
+        trgt                   -> error $ show i ++ " --> " ++ show trgt
     | isCall op     =
       case jump_target_for_instruction bin i of
-        ImmediateAddress a'          -> return $ NxtInternalCall $ InstructionAddress $ fromIntegral a'
-        External sym                 -> next_rip_external_function i sym
-        ExternalDeref sym            -> next_rip_external_function i sym
-        Unresolved                   -> next_rips_unresolved_call (InstructionAddress $ fromIntegral $ inAddress i)
-        x                            -> error $ show i ++ ", " ++ show x
+        JT.ImmediateAddress a'          -> return $ NxtInternalCall $ InstructionAddress $ fromIntegral a'
+        JT.External sym                 -> next_rip_external_function i sym
+        JT.ExternalDeref sym            -> next_rip_external_function i sym
+        JT.Unresolved                   -> next_rips_unresolved_call (InstructionAddress $ fromIntegral $ inAddress i)
+        x                               -> error $ show i ++ ", " ++ show x
     | otherwise = return $ NxtAddresses Nothing $ S.singleton $ instruction_next_address i
 
   jump_to_error (NxtTerminal f)     = NxtTerminal f
@@ -449,8 +458,8 @@ get_prev_collapsed_calls entry a = do
     else if isCall $ inOperation i0 then do
       (bin,_) <- ask
       case jump_target_for_instruction bin i0 of
-        ImmediateAddress a' -> return $ S.empty -- error $ "TODO?" ++ show i0 ++ "@" ++ showHex a ++ " --> " ++ showHex a' ++ " in " ++ show entry
-        _                   -> return $ S.singleton parent
+        JT.ImmediateAddress a' -> return $ S.empty -- error $ "TODO?" ++ show i0 ++ "@" ++ showHex a ++ " --> " ++ showHex a' ++ " in " ++ show entry
+        _                      -> return $ S.singleton parent
     else
       return $ S.singleton parent
 

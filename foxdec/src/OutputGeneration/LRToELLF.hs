@@ -101,10 +101,10 @@ add_pointer l ptr = do
 
 
 lr_to_ellf_jump_tables l = do
-  let comments = lrf_comments l
-  mapM_ mk_jump_table $ IM.toAscList comments
+  let inds = lrf_indirections l
+  mapM_ mk_jump_table $ IM.toAscList inds
  where
-  mk_jump_table (a,CommentJumpTable base bound) = mapM_ (mk_jump_table_entry base) [0..bound]
+  mk_jump_table (a,ResolvedJumpTable base bound) = mapM_ (mk_jump_table_entry base) [0..bound]
   mk_jump_table _ = return ()
 
 

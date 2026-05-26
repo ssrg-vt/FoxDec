@@ -53,17 +53,14 @@ import Debug.Trace
 
 
 
--- TODO MOVE
 lift_to_lifted_representation_functions :: BinaryClass bin => bin -> Config -> IO (LiftedRepresentationFunctions bin)
 lift_to_lifted_representation_functions bin config = do
   lru <- lift_to_unstructured_representation bin config
   let instrs = current_instrs lru
   let nexts  = current_nexts lru
-  let comms  = current_comments lru
+  let inds   = current_indirections lru
   funcs     <- runReaderT lr_make_functions (bin,config,lru,IM.empty)
-  xtoLog $ "#instructions = " ++ show (IM.size instrs)
-  xtoLog $ "#functions    = " ++ show (IM.size funcs)
-  return $ LiftedRepresentationFunctions bin config instrs nexts funcs comms
+  return $ LiftedRepresentationFunctions bin config instrs nexts funcs inds
 
 
 lift_to_unstructured_representation :: BinaryClass bin => bin -> Config -> IO LiftedRepresentationUnstructured
