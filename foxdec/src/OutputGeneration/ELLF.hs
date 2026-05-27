@@ -448,7 +448,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   is_func_array section = elfSectionName section `elem` [".init_array", ".fini_array"]
 
   -- Render a data section
-  render_section section a si = render_list "\n" $ (mk_section_header section a : mk_align section : mk_data_section section (is_bss section) (is_func_array section) a si) ++ mk_section_end_label section
+  render_section section a si = render_list "\n" $ (mk_section_header section a : mk_align section : mk_section_start_label section ++ mk_data_section section (is_bss section) (is_func_array section) a si) ++ mk_section_end_label section
 
   -- Render the header
   mk_section_header section a = string8 $ "# " ++ mk_object optional_object ++ "@0x" ++ showHex a ++ " (" ++ show si ++ " bytes)\n" ++ withIndent ".section " ++ (elfSectionName section) 
@@ -466,6 +466,11 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
       case find (elf_section_contains_region a 1) $ elfSections elf of
         Nothing -> [string8 $ "# additional end-label @0x" ++ showHex a] ++ address_to_labels Nothing a
         Just _  -> []
+
+  -- Render the start label
+  mk_section_start_label section = 
+    let a = elfSectionAddr section in
+      address_to_labels Nothing a
 
 
 
@@ -551,7 +556,6 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
 
   -- Render raw data, but insert labels of symbols from .ellf.symbols as well as from the CFI directives.
   raw_data section is_bss is_funptr_array a 0  = []
-  --raw_data section is_bss True            _ _  = []
   raw_data section is_bss is_funptr_array a si = 
     let bytes = if is_bss then RD_BSS $ fromIntegral si else RD_ByteString $ BS.take (fromIntegral si) $ BS.drop (fromIntegral $ a - elfSectionAddr section) $ elfSectionData section in
       raw_data_with_symbols (fromIntegral a) (fromIntegral si) is_funptr_array bytes
@@ -559,7 +563,7 @@ render_data_section bin elf ellf cfi@(_,_,cfi_addresses) optional_object section
   raw_data_with_symbols a si is_funptr_array bytes
    --  | raw_data_is_null bytes = []
     | otherwise =
-      let symbols = {--if is_funptr_array then [] else --}takeWhile (\a' -> a' < a + si || (a' == a && fromIntegral a' == elfSectionAddr section)) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
+      let symbols = takeWhile (\a' -> a' < a + si || (a' == a && fromIntegral a' == elfSectionAddr section)) $ dropWhile (\a' -> a' < a) $ IS.toAscList $ IS.union cfi_addresses $ all_ellf_symbol_addresses optional_object in
         raw_data_insert_symbols (fromIntegral a) symbols bytes
 
   all_ellf_symbol_addresses Nothing    = IS.unions $ map IM.keysSet $ ellf_symb_map ellf

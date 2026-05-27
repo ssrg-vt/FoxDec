@@ -64,7 +64,6 @@ next_rips l@(bin,_,_) (Just i) = next_rip_based_on_opcode i $ inOperation i
           Terminal         -> Terminal
           UnresolvedTarget -> UnresolvedTarget
           UnvisitedFunctionCall a -> UnvisitedFunctionCall a
-          x -> error $ show (i,x,get_known_jump_targets l i)
       else let trgts = get_known_jump_targets l i in
         if all ((==) Unresolved) trgts then
           UnresolvedTarget
@@ -178,77 +177,6 @@ get_known_jump_targets l@(bin,_,l0) i =
 
 
 
-
-
--- TODO move to OutputGeneration
--- | Export a CFG to .dot file
---
--- Strongly connected components get the same color.
-cfg_to_dot ::
-  BinaryClass bin =>
-     bin
-  -> FResult pred v
-  -> String
-cfg_to_dot bin (FResult g post _ _ _ _) =
- let name = mk_safe $ binary_file_name bin
-     sccs = scc_of g 0 IS.empty in
-  "diGraph " ++ name ++ "{\n"
-  ++ intercalate "\n" (map (node_to_dot g post sccs) $ IM.keys $ cfg_blocks g)
-  ++ "\n\n"
-  ++ intercalate "\n" (map edge_to_dot' $ IM.toList $ cfg_edges g)
-  ++ "\n}"
- where
-  node_to_dot g post sccs blockId =
-    let bgcolor = hex_color_of blockId sccs
-        fgcolor = hex_color_of_text bgcolor in
-       "\t" 
-    ++ mk_node blockId
-    ++ "  ["
-    ++ "style=filled fillcolor=\"" ++ bgcolor ++ "\" fontcolor=\"" ++ fgcolor ++ "\" shape=" ++ node_shape post blockId ++ " "
-    ++ "label=\""
-    ++ show_block g blockId
-    ++ "\"]"
-
-  edge_to_dot' (blockId, blockIds) = intercalate "\n" $ map (edge_to_dot'' blockId) $ IS.toList blockIds
-
-  edge_to_dot'' blockId blockId' = "\t" ++ mk_node blockId ++ " -> " ++ mk_node blockId'
-
-  mk_node v = mk_safe $ binary_file_name bin ++ "_" ++ showHex v
-
-  node_shape _ _ =  "oval" {-- TODO
-  node_shape (ReturnsWith _) blockId = "oval"
-  node_shape (Terminates) blockId = "terminator"
-  node_shape (TimeOut) blockId = "invtriangle"
-  node_shape (HasUnresolvedIndirections blockIDs) blockId 
-    | blockId `elem` blockIDs = "box3d"
-    | otherwise = "oval"
-  node_shape (VerificationError errors) blockId 
-    | blockId `elem` map fst errors = "invtriangle"
-    | otherwise = "oval"--}
-    
-
-  mk_safe str = "_" ++ str
-
-
-hex_color_of vertex sccs =
-  case findIndex (IS.member vertex) sccs of
-    Just n -> hex_colors !! (126 - (floorDoubleInt $ 127 * int2Double n / int2Double (length sccs)))
-    Nothing -> "#FFFFFF"
-
-
-
--- | Shows the block associated to the givern blockID.
-show_block ::
-  CFG    -- ^ The CFG
-  -> Int -- ^ The blockID
-  -> String
-show_block g b =
-  let instrs = cfg_blocks g IM.! b in
-       show b ++ " ["
-    ++ showHex (head instrs)
-    ++ ","
-    ++ showHex (last instrs)
-    ++ "]"
 
 
 

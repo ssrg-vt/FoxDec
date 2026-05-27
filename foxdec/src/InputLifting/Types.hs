@@ -292,6 +292,9 @@ xgraph_is_edge  (XEdges fw bw) a0 a1 =
     Just as -> IS.member a1 as
 
 
+xgraph_all_edges :: XGraph -> IM.IntMap IS.IntSet
+xgraph_all_edges (XEdges fw bw) = fw
+
 xgraph_all_parents :: XGraph -> IS.IntSet
 xgraph_all_parents (XEdges fw bw) = IM.keysSet fw
 

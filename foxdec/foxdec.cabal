@@ -58,12 +58,12 @@ library
       InputLifting.SymbolicExecution
       InputLifting.Types
       OutputGeneration.CallGraph
+      OutputGeneration.CallGraph2
       OutputGeneration.ECFG
       OutputGeneration.ECFG2
       OutputGeneration.ELLF
       OutputGeneration.GlobalMemAnalysis
       OutputGeneration.L0ToELLF
-      OutputGeneration.LRToCallGraph
       OutputGeneration.LRToELLF
       OutputGeneration.Metrics
       OutputGeneration.NASM.Abstract_ASM

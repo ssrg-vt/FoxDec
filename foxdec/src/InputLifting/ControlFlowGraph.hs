@@ -9,7 +9,6 @@ import Conventions
 import Data.JumpTarget
 import Data.Symbol
 import Data.Size
-import Data.CFG
 import Data.CFI
 import Data.Indirection
 import Data.VerificationCondition
@@ -19,6 +18,7 @@ import Data.SymbolicExpression
 import Data.X86.Register
 
 import Algorithm.Graph
+import Algorithm.SCC
 import qualified Data.Tree as T
 import qualified Data.Tree.View as TV
 
@@ -37,6 +37,7 @@ import qualified Data.Set as S
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 
+import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
 
 import Control.Monad.State.Strict
 import Control.Monad.Reader
@@ -304,50 +305,75 @@ cast_intset_to_entries = S.fromList . map FunctionEntry . IS.toList
 
 
 
--- CALL GRAPH
--- TODO move to own file, add LEA's, make callgraph with leaks
 
-mk_callgraph :: BinaryClass bin => LiftedRepresentationFunctions bin -> XGraph
-mk_callgraph l =
-  let all_edges = concatMap get_edges_for_function $ IM.assocs $ lrf_cfgs l in
-    foldl' (\g (a0,a1) -> xgraph_add_edge g a0 a1) (foldl' xgraph_add_vertex xgraph_empty $ IM.keys $ lrf_cfgs l) all_edges
+
+
+-- TODO move to OutputGeneration
+-- | Export a CFG to .dot file
+--
+-- Strongly connected components get the same color.
+cfg_to_dot ::
+  BinaryClass bin => bin -> ControlFlowGraph -> String
+cfg_to_dot bin g =
+ let name = mk_safe $ binary_file_name bin
+     sccs = all_sccs g IS.empty in
+  "diGraph " ++ name ++ "{\n"
+  ++ intercalate "\n" (map (node_to_dot g sccs) $ IM.keys $ cfg_basic_blocks g)
+  ++ "\n\n"
+  ++ intercalate "\n" (map edge_to_dot' $ IM.toList $ xgraph_all_edges $ cfg_edges g)
+  ++ "\n}"
  where
-  get_edges_for_function (entry,cfg) =
-    let calls = get_all_internal_calls cfg in
-      zip (repeat entry) (IS.toList calls)
+  node_to_dot g sccs blockId =
+    let bgcolor = hex_color_of blockId sccs
+        fgcolor = hex_color_of_text bgcolor in
+       "\t" 
+    ++ mk_node blockId
+    ++ "  ["
+    ++ "style=filled fillcolor=\"" ++ bgcolor ++ "\" fontcolor=\"" ++ fgcolor ++ "\" shape=" ++ node_shape blockId ++ " "
+    ++ "label=\""
+    ++ show_block g blockId
+    ++ "\"]"
 
-  get_all_internal_calls cfg = 
-    let calls = map (get_calls_from_blockID l cfg) $ IM.keys $ cfg_basic_blocks cfg in
-      IS.fromList $ mapMaybe get_internal_target $ map snd $ concatMap (S.toList) calls
+  edge_to_dot' (blockId, blockIds) = intercalate "\n" $ map (edge_to_dot'' blockId) $ IS.toList blockIds
 
-  get_internal_target (NxtInternalCall trgt)    = Just $ toInt trgt
-  get_internal_target (NxtAddresses Nothing as) = Just $ toInt $ S.findMin as
-  get_internal_target _                         = Nothing
-  
+  edge_to_dot'' blockId blockId' = "\t" ++ mk_node blockId ++ " -> " ++ mk_node blockId'
+
+  mk_node v = mk_safe $ binary_file_name bin ++ "_" ++ showHex v
+
+  node_shape _ =  "oval" {-- TODO
+  node_shape (ReturnsWith _) blockId = "oval"
+  node_shape (Terminates) blockId = "terminator"
+  node_shape (TimeOut) blockId = "invtriangle"
+  node_shape (HasUnresolvedIndirections blockIDs) blockId 
+    | blockId `elem` blockIDs = "box3d"
+    | otherwise = "oval"
+  node_shape (VerificationError errors) blockId 
+    | blockId `elem` map fst errors = "invtriangle"
+    | otherwise = "oval"--}
     
 
+  mk_safe str = "_" ++ str
 
-get_calls_from_blockID :: BinaryClass bin => LiftedRepresentationFunctions bin -> ControlFlowGraph -> Int -> S.Set (Instruction,Next)
-get_calls_from_blockID l cfg blockID =
-  let instrs = cfg_basic_blocks cfg IM.! blockID
-      calls  = mapMaybe ifHasCallTarget instrs
-      leaks  = map mk_leak $ IS.toList $ IS.filter (\a -> a == (fromIntegral $ inAddress $ last instrs)) $ cfg_leaks cfg in
-    S.fromList $ leaks ++ calls
- where
-  ifHasCallTarget i
-    | isCall (inOperation i) || isJump (inOperation i) || isCondJump (inOperation i) =
-      case IM.lookup (fromIntegral $ inAddress i) $ lrf_nexts l of
-        Just nxt@(NxtInternalCall trgt)     -> Just (i,nxt)
-        Just nxt@(NxtAddresses (Just f) as) -> Just (i,nxt)
-        Just nxt@(NxtReturn    (Just f))    -> Just (i,nxt)
-        Just nxt@(NxtTerminal  (Just f))    -> Just (i,nxt)
-        _ -> Nothing
-    | otherwise = Nothing
 
-  mk_leak a =
-    case (IM.lookup a $ lrf_instrs l, IM.lookup a $ lrf_nexts l)  of
-      (Just i,Just nxt) -> (i,nxt)
+hex_color_of vertex sccs =
+  case findIndex (IS.member vertex) sccs of
+    Just n -> hex_colors !! (126 - (floorDoubleInt $ 127 * int2Double n / int2Double (length sccs)))
+    Nothing -> "#FFFFFF"
 
+
+
+-- | Shows the block associated to the givern blockID.
+show_block ::
+  ControlFlowGraph -- ^ The CFG
+  -> Int -- ^ The blockID
+  -> String
+show_block g b =
+  let instrs = cfg_basic_blocks g IM.! b in
+       showHex b ++ " ["
+    ++ showHex (inAddress $ head instrs)
+    ++ ","
+    ++ showHex (inAddress $ last instrs)
+    ++ "]"
 
 
 

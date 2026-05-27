@@ -31,6 +31,8 @@ import InputLifting.SymbolicExecution
 import InputLifting.Types
 import InputLifting.NextRips
 
+import OutputGeneration.CallGraph2
+
 import Data.Word
 import Data.List
 import Data.List.Extra (firstJust)
@@ -162,17 +164,9 @@ get_ehframe_locations = do
 get_dangling_LEA_entries :: BinaryClass bin => XLifting bin (S.Set (FunctionEntry,InstructionAddress))
 get_dangling_LEA_entries = do
   is <- gets current_instrs 
-  let leas = mapMaybe get_lea_pointer $ IM.assocs is
+  let leas = mapMaybe get_lea_pointer $ IM.elems is
   S.fromList <$> mapMaybeM whenDangling leas
- where
-  get_lea_pointer (a,Instruction label prefix LEA [dst,op] _ si) = mk_rip_relative a si op
-  get_lea_pointer _ = Nothing
 
-  mk_rip_relative :: Int -> Int -> Operand -> Maybe Int
-  mk_rip_relative a si op@(Op_Mem _ (Reg64 RIP) RegNone 0 displ Nothing info) = Just $ fromIntegral $ fromIntegral a + displ + fromIntegral si
-  mk_rip_relative a si op@(Op_Mem _ (Reg64 RIP) _ _ _ _ _) = error $ "TODO: " ++ show op
-  mk_rip_relative a si op@(Op_Mem _ _ (Reg64 RIP) _ _ _ _) = error $ "TODO: " ++ show op
-  mk_rip_relative a si op = Nothing
 
 
 get_dangling_relocations :: BinaryClass bin => XLifting bin (S.Set (FunctionEntry,InstructionAddress))

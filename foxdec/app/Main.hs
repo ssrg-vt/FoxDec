@@ -14,11 +14,12 @@ import Binary.Elf (getELFFiles)
 import OutputGeneration.ELLF
 import OutputGeneration.ECFG2
 import OutputGeneration.LRToELLF 
-import OutputGeneration.LRToCallGraph
 import OutputGeneration.Metrics
+import OutputGeneration.CallGraph2
 import InputLifting.Types
 import InputLifting.Lift
 import InputLifting.Types
+import InputLifting.ControlFlowGraph
 
 import Data.CFG
 import Data.SValue
@@ -86,11 +87,12 @@ data CommandLineArgs = CommandLineArgs
     args_filename           :: Maybe FilePath,   -- ^ The name of the binary
     args_inputtype          :: String,     -- ^ The input type (a binary or a .LR file)
     args_generate_LR        :: Bool,       -- ^ Shall we generate a .LR file?
-    args_generate_NASM      :: Bool,       -- ^ Shall we generate NASM?
-    args_generate_functions :: Bool,       -- ^ Shall we generate CGs?
+    args_generate_GAS       :: Bool,       -- ^ Shall we generate GAS?
+    args_generate_CFGs      :: Bool,       -- ^ Shall we generate CGs?
     args_generate_metrics   :: Bool,       -- ^ Shall we generate a .metrics file?
     args_generate_callgraph :: Bool,       -- ^ Shall we generate an annotated call graph?
     args_generate_ellf      :: Bool,       -- ^ Shall we generate a lifted ELLF?
+    args_generate_ECFGs     :: Bool,       -- ^ Shall we generate a ECFGs?
     args_help               :: Bool,       -- ^ Shall we output a help message?
     args_verbose            :: Bool,       -- ^ Shall we produce verbose output?
     args_version            :: Bool        -- ^ Shall we output the version number and quit?
@@ -98,7 +100,7 @@ data CommandLineArgs = CommandLineArgs
  deriving Show
 
 -- | Default values for command-line arguments
-defaultArgs = CommandLineArgs "" "" Nothing "" False False False False False False False False False
+defaultArgs = CommandLineArgs "" "" Nothing "" False False False False False False False False False False
 
 -- | The command-line arguments and their types
 args =
@@ -109,10 +111,11 @@ args =
     , Option ['i']     ["input"]      (ReqArg set_args_inputtype   "INPUTTYPE")     "Either the string BINARY or the string LR."
     , Option ['v']     ["verbose"]    (NoArg  set_args_verbose)                     "If enabled, produce verbose output."
     , Option []        ["GLR"]        (NoArg  set_args_generate_LR)                 "Generate a .LR file (only if INPUTTYPE==BINARY)."
-    , Option []        ["Gcallgraph"] (NoArg  set_args_generate_callgraph)          "Generate an annotated call graph."
-    , Option []        ["GNASM"]      (NoArg  set_args_generate_NASM)               "Generate NASM"
-    , Option []        ["Gfuncs"]     (NoArg  set_args_generate_functions)          "Generate per function a control flow graph (CFG) and information."
     , Option []        ["Gmetrics"]   (NoArg  set_args_generate_metrics)            "Generate metrics in .metrics.txt file."
+    , Option []        ["GCFG"]       (NoArg  set_args_generate_CFGs)               "Generate per function a control flow graph (CFG)."
+    , Option []        ["GECFG"]      (NoArg  set_args_generate_ECFGs)              "Generate ECFGs (Exceptional Control Flow Graphs)."
+    , Option []        ["Gcallgraph"] (NoArg  set_args_generate_callgraph)          "Generate an annotated call graph."
+    , Option []        ["GGAS"]       (NoArg  set_args_generate_GAS)                "Generate GAS"
     , Option []        ["Gellf"]      (NoArg  set_args_generate_ellf)               "Generate a lifted representation of an ELLF in .S file."
     , Option []        ["version"]    (NoArg  set_args_generate_version)            "Print out FoxDec version number and quit."
     ]
@@ -122,11 +125,12 @@ args =
   set_args_filename  str      args = args { args_filename = str }
   set_args_inputtype str      args = args { args_inputtype = str }
   set_args_generate_LR        args = args { args_generate_LR = True }
-  set_args_generate_NASM      args = args { args_generate_NASM = True }
-  set_args_generate_functions args = args { args_generate_functions = True }
+  set_args_generate_GAS       args = args { args_generate_GAS = True }
+  set_args_generate_CFGs      args = args { args_generate_CFGs = True }
   set_args_generate_metrics   args = args { args_generate_metrics = True }
   set_args_generate_callgraph args = args { args_generate_callgraph = True }
   set_args_generate_ellf      args = args { args_generate_ellf = True }
+  set_args_generate_ECFGs     args = args { args_generate_ECFGs = True }
   set_args_help               args = args { args_help = True }
   set_args_verbose            args = args { args_verbose = True }
   set_args_generate_version   args = args { args_version = True }
@@ -153,13 +157,13 @@ parseCommandLineArgs argv =
     when (args_generate_LR args   && args_inputtype args == "LR") $ err "ERROR: Cannot generate as output an LR when input is set to LR."
     when (args_generate_ellf args && args_inputtype args == "LR") $ err "ERROR: Cannot generate as output a lifted ELLF when input is set to LR."
     
-    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GLR, --Gfuncs, --Gmetrics, --Gcallgraph, --GNASM, --Gellf]"
+    when (no_output args) $ err "ERROR: Enable at least one output-generation option from [--GLR, --GCFG, --Gmetrics, --Gcallgraph, --GGAS, --Gellf, --GECFG]"
     when (not $ validate_ellf args) $ err "ERROR: for reading and lifting an ELLF, set input type to ELLF and enable only the -G option -Gellf"
     
     return args
 
-  no_output args = all (not . (&) args) [args_generate_LR, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM,args_generate_ellf]
-  validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_LR, args_generate_functions, args_generate_metrics, args_generate_callgraph,args_generate_NASM] else True
+  no_output args = all (not . (&) args) [args_generate_LR, args_generate_CFGs, args_generate_metrics, args_generate_callgraph,args_generate_GAS,args_generate_ellf,args_generate_ECFGs]
+  validate_ellf args = if args_generate_ellf args || args_inputtype args == "ELLF" then args_generate_ellf args && args_inputtype args == "ELLF" && all (not . (&) args) [args_generate_LR, args_generate_CFGs, args_generate_metrics, args_generate_callgraph,args_generate_GAS] else True
 
 -- | The version number
 versionNumber = showVersion version
@@ -216,9 +220,10 @@ start args = do
     when (args_generate_metrics args)   $ generate_metrics lr
     when (args_generate_LR args)        $ serialize_lr lr
     when (args_generate_callgraph args) $ generate_call_graph lr
-    when (args_generate_NASM args)      $ generate_NASM lr
-    when (args_generate_functions args) $ generate_per_function lr
+    when (args_generate_GAS args)       $ generate_GAS lr
+    when (args_generate_CFGs args)      $ generate_CFGs lr
     when (args_generate_ellf args)      $ read_and_lift_ellf $ lrf_binary lr
+    when (args_generate_ECFGs args)     $ generate_ECFGs lr
 
 
 get_binary_names dirname (Just name) = return [name]
@@ -435,45 +440,47 @@ generate_metrics lrf = do
   writeFile fname $ metrics
   putStrLn $ "Generated metrics in plain-text file: " ++ fname 
 
--- | Generate information per function
--- generate_per_function :: BinaryClass bin => bin -> Config -> L0 (Sstate SValue SPointer) (FInit SValue SPointer) SValue -> IO ()
-generate_per_function l = do
+-- | Generate ECFGs 
+generate_ECFGs l = do
+  let bin         = lrf_binary l
+  let dirname     = binary_dir_name bin
+  let name        = binary_file_name bin
+  createDirectoryIfMissing False $ dirname ++ "functions/"
+  ecfg_generation l
+
+
+-- | Generate CFGs
+generate_CFGs l = do
   let bin         = lrf_binary l
   let dirname     = binary_dir_name bin
   let name        = binary_file_name bin
 
   createDirectoryIfMissing False $ dirname ++ "functions/"
+  mapM_ write_CFG_to_file $ IM.assocs $ lrf_cfgs l
+  putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
+ where
+  write_CFG_to_file (entry,cfg) = do
+    let bin      = lrf_binary l
+    let dirname  = binary_dir_name bin
+    let name     = binary_file_name bin
+    let fdirname = dirname ++ "functions/0x" ++ showHex entry ++ "/"
+    let fname    = fdirname ++ name ++ ".dot"
+    createDirectoryIfMissing False fdirname
+    writeFile fname $ cfg_to_dot bin cfg
 
-
-  --mapM_ (write_function bin dirname name) $ IM.assocs $ lrf_cfgs l
-  --putStrLn $ "Generated CFGs in: " ++ dirname ++ "functions/"
-
-
-  sym_exec_cfg_all l
   --let regions = analyze_gmem (bin,config,l0,0::Word64) $ map (gmem . l0_lookup_join l0) $ S.toList $ l0_get_function_entries l0
   --putStrLn $ "Joined global memory:\n" ++ show_gmem joined_gmem joined_gmem_structure 
   --putStrLn $ "Regions:\n" ++ (intercalate "\n" (map show_region_info $ IM.assocs regions))
-  {-- REMOVE
- where
-  write_function bin dirname name (entry,cfg)
-    | not $ address_has_instruction bin (fromIntegral entry) = return ()
-    | otherwise = do
-      
 
-      --TODO
-      --let fname  = fdirname ++ name ++ ".dot"
-      --writeFile fname $ cfg_to_dot bin r
 
-      let fname2 = fdirname ++ name ++ ".ecfg.dot"
-      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l (fromIntegral entry) Nothing cfg
-      writeFile fname2 $ render_ecfg_to_dot ecfg
---}
+
+
+
 {-- TODO
       let fname2 = fdirname ++ name ++ ".txt"
       writeFile fname2 $ show_report entry finit r
   show_report entry finit (FResult cfg post join calls vcs pa) = intercalate "\n" 
     [ "Function: " ++ showHex entry
-    , mk_function_boundary entry cfg
     , if show finit == "" then "" else "Precondition:\n" ++ pp_finitC finit ++ "\n"
     , "Postcondition: function " ++ show post
     , if S.null calls then "" else "Dangling function pointers: " ++ showHex_list (map fromIntegral $ S.toList $ calls) -- TODO rest
@@ -481,35 +488,23 @@ generate_per_function l = do
    --TODO move to own file
    --}
 
-mk_function_boundary entry cfg =
-  let addresses = concat $ IM.elems $ cfg_blocks cfg in
-    intercalate "\n" $ map show_chunk $ mk_consecutive_chunks addresses
- where
-  show_chunk [i]   = showHex i ++ " (single instruction)"
-  show_chunk chunk = showHex (head chunk) ++ "-->" ++ showHex (last chunk)
-
-  mk_consecutive_chunks :: [Int] -> [[Int]]
-  mk_consecutive_chunks = split_consecutives . sort
-
-  split_consecutives :: [Int] -> [[Int]]
-  split_consecutives []         = []
-  split_consecutives [i]        = [[i]]
-  split_consecutives (i0:i1:is) = if i1 < i0 + 16 then add_to_hd i0 $ split_consecutives (i1:is) else [i0] : split_consecutives (i1:is)
 
 
-  add_to_hd :: Int -> [[Int]] -> [[Int]]
-  add_to_hd i []       = [[i]]
-  add_to_hd i (is:iss) = (i:is) : iss
+
+
 
 -- | Generate the call graph
-generate_call_graph l = return () {--TODO
+generate_call_graph lr = do
+  let bin       = lrf_binary lr
+  let config    = lrf_config lr
   let dirname   = binary_dir_name bin
   let name      = binary_file_name bin
   let do_pdfs   = generate_pdfs config
   let fname     = dirname ++ name ++ ".callgraph.dot" 
   let pdfname   = dirname ++ name ++ ".callgraph.pdf" 
-  let (g,fptrs) = mk_callgraph (bin,config,l0)
-  let dot       = callgraph_to_dot (bin,config,l0) pp_finitC g fptrs
+  let cg        = xgraph_all_edges $ mk_callgraph lr
+  let fptrs     = xgraph_all_edges $ mk_callgraph_LEA_edges lr
+  let dot       = callgraph_to_dot lr cg fptrs
 
   writeFile fname dot
   if do_pdfs then do
@@ -523,11 +518,13 @@ generate_call_graph l = return () {--TODO
   --let dot    = callgraph_to_dot (bin,config,l0) pp_finitC g' fptrs'
   --putStrLn $ show g'
   --writeFile (dirname ++ name ++ ".callgraph.sub.dot") dot
---}
 
--- | Generate NASM
-generate_NASM :: LiftedRepresentationFunctions Binary -> IO ()
-generate_NASM l = do
+
+
+
+-- | Generate GAS
+generate_GAS :: LiftedRepresentationFunctions Binary -> IO ()
+generate_GAS l = do
   let bin      = lrf_binary l
   let dirname  = binary_dir_name bin ++ "nasm/"
   let name     = binary_file_name bin
@@ -552,10 +549,6 @@ generate_NASM l = do
   writeFile   fname  $ render_NASM l nasm
   writeFile   fname1 $ gmon
   --writeFile   fname2 $ ai_show_NASM l nasm
-
-
-  
-
 --}
 
 

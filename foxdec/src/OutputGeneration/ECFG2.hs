@@ -23,6 +23,7 @@ import InputLifting.SymbolicExecution
 import InputLifting.NextRips
 import InputLifting.Types
 import InputLifting.ControlFlowGraph
+import OutputGeneration.CallGraph2
 
 import Data.L0
 import Data.JumpTarget
@@ -196,8 +197,8 @@ ecfg_blockID_to_address (ECFG vertices _ _ _) blockID = ecfg_vertex_to_address $
 init_ecfg_symstate ecfg blockID = ECFG_SymState [Normal] $ ecfg_blockID_to_address ecfg blockID
 
 
-sym_exec_cfg_all :: BinaryClass bin => LiftedRepresentationFunctions bin -> IO ()
-sym_exec_cfg_all l = do
+ecfg_generation :: BinaryClass bin => LiftedRepresentationFunctions bin -> IO ()
+ecfg_generation l = do
   putStrLn $ "Generating call graph."
   let callgraph = mk_callgraph l
   let fs        = xgraph_all_sources callgraph
