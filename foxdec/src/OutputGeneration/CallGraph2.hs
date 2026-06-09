@@ -38,8 +38,8 @@ import Data.Word
 
 
 -- CALL GRAPH
--- TODO move to own file, add LEA's, make callgraph with leaks
 
+-- TODO add leaks, using get_entry_of_instruction to map addresses to entries
 mk_callgraph :: BinaryClass bin => LiftedRepresentationFunctions bin -> XGraph
 mk_callgraph l =
   let all_edges = concatMap get_edges_for_function $ IM.assocs $ lrf_cfgs l in
@@ -73,6 +73,9 @@ mk_callgraph_LEA_edges l =
       IS.fromList leas
 
   all_entries = IM.keysSet $ lrf_cfgs l
+
+
+
 
 get_lea_pointer i@(Instruction _ _ LEA [dst,op] _ _) = mk_rip_relative (inAddress i) (inSize i) op
 get_lea_pointer _ = Nothing

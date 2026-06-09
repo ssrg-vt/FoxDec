@@ -305,7 +305,7 @@ expr_size_bottyp (FromSemantics srcs)           = NES.size srcs
 expr_size_bottyp (FromMemWrite srcs)            = NES.size srcs
 expr_size_bottyp (FromUninitializedMemory srcs) = NES.size srcs
 expr_size_bottyp (FromCall _)                   = 1
-
+expr_size_bottyp (RockBottom)                   = 1
 
 unfold_cmovs :: SimpleExpr -> [SimpleExpr]
 unfold_cmovs (SE_Op Cmov si es)     = map simp $ concatMap unfold_cmovs es

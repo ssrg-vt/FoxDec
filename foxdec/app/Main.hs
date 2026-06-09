@@ -84,7 +84,7 @@ data CommandLineArgs = CommandLineArgs
   { 
     args_config             :: FilePath,   -- ^ The .config file
     args_dirname            :: FilePath,   -- ^ The directory where results are stored
-    args_filename           :: Maybe FilePath,   -- ^ The name of the binary
+    args_filename           :: Maybe FilePath, -- ^ The name of the binary
     args_inputtype          :: String,     -- ^ The input type (a binary or a .LR file)
     args_generate_LR        :: Bool,       -- ^ Shall we generate a .LR file?
     args_generate_GAS       :: Bool,       -- ^ Shall we generate GAS?

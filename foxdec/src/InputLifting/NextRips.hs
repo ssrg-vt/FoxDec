@@ -67,13 +67,13 @@ next_rips_unresolved_call a = do
       instrs'      <- mapM fetch $ map InstructionAddress path
       let instrs    = map fromJust instrs' 
       ctxt@(bin,_) <- ask
-      (_,_,ss,_,_) <- liftIO $ symbolically_execute_path ctxt (init instrs) init_symstate
+      (_,_,ss,_,_) <- liftIO $ symbolically_execute_path ctxt False False (init instrs) init_symstate
 
 
       let i         = last instrs
       let sem       = instr_to_semantics ctxt i
       let [SE_StatePart op Nothing] = operands_of sem
-      let v         = resolve_operands ctxt sem ss M.! op
+      let v         = resolve_operands ctxt False sem ss M.! op
       (is_resolved,nxt) <- resolve_target_based_on_symbolic_value bin i v
       modify $ register_resolving a $ if is_resolved then ResolvedCall nxt else UnresolvedCall
       return nxt
@@ -87,13 +87,13 @@ next_rips_error a = do
   instrs'      <- mapM fetch $ map InstructionAddress path
   let instrs    = map fromJust instrs' 
   ctxt@(bin,_) <- ask
-  (_,_,ss,_,_) <- liftIO $ symbolically_execute_path ctxt (init instrs) init_symstate
+  (_,_,ss,_,_) <- liftIO $ symbolically_execute_path ctxt False False (init instrs) init_symstate
 
 
   let i         = last instrs
   let sem       = instr_to_semantics ctxt i
   let op        = SP_Reg $ Reg64 RDI
-  let v         = resolve_operands ctxt sem ss M.! op
+  let v         = resolve_operands ctxt False sem ss M.! op
 
   case v of
     [SE_Immediate imm] -> do 
@@ -129,7 +129,7 @@ use_path_to_resolve_jump a path = do
   Just i       <- fetch a
   instrs'      <- mapM fetch $ map InstructionAddress path
   let instrs    = map fromJust instrs' 
-  attempt      <- try_find_jump_table_computation True a instrs
+  attempt      <- try_find_jump_table_computation 0 a instrs
   case attempt of
     (v,errmsg,Nothing) -> do
       xDebug 0 $ "Not a jump table: " ++ show i
@@ -152,7 +152,7 @@ use_path_to_resolve_jump a path = do
           -- error $ "ERROR: Cannot find base!" ++ errmsg  -- TODO report error
           return $ NxtReturn Nothing
         Just base -> do
-          let vs_ordered = map (\bnd -> evalState (sresolve_expr ctxt (substE remove_take_bits idx (SE_Immediate bnd) (head v))) ss)  [0..bnd]
+          let vs_ordered = map (\bnd -> evalState (sresolve_expr ctxt False (substE remove_take_bits idx (SE_Immediate bnd) (head v))) ss)  [0..bnd]
           let vs = S.toList $ S.fromList vs_ordered
           if all (expr_is_global_immediate bin) vs then do
             xtoLog $ "Jump table @0x" ++ showHex (inAddress i) ++ ", bound " ++ show bnd ++ ", base 0x" ++ showHex base  ++ " and targets " ++ show vs
@@ -165,16 +165,16 @@ use_path_to_resolve_jump a path = do
  where
   mock_op = Op_Reg (Reg64 RAX) []
 
-  try_find_jump_table_computation :: BinaryClass bin => Bool -> InstructionAddress -> [Instruction] ->
+  try_find_jump_table_computation :: BinaryClass bin => Int -> InstructionAddress -> [Instruction] ->
                                      XLifting bin ([SimpleExpr], String, Maybe (SimpleExpr, SymState))
-  try_find_jump_table_computation firstAttempt a instrs = do
+  try_find_jump_table_computation attemptNr a instrs = do
     ctxt@(bin,_) <- ask
-    (_,_,ss,_,r) <- liftIO $ symbolically_execute_path ctxt (init instrs) init_symstate
+    (_,_,ss,_,r) <- liftIO $ symbolically_execute_path ctxt True (attemptNr == 2) (init instrs) init_symstate
 
     let i         = last instrs
     let sem       = instr_to_semantics ctxt i
     let [SE_StatePart op Nothing] = operands_of sem
-    let v         = resolve_operands ctxt sem ss M.! op
+    let v         = resolve_operands ctxt False sem ss M.! op
     let errmsg    = "\n" ++ intercalate "\n"
                     [ "Symbolically executing:"
                     , show (head instrs) ++ " --> " ++ show (last instrs)
@@ -184,15 +184,19 @@ use_path_to_resolve_jump a path = do
     
     case find_jump_table_index $ head v of
       Nothing  -> 
-        if firstAttempt then do
+        if attemptNr == 0 then do
           let instrs' = reverse $ takeWhile (not . loadsImmediate) $ reverse instrs
           if head instrs' /= head instrs then
-            try_find_jump_table_computation False a instrs'
+            try_find_jump_table_computation 1 a instrs'
           else
-            return (v,errmsg,Nothing)
+            try_find_jump_table_computation 2 a instrs
+        else if attemptNr == 1 then do
+          try_find_jump_table_computation 2 a instrs
         else
           return (v,errmsg,Nothing)
       Just idx -> return (v,errmsg,Just (idx,ss))
+
+
 
   loadsImmediate (Instruction _ _ MOV [_,Op_Imm _] _ _) = True
   loadsImmediate _ = False
@@ -239,8 +243,6 @@ use_path_to_resolve_jump a path = do
   find_bound idx (">=",_,_) = Nothing
   find_bound idx (cmp,e0,e1) = error $ show (idx,cmp,e0,e1)
 
-  --bound_inherited_from_expr (SE_Var (SP_Mem a 1))                = Just 1 -- TODO annotate underapproximation of jump table
-  --bound_inherited_from_expr (SE_StatePart (SP_Mem a 1) _)        = Just 1 -- TODO annotate underapproximation of jump table
   bound_inherited_from_expr (SE_Op Plus  _  [a,SE_Immediate imm]) = ((+) imm) <$> bound_inherited_from_expr a
   bound_inherited_from_expr (SE_Op Times _  [a,SE_Immediate imm]) = ((*) imm) <$> bound_inherited_from_expr a
   bound_inherited_from_expr (SE_Op Xor   _  [a,SE_Immediate imm]) = max imm <$> bound_inherited_from_expr a

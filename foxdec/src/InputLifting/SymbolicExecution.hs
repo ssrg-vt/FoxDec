@@ -47,8 +47,7 @@ import Binary.Generic
 
 --TODO
 import WithNoAbstraction.SymbolicExecution (external_function_behavior)
-import WithNoAbstraction.Pointers (expr_is_global_immediate,get_pointer_base_set,necessarily_enclosed,necessarily_equal)
-import WithAbstractSymbolicValues.Class (empty_finit)
+import WithNoAbstraction.Pointers (expr_is_global_immediate,get_pointer_base_set,necessarily_enclosed,necessarily_equal,no_finit)
 
 import Data.SymbolicExpression hiding (show_srcs,swrite_mem)
 
@@ -115,10 +114,10 @@ read_RIP symstate =
 -- 1.) the abstract semantics of the path
 -- 2.) per instruction, the resolved operands
 -- 3.) the final symbolic state, after symbolically executing the entire path
-symbolically_execute_path :: BinaryClass bin => Context bin -> [Instruction] -> SymState -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart,String)
-symbolically_execute_path ctxt path symstate = do
+symbolically_execute_path :: BinaryClass bin => Context bin -> Bool -> Bool -> [Instruction] -> SymState -> IO ([ASemantics], [ResolvedOperands], SymState, S.Set StatePart,String)
+symbolically_execute_path ctxt generalize_CMP generalize_jt_index path symstate = do
   let asemantics = path_to_asemantics ctxt path
-  let (ras,inv)  = tau_path ctxt asemantics symstate
+  let (ras,inv)  = tau_path ctxt generalize_CMP generalize_jt_index asemantics symstate
   let inputs     = S.unions $ map resolved_operands_to_inputs $ zip asemantics ras
   let pp_result  = show_result path asemantics ras inv inputs
   --putStrLn $ show_result path asemantics ras inv inputs
@@ -164,11 +163,11 @@ symbolically_execute_until ctxt@(bin,config) a as symstate
 
   do_normal_instr (ASemantics sem rip si _) count = do
       set_rip (rip + si)
-      tau ctxt count True False rip si sem
+      tau ctxt count True False False rip si sem
 
   do_jump sem@(ASemantics (Jump src _) rip si _) = do
     set_rip (rip + si)
-    trgt <- sread_src ctxt src
+    trgt <- sread_src ctxt False src
     case (src,trgt) of
       (SE_Immediate _, SE_Immediate a') -> set_rip (rip + a') 
       (_             , SE_Immediate a') -> set_rip a'
@@ -936,7 +935,7 @@ swrite_mem ctxt a' si v' = do
   take_bytes si (Written v) = Written $ simp $ SE_Bit (8*si) v
 
 get_pointer_bases :: BinaryClass bin => Context bin -> SimpleExpr -> S.Set PointerBase
-get_pointer_bases ctxt@(bin,_) a = get_pointer_base_set bin empty_finit a
+get_pointer_bases ctxt@(bin,_) a = get_pointer_base_set bin no_finit a
 
  
 get_pointer_domain :: BinaryClass bin => Context bin -> SimpleExpr -> PointerDomain
@@ -1088,13 +1087,13 @@ swrite_reg r v = do
 
 
 
-sread_statepart :: BinaryClass bin => Context bin -> StatePart -> State SymState SimpleExpr
-sread_statepart ctxt (SP_Reg r)    = sread_reg r
-sread_statepart ctxt (SP_Mem a si) = do
-  as' <- operand_address_to_resolved_exprs ctxt a
+sread_statepart :: BinaryClass bin => Context bin -> Bool -> StatePart -> State SymState SimpleExpr
+sread_statepart ctxt generalize_jt_index (SP_Reg r)    = sread_reg r
+sread_statepart ctxt generalize_jt_index (SP_Mem a si) = do
+  as' <- operand_address_to_resolved_exprs ctxt generalize_jt_index a
   case as' of
     Nothing  -> do
-      a' <- sresolve_expr ctxt a
+      a' <- sresolve_expr ctxt generalize_jt_index a
       get_regs <&> (read_top_from_statepart $ SP_Mem a' si)
       -- s <- get
       --error $ "Read from domainless pointer: " ++ show (SP_Mem a si) ++ "\n" ++ show_symstate ctxt s
@@ -1108,30 +1107,35 @@ sread_statepart ctxt (SP_Mem a si) = do
 
 
 
-sresolve_expr :: BinaryClass bin => Context bin -> SimpleExpr -> State SymState SimpleExpr
-sresolve_expr ctxt e@(SE_Immediate _)        = return e
-sresolve_expr ctxt e@(SE_Var (SP_Mem a si))  = do
-  a_v <- sresolve_expr ctxt a
+sresolve_expr :: BinaryClass bin => Context bin -> Bool -> SimpleExpr -> State SymState SimpleExpr
+sresolve_expr ctxt generalize_jt_index e@(SE_Immediate _)        = return e
+sresolve_expr ctxt generalize_jt_index e@(SE_Var (SP_Mem a si))  = do
+  a_v <- sresolve_expr ctxt generalize_jt_index a
   return $ read_unwritten_mem ctxt a_v si
-sresolve_expr ctxt e@(SE_Var _)              = return e
-sresolve_expr ctxt   (SE_StatePart sp _)     = sread_statepart ctxt sp
-sresolve_expr ctxt   (SE_Op op si es)        = (simp . SE_Op op si) <$> mapM (sresolve_expr ctxt) es
-sresolve_expr ctxt   (SE_Bit n e)            = (simp . SE_Bit n) <$> sresolve_expr ctxt e
-sresolve_expr ctxt   (SE_SExtend l h e)      = (simp . SE_SExtend l h) <$> sresolve_expr ctxt e
-sresolve_expr ctxt   (SE_Overwrite n e0 e1)  = do
-  e0' <- sresolve_expr ctxt e0
-  e1' <- sresolve_expr ctxt e1
+sresolve_expr ctxt generalize_jt_index e@(SE_Var _)              = return e
+sresolve_expr ctxt generalize_jt_index e@(SE_StatePart sp _)     = sread_statepart ctxt generalize_jt_index sp
+sresolve_expr ctxt True                e@(SE_Op Times si es@[e0,SE_Immediate 4]) = do
+  v0 <- sresolve_expr ctxt True e0
+  case v0 of
+    SE_Immediate _ -> return $ SE_Op Times si [Bottom RockBottom,SE_Immediate 4]
+    _              -> (simp . SE_Op Times si) <$> mapM (sresolve_expr ctxt True) es
+sresolve_expr ctxt generalize_jt_index e@(SE_Op op si es)        = (simp . SE_Op op si) <$> mapM (sresolve_expr ctxt generalize_jt_index) es
+sresolve_expr ctxt generalize_jt_index e@(SE_Bit n e0)           = (simp . SE_Bit n) <$> sresolve_expr ctxt generalize_jt_index e0
+sresolve_expr ctxt generalize_jt_index e@(SE_SExtend l h e0)     = (simp . SE_SExtend l h) <$> sresolve_expr ctxt generalize_jt_index e0
+sresolve_expr ctxt generalize_jt_index e@(SE_Overwrite n e0 e1)  = do
+  e0' <- sresolve_expr ctxt generalize_jt_index e0
+  e1' <- sresolve_expr ctxt generalize_jt_index e1
   return $ simp $ SE_Overwrite n e0 e1
-sresolve_expr ctxt e@(Bottom _)              = return e
-sresolve_expr ctxt e@(SE_Malloc _ _)         = return e
+sresolve_expr ctxt generalize_jt_index e@(Bottom _)              = return e
+sresolve_expr ctxt generalize_jt_index e@(SE_Malloc _ _)         = return e
 
 
 -- take @a@: the address as it occurs in the operand of an instruction.
 -- For example: RAX + RBX*4 in the memory operand QWORD PTR [RAX + RBX*4]
 -- Try to resolve this address to a symbolic value by reading its inputs.
-operand_address_to_resolved_exprs :: BinaryClass bin => Context bin -> SimpleExpr -> State SymState (Maybe [SimpleExpr])
-operand_address_to_resolved_exprs ctxt a = do
-  a'      <- sresolve_expr ctxt a
+operand_address_to_resolved_exprs :: BinaryClass bin => Context bin -> Bool -> SimpleExpr -> State SymState (Maybe [SimpleExpr])
+operand_address_to_resolved_exprs ctxt generalize_jt_index a = do
+  a'      <- sresolve_expr ctxt generalize_jt_index a
   let as'  = [a'] -- nub $ map simp $ unfold_cmovs a'
 
   if all (has_pointer_domain ctxt) as' then
@@ -1171,7 +1175,7 @@ soverwrite_dst ctxt sp = swrite_dst ctxt sp
 swrite_dst :: BinaryClass bin => Context bin -> SimpleExpr -> Maybe SimpleExpr -> State SymState ()
 swrite_dst ctxt (SE_StatePart (SP_Reg r) _)    v' = swrite_reg r v'
 swrite_dst ctxt (SE_StatePart (SP_Mem a si) _) v' = do
-  as' <- operand_address_to_resolved_exprs ctxt a
+  as' <- operand_address_to_resolved_exprs ctxt False a
   case as' of
     Just as' -> forM_ as' do_write
     Nothing  -> return ()
@@ -1185,14 +1189,14 @@ swrite_dst ctxt (SE_StatePart (SP_Mem a si) _) v' = do
     -- TODO check not needed
 swrite_dst _ e _ = error $ show e
 
-sread_src :: BinaryClass bin => Context bin -> SimpleExpr -> State SymState SimpleExpr
-sread_src ctxt   (SE_StatePart sp _)          = sread_statepart ctxt sp
-sread_src ctxt e@(SE_Immediate imm)           = return $ e
-sread_src ctxt e@(SE_Overwrite n src0 src1)   = do
-  src0' <- sread_src ctxt src0
-  src1' <- sread_src ctxt src1
+sread_src :: BinaryClass bin => Context bin -> Bool -> SimpleExpr -> State SymState SimpleExpr
+sread_src ctxt generalize_jt_index e@(SE_StatePart sp _)          = sread_statepart ctxt generalize_jt_index sp
+sread_src ctxt generalize_jt_index e@(SE_Immediate imm)           = return $ e
+sread_src ctxt generalize_jt_index e@(SE_Overwrite n src0 src1)   = do
+  src0' <- sread_src ctxt generalize_jt_index src0
+  src1' <- sread_src ctxt generalize_jt_index src1
   return $ simp $ SE_Overwrite n src0' src1'
-sread_src ctxt e                              = error $ "Reading from " ++ show e
+sread_src ctxt generalize_jt_index e                              = error $ "Reading from " ++ show e
 
 
 
@@ -1206,8 +1210,8 @@ smallerDistance a0 a1 =
 
 type ResolvedOperands = M.Map StatePart [SimpleExpr]
 
-tau_path :: BinaryClass bin => Context bin -> [ASemantics] -> SymState -> ([ResolvedOperands], SymState)
-tau_path ctxt p symstate = runState (traverse 0 p) symstate
+tau_path :: BinaryClass bin => Context bin -> Bool -> Bool -> [ASemantics] -> SymState -> ([ResolvedOperands], SymState)
+tau_path ctxt generalize_CMP generalize_jt_index p symstate = runState (traverse 0 p) symstate
  where
   traverse :: Int -> [ASemantics] -> State SymState [ResolvedOperands]
   traverse n []         = return []
@@ -1215,10 +1219,10 @@ tau_path ctxt p symstate = runState (traverse 0 p) symstate
     set_rip (asem_size sem + asem_rip sem)
     when writesToFlags $ sclear_flg 
 
-    resolved_ops <- gets $ resolve_operands ctxt sem
+    resolved_ops <- gets $ resolve_operands ctxt generalize_jt_index sem
 
     -- regs <- get_regs
-    tau ctxt n (does_fall_through p0) True rip si exec
+    tau ctxt n (does_fall_through p0) generalize_CMP generalize_jt_index rip si exec
     resolved_ops' <- traverse (n+1) p
     return $ resolved_ops : resolved_ops'
     -- return (prune_symstate_for_instruction sem regs:regs')
@@ -1229,22 +1233,22 @@ tau_path ctxt p symstate = runState (traverse 0 p) symstate
       
 
 
-resolve_operands :: BinaryClass bin => Context bin -> ASemantics -> SymState -> ResolvedOperands
-resolve_operands ctxt sem inv = 
+resolve_operands :: BinaryClass bin => Context bin -> Bool -> ASemantics -> SymState -> ResolvedOperands
+resolve_operands ctxt generalize_jt_index sem inv = 
   let inv' = execState (set_rip (asem_size sem + asem_rip sem)) inv 
       ops  = operands_of sem ++  map (\r -> SE_StatePart (SP_Reg r) Nothing) ((if asem_execution sem == SysCall then syscall_input_registers inv' else []) ++ function_call_input_registers ctxt sem) in
     M.map nub $ M.unionsWith (++) $ map (resolve_operand inv' sem) ops
  where
   resolve_operand inv sem (SE_StatePart (SP_Mem a 0) Nothing) = 
-    case evalState (operand_address_to_resolved_exprs ctxt a) inv of
+    case evalState (operand_address_to_resolved_exprs ctxt generalize_jt_index a) inv of
       Just as' -> M.singleton (SP_Mem a 0) as'
       Nothing  -> M.empty
   resolve_operand inv sem (SE_StatePart (SP_Mem a si) Nothing) = 
-    case evalState (operand_address_to_resolved_exprs ctxt a) inv of
-      Just as' -> let v = evalState (sread_statepart ctxt (SP_Mem a si)) inv in
+    case evalState (operand_address_to_resolved_exprs ctxt generalize_jt_index a) inv of
+      Just as' -> let v = evalState (sread_statepart ctxt generalize_jt_index (SP_Mem a si)) inv in
                     M.fromList [(SP_Mem a 0, as'), (SP_Mem a si, [v])]
-      Nothing -> let a' = evalState (sresolve_expr ctxt a) inv
-                     v = evalState (sread_statepart ctxt (SP_Mem a si)) inv in
+      Nothing -> let a' = evalState (sresolve_expr ctxt generalize_jt_index a) inv
+                     v = evalState (sread_statepart ctxt generalize_jt_index (SP_Mem a si)) inv in
                     M.fromList [(SP_Mem a 0, [a']), (SP_Mem a si, [v])]
   resolve_operand inv sem (SE_StatePart (SP_Reg r) Nothing) =
     let v = evalState (sread_reg r) inv in
@@ -1364,7 +1368,7 @@ set_rip rip = swrite_reg (Reg64 RIP) (Just $ SE_Immediate rip)
 
 
 
-spush ctxt src op_si = do
+spush ctxt generalize_jt_index src op_si = do
   -- RSP -= operand_size
   let si = case src of
              SE_Immediate _ -> 8
@@ -1374,16 +1378,16 @@ spush ctxt src op_si = do
   let new_rsp_value = simp $ SE_Op Minus 64 [rsp_value, SE_Immediate $ fromIntegral si]
   swrite_reg rsp $ Just new_rsp_value
   -- *[RSP,si] := src
-  src_value <- sread_src ctxt src
+  src_value <- sread_src ctxt generalize_jt_index src
   let sp = SE_StatePart (SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) si) Nothing
   swrite_dst ctxt sp $ Just src_value
 
 
-spop ctxt dst op_si = do
+spop ctxt generalize_jt_index dst op_si = do
   -- dst := *[RSP,si]
   let si = op_si `div` 8
   let sp = SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) si
-  src_value <- sread_statepart ctxt sp
+  src_value <- sread_statepart ctxt generalize_jt_index sp
   swrite_dst ctxt dst $ Just src_value
   -- RSP += operand_size
   let rsp = Reg64 RSP
@@ -1391,19 +1395,19 @@ spop ctxt dst op_si = do
   let new_rsp_value = simp $ SE_Op Plus 64 [rsp_value, SE_Immediate $ fromIntegral si]
   swrite_reg rsp $ Just new_rsp_value
 
-sleave ctxt = do
+sleave ctxt generalize_jt_index = do
   -- RSP := RBP
   let rbp = Reg64 RBP
   let rsp = Reg64 RSP
   rbp_value <- sread_reg rbp
   swrite_reg rsp $ Just rbp_value
   -- POP RBP
-  spop ctxt (SE_StatePart (SP_Reg rbp) Nothing) 64
+  spop ctxt generalize_jt_index (SE_StatePart (SP_Reg rbp) Nothing) 64
 
 
-sret ctxt = do
+sret ctxt generalize_jt_index = do
   -- RIP := *[RSP,8]
-  v' <- sread_statepart ctxt $ SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8
+  v' <- sread_statepart ctxt generalize_jt_index $ SP_Mem (SE_StatePart (SP_Reg $ Reg64 RSP) Nothing) 8
   swrite_reg (Reg64 RIP) (Just v') 
   -- RSP += 8
   let rsp = Reg64 RSP
@@ -1414,9 +1418,9 @@ sret ctxt = do
 
 
 
-sset_flag ctxt op src0 src1 = do
-  src0_value <- sread_src ctxt src0
-  src1_value <- sread_src ctxt src1
+sset_flag ctxt generalize_jt_index op src0 src1 = do
+  src0_value <- sread_src ctxt generalize_jt_index src0
+  src1_value <- sread_src ctxt generalize_jt_index src1
   case (src0_value,src1_value) of
     (SE_Op Minus si [a,SE_Immediate i],v1) -> swrite_flg op a (simp' $ SE_Op Plus si [v1,SE_Immediate i])
     _ -> swrite_flg op src0_value src1_value
@@ -1503,66 +1507,66 @@ cap_expr e (SE_StatePart sp _)
   | expr_size e > 50 = get_regs <&> (read_top_from_statepart sp)
   | otherwise        = return e
 
-tau :: BinaryClass bin => Context bin -> Int -> Bool -> Bool -> Word64 -> Word64 -> AExecution -> State SymState ()
-tau ctxt n fall_through generalize_CMP rip si (Apply op op_si dst srcs)          = do
+tau :: BinaryClass bin => Context bin -> Int -> Bool -> Bool -> Bool -> Word64 -> Word64 -> AExecution -> State SymState ()
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Apply op op_si dst srcs)          = do
   when (op == Minus) $ do
-    tau ctxt n fall_through generalize_CMP rip si $ SetFlag CMP dst (srcs!!1)
+    tau ctxt n fall_through generalize_CMP generalize_jt_index rip si $ SetFlag CMP dst (srcs!!1)
 
-  srcs' <- mapM (sread_src ctxt) srcs
+  srcs' <- mapM (sread_src ctxt generalize_jt_index) srcs
   let v = simp $ SE_Op op op_si srcs'
   v' <- cap_expr v dst 
   swrite_dst ctxt dst $ Just v'
 
-tau ctxt n fall_through generalize_CMP rip si (ApplyWhenImm op op_si dst srcs)   = do
-  srcs' <- mapM (sread_src ctxt) srcs
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (ApplyWhenImm op op_si dst srcs)   = do
+  srcs' <- mapM (sread_src ctxt generalize_jt_index) srcs
   let v = simp $ SE_Op op op_si srcs'
   v' <- cap_expr v dst 
   if any is_immediate srcs' then
     swrite_dst ctxt dst $ Just v'
   else
     swrite_dst ctxt dst Nothing  
-tau ctxt n fall_through generalize_CMP rip si (Mov dst src)                = do
-  src' <- sread_src ctxt src
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Mov dst src)                = do
+  src' <- sread_src ctxt generalize_jt_index src
   swrite_dst ctxt dst (Just src') 
-tau ctxt n fall_through generalize_CMP rip si (MovZX dst src op_si)        = do
-  src' <- sread_src ctxt src
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (MovZX dst src op_si)        = do
+  src' <- sread_src ctxt generalize_jt_index src
   swrite_dst ctxt dst (Just $ simp $ SE_Bit op_si src') 
-tau ctxt n fall_through generalize_CMP rip si (SExtend dst h src l)        = do
-  src' <- sread_src ctxt src
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (SExtend dst h src l)        = do
+  src' <- sread_src ctxt generalize_jt_index src
   swrite_dst ctxt dst (Just $ simp $ SE_SExtend l h src') 
-tau ctxt n fall_through generalize_CMP rip si (Lea dst src)                = do
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Lea dst src)                = do
   let SE_StatePart (SP_Mem a si) _ = src
-  src' <- sresolve_expr ctxt a
+  src' <- sresolve_expr ctxt generalize_jt_index a
   swrite_dst ctxt dst (Just src') 
-tau ctxt n fall_through generalize_CMP rip si (NoSemantics op dst srcs)    = do
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (NoSemantics op dst srcs)    = do
   -- Note sources must be read, as reading can influence the memory model
-  srcs' <- mapM (sread_src ctxt) srcs
+  srcs' <- mapM (sread_src ctxt generalize_jt_index) srcs
   case dst of
     Nothing  -> return ()
     Just dst -> swrite_dst ctxt dst Nothing  
-tau ctxt n fall_through generalize_CMP rip si sem@(SysCall)                    = do
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si sem@(SysCall)                    = do
   -- Note sources must be read, as reading can influence the memory model
   regs <- gets $ syscall_input_registers 
   mapM_ sread_reg regs
   mapM_ (\r -> swrite_reg r Nothing) $ regs_clobbered_by_syscall
-tau ctxt n fall_through generalize_CMP rip si sem@(SetFlag op src0 src1) = do
-  v <- sread_src ctxt src0
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si sem@(SetFlag op src0 src1) = do
+  v <- sread_src ctxt generalize_jt_index src0
   when generalize_CMP $ do
     case v of
      SE_Immediate _ -> swrite_dst ctxt src0 Nothing
      _              -> return ()
-  sset_flag ctxt op src0 src1
+  sset_flag ctxt generalize_jt_index op src0 src1
 
-tau ctxt n fall_through generalize_CMP rip si (SetXX dst)                  = soverwrite_dst ctxt dst $ Just $ SE_Op ZeroOne 8 []
-tau ctxt n fall_through generalize_CMP rip si (Call op i)                  = scall ctxt n i rip 
-tau ctxt n fall_through generalize_CMP rip si (Jump op i)                  = sjump ctxt n rip i
-tau ctxt n fall_through generalize_CMP rip si (CondJump op)                = scondjump ctxt rip fall_through op si
-tau ctxt n fall_through generalize_CMP rip si (Nop)                        = return ()
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (SetXX dst)                  = soverwrite_dst ctxt dst $ Just $ SE_Op ZeroOne 8 []
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Call op i)                  = scall ctxt n i rip 
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Jump op i)                  = sjump ctxt n rip i
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (CondJump op)                = scondjump ctxt rip fall_through op si
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Nop)                        = return ()
 
-tau ctxt n fall_through generalize_CMP rip si (Push src op_si)             = spush ctxt src op_si
-tau ctxt n fall_through generalize_CMP rip si (Pop dst op_si)              = spop ctxt dst op_si
-tau ctxt n fall_through generalize_CMP rip si (Leave)                      = sleave ctxt
-tau ctxt n fall_through generalize_CMP rip si (Ret)                        = sret ctxt
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Push src op_si)             = spush ctxt generalize_jt_index src op_si
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Pop dst op_si)              = spop ctxt generalize_jt_index dst op_si
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Leave)                      = sleave ctxt generalize_jt_index
+tau ctxt n fall_through generalize_CMP generalize_jt_index rip si (Ret)                        = sret ctxt generalize_jt_index
 
 
 

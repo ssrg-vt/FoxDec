@@ -345,12 +345,12 @@ ssf_pp l (StateSoFar fp bp fs sz) = intercalate "\n" $ mk_errors ++ [mk_summary]
   show_error (IllegalThrow msg) = "ERROR: ILLEGAL THROW " ++ msg
 
   show_ecfg_sizes sz = 
-    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 1 < ecfg_si) $ IM.elems sz of
       [] -> ""
       is -> "ECFG_SIZES:" ++ (intercalate "," $ map (show . snd) $ is)
 
   show_cfg_sizes sz = 
-    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 1 < ecfg_si) $ IM.elems sz of
       [] -> ""
       is -> "_CFG_SIZES:" ++ (intercalate "," $ map (show . fst) $ is)
 
