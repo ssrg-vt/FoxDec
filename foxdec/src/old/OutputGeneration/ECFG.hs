@@ -5,7 +5,7 @@ Module      : ECFG
 Description : Contains functions pertaining to exceptional control flow graph generation.
 -}
 
-module OutputGeneration.ECFG2 where
+module OutputGeneration.ECFG where
 
 import Base
 
@@ -16,12 +16,16 @@ import Data.Symbol
 import Data.X86.Opcode
 import Data.X86.Instruction
 import Data.X86.Register
+import WithAbstractPredicates.ControlFlow
+import WithNoAbstraction.SymbolicExecutionPath
+import WithNoAbstraction.Lifted
+import WithAbstractPredicates.GenerateCFG
 
-import InputLifting.Types
-import OutputGeneration.LRToCallGraph
-
+import OutputGeneration.CallGraph
+import Data.L0
 import Data.JumpTarget
 import Data.Indirection
+import Data.CFG
 import Data.CFI
 import Binary.Generic 
 import Data.SymbolicExpression 
@@ -180,10 +184,9 @@ ecfg_blockID_to_address (ECFG vertices _ _ _) blockID = ecfg_vertex_to_address $
 init_ecfg_symstate ecfg blockID = ECFG_SymState [Normal] $ ecfg_blockID_to_address ecfg blockID
 
 
-sym_exec_cfg_all :: BinaryClass bin => XLifted bin ()
-sym_exec_cfg_all = do
-  (bin,config,lr,funcs) <- get
-  fs <- get_call_graph_sources
+sym_exec_cfg_all :: Lifted -> IO ()
+sym_exec_cfg_all l@(bin,config,_) = do
+  let fs = get_call_graph_sources l
   ssf <- execStateT (mapM_ run_entry $ IS.toList fs) init_StateSoFar
 
   let dirname   = binary_dir_name bin
@@ -194,7 +197,7 @@ sym_exec_cfg_all = do
   run_entry = sym_exec_ecfg_entry l True . fromIntegral
 
 
-sym_exec_ecfg_entry :: Bool -> Word64 -> StateT StateSoFar (XLifted bin) (S.Set EStatus)
+sym_exec_ecfg_entry :: Lifted -> Bool -> Word64 -> StateT StateSoFar IO (S.Set EStatus)
 sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
   posts <- gets ssf_function_posts
   is_explored <- gets (IS.member (fromIntegral entry) . ssf_currently_explored_functions)
@@ -238,16 +241,15 @@ sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
 
 
 
-overapproximate_post l@(bin,config,l0) entry ecfg = S.unions [ use_ecfg ] -- TODO use_l0_post
+overapproximate_post l@(bin,config,l0) entry ecfg = S.unions [ use_l0_post, use_ecfg ]
  where
-{-- 
   use_l0_post =
     let (finit,result) = l0_functions l0 IM.! (fromIntegral entry) in
       case result_post <$> result of
         Just Terminates      -> S.singleton Terminated
         Just (ReturnsWith _) -> S.singleton Returned
         _                    -> S.empty
---}
+
   use_ecfg = IM.foldr ecfg_vertex_to_post S.empty $ ecfg_vertices ecfg
 
   ecfg_vertex_to_post (ECFG_Vertex _ _ info _) q = foldr ecfg_vertex_info_to_post q info
@@ -582,8 +584,8 @@ render_ecfg_to_dot (ECFG vertices edges entry regions) =
 
 
 -- Creating an ECFG from a CFG
-cfg_to_ecfg :: BinaryClass bin => bin -> Word64 -> ControlFlowGraph -> ECFG
-cfg_to_ecfg bin entry cfg =
+cfg_to_ecfg :: Lifted -> Word64 -> CFG -> ECFG
+cfg_to_ecfg l@(bin,config,l0) entry cfg =
   let cfg' = cfg_compress l entry cfg in
     ECFG (mk_vertices cfg') (mk_edges cfg') entry $ concatMap mk_regions all_relevant_tables
  where
@@ -793,8 +795,8 @@ address_to_label bin a =
    _                                         -> "0x" ++ showHex a
       
 
-ecgf_unfold_jumps_to_function_entries :: IM.IntMap ControlFlowGraph -> ECFG -> ECFG
-ecgf_unfold_jumps_to_function_entries funcs = repeatUtilFixpoint unfold
+ecgf_unfold_jumps_to_function_entries :: Lifted -> ECFG -> ECFG
+ecgf_unfold_jumps_to_function_entries l@(bin,config,l0) = repeatUtilFixpoint unfold
  where
   unfold ecfg = 
     let jmps = mapMaybe get_jump_into_function $ IM.assocs $ ecfg_vertices ecfg in
@@ -810,7 +812,7 @@ ecgf_unfold_jumps_to_function_entries funcs = repeatUtilFixpoint unfold
   unfold_vertex (blockID,ECFG_Vertex _ _ info _) ecfg =
     let [ECFG_Return (Just a)] = filter is_jump_into_function info
         (maxBlockID,_)         = IM.findMax $ ecfg_vertices ecfg
-        cfg_child              = funcs IM.! fromIntegral a
+        cfg_child              = cfg_split_jumps $ l0_get_cfgs l0 IM.! fromIntegral a
         ecfg_child             = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a cfg_child
         ecfg_parent            = ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing (maxBlockID+1)) : ecfg_edges ecfg }
         ecfg_merge             = ECFG (IM.union (ecfg_vertices ecfg_parent) (ecfg_vertices ecfg_child))
@@ -864,8 +866,8 @@ table_has_overlapping_region_or_landing_pad_for_block cfg t blockID =
 -- 2.) contains calls to, e.g., __cxa_throw
 -- 3.) has CFI directives
 -- 4.) is the beginning or end of a call-site region 
-cfg_compress :: BinaryClass bin => bin -> Word64 -> ControlFlowGraph -> ControlFlowGraph
-cfg_compress bin entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_edges cfg0
+cfg_compress :: BinaryClass bin => Lifting bin pred finit v -> Word64 -> CFG -> CFG
+cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_edges cfg0
  where
   maybe_remove_node blockID cfg
     | IS.null (intgraph_pre  cfg blockID)                        = cfg
@@ -875,12 +877,12 @@ cfg_compress bin entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_edges
     | block_contains_region_start_or_end cfg all_regions blockID = cfg
     | block_starts_landing_pad cfg blockID                       = cfg
     -- TODO or end of basic block has cfi_directive end is not start of another?
-    | otherwise                                                  = cfg_remove_block blockID cfg
+    | otherwise                                                  = remove_node blockID cfg
 
 
   relevant_calls l cfg blockID = filter is_ecfg_relevant $ get_external_calls l cfg blockID
 
-  block_has_cfi_directive cfg blockID = any address_has_cfi_directive $ cfg_fetch_block cfg blockID
+  block_has_cfi_directive cfg blockID = any address_has_cfi_directive $ map (fromIntegral . inAddress) $ cfg_instrs cfg IM.! blockID
 
 
   all_regions = concatMap get_callsite_regions_from_gcc_except_table $ cfi_gcc_except_tables $ binary_get_cfi bin
@@ -903,6 +905,17 @@ cfg_compress bin entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_edges
         block_addresses   = block_end_address : (map (fromIntegral . inAddress) $ drop 1 instrs) in
       any (\(end,start,_,_) -> start `elem` (map inAddress instrs) || end `elem` block_addresses) regions
 
+  remove_node blockID cfg = 
+    let parents  = IS.delete blockID $ intgraph_pre cfg blockID
+        children = IS.delete blockID $ intgraph_post cfg blockID
+        prod     = filter (\(x,y) -> x /= y) $ [(x,y) | x <- IS.toList parents, y <- IS.toList children]
+        cfg0     = delete_node blockID cfg in
+      foldr add_new_edge cfg0 prod
+
+  add_new_edge (parent,child) cfg  = cfg { cfg_edges = IM.insertWith IS.union parent (IS.singleton child) (cfg_edges cfg) }
+
+  delete_node blockID cfg = cfg { cfg_edges = IM.map (IS.delete blockID) $ IM.delete blockID $ cfg_edges cfg, cfg_blocks = IM.delete blockID $ cfg_blocks cfg }
+
 
 
 is_ecfg_relevant (a,f) = 
@@ -917,11 +930,7 @@ get_external_calls l cfg blockID = concatMap get_external_call $ get_calls_from_
   get_external_call (i,External f) = [(inAddress i,f)]
   get_external_call _ = []
 
-get_calls_from_blockID cfg blockID = 
-  instrs <- mapM (withLR . fetch) $ cfg_basic_blocks cfg IM.! blockID
-  is_call <- 
-
-  get_call_target instrs
+get_calls_from_blockID l cfg blockID = get_call_target (cfg_instrs cfg IM.! blockID)
  where
   get_call_target instrs
     | is_call $ last instrs = zip (repeat (last instrs)) (get_known_jump_targets l $ last instrs)

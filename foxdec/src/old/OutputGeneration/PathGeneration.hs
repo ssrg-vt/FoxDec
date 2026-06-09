@@ -10,7 +10,6 @@ import Base
 import Config
 
 
-import OutputGeneration.CallGraph
 import Algorithm.Graph
 
 import Data.CFG hiding (num_of_instructions)
@@ -26,9 +25,6 @@ import Data.JumpTarget
 
 import Binary.Generic
 
-import WithNoAbstraction.Lifted
-import WithAbstractPredicates.ControlFlow
-import WithAbstractSymbolicValues.FInit
 
 
 import qualified Data.Map as M

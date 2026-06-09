@@ -14,6 +14,7 @@ import WithAbstractSymbolicValues.FInit
 import Binary.Generic
 
 import Data.L0
+import Data.FInit
 
 import qualified Data.Map as M
 import qualified Data.Set as S

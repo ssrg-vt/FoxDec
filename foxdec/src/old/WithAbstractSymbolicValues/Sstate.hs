@@ -14,6 +14,7 @@ import Data.X86.Instruction
 import Data.VerificationCondition
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 import Data.Symbol
+import Data.FInit
 
 import Binary.Generic
 

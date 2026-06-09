@@ -25,13 +25,13 @@ import qualified Data.Tree.View as TV
 import Binary.Generic
 import Binary.FunctionNames
 
-import WithNoAbstraction.Pointers (expr_is_global_immediate)
+import InputLifting.Pointers (expr_is_global_immediate)
 import InputLifting.ControlFlowGraph
 import InputLifting.SymbolicExecution
 import InputLifting.Types
 import InputLifting.NextRips
 
-import OutputGeneration.CallGraph2
+import OutputGeneration.CallGraph
 
 import Data.Word
 import Data.List

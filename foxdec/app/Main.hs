@@ -12,10 +12,10 @@ import Config
 import Binary.Elf (getELFFiles)
 
 import OutputGeneration.ELLF
-import OutputGeneration.ECFG2
+import OutputGeneration.ECFG
 import OutputGeneration.LRToELLF 
 import OutputGeneration.Metrics
-import OutputGeneration.CallGraph2
+import OutputGeneration.CallGraph
 import InputLifting.Types
 import InputLifting.Lift
 import InputLifting.Types

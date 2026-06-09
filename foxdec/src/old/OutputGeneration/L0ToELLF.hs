@@ -23,6 +23,7 @@ import Data.Int
 import Binary.FunctionNames
 import Binary.Elf
 import Binary.ELLF
+import Data.FInit
 
 import OutputGeneration.ELLF
 

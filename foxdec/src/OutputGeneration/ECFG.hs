@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, StrictData, BangPatterns #-}
+{-# LANGUAGE PartialTypeSignatures, Strict, BangPatterns #-}
 
 {-|
 Module      : ECFG 
@@ -8,6 +8,7 @@ Description : Contains functions pertaining to exceptional control flow graph ge
 module OutputGeneration.ECFG where
 
 import Base
+import Config
 
 import Algorithm.Graph
 
@@ -16,16 +17,17 @@ import Data.Symbol
 import Data.X86.Opcode
 import Data.X86.Instruction
 import Data.X86.Register
-import WithAbstractPredicates.ControlFlow
-import WithNoAbstraction.SymbolicExecutionPath
-import WithNoAbstraction.Lifted
-import WithAbstractPredicates.GenerateCFG
 
+
+import InputLifting.SymbolicExecution
+import InputLifting.NextRips
+import InputLifting.Types
+import InputLifting.ControlFlowGraph
 import OutputGeneration.CallGraph
+
 import Data.L0
 import Data.JumpTarget
 import Data.Indirection
-import Data.CFG
 import Data.CFI
 import Binary.Generic 
 import Data.SymbolicExpression 
@@ -34,6 +36,7 @@ import Conventions
 
 
 import Control.Monad.Extra
+import Control.Monad.Reader
 import Control.Monad.State.Strict
 
 
@@ -46,6 +49,7 @@ import qualified Data.Map as M
 import Data.Either (fromRight,fromLeft,partitionEithers)
 import Data.Maybe (fromJust,fromMaybe,isNothing,mapMaybe)
 import Data.List
+import Data.List.Extra
 import Data.List.Split (chunksOf)
 import Data.Word (Word64)
 import Control.Monad ((>=>))
@@ -54,7 +58,13 @@ import System.Demangle.Pure
 
 
 import System.IO.Unsafe
+import System.Directory (doesFileExist,createDirectoryIfMissing)
 
+
+safeLookup msg m k =
+  case IM.lookup k m of
+    Just v  -> v
+    Nothing -> error $ msg ++ ": key " ++ show k ++ " (0x" ++ showHex k ++ ") not found in " ++ take 1000 (show m)
 
 -- DATA STRUCTURES
 data Exception = Exception {
@@ -93,6 +103,7 @@ data ECFG_Vertex_Info =
   | ECFG_LandingPad String Bool Int -- ^ A landing pad with color (bool==True indicates cleanup only)
   | ECFG_CF ECFG_ControlFlow        -- ^ A call to a control flow function (throw, catchBegin, etc.)
   | ECFG_Return (Maybe Word64)      -- ^ Return (this can happen through a RET, or to a JMP instead of CALL to a function)
+  | ECFG_Leak Word64
   | ECFG_Vertex_Region ECFG_Region  -- ^ A region
   deriving (Eq,Show)
 
@@ -117,6 +128,8 @@ data ECFG_Vertex = ECFG_Vertex Word64 Word64 [ECFG_Vertex_Info] (S.Set (Word64,W
 
 instance Show ECFG_Vertex where
   show (ECFG_Vertex start end info calls) = "Block 0x" ++ showHex start
+
+show_ecfg_vertex (ECFG_Vertex start end info calls) = "Block 0x" ++ showHex start ++ " --> 0x" ++ showHex end ++ show info ++ show calls
 
 -- An edge goes from blockID to blockID with optionally a label (for filtering exception types).
 data ECFG_Edge = ECFG_Edge {
@@ -179,16 +192,19 @@ emitLog msg = id -- trace msg
 
 ecfg_vertex_to_address (ECFG_Vertex a _ _ _) = a
 
-ecfg_blockID_to_address (ECFG vertices _ _ _) blockID = ecfg_vertex_to_address $ vertices IM.! blockID
+ecfg_blockID_to_address (ECFG vertices _ _ _) blockID = ecfg_vertex_to_address $ safeLookup "1" vertices blockID
 
 init_ecfg_symstate ecfg blockID = ECFG_SymState [Normal] $ ecfg_blockID_to_address ecfg blockID
 
 
-sym_exec_cfg_all :: Lifted -> IO ()
-sym_exec_cfg_all l@(bin,config,_) = do
-  let fs = get_call_graph_sources l
-  ssf <- execStateT (mapM_ run_entry $ IS.toList fs) init_StateSoFar
-
+ecfg_generation :: BinaryClass bin => LiftedRepresentationFunctions bin -> IO ()
+ecfg_generation l = do
+  putStrLn $ "Generating call graph."
+  let callgraph = mk_callgraph l
+  let fs        = xgraph_all_sources callgraph
+  putStrLn $ "Starting ECFG generation."
+  ssf          <- execStateT (mapM_ run_entry $ IS.toList fs) init_StateSoFar
+  let bin       = lrf_binary l
   let dirname   = binary_dir_name bin
   let name      = binary_file_name bin
   let fname     = dirname ++ name ++ ".ecfg.txt" 
@@ -197,32 +213,43 @@ sym_exec_cfg_all l@(bin,config,_) = do
   run_entry = sym_exec_ecfg_entry l True . fromIntegral
 
 
-sym_exec_ecfg_entry :: Lifted -> Bool -> Word64 -> StateT StateSoFar IO (S.Set EStatus)
-sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
+sym_exec_ecfg_entry :: BinaryClass bin => LiftedRepresentationFunctions bin -> Bool -> Word64 -> StateT StateSoFar IO (S.Set EStatus)
+sym_exec_ecfg_entry l isFirst entry = do
   posts <- gets ssf_function_posts
   is_explored <- gets (IS.member (fromIntegral entry) . ssf_currently_explored_functions)
-  case (is_explored, IM.lookup (fromIntegral entry) posts) of
-    (True,_) -> do
-      let msg = "Entry 0x" ++ showHex entry ++ ": overapproximation due to (mutual) recursion."
-      let cfg  = cfg_split_jumps $ l0_get_cfgs l0 IM.! fromIntegral entry
-      let ecfg = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry cfg
-      let q    = overapproximate_post l entry ecfg
+  case (is_explored, IM.lookup (fromIntegral entry) posts,IM.lookup (fromIntegral entry) $ lrf_cfgs l) of
+    (_,_,Nothing) -> do
+      -- Extremely unlikely, but may happen if function starts with instructions that are not disassemblable.
+      -- Examples: aesenc, aesenclast in lamartine
+      let msg = "Entry 0x" ++ showHex entry ++ " has no CFG."
+      return $ emitLog msg $ S.singleton $ WeirdError msg
+    (True,_,Just cfg) -> do
+      let msg      = "Entry 0x" ++ showHex entry ++ ": overapproximation due to (mutual) recursion."
+      let ecfg     = ecgf_unfold_jumps_to_function_entries l $ cfg_to_ecfg l entry cfg
+      let q        = overapproximate_post l entry ecfg
       return $ emitLog msg q 
-    (_,Just posts) -> do
+    (_,Just posts,Just cfg) -> do
       let msg = "Entry 0x" ++ showHex entry ++ " already visited."
       return $ emitLog msg posts
-    (_,Nothing) -> do
+    (_,Nothing,Just cfg) -> do
       putIfFirst $ "-----------------------------"
-      putIfFirst $ "Entry: " ++ address_to_label bin entry
-      let msg  = "Entry 0x" ++ showHex entry ++ " to be explored."
-      let cfg  = emitLog msg $ cfg_split_jumps $ l0_get_cfgs l0 IM.! fromIntegral entry
-      let ecfg_unfolded = cfg_to_ecfg l entry cfg
-      let ecfg = ecgf_unfold_jumps_to_function_entries l ecfg_unfolded
-      pres <- gets ssf_block_pres
+      let fname         = if take 2 (address_to_label bin entry) == "0x" then "" else "\n" ++ address_to_label bin entry
+      liftIO $ putStrLn $ "Entry: 0x" ++ showHex entry ++ fname
+      let ecfg_folded   = cfg_to_ecfg l entry cfg
+      let ecfg          = ecgf_unfold_jumps_to_function_entries l ecfg_folded
 
+      let dirname   = binary_dir_name bin
+      let name      = binary_file_name bin
+      let fdirname  = dirname ++ "functions/0x" ++ showHex entry ++ "/"
+      let fname2    = fdirname ++ name ++ ".ecfg.dot"
+      let ecfg_comp = cfg_to_ecfg l entry $ cfg_compress l entry cfg
+      liftIO $ createDirectoryIfMissing False $ fdirname
+      liftIO $ writeFile fname2 $ render_ecfg_to_dot ecfg_comp
+
+      pres <- gets ssf_block_pres
       modify $ ssf_set_explored entry True
       modify $ ssf_set_preconditions IM.empty
-      modify $ ssf_set_ecfg_size entry (cfg_size cfg) (length $ ecfg_edges ecfg_unfolded)
+      modify $ ssf_set_ecfg_size entry (cfg_size cfg) (length $ ecfg_edges ecfg_comp)
       sym_exec_ecfg l ecfg
       modify $ ssf_set_preconditions pres
       modify $ ssf_set_explored entry False
@@ -230,25 +257,35 @@ sym_exec_ecfg_entry l@(bin,config,l0) isFirst entry = do
       ssf <- get
       posts <- gets $ ssf_get_posts entry
       putIfFirst $ "Post: " ++ (show $ S.toList posts)
+      liftIO $ putStrLn $ "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
       putIfFirst $ "-----------------------------"
-
-      let msg = "Entry 0x" ++ showHex entry ++ " exploration done: " ++ show (S.toList posts)
-      return $ emitLog msg posts
+      return posts
  where
+  bin = lrf_binary l
   putIfFirst 
     | isFirst   = liftIO . putStrLn
     | otherwise = \_ -> return ()
 
 
 
-overapproximate_post l@(bin,config,l0) entry ecfg = S.unions [ use_l0_post, use_ecfg ]
+overapproximate_post l entry ecfg = S.unions [ use_l0_post, use_ecfg ]
  where
   use_l0_post =
-    let (finit,result) = l0_functions l0 IM.! (fromIntegral entry) in
-      case result_post <$> result of
-        Just Terminates      -> S.singleton Terminated
-        Just (ReturnsWith _) -> S.singleton Returned
-        _                    -> S.empty
+    case IM.lookup (fromIntegral entry) $ lrf_cfgs l of
+      Just cfg -> 
+        let has_returns = any (blocks_ends_in_return cfg) $ IM.assocs $ cfg_basic_blocks cfg in
+          if has_returns then S.singleton Returned else S.singleton Terminated
+
+  blocks_ends_in_return cfg (blockID,instrs)
+    | IS.null (intgraph_post cfg blockID) = 
+      let i = last instrs in
+        case IM.lookup (fromIntegral $ inAddress i) $ lrf_nexts l of
+          Just (NxtReturn _) -> True
+          Just (NxtTerminal _) -> False
+          Just (NxtInternalCall _) -> False
+          Just (NxtAddresses _ as) -> False
+          nxt -> error $ show (i,nxt)
+   | otherwise = False
 
   use_ecfg = IM.foldr ecfg_vertex_to_post S.empty $ ecfg_vertices ecfg
 
@@ -278,16 +315,18 @@ data StateSoFar = StateSoFar {
 
 init_StateSoFar = StateSoFar IM.empty IM.empty IS.empty IM.empty
 
-ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs sz) = intercalate "\n" $ ["SUMMARY:"] ++ mk_errors ++ [mk_summary] ++ [""] ++ [show_ecfg_sizes sz ] ++ [show_cfg_sizes sz ] ++ [""]
+ssf_pp l (StateSoFar fp bp fs sz) = intercalate "\n" $ mk_errors ++ [mk_summary] ++ [""] ++ [show_ecfg_sizes sz ] ++ [show_cfg_sizes sz ] ++ [""]
  where
-  num_of_instrs = sum $ map (sum . map length . IM.elems . cfg_instrs) $ IM.elems $ l0_get_cfgs l0
+  num_of_instrs = sum $ map (sum . map length . IM.elems . cfg_basic_blocks) $ IM.elems $ lrf_cfgs l
 
   count_posts p = show $ IM.size $ IM.filter p fp
 
   num_return_only = IM.size $ IM.filter (\es -> S.size es == 1) fp
 
+  -- APPLICATION, BINARY, #INSTRUCTIONS, #FUNCTIONS, #NORMAL, #NORETURN_NOTHROW, #ALWAYS_THROWS, #ALWAYS_THROWS_NO_LIFTING_ERROR, #ILLEGAL_THROW, #LIFTING_ERROR
   mk_summary = intercalate ", " $ 
-    [ binary_file_name bin
+    [ "SUMMARY",
+      binary_file_name $ lrf_binary l
     , show $ num_of_instrs
     , count_posts (\_ -> True)
     , count_posts (\es -> all (\e -> isReturn e || isTerminated e) es && any isReturn es)
@@ -306,12 +345,12 @@ ssf_pp l@(bin,config,l0) (StateSoFar fp bp fs sz) = intercalate "\n" $ ["SUMMARY
   show_error (IllegalThrow msg) = "ERROR: ILLEGAL THROW " ++ msg
 
   show_ecfg_sizes sz = 
-    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 1 < ecfg_si) $ IM.elems sz of
       [] -> ""
       is -> "ECFG_SIZES:" ++ (intercalate "," $ map (show . snd) $ is)
 
   show_cfg_sizes sz = 
-    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 2 < ecfg_si) $ IM.elems sz of
+    case filter (\(cfg_si,ecfg_si) -> 1 < cfg_si && 1 < ecfg_si) $ IM.elems sz of
       [] -> ""
       is -> "_CFG_SIZES:" ++ (intercalate "," $ map (show . fst) $ is)
 
@@ -331,12 +370,10 @@ ssf_get_posts entry (StateSoFar fp bp fs sz) = IM.lookup (fromIntegral entry) fp
 ssf_set_explored entry True  (StateSoFar fp bp fs sz) = StateSoFar fp bp (IS.insert (fromIntegral entry) fs) sz
 ssf_set_explored entry False (StateSoFar fp bp fs sz) = StateSoFar fp bp (IS.delete (fromIntegral entry) fs) sz
 
-sym_exec_ecfg l ecfg = sym_exec_ecfg' l ecfg $ S.singleton (0,init_ecfg_symstate ecfg 0)
-
-safeLookup m k = 
-  case IM.lookup k m of
-    Just v  -> v
-    Nothing -> error $ "Cannot find key " ++ show k ++ " in map " ++ show m
+sym_exec_ecfg l ecfg =
+  case get_blockID_for_address l ecfg $ ecfg_entry ecfg of
+    Just blockID0 -> sym_exec_ecfg' l ecfg $ S.singleton (blockID0,init_ecfg_symstate ecfg blockID0)
+    Nothing -> return () -- Never happens
 
 sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
   case S.minView bag of
@@ -344,10 +381,10 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
     Just ((blockID,s),bag) -> do
       curr_pres <- gets ssf_block_pres
       let curr_ss = IM.lookup blockID curr_pres `orElse` S.empty
-      if s `S.member` curr_ss then
+      if s `S.member` curr_ss || length (ss_estatus s) >= 50 then -- TODO generate WeirdError
         sym_exec_ecfg' l ecfg bag
       else do
-        let v                          = vertices `safeLookup` blockID
+        let v                          = safeLookup "2" vertices blockID
         let out_edges                  = S.fromList $ filter (is_edge_from blockID) edges
         -- Execute the vertex
         ss'                           <- sym_exec_ecfg_vertex l ecfg entry blockID v s
@@ -377,7 +414,7 @@ sym_exec_ecfg' l ecfg@(ECFG vertices edges entry regions) bag =
 
 
 -- TODO
-applyFilter l@(bin,_,_) entry edges s
+applyFilter l entry edges s
   | S.null labeled         = withState edges
   | not $ S.null unlabeled = error $ "Do not know how to give semantics to edges: " ++ show edges
   | otherwise =
@@ -386,7 +423,7 @@ applyFilter l@(bin,_,_) entry edges s
       (Handling e:_) -> try_label "(...)" `orTry` try_label "(none)" `orElse` fail
       _              -> withState edges -- error $ binary_file_name bin ++ ": 0x" ++ showHex entry ++ "\nApplying filter in a state that is not Landed: " ++ show s
  where
-  fail = error $ binary_file_name bin ++ ": 0x" ++ showHex entry ++ "\nOutgoing edges cannot be applied: " ++ show edges ++ " in state " ++ show s
+  fail = S.empty -- TODO report WeirdError error $ binary_file_name (lrf_binary l) ++ ": 0x" ++ showHex entry ++ "\nOutgoing edges cannot be applied: " ++ show edges ++ " in state " ++ show s
 
   withState = S.map (\edge -> (s,edge))
 
@@ -407,7 +444,7 @@ applyFilter l@(bin,_,_) entry edges s
 -- Symbolic execution of a single vertex
 -- 1.) Normal execution assumes that no called function (other than __cxa_throw) throws. Based on the info of the vertex, the estatus may change. 
 -- 2.) Exceptional execution checks if there is any throwing function called. If so, set the estatus to Unwinding(...) and the rip to the address of the calling instruction. 
-sym_exec_ecfg_vertex l@(_,_,_) ecfg entry blockID v@(ECFG_Vertex _ _ info calls) s = do
+sym_exec_ecfg_vertex l ecfg entry blockID v@(ECFG_Vertex v_start v_end info calls) s = do
   normal      <- sym_exec_normal
   exceptional <- sym_exec_exceptional
   return $ S.union normal exceptional
@@ -434,7 +471,7 @@ sym_exec_ecfg_vertex l@(_,_,_) ecfg entry blockID v@(ECFG_Vertex _ _ info calls)
   go s (ECFG_CF f) = return $ sym_exec_call f s
   go s (ECFG_Return Nothing)
     | head (ss_estatus s) == Normal = return $ s { ss_estatus = Returned : tail (ss_estatus s) }
-    | otherwise                     = error $ "Entry: 0x" ++ showHex entry ++ "\nReturning while status is not Normal at vertex " ++ show v
+    | otherwise                     = error $ "Entry: 0x" ++ showHex entry ++ "\nReturning while status is not Normal at vertex " ++ show v ++ show (ss_estatus s)
 
 
   go s _ = return s
@@ -469,7 +506,6 @@ sym_exec_ecfg_edge ecfg _ s@(ECFG_SymState (Returned   :_) _)  = error $ "Should
 sym_exec_ecfg_edge ecfg (ECFG_Edge blocKID label blockID') s  = (blockID',s{ss_rip = ecfg_blockID_to_address ecfg blockID'})
 
 
--- TODO recursive
 sym_exec_unwind l ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es) _) = 
   case find is_encompassing_region $ ecfg_regions ecfg of
     Nothing -> 
@@ -477,17 +513,19 @@ sym_exec_unwind l ecfg v@(ECFG_Vertex _ _ _ _) s@(ECFG_SymState (Unwinding e:es)
         (Landed e0:_) -> let msg = "AT ENTRY 0x" ++ showHex (ecfg_entry ecfg) ++ " UNWINDING " ++ exception_type e ++ " WHILE LANDED FOR " ++ exception_type e0 ++ " AT " ++ show v in
                            emitLog msg $ (S.singleton $ s {ss_estatus = [IllegalThrow msg]} , S.empty)
         _             -> emitLog ("NO LANDING PAD " ++ show v) $ (S.singleton s, S.empty)
-    Just r  -> emitLog ("LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r)) $
-                 (S.empty, S.singleton $ (get_blockID_for_address l ecfg (fromIntegral $ ecfg_region_landingpad r), s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
+    Just r  -> case get_blockID_for_address l ecfg (fromIntegral $ ecfg_region_landingpad r) of
+                 Just blockID -> emitLog ("LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r) ++ " BECAUSE OF THROW AT 0x" ++ showHex (ss_rip s)) $
+                                   (S.empty, S.singleton $ (blockID, s {ss_rip = fromIntegral (ecfg_region_landingpad r), ss_estatus = Landed e:es }))
+                 Nothing -> let msg = "LANDING PAD NOT PART OF CFG: ENTRY = 0x" ++ showHex (ecfg_entry ecfg) ++ " LANDING FROM " ++ show v ++ " TO 0x" ++ showHex (ecfg_region_landingpad r) ++ " BECAUSE OF THROW AT 0x" ++ showHex (ss_rip s) in
+                               emitLog msg $ (S.singleton $ s {ss_estatus = [WeirdError msg]} , S.empty)
+
  where
    is_encompassing_region (ECFG_Region end start lp action color indx) = start <= ss_rip s && ss_rip s < end
+
 sym_exec_unwind _ _ _ s = (S.singleton s, S.empty)
 
 
-get_blockID_for_address l@(bin,_,_) ecfg a =
-  case find (\(_,ECFG_Vertex block_start _ _ _) -> block_start == a) $ IM.assocs $ ecfg_vertices ecfg of
-    Just (blockID,_) -> blockID
-    Nothing -> error $ binary_file_name bin ++ "\n" ++ show ecfg ++ "\nUnknown address 0x" ++ showHex a
+get_blockID_for_address l ecfg a = fst <$> (find (\(_,ECFG_Vertex block_start _ _ _) -> block_start == a) $ IM.assocs $ ecfg_vertices ecfg)
 
 
 
@@ -571,9 +609,10 @@ render_ecfg_to_dot (ECFG vertices edges entry regions) =
 
 
   -- End
-  mk_end (ECFG_Return Nothing)  = Just ("Return", "")
-  mk_end (ECFG_Return (Just a)) = Just ("Return by 0x" ++ showHex a, "")
-  mk_end _                      = Nothing
+  mk_end (ECFG_Return Nothing)   = Just ("Return", "")
+  mk_end (ECFG_Return (Just a))  = Just ("Return by goto 0x" ++ showHex a, "")
+  mk_end (ECFG_Leak a1)          = Just ("Leaks to 0x" ++ showHex a1, "")
+  mk_end _                       = Nothing
 
 
 
@@ -584,13 +623,14 @@ render_ecfg_to_dot (ECFG vertices edges entry regions) =
 
 
 -- Creating an ECFG from a CFG
-cfg_to_ecfg :: Lifted -> Word64 -> CFG -> ECFG
-cfg_to_ecfg l@(bin,config,l0) entry cfg =
-  let cfg' = cfg_compress l entry cfg in
-    ECFG (mk_vertices cfg') (mk_edges cfg') entry $ concatMap mk_regions all_relevant_tables
+cfg_to_ecfg :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> ControlFlowGraph -> ECFG
+cfg_to_ecfg l entry cfg = ECFG (mk_vertices cfg) (mk_edges cfg) entry $ concatMap mk_regions all_relevant_tables
  where
+  bin    = lrf_binary l
+  config = lrf_config l
+
   -- Vertices 
-  mk_vertices cfg' = IM.mapWithKey (mk_vertex cfg') $ cfg_blocks cfg'
+  mk_vertices cfg' = IM.mapWithKey (mk_vertex cfg') $ cfg_basic_blocks cfg'
 
   mk_vertex cfg' blockID instrs = 
     let block_start = blockID_to_address cfg blockID
@@ -601,8 +641,9 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
       ECFG_Vertex block_start block_end info calls
 
   -- Start
-  mk_init 0 = [ECFG_Start]
-  mk_init _ = []
+  mk_init a
+    | a == fromIntegral entry = [ECFG_Start]
+    | otherwise  = []
 
   -- Landing pad
   mk_landing_pad Nothing blockID = []
@@ -627,8 +668,7 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
   annotate_relevant_call blockID (a,"__cxa_throw")            =
     let a0        = blockID_to_address cfg blockID
         as        = IS.singleton $ blockID_to_last_address blockID
-        l         = (bin,config,l0,fromIntegral entry) 
-        symstates = unsafePerformIO $ evalStateT (symbolically_execute_until l a0 as init_symstate) 0
+        symstates = unsafePerformIO $ evalStateT (symbolically_execute_until (bin,config) a0 as init_symstate) 0
         tinfos    = S.toList $ S.map (try_get_type_info . evalState (sread_reg (Reg64 RSI))) symstates
         rdxs      = S.toList $ S.map (try_get_label . evalState (sread_reg (Reg64 RDX))) symstates in
       if length tinfos /= 1 || length rdxs /= 1 then
@@ -681,32 +721,35 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
   -- Internal calls
   -- Retrieve all calls in all blocks from the current one up to (but excluding) the frontier
   mk_calls blockID cfg' =
-    let frontier = post cfg' blockID
+    let frontier = intgraph_post cfg' blockID
         blockIDs = graph_traverse_downwards cfg blockID frontier in
-      S.fromList $ mapMaybe functionMayThrow $ concatMap (get_calls_from_blockID l cfg) $ IS.toList blockIDs
+     S.unions $ map (get_internal_calls l cfg) $ IS.toList blockIDs
+      -- S.fromList $ mapMaybe functionMayThrow $ concatMap (get_calls_from_blockID l cfg) $ IS.toList blockIDs
 
-  functionMayThrow (i,ImmediateAddress a)
-    | not (isJump (inOperation i) && jump_is_actually_a_call l i) = Just (inAddress i,a)
-    | otherwise = Nothing
-  functionMayThrow _  = Nothing
+
+  -- TODO WHY THIS?
+  --functionMayThrow (i,ImmediateAddress a)
+  --  | not (isJump (inOperation i) && jump_is_actually_a_call l i) = Just (inAddress i,a)
+  --  | otherwise = Nothing
+  --functionMayThrow _  = Nothing
 
   -- End
   mk_end blockID
     | IS.null (intgraph_post cfg blockID) = 
-      let i = last $ cfg_instrs cfg IM.! blockID in
-        if isRet $ inOperation i then
-          [ECFG_Return Nothing]
-        else if isJump (inOperation i) && jump_is_actually_a_call l i then
-          case jump_target_for_instruction bin i of 
-            ImmediateAddress a -> [ECFG_Return $ Just a]
-            _                  -> [ECFG_Return Nothing]
-        else 
-          []
+      let i = last $ safeLookup "3" (cfg_basic_blocks cfg) blockID in
+        case IM.lookup (fromIntegral $ inAddress i) $ lrf_nexts l of
+          Just (NxtReturn _)              -> [ECFG_Return Nothing]
+          Just (NxtTerminal _)            -> []
+          Just (NxtInternalCall trgt)     -> []
+
+          Just (NxtAddresses f as) -> [ECFG_Leak $ fromIntegral $ toInt $ S.findMin as] -- TODO check as == 1 element, TODO if f /= Nothing
+
+          nxt -> error $ binary_file_name bin ++ ": " ++ show i ++ " --> " ++ show nxt
     | otherwise = []
 
 
   -- Edges
-  mk_edges = concatMap mk_edge . IM.assocs . cfg_edges
+  mk_edges = concatMap mk_edge . IM.assocs . xgraph_fw_edges . cfg_edges
 
   mk_edge (blockID,blockIDs) =
     case find_gcc_except_table_for_blockID blockID of
@@ -727,9 +770,9 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
 
 
 
-  blockID_to_last_address blockID = fromIntegral $ inAddress $ last $ cfg_instrs cfg IM.! blockID
+  blockID_to_last_address blockID = fromIntegral $ inAddress $ last $ safeLookup "4" (cfg_basic_blocks cfg) blockID
   blockID_to_end_address blockID = 
-    let i = last $ cfg_instrs cfg IM.! blockID in
+    let i = last $ safeLookup "5" (cfg_basic_blocks cfg) blockID in
       inAddress i + fromIntegral (inSize i)
 
 
@@ -758,17 +801,16 @@ cfg_to_ecfg l@(bin,config,l0) entry cfg =
         landing_pads_colors = IM.fromList $ map (\(indx,lp) -> (lp, hex_colors !! (indx `mod` length hex_colors))) $ zip [0..] landing_pads in
       map (mk_callsite_region id landing_pads_colors) regions_with_lp
 
-  mk_callsite_region id landing_pads_colors (end,start,lp,action)  = ECFG_Region end start lp action (landing_pads_colors IM.! lp) id
+  mk_callsite_region id landing_pads_colors (end,start,lp,action)  = ECFG_Region end start lp action (safeLookup "11" (landing_pads_colors) lp) id
 
   obtain_typeinfo (id,t) cs_action blockID blockIDs =
     let a  = blockID_to_address cfg blockID
         as = IS.map (blockID_to_address cfg) blockIDs
-        l  = (bin,config,l0,fromIntegral entry) 
         indexed_types_infos = gcc_except_table_action_indx_to_type_info t cs_action in
       map (get_trgt_from_indexed_type l a as) $ indexed_types_infos
 
   get_trgt_from_indexed_type l a as (rdx,type_info) =
-    let symstates = unsafePerformIO $ evalStateT (symbolically_execute_until l a as (init_sym_state_with (Reg64 RDX) $ fromIntegral rdx)) 0
+    let symstates = unsafePerformIO $ evalStateT (symbolically_execute_until (bin,config) a as (init_sym_state_with (Reg64 RDX) $ fromIntegral rdx)) 0
         rips      = S.map read_RIP symstates in
       (a,strip_typeinfo_for $ address_to_pointee bin type_info,rips)
 
@@ -795,31 +837,51 @@ address_to_label bin a =
    _                                         -> "0x" ++ showHex a
       
 
-ecgf_unfold_jumps_to_function_entries :: Lifted -> ECFG -> ECFG
-ecgf_unfold_jumps_to_function_entries l@(bin,config,l0) = repeatUtilFixpoint unfold
+-- See: ros/functions/0x15cf0, librclcpp_lifecycle.so.ecfg.pdf for a nice example
+-- ALso: 0x18ee60 of ros, libfastrtps.so
+ecgf_unfold_jumps_to_function_entries :: BinaryClass bin => LiftedRepresentationFunctions bin -> ECFG -> ECFG
+ecgf_unfold_jumps_to_function_entries l = repeatUtilFixpoint unfold
  where
-  unfold ecfg = 
-    let jmps = mapMaybe get_jump_into_function $ IM.assocs $ ecfg_vertices ecfg in
-      foldr unfold_vertex ecfg jmps
+  unfold ecfg =
+    case firstJust get_jump_into_function $ IM.assocs $ ecfg_vertices ecfg of
+      Nothing -> ecfg
+      Just (blockID,v,a) -> unfold_vertex (blockID,v,a) ecfg
 
-  get_jump_into_function v@(blockID,ECFG_Vertex _ _ info _) 
-    | any is_jump_into_function info = Just v
-    | otherwise = Nothing
+  get_jump_into_function (blockID,v@(ECFG_Vertex _ _ info _)) =
+    case mapMaybe (get_jump_into_function_info) info of
+      [a] -> Just (blockID,v,a)
+      []  -> Nothing
+
+  get_jump_into_function_info (ECFG_Return (Just a)) = Just a 
+  get_jump_into_function_info (ECFG_Leak a)          = Just a
+  get_jump_into_function_info _ = Nothing
+
 
   is_jump_into_function (ECFG_Return (Just a)) = True
+  is_jump_into_function (ECFG_Leak _) = True
   is_jump_into_function _ = False
 
-  unfold_vertex (blockID,ECFG_Vertex _ _ info _) ecfg =
-    let [ECFG_Return (Just a)] = filter is_jump_into_function info
-        (maxBlockID,_)         = IM.findMax $ ecfg_vertices ecfg
-        cfg_child              = cfg_split_jumps $ l0_get_cfgs l0 IM.! fromIntegral a
-        ecfg_child             = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a cfg_child
-        ecfg_parent            = ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing (maxBlockID+1)) : ecfg_edges ecfg }
-        ecfg_merge             = ECFG (IM.union (ecfg_vertices ecfg_parent) (ecfg_vertices ecfg_child))
-                                      (ecfg_edges ecfg_parent ++ ecfg_edges ecfg_child)
-                                      (ecfg_entry ecfg_parent)
-                                      (ecfg_regions ecfg_parent ++ ecfg_regions ecfg_child) in
-      ecfg_merge
+  unfold_vertex (blockID,v,a) ecfg =
+    case find_address_in_ecfg a ecfg of
+     Just (blocKID',_) -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing blocKID') : ecfg_edges ecfg  }
+     _ -> 
+      case find_cfg_for_address l a of
+        -- Nothing -> error $ show (show_ecfg_vertex v, showHex a) ++ "\n" ++ show ecfg
+        Nothing        -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens
+        Just cfg_child ->
+         let (maxBlockID,_)           = IM.findMax $ ecfg_vertices ecfg
+             ecfg_child               = increaseBlockIDs (maxBlockID+1) $ cfg_to_ecfg l a cfg_child in
+           case find_address_in_ecfg a ecfg_child of
+             -- Nothing -> error $ show (show_ecfg_vertex v, showHex a) ++ "\n" ++ show ecfg ++ "\n\n" ++ show ecfg_child ++ "\n\n" ++ show cfg_child
+             Nothing -> ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg) } -- Never happens 
+             Just (new_blockID,new_v) ->
+               let ecfg_parent        = ecfg { ecfg_vertices = IM.adjust removeReturn blockID (ecfg_vertices ecfg), ecfg_edges = (ECFG_Edge blockID Nothing new_blockID) : ecfg_edges ecfg }
+                   msg                = "Unfolding: connecting " ++ show v ++ " to " ++ show new_v
+                   ecfg_merge         = ECFG (IM.union (ecfg_vertices ecfg_parent) (ecfg_vertices ecfg_child))
+                                             (ecfg_edges ecfg_parent ++ ecfg_edges ecfg_child)
+                                             (ecfg_entry ecfg_parent)
+                                             (ecfg_regions ecfg_parent ++ ecfg_regions ecfg_child) in
+                 ecfg_merge
 
   removeReturn (ECFG_Vertex block_start block_end info calls) = ECFG_Vertex block_start block_end (filter (not . is_jump_into_function) info) calls
         
@@ -827,13 +889,20 @@ ecgf_unfold_jumps_to_function_entries l@(bin,config,l0) = repeatUtilFixpoint unf
 
   increaseBlockIDs_edge increment (ECFG_Edge start label end) = ECFG_Edge (start+increment) label (end+increment)
 
+  find_address_in_ecfg a ecfg = find (\(blockID,v) -> ecfg_vertex_to_address v == a) $ IM.assocs $ ecfg_vertices ecfg
 
 
+find_cfg_for_address l a = 
+  case IM.lookup (fromIntegral a) $ lrf_cfgs l of
+    Just cfg -> Just cfg
+    Nothing  -> find cfg_contains_address $ lrf_cfgs l
+ where
+  cfg_contains_address cfg  = fromIntegral a `IM.member` cfg_basic_blocks cfg
+    
 
 
-
-blockID_to_address cfg blockID = fromIntegral $ inAddress $ head $ cfg_instrs cfg `safeLookup` blockID
-blockID_to_addresses cfg blockID = map (fromIntegral . inAddress) $ cfg_instrs cfg IM.! blockID
+blockID_to_address cfg blockID = fromIntegral $ inAddress $ head $ safeLookup "6" (cfg_basic_blocks cfg) blockID
+blockID_to_addresses cfg blockID = map (fromIntegral . inAddress) $ safeLookup "7" (cfg_basic_blocks cfg) blockID
 
 
 
@@ -846,13 +915,13 @@ table_has_overlapping_region_or_landing_pad entry cfg t
   | function_entry t == entry = True
   | otherwise = 
     let regions = get_callsite_regions_from_gcc_except_table t
-        as      = IM.keysSet $ cfg_addr_to_blockID cfg in -- all instruction addresses
+        as      = cfg_all_instruction_addresses cfg in -- all instruction addresses
       any (\(end,start,lp,_) -> lp `IS.member` as || (not $ IS.disjoint as $ IS.fromRange (start,end-1))) regions
 
 
 table_has_overlapping_region_or_landing_pad_for_block cfg t blockID = 
   let regions = get_callsite_regions_from_gcc_except_table t
-      as      = IS.fromList $ cfg_blocks cfg IM.! blockID in -- all instruction addresses
+      as      = IS.fromList $ map (fromIntegral . inAddress) $ safeLookup "8" (cfg_basic_blocks cfg) blockID in -- all instruction addresses
    any (\(end,start,lp,_) -> lp `IS.member` as || (not $ IS.disjoint as $ IS.fromRange (start,end-1))) regions
 
 
@@ -866,10 +935,11 @@ table_has_overlapping_region_or_landing_pad_for_block cfg t blockID =
 -- 2.) contains calls to, e.g., __cxa_throw
 -- 3.) has CFI directives
 -- 4.) is the beginning or end of a call-site region 
-cfg_compress :: BinaryClass bin => Lifting bin pred finit v -> Word64 -> CFG -> CFG
-cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_edges cfg0
+cfg_compress :: BinaryClass bin => LiftedRepresentationFunctions bin -> Word64 -> ControlFlowGraph -> ControlFlowGraph
+cfg_compress l entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ cfg_basic_blocks cfg0
  where
   maybe_remove_node blockID cfg
+    | blockID_to_address cfg blockID == entry                    = cfg
     | IS.null (intgraph_pre  cfg blockID)                        = cfg
     | IS.null (intgraph_post cfg blockID)                        = cfg
     | relevant_calls l cfg blockID /= []                         = cfg
@@ -877,45 +947,38 @@ cfg_compress l@(bin,_,_) entry cfg0 = foldr maybe_remove_node cfg0 $ IM.keys $ c
     | block_contains_region_start_or_end cfg all_regions blockID = cfg
     | block_starts_landing_pad cfg blockID                       = cfg
     -- TODO or end of basic block has cfi_directive end is not start of another?
-    | otherwise                                                  = remove_node blockID cfg
+    | otherwise                                                  = cfg_remove_block blockID cfg
 
 
   relevant_calls l cfg blockID = filter is_ecfg_relevant $ get_external_calls l cfg blockID
 
-  block_has_cfi_directive cfg blockID = any address_has_cfi_directive $ map (fromIntegral . inAddress) $ cfg_instrs cfg IM.! blockID
+  block_has_cfi_directive cfg blockID = any address_has_cfi_directive $ map (fromIntegral . inAddress) $ safeLookup "9" (cfg_basic_blocks cfg) blockID
 
 
-  all_regions = concatMap get_callsite_regions_from_gcc_except_table $ cfi_gcc_except_tables $ binary_get_cfi bin
+  all_regions = concatMap get_callsite_regions_from_gcc_except_table $ cfi_gcc_except_tables $ binary_get_cfi $ lrf_binary l
 
 
   block_starts_landing_pad cfg blockID = blockID_to_address cfg blockID `IS.member` all_landing_pads
 
-  all_landing_pads = IS.unions $ map get_landing_pads_from_gcc_except_table $ IM.elems $ cfi_gcc_except_tables $ binary_get_cfi bin
+  all_landing_pads = IS.unions $ map get_landing_pads_from_gcc_except_table $ IM.elems $ cfi_gcc_except_tables $ binary_get_cfi $ lrf_binary l
 
-  address_has_cfi_directive a = IM.lookup a (cfi_directives $ binary_get_cfi bin) /= Nothing
+  address_has_cfi_directive a = IM.lookup a (cfi_directives $ binary_get_cfi $ lrf_binary l) /= Nothing
 
 
   instruction_overlaps_region regions i = any (region_contains_address $ inAddress i) regions
   region_contains_address a (end,start,_,_) = start <= a && a < end
 
   block_contains_region_start_or_end cfg regions blockID =
-    let instrs            = cfg_instrs cfg IM.! blockID
+    let instrs            = safeLookup "10" (cfg_basic_blocks cfg) blockID
         last_i            = last instrs
         block_end_address = fromIntegral (inAddress last_i) + fromIntegral (inSize last_i)
         block_addresses   = block_end_address : (map (fromIntegral . inAddress) $ drop 1 instrs) in
       any (\(end,start,_,_) -> start `elem` (map inAddress instrs) || end `elem` block_addresses) regions
 
-  remove_node blockID cfg = 
-    let parents  = IS.delete blockID $ intgraph_pre cfg blockID
-        children = IS.delete blockID $ intgraph_post cfg blockID
-        prod     = filter (\(x,y) -> x /= y) $ [(x,y) | x <- IS.toList parents, y <- IS.toList children]
-        cfg0     = delete_node blockID cfg in
-      foldr add_new_edge cfg0 prod
+  block_starts_component_entry cfg blockID = FunctionEntry (blockID_to_address cfg blockID) `S.member` cfg_components cfg
 
-  add_new_edge (parent,child) cfg  = cfg { cfg_edges = IM.insertWith IS.union parent (IS.singleton child) (cfg_edges cfg) }
-
-  delete_node blockID cfg = cfg { cfg_edges = IM.map (IS.delete blockID) $ IM.delete blockID $ cfg_edges cfg, cfg_blocks = IM.delete blockID $ cfg_blocks cfg }
-
+  block_starts_address_to_keep cfg Nothing  blockID = False
+  block_starts_address_to_keep cfg (Just a) blockID = blockID_to_address cfg blockID == a
 
 
 is_ecfg_relevant (a,f) = 
@@ -925,17 +988,19 @@ is_ecfg_relevant (a,f) =
       , "std::__throw_" `isPrefixOf`  f'
       , "std::rethrow_exception" `isPrefixOf` f' ]
 
-get_external_calls l cfg blockID = concatMap get_external_call $ get_calls_from_blockID l cfg blockID
+get_external_calls l cfg blockID = concatMap get_external_call $ S.toList $ get_calls_from_blockID l cfg blockID
  where
-  get_external_call (i,External f) = [(inAddress i,f)]
+  get_external_call (i,NxtAddresses (Just f) as) = [(inAddress i,f)]
+  get_external_call (i,NxtReturn    (Just f))    = [(inAddress i,f)]
+  get_external_call (i,NxtTerminal  (Just f))    = [(inAddress i,f)]
   get_external_call _ = []
 
-get_calls_from_blockID l cfg blockID = get_call_target (cfg_instrs cfg IM.! blockID)
- where
-  get_call_target instrs
-    | is_call $ last instrs = zip (repeat (last instrs)) (get_known_jump_targets l $ last instrs)
-    | otherwise             = []
 
-  is_call i = isCall (inOperation i) || (isJump (inOperation i) && jump_is_actually_a_call l i)
+get_internal_calls l cfg blockID = S.unions $ map get_internal_call $ S.toList $ get_calls_from_blockID l cfg blockID
+ where
+  -- TODO calls by jumps? get_internal_call (i,NxtAddresses Nothing as) = S.singleton (fromIntegral $ inAddress i,fromIntegral $ toInt $ S.findMin as)
+  get_internal_call (i,NxtInternalCall trgt)    = S.singleton (fromIntegral $ inAddress i,fromIntegral $ toInt trgt)
+  get_internal_call _ = S.empty
+
 
 

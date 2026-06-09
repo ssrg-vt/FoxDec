@@ -5,7 +5,7 @@ module WithAbstractSymbolicValues.Class where
 import Base
 
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
-
+import Data.FInit 
 import Binary.Generic
 
 import Data.Indirection
@@ -36,24 +36,6 @@ import GHC.Generics
 
 data SymbolicOperation v = SO_Op Opcode Int (Maybe Int) [v] | SO_Bit Int v | SO_SExtend Int Int v | SO_Overwrite Int v v | SO_Plus v v | SO_Minus v v | SO_Times v v
 
--- | A statepart is either a register or a region in memory
-data SStatePart p =
-    SSP_Reg Register -- ^ A register
-  | SSP_Mem p Int    -- ^ A region with a symbolic address and an immediate size.
- deriving (Eq, Ord, Generic)
-
-
-instance (Cereal.Serialize p) => Cereal.Serialize (SStatePart p)
-instance (NFData p) => NFData (SStatePart p)
-
-
-
-instance Show p => Show (SStatePart p) where
-  show (SSP_Reg r)        = show r
-  show (SSP_Mem a si)     = "[" ++ show a ++ ", " ++ show si ++ "]"
-
-
-
 
 
 data Sstate v p = Sstate {
@@ -82,24 +64,6 @@ instance (Show v,Show p) => Show (Sstate v p) where
 
 
 
--- | A function initialisation consists of a mapping of state parts to values, and memory relations
-data MemRelation = Separate | Aliassing | Unknown
-  deriving (Generic,Eq,Ord,Show)
-
-
-
-data FInit v p = FInit (S.Set (SStatePart p,v)) (M.Map (SStatePart p,SStatePart p) MemRelation)
-  deriving (Generic,Eq,Ord)
-
-
-instance Cereal.Serialize MemRelation
-instance (Cereal.Serialize v,Cereal.Serialize p, Ord p,Ord v) => Cereal.Serialize (FInit v p)
-
-instance NFData MemRelation
-instance (NFData p,NFData v) => NFData (FInit v p)
-
-
-empty_finit = FInit S.empty M.empty
 
 
 unknownSize = Nothing

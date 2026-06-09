@@ -45,9 +45,8 @@ import Conventions
 import Binary.FunctionNames
 import Binary.Generic
 
---TODO
-import WithNoAbstraction.SymbolicExecution (external_function_behavior)
-import WithNoAbstraction.Pointers (expr_is_global_immediate,get_pointer_base_set,necessarily_enclosed,necessarily_equal,no_finit)
+import InputLifting.ExternalFunctions
+import InputLifting.Pointers (expr_is_global_immediate,get_pointer_base_set,necessarily_enclosed,necessarily_equal,no_finit)
 
 import Data.SymbolicExpression hiding (show_srcs,swrite_mem)
 

@@ -15,6 +15,7 @@ import Data.L0
 import Data.SValue
 import Data.SPointer
 import Data.X86.Register
+import Data.FInit
 
 import WithAbstractSymbolicValues.Class
 import WithAbstractSymbolicValues.FInit

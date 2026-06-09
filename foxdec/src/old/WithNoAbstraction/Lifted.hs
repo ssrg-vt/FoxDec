@@ -12,6 +12,7 @@ module WithNoAbstraction.Lifted where
 
 import Data.SValue
 import Data.SPointer
+import Data.FInit
 import Data.L0
 import WithAbstractSymbolicValues.Class
 import Binary.Generic

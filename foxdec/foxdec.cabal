@@ -39,6 +39,7 @@ library
       Conventions
       Data.CFG
       Data.CFI
+      Data.FInit
       Data.GlobalMem
       Data.Indirection
       Data.JumpTarget
@@ -53,25 +54,17 @@ library
       Data.X86.Opcode
       Data.X86.Register
       InputLifting.ControlFlowGraph
+      InputLifting.ExternalFunctions
       InputLifting.Lift
       InputLifting.NextRips
+      InputLifting.Pointers
       InputLifting.SymbolicExecution
       InputLifting.Types
       OutputGeneration.CallGraph
-      OutputGeneration.CallGraph2
       OutputGeneration.ECFG
-      OutputGeneration.ECFG2
       OutputGeneration.ELLF
-      OutputGeneration.GlobalMemAnalysis
-      OutputGeneration.L0ToELLF
       OutputGeneration.LRToELLF
       OutputGeneration.Metrics
-      OutputGeneration.NASM.Abstract_ASM
-      OutputGeneration.NASM.L0ToNASM
-      OutputGeneration.NASM.ModDataSection
-      OutputGeneration.NASM.NASM
-      OutputGeneration.NASM.NASMToC
-      OutputGeneration.PathGeneration
       Parser.ByteStringReader
       Parser.ParserCalls
       Parser.ParserDump
@@ -79,23 +72,6 @@ library
       Parser.ParserSections
       Parser.ParserSymbols
       Parser.ParserXed
-      WithAbstractPredicates.Class
-      WithAbstractPredicates.ContextSensitiveAnalysis
-      WithAbstractPredicates.ControlFlow
-      WithAbstractPredicates.GenerateACode
-      WithAbstractPredicates.GenerateCFG
-      WithAbstractPredicates.GenerateInvariants
-      WithAbstractSymbolicValues.Class
-      WithAbstractSymbolicValues.FInit
-      WithAbstractSymbolicValues.GMem
-      WithAbstractSymbolicValues.InstanceOfAbstractPredicates
-      WithAbstractSymbolicValues.ResolveIndirections
-      WithAbstractSymbolicValues.Sstate
-      WithAbstractSymbolicValues.SymbolicExecution
-      WithNoAbstraction.Lifted
-      WithNoAbstraction.Pointers
-      WithNoAbstraction.SymbolicExecution
-      WithNoAbstraction.SymbolicExecutionPath
   other-modules:
       Paths_foxdec
   hs-source-dirs:

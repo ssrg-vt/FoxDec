@@ -14,6 +14,7 @@ import Data.L0
 import Data.Size
 import Data.SValue
 import Data.SPointer
+import Data.FInit
 import Data.JumpTarget
 import Data.GlobalMem
 import Data.SymbolicExpression

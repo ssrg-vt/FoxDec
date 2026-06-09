@@ -21,6 +21,7 @@ import Data.Size
 import Data.SPointer
 import Data.SValue
 import Data.Int
+import Data.FInit
 
 import Binary.FunctionNames
 import Binary.Elf

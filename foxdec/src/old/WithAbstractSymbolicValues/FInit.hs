@@ -7,6 +7,7 @@ import Base
 import WithAbstractSymbolicValues.Class
 import WithAbstractSymbolicValues.Sstate
 
+import Data.FInit
 import Data.SymbolicExpression (FlagStatus(..)) -- TODO
 import Data.X86.Instruction
 import Data.X86.Register
@@ -32,17 +33,6 @@ import qualified Data.Serialize as Cereal
 import Debug.Trace
 
 
-
--- | Show function initialisation
-instance (Eq v, Show v, Show p) => Show (FInit v p) where
- show (FInit sps m) = intercalate "\n" $ filter ((/=) []) $ 
-  [ intercalate "\n" $ map show_sp_v $ S.toList sps
-  , intercalate "\n" $ map show_entry $ M.toList m ]
-  where
-    show_sp_v (sp,v) = show_sp sp ++ " === " ++ show v
-    show_sp (SSP_Reg r) = show r
-    show_sp (SSP_Mem a si) = "*[" ++ show a ++ "," ++ show si ++ "]"
-    show_entry ((sp0,sp1),r) = show (sp0,sp1) ++ ": " ++ show r
 
 -- | The initial predicate.
 -- TODO: Use aliassing information
