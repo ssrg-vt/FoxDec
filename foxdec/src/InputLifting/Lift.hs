@@ -319,13 +319,14 @@ explore_address a nxt                  = do
 explore_normal_addresses :: BinaryClass bin => InstructionAddress -> S.Set InstructionAddress -> XLifting bin ()
 explore_normal_addresses a as = do
   Just i <- fetch a
-  mapM_ (explore_addr $ isCall $ inOperation i) as
+  isIntCall <- isInternalCall i
+  mapM_ (explore_addr isIntCall) as
  where
-  explore_addr isCall a' = do
+  explore_addr isInternalCall a' = do
     Just a_entry <- get_entry_of_instruction a
     a'_entry     <- get_entry_of_instruction a' 
 
-    if not isCall && a'_entry /= Nothing && a'_entry /= Just a_entry then do
+    if not isInternalCall && a'_entry /= Nothing && a'_entry /= Just a_entry then do
       -- A function entry is explored without calling it
       if (a'_entry /= Just (cast_address_to_entry a')) then do
         xDebug 0 $ "Normal control flow leading to within another function: "  ++ show a ++ " within function " ++ show a_entry ++ " leads to " ++ show a' ++ " inlined in function " ++ show (fromJust a'_entry)
@@ -342,6 +343,11 @@ explore_normal_addresses a as = do
     else do
       add_next_address a a'
 
+  isInternalCall i = do
+    nxt <- next_rips i
+    case nxt of
+      NxtInternalCall trgt -> return True
+      _ -> return False
 
 
 

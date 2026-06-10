@@ -18,7 +18,6 @@ import Data.SymbolicExpression
 import Data.X86.Register
 
 import Algorithm.Graph
-import Algorithm.SCC
 import qualified Data.Tree as T
 import qualified Data.Tree.View as TV
 
@@ -37,7 +36,6 @@ import qualified Data.Set as S
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 
-import GHC.Float.RealFracMethods (floorDoubleInt,int2Double)
 
 import Control.Monad.State.Strict
 import Control.Monad.Reader
@@ -84,19 +82,13 @@ cfg_remove_block blockID cfg =
       cfg0     = delete_node blockID cfg in
     foldl' add_new_edge cfg0 prod
  where
+  -- insert edge from parent to child
   add_new_edge (ControlFlowGraph blocks edges srcs leaks comp) (parent,child) = ControlFlowGraph blocks (xgraph_add_edge edges parent child) srcs leaks comp
-
-
+  -- delete node and all its connected edges
   delete_node blockID (ControlFlowGraph blocks edges srcs leaks comp) = ControlFlowGraph (IM.delete blockID blocks) (xgraph_delete_node blockID edges) (IS.delete blockID srcs) leaks comp
 
 
 
-type XLifted bin = ReaderT (bin,Config,LiftedRepresentationUnstructured,IM.IntMap ControlFlowGraph) IO
-
-withLR :: XLifting bin a -> XLifted bin a
-withLR m = do
-  (bin,config,lr,cfgs) <- ask
-  lift $ runReaderT (evalStateT m lr) (bin,config)
 
 
 
@@ -140,7 +132,7 @@ lr_make_function_blocks entry = do
       Just t -> do
         lps     <- IS.fromList <$> filterM (is_source_from_entry False) (IS.toList $ get_landing_pads_from_gcc_except_table t)
         starts  <- IS.fromList <$> filterM (is_source_from_entry True)  (IS.toList $ get_callsite_region_starts_from_gcc_except_table t)
-        ends    <- IS.fromList <$> filterM (is_source_from_entry True) (IS.toList $ get_callsite_region_ends_from_gcc_except_table t)
+        ends    <- IS.fromList <$> filterM (is_source_from_entry True)  (IS.toList $ get_callsite_region_ends_from_gcc_except_table t)
         let as = xgraph_all_parents $ current_inlining lr
         inlines <- IS.fromList <$> (filterM (is_source_from_entry True) $ IS.toList as)
         return $ (lps,IS.unions [lps,starts,ends,inlines],Just t)
@@ -189,7 +181,6 @@ lr_make_function_cfg comp blocks sources = do
     (new_entries,children) <- withLR $ get_next_collapsed_calls comp $ InstructionAddress $ fromIntegral $ inAddress $ last block
     if any (\child -> not $ (toInt child) `IM.member` blocks) children then do
       withLR $ xtoLog $ "Should not happen: " ++ showHex a ++ " --> " ++ show block ++ " --> " ++ show children ++ " in component " ++ show comp
-      -- TODO happens in boost
       return (g,leaks)
     else do
       leaking_jmp <- is_jump_to_new_entry $ last block
@@ -288,10 +279,9 @@ lr_make_functions = do
       -- The leaking, but don't leak to landing pads or region starts from other entries
       let new_entries  = IS.delete entry $ IS.fromList $ map toInt $ S.toList entries'
       (bin,_,_,_) <- ask
-      let new_entries' = IS.difference new_entries (all_eh_frame_address bin)
+      --let new_entries' = IS.difference new_entries (all_eh_frame_address bin)
       --let new_entries' = IS.filter (not . is_covered bin) new_entries 
-
-      modify (\(g,all_blocks) -> (xgraph_add_edges g entry new_entries',IM.insert entry (blocks,srcs) all_blocks))
+      modify (\(g,all_blocks) -> (xgraph_add_edges g entry new_entries,IM.insert entry (blocks,srcs) all_blocks))
       get_blocks rest
 
   all_eh_frame_address bin = IS.union (IS.fromList $ map fromIntegral $ get_all_function_entries bin) (IS.fromList $ map snd $ get_all_landing_pads bin ++ get_all_region_starts bin)
@@ -306,74 +296,6 @@ cast_intset_to_entries = S.fromList . map FunctionEntry . IS.toList
 
 
 
-
-
--- TODO move to OutputGeneration
--- | Export a CFG to .dot file
---
--- Strongly connected components get the same color.
-cfg_to_dot ::
-  BinaryClass bin => bin -> ControlFlowGraph -> String
-cfg_to_dot bin g =
- let name = mk_safe $ binary_file_name bin
-     sccs = all_sccs g IS.empty in
-  "diGraph " ++ name ++ "{\n"
-  ++ intercalate "\n" (map (node_to_dot g sccs) $ IM.keys $ cfg_basic_blocks g)
-  ++ "\n\n"
-  ++ intercalate "\n" (map edge_to_dot' $ IM.toList $ xgraph_all_edges $ cfg_edges g)
-  ++ "\n}"
- where
-  node_to_dot g sccs blockId =
-    let bgcolor = hex_color_of blockId sccs
-        fgcolor = hex_color_of_text bgcolor in
-       "\t" 
-    ++ mk_node blockId
-    ++ "  ["
-    ++ "style=filled fillcolor=\"" ++ bgcolor ++ "\" fontcolor=\"" ++ fgcolor ++ "\" shape=" ++ node_shape blockId ++ " "
-    ++ "label=\""
-    ++ show_block g blockId
-    ++ "\"]"
-
-  edge_to_dot' (blockId, blockIds) = intercalate "\n" $ map (edge_to_dot'' blockId) $ IS.toList blockIds
-
-  edge_to_dot'' blockId blockId' = "\t" ++ mk_node blockId ++ " -> " ++ mk_node blockId'
-
-  mk_node v = mk_safe $ binary_file_name bin ++ "_" ++ showHex v
-
-  node_shape _ =  "oval" {-- TODO
-  node_shape (ReturnsWith _) blockId = "oval"
-  node_shape (Terminates) blockId = "terminator"
-  node_shape (TimeOut) blockId = "invtriangle"
-  node_shape (HasUnresolvedIndirections blockIDs) blockId 
-    | blockId `elem` blockIDs = "box3d"
-    | otherwise = "oval"
-  node_shape (VerificationError errors) blockId 
-    | blockId `elem` map fst errors = "invtriangle"
-    | otherwise = "oval"--}
-    
-
-  mk_safe str = "_" ++ str
-
-
-hex_color_of vertex sccs =
-  case findIndex (IS.member vertex) sccs of
-    Just n -> hex_colors !! (126 - (floorDoubleInt $ 127 * int2Double n / int2Double (length sccs)))
-    Nothing -> "#FFFFFF"
-
-
-
--- | Shows the block associated to the givern blockID.
-show_block ::
-  ControlFlowGraph -- ^ The CFG
-  -> Int -- ^ The blockID
-  -> String
-show_block g b =
-  let instrs = cfg_basic_blocks g IM.! b in
-       showHex b ++ " ["
-    ++ showHex (inAddress $ head instrs)
-    ++ ","
-    ++ showHex (inAddress $ last instrs)
-    ++ "]"
 
 
 

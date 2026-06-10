@@ -16,10 +16,9 @@ import OutputGeneration.ECFG
 import OutputGeneration.LRToELLF 
 import OutputGeneration.Metrics
 import OutputGeneration.CallGraph
+import OutputGeneration.CFG
 import InputLifting.Types
 import InputLifting.Lift
-import InputLifting.Types
-import InputLifting.ControlFlowGraph
 
 import Data.CFG
 import Data.SValue

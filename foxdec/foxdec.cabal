@@ -61,6 +61,7 @@ library
       InputLifting.SymbolicExecution
       InputLifting.Types
       OutputGeneration.CallGraph
+      OutputGeneration.CFG
       OutputGeneration.ECFG
       OutputGeneration.ELLF
       OutputGeneration.LRToELLF

@@ -125,6 +125,17 @@ init_lr = LiftedRepresentationUnstructured mempty mempty (XEdges mempty mempty) 
 -- The algorithm does IO, reads from the given binary and config file, and maintains as state the information in the struct above.
 type XLifting bin = StateT LiftedRepresentationUnstructured (ReaderT (bin,Config) IO)
 
+-- After lifting, the algorithm does IO, reads from the lifted representation, the egenrated CFGs, the original binary and config file
+type XLifted bin = ReaderT (bin,Config,LiftedRepresentationUnstructured,IM.IntMap ControlFlowGraph) IO
+
+withLR :: XLifting bin a -> XLifted bin a
+withLR m = do
+  (bin,config,lr,cfgs) <- ask
+  lift $ runReaderT (evalStateT m lr) (bin,config)
+
+
+
+
 xtoLog msg = liftIO $ putStrLn msg
 xDebug 0 msg = return () -- liftIO $ putStrLn msg
 xDebug 1 msg = return () -- liftIO $ putStrLn msg
